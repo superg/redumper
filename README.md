@@ -6,10 +6,15 @@ A fresh take on a CD dumper utility. The main goals are to develop a portable, b
 
 ## General
 The dumper operates using modes. The current modes are "dump", "protection", "refine", "split" and "info" but for the convenience sake, the aggregate mode "cd" does it all in a row and covers most of the use cases.
+
 dump: Dumps cd and stores it in a set of files.
+
 protection: Scans dump for protections.
+
 refine: Improves the dump, tries to correct found SCSI/C2 errors and fill missing sectors based on a drive features, example: refining an initial LG/ASUS dump on PLEXTOR will add missing lead-in and possibly more lead-out sectors based on what originally was extracted from LG/ASUS cache. You can refine as many times as you want. You can refine the same disc on a different (but supported) drive. If you have two identical discs with different damage, you can refine from both (TOC has to be identical).
+
 split: Performs track split and generates a CUE-sheet, disc is not required at this point.
+
 info: Generates an info file with the specific information tailored for redump.org.
 
 Everything is being actively developed so modes / options may change, always use --help to see the latest information.

@@ -22,7 +22,6 @@ Options::Options(int argc, const char *argv[])
     , ring_size(1024)
     , iso9660_trim(false)
     , skip_leadin(false)
-    , cdi_ready(false)
 {
     for(int i = 0; i < argc; ++i)
     {
@@ -105,8 +104,6 @@ Options::Options(int argc, const char *argv[])
                     iso9660_trim = true;
                 else if(key == "--skip-leadin")
                     skip_leadin = true;
-                else if(key == "--cdi-ready")
-                    cdi_ready = true;
                 // unknown option
                 else
                 {
@@ -178,7 +175,6 @@ std::ostream &Options::PrintUsage(std::ostream &os)
     os << std::format("\t--ring-size=VALUE\trings mode, maximum ring size to stop subdivision (rings, default: {})", ring_size) << std::endl;
     os << "\t--iso9660-trim\ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC" << std::endl;
     os << "\t--skip-leadin\tskip extracting lead-in using PLEXTOR negative range" << std::endl;
-    os << "\t--cdi-ready\toffset calculation based on the first data track mastered as audio" << std::endl;
 
     return os;
 }

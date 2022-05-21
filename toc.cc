@@ -24,6 +24,7 @@ const char TOC::_ISRC_TABLE[] =
 
 
 TOC::TOC(const std::vector<uint8_t> &toc_buffer, bool full_toc)
+	: disc_type(DiscType::UNKNOWN)
 {
 	memset(&_q_empty, 0, sizeof(_q_empty));
 
@@ -35,6 +36,7 @@ TOC::TOC(const std::vector<uint8_t> &toc_buffer, bool full_toc)
 
 
 TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
+	: disc_type(DiscType::UNKNOWN)
 {
 	bool track_active = false;
 	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
@@ -76,7 +78,6 @@ TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 					t.lba_end = lba;
 					t.write_offset = 0;
 					t.data_mode = 0;
-					t.cdi = false;
 				}
 
 				Session::Track &t = s.tracks.back();
@@ -110,23 +111,16 @@ TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 			sessions.back().tracks.back().lba_end = lba + 1;
 	}
 
-	// set session boundaries and remove lead-out entries
+	// if pre-gap is missing a few first sectors (LG/ASUS for instance)
+	// extend it to the default size, it will be handled later during split
+	uint32_t pregap_count = sessions.front().tracks.front().lba_start - MSF_LBA_SHIFT;
 	for(auto &s : sessions)
-	{
-		// if pre-gap is missing a few first sectors (LG/ASUS for instance)
-		// extend it to the default size, it will be handled later during split
-		if(s.tracks.front().lba_start > lba_start)
-		{
-			uint32_t lba_index = s.tracks.front().lba_start - lba_start - 1;
+		s.tracks.front().lba_start -= pregap_count;
 
-			auto &Q = subq[lba_index];
-			if(!memcmp(&Q, &_q_empty, sizeof(_q_empty)))
-				s.tracks.front().lba_start = s.tracks.front().indices.front() + MSF_LBA_SHIFT;
-		}
-
+	// remove lead-out entries
+	for(auto &s : sessions)
 		if(s.tracks.back().track_number == 0xAA)
 			s.tracks.pop_back();
-	}
 }
 
 
@@ -148,8 +142,9 @@ void TOC::DeriveINDEX(const TOC &toc)
 }
 
 
-void TOC::DeriveControl(const TOC &toc)
+void TOC::Derive(const TOC &toc)
 {
+	disc_type = toc.disc_type;
 	for(auto &s : sessions)
 	{
 		for(auto &t : s.tracks)
@@ -196,26 +191,16 @@ void TOC::UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_star
 				}
 			}
 		}
-
-		// if pre-gap is missing a few first sectors (LG/ASUS for instance)
-		// extend it to the default size, it will be handled later during split
-		if(s.tracks.front().lba_start > lba_start)
-		{
-			uint32_t lba_index = s.tracks.front().lba_start - lba_start - 1;
-
-			auto &Q = subq[lba_index];
-			if(!memcmp(&Q, &_q_empty, sizeof(_q_empty)))
-				s.tracks.front().lba_start = s.tracks.front().indices.front() + MSF_LBA_SHIFT;
-		}
 	}
+
+	// if pre-gap is missing a few first sectors (LG/ASUS for instance)
+	// extend it to the default size, it will be handled later during split
+	uint32_t pregap_count = sessions.front().tracks.front().lba_start - MSF_LBA_SHIFT;
+	for(auto &s : sessions)
+		s.tracks.front().lba_start -= pregap_count;
 
 	for(auto &s : sessions)
 	{
-		for(int32_t i = -1; i <= MSF_LBA_SHIFT; --i)
-		{
-			int32_t lba = s.tracks.front().indices.front() + i;
-		}
-
 		for(uint32_t i = 0, n = (uint32_t)(s.tracks.size() - 1); i < n; ++i)
 		{
 			int32_t lba = s.tracks[i].indices.front();
@@ -269,7 +254,7 @@ void TOC::UpdateMCN(const ChannelQ *subq, uint32_t sectors_count)
 		{
 		case 1:
 			// tracks
-			if(Q.mode1.tno != 0 && Q.mode1.tno == 0xAA)
+			if(Q.mode1.tno != 0 || Q.mode1.tno == 0xAA)
 			{
 				uint8_t tno = bcd_decode(Q.mode1.tno);
 				if(tno < CD_TRACKS_COUNT && track_index + 1 < (int32_t)tracks.size() && tracks[track_index + 1]->track_number == tno)
@@ -533,6 +518,18 @@ std::ostream &TOC::Print(std::ostream &os, std::string indent, uint32_t indent_l
 
 	bool multisession = sessions.size() > 1;
 
+	// disc type
+	{
+		std::string disc_type_string("UNKNOWN");
+		if(disc_type == DiscType::CD_DA)
+			disc_type_string = "CD-DA / CD-DATA";
+		else if(disc_type == DiscType::CD_I)
+			disc_type_string = "CD-I";
+		else if(disc_type == DiscType::CD_XA)
+			disc_type_string = "CD-XA";
+		print_multiple(os, indent, indent_level) << std::format("disc type: {}", disc_type_string) << std::endl;
+	}
+
 	for(auto const &s : sessions)
 	{
 		if(multisession)
@@ -640,7 +637,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)
 			{
 				std::string track_mode;
-				if(t.cdi)
+				if(disc_type == DiscType::CD_I)
 					track_mode = "CDI";
 				else
 					track_mode = std::format("MODE{}", t.data_mode);
@@ -705,13 +702,17 @@ void TOC::InitTOC(const std::vector<uint8_t> &toc_buffer)
 			auto &t = tracks[d.TrackNumber];
 
 			t.track_number = d.TrackNumber;
+
+			// [CDI] Op Jacht naar Vernuft (Netherlands)
+			// make sure there are no duplicate entries, always use the latest one
+			t.indices.clear();
+
 			t.indices.push_back(lba);
 			t.control = d.Control;
 			t.lba_start = lba;
 			t.lba_end = lba;
 			t.write_offset = 0;
 			t.data_mode = 0;
-			t.cdi = false;
 		}
 	}
 
@@ -721,11 +722,9 @@ void TOC::InitTOC(const std::vector<uint8_t> &toc_buffer)
 	for(auto const &t : tracks)
 		s.tracks.push_back(t.second);
 
-	// set session boundaries and remove lead-out entries
+	// remove lead-out entries
 	for(auto &s : sessions)
 	{
-//		s.tracks.front().lba_start = s.tracks.front().indices.front() + MSF_LBA_SHIFT;
-
 		if(s.tracks.back().track_number == 0xAA)
 		{
 			int32_t lba_end = s.tracks.back().indices.front();
@@ -753,8 +752,12 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 		{
 			switch(d.Point)
 			{
-				// first track and last track definitions
+			// first track
 			case 0xA0:
+				disc_type = (DiscType)d.Msf[1];
+				break;
+
+			// last track
 			case 0xA1:
 				break;
 
@@ -765,13 +768,15 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 
 					auto &t = tracks[d.SessionNumber][d.Point];
 
+					// make sure there are no duplicate entries, always use the latest one
+					t.indices.clear();
+
 					t.indices.push_back(lba);
 					t.control = d.Control;
 					t.lba_start = lba;
 					t.lba_end = lba;
 					t.write_offset = 0;
 					t.data_mode = 0;
-					t.cdi = false;
 				}
 			}
 		}
@@ -797,11 +802,9 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 		sessions.push_back(s);
 	}
 
-	// set session boundaries and remove lead-out entries
+	// remove lead-out entries
 	for(auto &s : sessions)
 	{
-//		s.tracks.front().lba_start = s.tracks.front().indices.front() + MSF_LBA_SHIFT;
-
 		if(s.tracks.back().track_number == 0xA2)
 		{
 			int32_t lba_end = s.tracks.back().indices.front();

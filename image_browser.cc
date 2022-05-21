@@ -81,7 +81,7 @@ bool ImageBrowser::IsDataTrack(const std::filesystem::path &track)
 }
 
 
-ImageBrowser::ImageBrowser(const std::filesystem::path &data_track, uint32_t file_offset, bool scrambled)
+ImageBrowser::ImageBrowser(const std::filesystem::path &data_track, uint64_t file_offset, bool scrambled)
     : _fsProxy(data_track, std::fstream::in | std::fstream::binary)
     , _fs(_fsProxy)
     , _fileOffset(file_offset)
@@ -91,7 +91,7 @@ ImageBrowser::ImageBrowser(const std::filesystem::path &data_track, uint32_t fil
 }
 
 
-ImageBrowser::ImageBrowser(std::fstream &fs, uint32_t file_offset, bool scrambled)
+ImageBrowser::ImageBrowser(std::fstream &fs, uint64_t file_offset, bool scrambled)
     : _fs(fs)
     , _fileOffset(file_offset)
     , _scrambled(scrambled)
@@ -119,7 +119,7 @@ void ImageBrowser::Init()
 
     if(_scrambled)
         scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector);
-    _trackOffset = BCDMSF_to_LBA(sector.header.address);
+    _trackLBA = BCDMSF_to_LBA(sector.header.address);
 
 	// skip system area
 	_fs.seekg(_fileOffset + iso9660::SYSTEM_AREA_SIZE * sizeof(Sector));
@@ -314,7 +314,7 @@ time_t ImageBrowser::Entry::DateTime() const
 
 bool ImageBrowser::Entry::IsDummy() const
 {
-    uint32_t offset = _directory_record.offset.lsb - _browser._trackOffset;
+    uint32_t offset = _directory_record.offset.lsb - _browser._trackLBA;
     return offset + SectorSize() >= _browser._trackSize || offset >= _browser._trackSize;
 }
 
@@ -327,7 +327,7 @@ bool ImageBrowser::Entry::IsInterleaved() const
 
     static const uint32_t SECTORS_TO_ANALYZE = 8 * 4;
 
-    uint32_t offset = _directory_record.offset.lsb - _browser._trackOffset;
+    uint32_t offset = _directory_record.offset.lsb - _browser._trackLBA;
     _browser._fs.seekg(_browser._fileOffset + offset * sizeof(Sector));
 
     if(_browser._fs.fail())
@@ -385,7 +385,7 @@ std::vector<uint8_t> ImageBrowser::Entry::Read(bool form2, bool throw_on_error)
     uint32_t size = _directory_record.data_length.lsb;
     data.reserve(size);
 
-    uint32_t offset = _directory_record.offset.lsb - _browser._trackOffset;
+    uint32_t offset = _directory_record.offset.lsb - _browser._trackLBA;
     _browser._fs.seekg(_browser._fileOffset + offset * sizeof(Sector));
 
     if(_browser._fs.fail())

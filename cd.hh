@@ -183,7 +183,4 @@ constexpr MSF LBA_to_BCDMSF(int32_t lba)
 	return bcdmsf;
 }
 
-
-bool is_unscrambled_data_sector(const uint8_t *sector, int32_t lba);
-
 }

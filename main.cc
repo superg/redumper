@@ -17,6 +17,8 @@ int main(int argc, char *argv[])
 
 		gpsxre::Options options(argc, const_cast<const char **>(argv));
 
+		std::cout << std::format("command: {}", options.command) << std::endl << std::endl;
+
 		if(options.help)
 			options.PrintUsage(std::cout);
 		else

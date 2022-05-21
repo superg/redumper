@@ -56,8 +56,8 @@ public:
 
 	static bool IsDataTrack(const std::filesystem::path &track);
 
-	ImageBrowser(const std::filesystem::path &data_track, uint32_t file_offset, bool scrambled);
-	ImageBrowser(std::fstream &fs, uint32_t file_offset, bool scrambled);
+	ImageBrowser(const std::filesystem::path &data_track, uint64_t file_offset, bool scrambled);
+	ImageBrowser(std::fstream &fs, uint64_t file_offset, bool scrambled);
 
 	std::shared_ptr<Entry> RootDirectory();
 
@@ -98,7 +98,7 @@ private:
 	uint64_t _fileOffset;
 	bool _scrambled;
 	iso9660::VolumeDescriptor _pvd;
-	uint32_t _trackOffset;
+	uint32_t _trackLBA;
 	uint32_t _trackSize;
 
 	void Init();

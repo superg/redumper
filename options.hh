@@ -40,7 +40,6 @@ struct Options
     int ring_size;
     bool iso9660_trim;
     bool skip_leadin;
-    bool cdi_ready;
 
     Options(int argc, const char *argv[]);
 

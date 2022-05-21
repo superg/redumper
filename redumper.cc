@@ -239,6 +239,8 @@ bool redumper_dump(const Options &options, bool refine)
 			// prefer TOC for single session discs and FULL TOC for multisession discs
 			if(toc_full.sessions.size() > 1)
 				toc = toc_full;
+			else
+				toc.disc_type = toc_full.disc_type;
 		}
 
 		if(!refine)
@@ -256,7 +258,6 @@ bool redumper_dump(const Options &options, bool refine)
 			// fake TOC
 			// [PSX] Breaker Pro
 			if(toc.sessions.back().tracks.back().lba_end < 0)
-//			if(toc.sessions.back().tracks.back().indices.front() >= toc.sessions.back().tracks.back().lba_end)
 				std::cout << std::format("warning: fake TOC detected, using default 74min disc size") << std::endl;
 			else
 				lba_end = toc.sessions.back().tracks.back().lba_end;
@@ -280,13 +281,6 @@ bool redumper_dump(const Options &options, bool refine)
 			std::vector<uint8_t> toc_buffer_file = read_vector(toc_path);
 			if(toc_buffer != toc_buffer_file)
 				throw_line("disc / file TOC don't match, refining from a different disc?");
-
-			if(!full_toc_buffer.empty() && std::filesystem::exists(fulltoc_path))
-			{
-				std::vector<uint8_t> full_toc_buffer_file = read_vector(fulltoc_path);
-				if(full_toc_buffer != full_toc_buffer_file)
-					throw_line("disc / file FULL TOC don't match, refining from a different disc?");
-			}
 		}
 		// store TOC
 		else
@@ -913,25 +907,27 @@ void redumper_subchannel(const Options &options)
 
 void redumper_debug(const Options &options)
 {
-/*
+	std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
+	std::filesystem::path state_path(image_prefix + ".state");
+	std::filesystem::path cache_path(image_prefix + ".asus");
+
 	//DEBUG: LG/ASUS cache dump read
 	{
-		std::vector<uint8_t> cache = read_vector("lightspan_noleadout/dump_220401_210122_F.asus ");
+		std::vector<uint8_t> cache = read_vector(cache_path);
 
 		asus_cache_print_subq(cache);
 
 //		auto asd = asus_cache_unroll(cache);
 //		auto asd = asus_cache_extract(cache, 128224, 0);
-		auto asd = asus_cache_extract(cache, 156097, 100);
+//		auto asd = asus_cache_extract(cache, 156097, 100);
 
 		std::cout << "";
 	}
-*/
+
 
 	//DEBUG: convert old state file to new state file
+	if(0)
 	{
-		std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
-		std::filesystem::path state_path(image_prefix + ".state");
 		std::fstream fs_state(state_path, std::fstream::out | std::fstream::in | std::fstream::binary);
 		uint64_t states_count = std::filesystem::file_size(state_path) / sizeof(State);
 		std::vector<State> states(states_count);
@@ -952,6 +948,8 @@ void redumper_debug(const Options &options)
 		fs_state.seekp(0);
 		fs_state.write((char *)states.data(), states.size() * sizeof(State));
 	}
+
+	std::cout << "";
 }
 
 

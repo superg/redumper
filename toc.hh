@@ -16,6 +16,15 @@ namespace gpsxre
 
 struct TOC
 {
+	enum class DiscType : uint8_t
+	{
+		CD_DA = 0x00,
+		CD_I  = 0x10,
+		CD_XA = 0x20,
+
+		UNKNOWN = 0xFF
+	};
+
 	struct CDText
 	{
 		std::string title;
@@ -44,11 +53,12 @@ struct TOC
 
 			// supplemental
 			int32_t write_offset;
-			bool cdi;
 			uint8_t data_mode;
 		};
 		std::vector<Track> tracks;
 	};
+
+	DiscType disc_type;
 	std::vector<Session> sessions;
 
 	// supplemental
@@ -60,7 +70,7 @@ struct TOC
 	TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start);
 
 	void DeriveINDEX(const TOC &toc);
-	void DeriveControl(const TOC &toc);
+	void Derive(const TOC &toc);
 	void UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start);
 	void UpdateMCN(const ChannelQ *subq, uint32_t sectors_count);
 	bool UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer);

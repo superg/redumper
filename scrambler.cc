@@ -13,30 +13,22 @@ Scrambler::Scrambler()
 }
 
 
-bool Scrambler::IsScrambled(uint8_t *sector) const
+bool Scrambler::Unscramble(uint8_t *sector, int32_t lba) const
 {
-	// sync exists
-	if(!memcmp(sector, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
-		return true;
+	uint32_t score_before = Score(sector);
+	Process(sector, sector);
 
+	bool unscrambled = BCDMSF_to_LBA(((Sector *)sector)->header.address) == lba;
+	if(!unscrambled)
+	{
+		uint32_t score_after = Score(sector);
+		if(score_after > score_before)
+			unscrambled = true;
+		else
+			Process(sector, sector);
+	}
 
-
-	return false;
-}
-
-
-bool Scrambler::Unscramble(uint8_t *sector_unscrambled, const uint8_t *sector, int32_t lba) const
-{
-	Process(sector_unscrambled, sector);
-
-	return is_unscrambled_data_sector(sector_unscrambled, lba);
-}
-
-
-void Scrambler::Process(uint8_t *sector_unscrambled, const uint8_t *sector) const
-{
-	for(uint32_t i = 0; i < CD_DATA_SIZE; ++i)
-		sector_unscrambled[i] = sector[i] ^ _table[i];
+	return unscrambled;
 }
 
 
@@ -62,6 +54,25 @@ void Scrambler::GenerateTable()
 			shift_register = ((uint16_t)carry << 15 | shift_register) >> 1;
 		}
 	}
+}
+
+
+uint32_t Scrambler::Score(const uint8_t *sector) const
+{
+	uint32_t score = 0;
+
+	for(uint16_t i = sizeof(CD_DATA_SYNC); i < CD_DATA_SIZE - 1; ++i)
+		if(sector[i] == sector[i + 1])
+			++score;
+
+	return score;
+}
+
+
+void Scrambler::Process(uint8_t *sector_out, const uint8_t *sector_in) const
+{
+	for(uint32_t i = 0; i < CD_DATA_SIZE; ++i)
+		sector_out[i] = sector_in[i] ^ _table[i];
 }
 
 }

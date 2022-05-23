@@ -52,7 +52,6 @@ struct TOC
 			std::vector<CDText> cd_text;
 
 			// supplemental
-			int32_t write_offset;
 			uint8_t data_mode;
 		};
 		std::vector<Track> tracks;

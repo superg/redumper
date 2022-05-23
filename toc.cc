@@ -76,7 +76,6 @@ TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 					t.control = Q.control_adr >> 4;
 					t.lba_start = lba;
 					t.lba_end = lba;
-					t.write_offset = 0;
 					t.data_mode = 0;
 				}
 
@@ -711,7 +710,6 @@ void TOC::InitTOC(const std::vector<uint8_t> &toc_buffer)
 			t.control = d.Control;
 			t.lba_start = lba;
 			t.lba_end = lba;
-			t.write_offset = 0;
 			t.data_mode = 0;
 		}
 	}
@@ -775,7 +773,6 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 					t.control = d.Control;
 					t.lba_start = lba;
 					t.lba_end = lba;
-					t.write_offset = 0;
 					t.data_mode = 0;
 				}
 			}

@@ -69,9 +69,9 @@ uint32_t Scrambler::Score(const uint8_t *sector) const
 }
 
 
-void Scrambler::Process(uint8_t *sector_out, const uint8_t *sector_in) const
+void Scrambler::Process(uint8_t *sector_out, const uint8_t *sector_in, uint32_t size) const
 {
-	for(uint32_t i = 0; i < CD_DATA_SIZE; ++i)
+	for(uint32_t i = 0; i < size; ++i)
 		sector_out[i] = sector_in[i] ^ _table[i];
 }
 

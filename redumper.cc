@@ -574,7 +574,7 @@ bool redumper_dump(const Options &options, bool refine)
 				std::vector<State> sector_state_file(SECTOR_STATE_SIZE);
 				std::vector<uint8_t> sector_data_file(CD_DATA_SIZE);
 				read_entry(fs_state, (uint8_t *)sector_state_file.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_info.read_offset, (uint8_t)State::ERROR_SKIP);
-				read_entry(fs_scm, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, drive_info.read_offset * 2 * sizeof(int16_t), 0);
+				read_entry(fs_scm, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, drive_info.read_offset * CD_SAMPLE_SIZE, 0);
 
 				bool sector_fixed = true;
 				bool update = false;
@@ -597,7 +597,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 				if(update)
 				{
-					write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_info.read_offset * 2 * sizeof(int16_t));
+					write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_info.read_offset * CD_SAMPLE_SIZE);
 					write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_info.read_offset);
 
 					if(sector_fixed && inside_range(lba, error_ranges) == nullptr)
@@ -622,7 +622,7 @@ bool redumper_dump(const Options &options, bool refine)
 			}
 			else
 			{
-				write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_info.read_offset * 2 * sizeof(int16_t));
+				write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_info.read_offset * CD_SAMPLE_SIZE);
 				write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
 				write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_info.read_offset);
 
@@ -1181,7 +1181,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 						uint8_t *sector_data = entry + sizeof(SPTD::Status);
 						std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
 
-						write_entry(fs_scm, sector_data, CD_DATA_SIZE, lba_index, 1, read_offset * 2 * sizeof(int16_t));
+						write_entry(fs_scm, sector_data, CD_DATA_SIZE, lba_index, 1, read_offset * CD_SAMPLE_SIZE);
 						write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, read_offset);
 
 						break;
@@ -1207,7 +1207,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 
 void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int32_t lba_start, int32_t drive_read_offset)
 {
-	uint32_t scm_offset = lba_index * CD_DATA_SIZE - drive_read_offset * 2 * sizeof(int16_t);
+	uint32_t scm_offset = lba_index * CD_DATA_SIZE - drive_read_offset * CD_SAMPLE_SIZE;
 	uint32_t state_offset = lba_index * SECTOR_STATE_SIZE - drive_read_offset;
 
 	std::cout << std::endl << std::format("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: ", (int32_t)lba_index + lba_start, scm_offset, state_offset);

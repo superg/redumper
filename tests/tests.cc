@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 {
 	int success = 0;
 
-	success |= (int)test_cd();
+	success |= (int)!test_cd();
 	
 	return success;
 }

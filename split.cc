@@ -171,7 +171,7 @@ int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &s
 				scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector);
 				int32_t sector_lba = BCDMSF_to_LBA(sector.header.address);
 
-				write_offset = ((int32_t)sector_offset - (sector_lba - lba) * (int32_t)CD_DATA_SIZE) / (sizeof(int16_t) * 2);
+				write_offset = ((int32_t)sector_offset - (sector_lba - lba) * (int32_t)CD_DATA_SIZE) / (int32_t)CD_SAMPLE_SIZE;
 				break;
 			}
 		}
@@ -192,10 +192,10 @@ int32_t track_process_offset_shift(int32_t write_offset, int32_t lba, uint32_t c
 			return write_offset_next;
 
 	std::vector<uint8_t> data(count * CD_DATA_SIZE);
-	read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba - LBA_START, count, -write_offset * 2 * sizeof(int16_t), 0);
+	read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba - LBA_START, count, -write_offset * CD_SAMPLE_SIZE, 0);
 
 	uint32_t sector_shift = 0;
-	for(uint32_t i = 0; i < data.size() - sizeof(CD_DATA_SYNC); i += 2 * sizeof(int16_t))
+	for(uint32_t i = 0; i < data.size() - sizeof(CD_DATA_SYNC); i += CD_SAMPLE_SIZE)
 	{
 		if(!memcmp(&data[i], CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
 		{
@@ -227,7 +227,7 @@ int32_t track_process_offset_shift(int32_t write_offset, int32_t lba, uint32_t c
 					fs.write((char *)data.data(), sector_offset);
 				}
 
-				write_offset_next = write_offset + sector_offset / (2 * sizeof(int16_t));
+				write_offset_next = write_offset + sector_offset / (int32_t)CD_SAMPLE_SIZE;
 				break;
 			}
 		}
@@ -246,7 +246,7 @@ uint32_t track_sync_count(int32_t lba_start, int32_t lba_end, int32_t write_offs
 	{
 		uint32_t lba_index = lba - LBA_START;
 
-		read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * 2 * sizeof(int16_t), 0);
+		read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * CD_SAMPLE_SIZE, 0);
 		if(!memcmp(data.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
 			++sectors_count;
 	}
@@ -381,7 +381,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 			//FIXME: omit iso9660 volume size if the filesystem is different
 
-			uint32_t track_length = options.iso9660_trim && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty() ? iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * sizeof(int16_t) * 2) : t.lba_end - t.lba_start;
+			uint32_t track_length = options.iso9660_trim && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty() ? iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE) : t.lba_end - t.lba_start;
 			for(int32_t lba = t.lba_start; lba < t.lba_start + (int32_t)track_length; ++lba)
 			{
 				if(inside_range(lba, skip_ranges) != nullptr)
@@ -471,7 +471,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 
 			int32_t lba_end = t.lba_end;
 			if(options.iso9660_trim && data_track && !t.indices.empty())
-				lba_end = t.lba_start + iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * sizeof(int16_t) * 2);
+				lba_end = t.lba_start + iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE);
 
 			for(int32_t lba = t.lba_start; lba < lba_end;)
 			{
@@ -514,7 +514,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 				}
 				else
 				{
-					read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * 2 * sizeof(int16_t), 0);
+					read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * CD_SAMPLE_SIZE, 0);
 
 					// data: might need unscramble
 					if(data_track)
@@ -685,7 +685,7 @@ void redumper_protection(Options &options)
 				{
 					std::string protected_filename;
 					{
-						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * sizeof(int16_t) * 2, true);
+						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, true);
 						auto root_dir = browser.RootDirectory();
 
 						// protection file exists
@@ -967,7 +967,7 @@ void redumper_split(const Options &options)
 
 			int32_t lba = t.indices.empty() ? t.lba_start : t.indices.front();
 			Sector sector;
-			read_entry(scm_fs, (uint8_t *)&sector, CD_DATA_SIZE, lba - LBA_START, 1, -write_offset * 2 * sizeof(int16_t), 0);
+			read_entry(scm_fs, (uint8_t *)&sector, CD_DATA_SIZE, lba - LBA_START, 1, -write_offset * CD_SAMPLE_SIZE, 0);
 
 			Scrambler scrambler;
 			scrambler.Unscramble((uint8_t *)&sector, lba);
@@ -990,7 +990,7 @@ void redumper_split(const Options &options)
 		{
 			uint32_t lba_index = t.lba_start - LBA_START;
 			std::vector<uint32_t> data_samples((t.indices.front() - t.lba_start) * SECTOR_STATE_SIZE);
-			read_entry(scm_fs, (uint8_t *)data_samples.data(), CD_DATA_SIZE, lba_index, t.indices.front() - t.lba_start, -write_offset * 2 * sizeof(int16_t), 0);
+			read_entry(scm_fs, (uint8_t *)data_samples.data(), CD_DATA_SIZE, lba_index, t.indices.front() - t.lba_start, -write_offset * CD_SAMPLE_SIZE, 0);
 
 			std::vector<State> state((t.indices.front() - t.lba_start) * SECTOR_STATE_SIZE);
 			read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, lba_index, t.indices.front() - t.lba_start, -write_offset, (uint8_t)State::ERROR_SKIP);

@@ -37,7 +37,7 @@ static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
 //static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
 #define OMIT_LEADIN_AND_CACHE
 #endif
-static constexpr uint32_t SECTOR_STATE_SIZE = CD_DATA_SIZE / (sizeof(int16_t) * 2);
+static constexpr uint32_t SECTOR_STATE_SIZE = CD_DATA_SIZE / CD_SAMPLE_SIZE;
 
 
 enum class State : uint8_t

@@ -236,6 +236,7 @@ int32_t track_process_offset_shift(int32_t write_offset, int32_t lba, uint32_t c
 	return write_offset_next;
 }
 
+
 uint32_t track_sync_count(int32_t lba_start, int32_t lba_end, int32_t write_offset, std::fstream &scm_fs)
 {
 	uint32_t sectors_count = 0;
@@ -473,44 +474,39 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 			if(options.iso9660_trim && data_track && !t.indices.empty())
 				lba_end = t.lba_start + iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE);
 
-			for(int32_t lba = t.lba_start; lba < lba_end;)
+			for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
 			{
-				bool advance = true;
-
 				uint32_t lba_index = lba - lba_start;
 
-				bool skip_sector = false;
-				if(!options.force_split)
+				bool generate_sector = false;
+				if(!options.leave_unchanged)
 				{
 					read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, lba_index, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 					for(auto const &s : state)
 					{
 						if(s == State::ERROR_SKIP || s == State::ERROR_C2)
 						{
-							skip_sector = true;
+							generate_sector = true;
 							break;
 						}
 					}
 				}
 
-				if(skip_sector)
+				// generate sector and fill it with fill byte (default: 0x55)
+				if(generate_sector)
 				{
-					// data: generate sector header and fill user data with 0x55
+					// data
 					if(data_track)
 					{
-						uint8_t fill_byte = 0x55;
-						if(options.zero_error_sectors && inside_range(lba, skip_ranges) == nullptr)
-							fill_byte = 0x00;
-
 						Sector &s = *(Sector *)sector.data();
 						memcpy(s.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
 						s.header.address = LBA_to_BCDMSF(lba);
 						s.header.mode = t.data_mode;
-						memset(s.mode2.user_data, fill_byte, sizeof(s.mode2.user_data));
+						memset(s.mode2.user_data, options.skip_fill, sizeof(s.mode2.user_data));
 					}
-					// audio: fill whole sector with zeroes
+					// audio
 					else
-						memset(sector.data(), 0x00, sector.size());
+						memset(sector.data(), options.skip_fill, sector.size());
 				}
 				else
 				{
@@ -519,20 +515,25 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 					// data: might need unscramble
 					if(data_track)
 					{
-						// unexpected data in sync
-						if(memcmp(sector.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC))/* && memcmp(sector.data(), CDI_EMPTY_SYNC, sizeof(CDI_EMPTY_SYNC))*/)
+						bool standard_sync = !memcmp(sector.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
+						
+						if(options.cdi_correct_offset)
 						{
-							int32_t write_offset_next = track_process_offset_shift(write_offset, lba, std::min(CDI_MAX_OFFSET_SHIFT, (uint32_t)(lba_end - lba)),
-																				   state_fs, scm_fs, std::filesystem::canonical(options.image_path) / track_name);
-							if(write_offset_next != std::numeric_limits<int32_t>::max() && write_offset_next != write_offset)
+							if(!standard_sync)
 							{
-								std::cout << std::endl << std::format("warning: offset shift detected (LBA: {:6}, difference: {:+})", lba, write_offset_next - write_offset) << std::endl;
-								write_offset = write_offset_next;
-								advance = false;
+								int32_t write_offset_next = track_process_offset_shift(write_offset, lba, std::min(CDI_MAX_OFFSET_SHIFT, (uint32_t)(lba_end - lba)),
+																						state_fs, scm_fs, std::filesystem::canonical(options.image_path) / track_name);
+								if(write_offset_next != std::numeric_limits<int32_t>::max() && write_offset_next != write_offset)
+								{
+									std::cout << std::endl << std::format("warning: offset shift detected (LBA: {:6}, offset: {}, difference: {:+})", lba, write_offset_next, write_offset_next - write_offset) << std::endl;
+									write_offset = write_offset_next;
+									read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * CD_SAMPLE_SIZE, 0);
+									standard_sync = true;
+								}
 							}
 						}
 
-						if(advance)
+						if(standard_sync || !memcmp(sector.data(), CDI_EMPTY_SYNC, sizeof(CDI_EMPTY_SYNC)))
 						{
 							bool unscrambled = scrambler.Unscramble(sector.data(), lba);
 
@@ -545,23 +546,18 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 					}
 				}
 
-				if(advance)
+				crc = crc32(sector.data(), sizeof(Sector), crc);
+				bh_md5.Update(sector.data(), sizeof(Sector));
+				bh_sha1.Update(sector.data(), sizeof(Sector));
+				if(data_track)
 				{
-					crc = crc32(sector.data(), sizeof(Sector), crc);
-					bh_md5.Update(sector.data(), sizeof(Sector));
-					bh_sha1.Update(sector.data(), sizeof(Sector));
-					if(data_track)
-					{
-						Sector s = *(Sector *)sector.data();
-						edc_ecc_check(track_entry, s);
-					}
-
-					fs_bin.write((char *)sector.data(), sector.size());
-					if(fs_bin.fail())
-						throw_line(std::format("write failed ({})", track_name));
-
-					++lba;
+					Sector s = *(Sector *)sector.data();
+					edc_ecc_check(track_entry, s);
 				}
+
+				fs_bin.write((char *)sector.data(), sector.size());
+				if(fs_bin.fail())
+					throw_line(std::format("write failed ({})", track_name));
 			}
 
 			track_entry.crc = crc32_final(crc);
@@ -907,11 +903,16 @@ void redumper_split(const Options &options)
 		toc.UpdateCDTEXT(cdtext_buffer);
 	}
 
-	//TODO: guess TOC disc_type by tracks data if no FULLTOC command available?
+	if(!options.disable_toc_zero)
+	{
+		auto &t = toc.sessions.front().tracks.front();
+		if(!t.indices.empty())
+			t.indices.front() = 0;
+	}
 
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
 
-	// determine write offset based on a data track
+	// determine write offset and data modes based on a data track
 	int32_t write_offset = std::numeric_limits<int32_t>::max();
 	for(auto &s : toc.sessions)
 	{
@@ -919,9 +920,37 @@ void redumper_split(const Options &options)
 		{
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)
 			{
-				write_offset = track_offset_by_sync(t.indices.empty() ? t.lba_start : t.indices.front(), t.lba_end, state_fs, scm_fs);
-				if(write_offset != std::numeric_limits<int32_t>::max())
-					break;
+				int32_t lba = t.indices.empty() ? t.lba_start : t.indices.front();
+
+				int32_t track_write_offset = track_offset_by_sync(lba, t.lba_end, state_fs, scm_fs);
+				if(write_offset == std::numeric_limits<int32_t>::max())
+					write_offset = track_write_offset;
+
+				// data mode
+				{
+					Sector sector;
+					read_entry(scm_fs, (uint8_t *)&sector, CD_DATA_SIZE, lba - LBA_START, 1, -track_write_offset * CD_SAMPLE_SIZE, 0);
+
+					Scrambler scrambler;
+					scrambler.Unscramble((uint8_t *)&sector, lba);
+
+					t.data_mode = sector.header.mode;
+				}
+
+				// CDI
+				try
+				{
+					ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + track_write_offset * CD_SAMPLE_SIZE, true);
+					auto pvd = browser.GetPVD();
+
+					if(!memcmp(pvd.standard_identifier, iso9660::CDI_STANDARD_INDENTIFIER, sizeof(pvd.standard_identifier)) ||
+					   !memcmp(pvd.primary.system_identifier, iso9660::CDI_PRIMARY_SYSTEM_INDENTIFIER, sizeof(pvd.primary.system_identifier)))
+						t.cdi = true;
+				}
+				catch(...)
+				{
+					;
+				}
 			}
 		}
 	}
@@ -936,8 +965,6 @@ void redumper_split(const Options &options)
 			write_offset = track_offset_by_sync(t.lba_start, t.lba_start + index0_count, state_fs, scm_fs);
 			if(write_offset != std::numeric_limits<int32_t>::max() && track_sync_count(t.lba_start, t.lba_start + index0_count, write_offset, scm_fs) > index0_count / 2)
 			{
-				toc.disc_type = TOC::DiscType::CD_I;
-
 				// shift first track out of pre-gap
 				t.lba_start -= MSF_LBA_SHIFT;
 
@@ -956,25 +983,6 @@ void redumper_split(const Options &options)
 		write_offset = 0;
 
 	std::cout << std::format("write offset: {:+}", write_offset) << std::endl;
-
-	// determine data track modes
-	for(auto &s : toc.sessions)
-	{
-		for(auto &t : s.tracks)
-		{
-			if(!(t.control & (uint8_t)ChannelQ::Control::DATA))
-				continue;
-
-			int32_t lba = t.indices.empty() ? t.lba_start : t.indices.front();
-			Sector sector;
-			read_entry(scm_fs, (uint8_t *)&sector, CD_DATA_SIZE, lba - LBA_START, 1, -write_offset * CD_SAMPLE_SIZE, 0);
-
-			Scrambler scrambler;
-			scrambler.Unscramble((uint8_t *)&sector, lba);
-
-			t.data_mode = sector.header.mode;
-		}
-	}
 
 	// check first track index 0 of each session for non zero data
 	for(auto &s : toc.sessions)
@@ -1032,7 +1040,7 @@ void redumper_split(const Options &options)
 	}
 
 	// check tracks
-	if(!check_tracks(toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, options) && !options.force_split && !options.zero_error_sectors)
+	if(!check_tracks(toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, options) && !options.force_split)
 		throw_line(std::format("data errors detected, unable to continue"));
 
 	// write tracks

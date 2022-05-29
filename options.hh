@@ -25,6 +25,7 @@ struct Options
     std::string image_name;
     bool overwrite;
     bool force_split;
+    bool leave_unchanged;
     bool unsupported;
 
     std::string drive;
@@ -35,11 +36,13 @@ struct Options
     bool force_toc;
     bool force_qtoc;
     std::string skip;
-    bool zero_error_sectors;
+    int skip_fill;
     int skip_size;
     int ring_size;
     bool iso9660_trim;
     bool skip_leadin;
+    bool cdi_correct_offset;
+    bool disable_toc_zero;
 
     Options(int argc, const char *argv[]);
 

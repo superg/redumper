@@ -77,6 +77,7 @@ TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 					t.lba_start = lba;
 					t.lba_end = lba;
 					t.data_mode = 0;
+					t.cdi = false;
 				}
 
 				Session::Track &t = s.tracks.back();
@@ -518,6 +519,7 @@ std::ostream &TOC::Print(std::ostream &os, std::string indent, uint32_t indent_l
 	bool multisession = sessions.size() > 1;
 
 	// disc type
+	if(disc_type != DiscType::UNKNOWN)
 	{
 		std::string disc_type_string("UNKNOWN");
 		if(disc_type == DiscType::CD_DA)
@@ -636,7 +638,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)
 			{
 				std::string track_mode;
-				if(disc_type == DiscType::CD_I)
+				if(t.cdi)
 					track_mode = "CDI";
 				else
 					track_mode = std::format("MODE{}", t.data_mode);
@@ -711,6 +713,7 @@ void TOC::InitTOC(const std::vector<uint8_t> &toc_buffer)
 			t.lba_start = lba;
 			t.lba_end = lba;
 			t.data_mode = 0;
+			t.cdi = false;
 		}
 	}
 
@@ -774,6 +777,7 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 					t.lba_start = lba;
 					t.lba_end = lba;
 					t.data_mode = 0;
+					t.cdi = false;
 				}
 			}
 		}

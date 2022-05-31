@@ -232,7 +232,7 @@ int32_t track_process_offset_shift(int32_t write_offset, int32_t lba, uint32_t c
 			}
 		}
 	}
-	
+
 	return write_offset_next;
 }
 
@@ -251,7 +251,7 @@ uint32_t track_sync_count(int32_t lba_start, int32_t lba_end, int32_t write_offs
 		if(!memcmp(data.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
 			++sectors_count;
 	}
-	
+
 	return sectors_count;
 }
 
@@ -386,7 +386,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 			for(int32_t lba = t.lba_start; lba < t.lba_start + (int32_t)track_length; ++lba)
 			{
 				if(inside_range(lba, skip_ranges) != nullptr)
-				   continue;
+					continue;
 
 				uint32_t lba_index = lba - lba_start;
 
@@ -516,13 +516,13 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 					if(data_track)
 					{
 						bool standard_sync = !memcmp(sector.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
-						
+
 						if(options.cdi_correct_offset)
 						{
 							if(!standard_sync)
 							{
 								int32_t write_offset_next = track_process_offset_shift(write_offset, lba, std::min(CDI_MAX_OFFSET_SHIFT, (uint32_t)(lba_end - lba)),
-																						state_fs, scm_fs, std::filesystem::canonical(options.image_path) / track_name);
+																					   state_fs, scm_fs, std::filesystem::canonical(options.image_path) / track_name);
 								if(write_offset_next != std::numeric_limits<int32_t>::max() && write_offset_next != write_offset)
 								{
 									std::cout << std::endl << std::format("warning: offset shift detected (LBA: {:6}, offset: {}, difference: {:+})", lba, write_offset_next, write_offset_next - write_offset) << std::endl;
@@ -571,6 +571,65 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 	auto time_stop = std::chrono::high_resolution_clock::now();
 
 	std::cout << std::format("split complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count()) << std::endl << std::endl;
+}
+
+
+bool compare_toc(const TOC &toc, const TOC &qtoc)
+{
+	std::set<uint8_t> tracks;
+
+	std::map<uint8_t, const TOC::Session::Track *> toc_tracks;
+	for(auto const &s : toc.sessions)
+		for(auto const &t : s.tracks)
+		{
+			toc_tracks[t.track_number] = &t;
+			tracks.insert(t.track_number);
+		}
+
+	std::map<uint8_t, const TOC::Session::Track *> qtoc_tracks;
+	for(auto const &s : qtoc.sessions)
+		for(auto const &t : s.tracks)
+		{
+			qtoc_tracks[t.track_number] = &t;
+			tracks.insert(t.track_number);
+		}
+
+	for(auto const &t : tracks)
+	{
+		auto tt = toc_tracks.find(t);
+		auto qt = qtoc_tracks.find(t);
+
+		if(tt != toc_tracks.end() && qt != qtoc_tracks.end())
+		{
+			if(tt->second->lba_start != qt->second->lba_start)
+				std::cout << std::format("warning: TOC / QTOC track index 00 mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_start, qt->second->lba_start) << std::endl;
+
+			auto tt_size = tt->second->indices.size();
+			auto qt_size = qt->second->indices.size();
+			if(tt_size == qt_size)
+			{
+				if(tt_size && qt_size && tt->second->indices.front() != qt->second->indices.front())
+					std::cout << std::format("warning: TOC / QTOC track index 01 mismatch (track: {}, LBA: {} / {})", t, tt->second->indices.front(), qt->second->indices.front()) << std::endl;
+			}
+			else
+			{
+				std::cout << std::format("warning: TOC / QTOC track index size mismatch (track: {})", t) << std::endl;
+			}
+
+			if(tt->second->lba_end != qt->second->lba_end)
+				std::cout << std::format("warning: TOC / QTOC track length mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_end, qt->second->lba_end) << std::endl;
+		}
+		else
+		{
+			if(tt == toc_tracks.end())
+				std::cout << std::format("warning: nonexistent track in TOC (track: {})", t) << std::endl;
+
+			if(qt == qtoc_tracks.end())
+				std::cout << std::format("warning: nonexistent track in QTOC (track: {})", t) << std::endl;
+		}
+	}
+
+	return qtoc_tracks.size() > toc_tracks.size();
 }
 
 
@@ -845,47 +904,7 @@ void redumper_split(const Options &options)
 	std::cout << std::endl;
 
 	// compare TOC and QTOC
-	bool use_qtoc = false;
-	if(toc.sessions.size() == qtoc.sessions.size())
-	{
-		uint32_t tracks_count = 0;
-		uint32_t qtracks_count = 0;
-		bool tracks_match = true;
-		for(uint32_t i = 0; i < toc.sessions.size(); ++i)
-		{
-			if(toc.sessions[i].tracks.size() != qtoc.sessions[i].tracks.size())
-			{
-				tracks_match = false;
-				std::cout << std::format("warning: TOC / QTOC session track count mismatch (session: {})", toc.sessions[i].session_number) << std::endl;
-			}
-			tracks_count += (uint32_t)toc.sessions[i].tracks.size();
-			qtracks_count += (uint32_t)qtoc.sessions[i].tracks.size();
-		}
-
-		if(qtracks_count > tracks_count)
-			use_qtoc = true;
-
-		if(tracks_match)
-		{
-			for(uint32_t i = 0; i < toc.sessions.size(); ++i)
-			{
-				for(uint32_t j = 0; j < toc.sessions[i].tracks.size(); ++j)
-				{
-					if(toc.sessions[i].tracks[j].indices.size() != qtoc.sessions[i].tracks[j].indices.size() || toc.sessions[i].tracks[j].indices.front() != qtoc.sessions[i].tracks[j].indices.front())
-						std::cout << std::format("warning: TOC / QTOC index 01 mismatch (session: {}, track: {})", toc.sessions[i].session_number, toc.sessions[i].tracks[j].track_number) << std::endl;
-
-					if(j == toc.sessions[i].tracks.size() - 1 && toc.sessions[i].tracks[j].lba_end != qtoc.sessions[i].tracks[j].lba_end)
-						std::cout << std::format("warning: TOC / QTOC lead-out mismatch (session: {}, track: {})", toc.sessions[i].session_number, toc.sessions[i].tracks[j].track_number) << std::endl;
-				}
-			}
-		}
-	}
-	else
-	{
-		std::cout << "warning: TOC / QTOC session count mismatch" << std::endl;
-		if(qtoc.sessions.size() > toc.sessions.size())
-			use_qtoc = true;
-	}
+	bool use_qtoc = compare_toc(toc, qtoc);
 
 	if(!options.force_toc && (options.force_qtoc || use_qtoc))
 	{

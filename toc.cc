@@ -220,7 +220,15 @@ void TOC::UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_star
 				{
 					uint8_t tno = bcd_decode(Q.mode1.tno);
 					if(tno == s.tracks[i + 1].track_number)
+					{
+						uint8_t index = bcd_decode(Q.mode1.index);
+
+						// no gap, preserve TOC configuration
+						if(index)
+							lba = s.tracks[i + 1].lba_start;
+
 						break;
+					}
 				}
 			}
 

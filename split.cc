@@ -942,6 +942,7 @@ void redumper_split(const Options &options)
 				int32_t lba = t.indices.empty() ? t.lba_start : t.indices.front();
 
 				int32_t track_write_offset = track_offset_by_sync(lba, t.lba_end, state_fs, scm_fs);
+
 				if(write_offset == std::numeric_limits<int32_t>::max())
 					write_offset = track_write_offset;
 
@@ -960,6 +961,7 @@ void redumper_split(const Options &options)
 				try
 				{
 					ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + track_write_offset * CD_SAMPLE_SIZE, true);
+
 					auto pvd = browser.GetPVD();
 
 					if(!memcmp(pvd.standard_identifier, iso9660::CDI_STANDARD_INDENTIFIER, sizeof(pvd.standard_identifier)) ||
@@ -968,6 +970,7 @@ void redumper_split(const Options &options)
 				}
 				catch(...)
 				{
+					//FIXME: be verbose
 					;
 				}
 			}
@@ -982,6 +985,7 @@ void redumper_split(const Options &options)
 		{
 			uint32_t index0_count = (t.indices.empty() ? t.lba_end : t.indices.front()) - t.lba_start;
 			write_offset = track_offset_by_sync(t.lba_start, t.lba_start + index0_count, state_fs, scm_fs);
+
 			if(write_offset != std::numeric_limits<int32_t>::max() && track_sync_count(t.lba_start, t.lba_start + index0_count, write_offset, scm_fs) > index0_count / 2)
 			{
 				// shift first track out of pre-gap

@@ -133,7 +133,10 @@ void ImageBrowser::Init()
 		Sector sector;
 		_fs.read((char *)&sector, sizeof(sector));
         if(_fs.fail())
+        {
+            _fs.clear();
             break;
+        }
 
         if(_scrambled)
             scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector);

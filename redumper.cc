@@ -763,7 +763,7 @@ void redumper_rings(const Options &options)
 			{
 				std::cout << std::format("\rLBA: {:6}/{}", lba, lba_leadout) << std::flush;
 
-				//GGG broken, TOC incomplete, fix later
+				// broken, TOC incomplete, fix later
 				/*scsi[lba] = cmd_read_sector(sptd, buffer.data(), lba, 1, ReadCommand::READ_CD, ReadType::DATA, is_data_track(lba, toc) ? ReadFilter::DATA : ReadFilter::CDDA);
 				if(scsi[lba].status_code)
 				{

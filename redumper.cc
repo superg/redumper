@@ -73,13 +73,9 @@ void validate_options(Options &options)
 	// autogenerate image name if unspecified
 	if(name_generate && options.image_name.empty())
 	{
-		auto time_now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-		std::stringstream ss;
-		ss << std::put_time(localtime(&time_now), "%y%m%d_%H%M%S");
-
 		auto drive = options.drive;
 		drive.erase(remove(drive.begin(), drive.end(), ':'), drive.end());
-		options.image_name = std::format("dump_{}_{}", ss.str(), drive);
+		options.image_name = std::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
 	}
 }
 

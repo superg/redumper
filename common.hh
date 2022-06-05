@@ -154,5 +154,6 @@ void replace_all_occurences(std::string &str, const std::string &from, const std
 std::vector<std::pair<int32_t, int32_t>> string_to_ranges(const std::string &str);
 std::string ranges_to_string(const std::vector<std::pair<int32_t, int32_t>> &ranges);
 const std::pair<int32_t, int32_t> *inside_range(int32_t lba, const std::vector<std::pair<int32_t, int32_t>> &ranges);
+std::string system_date_time(std::string fmt);
 
 }

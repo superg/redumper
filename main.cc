@@ -1,9 +1,15 @@
+#include <filesystem>
 #include <format>
 #include <stdexcept>
 #include <iostream>
 #include "common.hh"
+#include "logger.hh"
 #include "options.hh"
 #include "redumper.hh"
+
+
+
+using namespace gpsxre;
 
 
 
@@ -13,27 +19,30 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		std::cout << std::format("{} (print usage: {})", gpsxre::redumper_version(), gpsxre::Options::HelpKeys()) << std::endl << std::endl;
+		Options options(argc, const_cast<const char **>(argv));
 
-		gpsxre::Options options(argc, const_cast<const char **>(argv));
+		if(!options.image_name.empty())
+			Logger::Get().Reset((std::filesystem::canonical(options.image_path) / options.image_name).string() + ".log");
 
-		std::cout << std::format("command: {}", options.command) << std::endl << std::endl;
+		LOG("{} (print usage: {})\n", redumper_version(), Options::HelpKeys());
+
+		LOG("command: {}\n", options.command);
 
 		if(options.help)
-			options.PrintUsage(std::cout);
+			options.PrintUsage();
 		else
 		{
-			gpsxre::redumper(options);
+			redumper(options);
 		}
 	}
 	catch(const std::exception &e)
 	{
-		std::cout << "error: " << e.what() << std::endl;
+		LOG("error: {}", e.what());
 		exit_code = 1;
 	}
 	catch(...)
 	{
-		std::cout << "error: unhandled exception" << std::endl;
+		LOG("error: unhandled exception");
 		exit_code = 2;
 	}
 

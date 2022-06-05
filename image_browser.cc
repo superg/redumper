@@ -579,7 +579,6 @@ std::vector<uint8_t> ImageBrowser::Entry::Read(std::set<uint8_t> *xa_channels)
     _ifs.seekg(_directory_record.offset.lsb * sizeof(Sector));
     if(_ifs.fail())
     {
-        std::cout << std::strerror(errno) << std::endl;
         throw_line("fff");
     }
 
@@ -590,7 +589,6 @@ std::vector<uint8_t> ImageBrowser::Entry::Read(std::set<uint8_t> *xa_channels)
         _ifs.read((char *)&sector, sizeof(sector));
     if(_ifs.fail())
     {
-        std::cout << std::strerror(errno) << std::endl;
         throw_line("fff");
     }
 
@@ -624,7 +622,6 @@ std::vector<uint8_t> ImageBrowser::Entry::ReadXA(uint8_t channel)
 	_ifs.seekg(_directory_record.offset.lsb * sizeof(Sector));
     if(_ifs.fail())
     {
-        std::cout << std::strerror(errno) << std::endl;
         throw_line("fff");
     }
 
@@ -635,7 +632,6 @@ std::vector<uint8_t> ImageBrowser::Entry::ReadXA(uint8_t channel)
 		_ifs.read((char *)&sector, sizeof(sector));
     if(_ifs.fail())
     {
-        std::cout << std::strerror(errno) << std::endl;
         throw_line("fff");
     }
 

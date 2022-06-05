@@ -96,6 +96,8 @@ set(sources
 	"image_browser.hh"
 	"iso9660.cc"
 	"iso9660.hh"
+	"logger.cc"
+	"logger.hh"
 	"main.cc"
 	"md5.cc"
 	"md5.hh"

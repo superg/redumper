@@ -10,6 +10,7 @@
 #include "crc16_gsm.hh"
 #include "endian.hh"
 #include "file_io.hh"
+#include "logger.hh"
 #include "subcode.hh"
 #include "drive.hh"
 
@@ -211,10 +212,11 @@ std::string drive_info_string(const DriveInfo &di)
 
 void print_supported_drives()
 {
-	std::cout << std::endl << "supported drives: " << std::endl;
+	LOG("");
+	LOG("supported drives: ");
 	for(auto const &di : SUPPORTED_DRIVES)
-		std::cout << drive_info_string(di) << std::endl;
-	std::cout << std::endl;
+		LOG(drive_info_string(di));
+	LOG("");
 }
 
 
@@ -391,7 +393,7 @@ void asus_cache_print_subq(const std::vector<uint8_t> &cache)
 		subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
 		int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
-		std::cout << std::format("{:4} {:6}: {}", i, lba, Q.Decode()) << std::endl;
+		LOG("{:4} {:6}: {}", i, lba, Q.Decode());
 	}
 }
 

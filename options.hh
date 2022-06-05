@@ -47,7 +47,7 @@ struct Options
     Options(int argc, const char *argv[]);
 
     static std::string HelpKeys();
-    std::ostream &PrintUsage(std::ostream &os);
+    void PrintUsage();
 };
 
 }

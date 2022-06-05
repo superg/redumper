@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <chrono>
+#include <ctime>
 #include <format>
 #include <set>
 #include <sstream>
@@ -156,6 +158,15 @@ const std::pair<int32_t, int32_t> *inside_range(int32_t lba, const std::vector<s
             return &r;
 
     return nullptr;
+}
+
+
+std::string system_date_time(std::string fmt)
+{
+    auto time_now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::stringstream ss;
+    ss << std::put_time(localtime(&time_now), fmt.c_str());
+    return ss.str();
 }
 
 }

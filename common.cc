@@ -28,23 +28,6 @@ std::string normalize_string(const std::string &s)
 }
 
 
-std::ostream &clear_line(std::ostream &os)
-{
-	os << std::format("\r{:100}\r", "");
-
-	return os;
-}
-
-
-std::ostream &print_multiple(std::ostream &os, const std::string &text, uint32_t count)
-{
-	for(uint32_t i = 0; i < count; ++i)
-		os << text;
-
-	return os;
-}
-
-
 std::vector<std::string> tokenize_quoted(const std::string &str, const char *delimiters, const char *quotes)
 {
     std::vector<std::string> tokens;

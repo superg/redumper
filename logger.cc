@@ -46,9 +46,37 @@ bool Logger::Reset(std::filesystem::path log_path)
 }
 
 
+void Logger::NL(bool file)
+{
+    std::cout << std::endl;
+    if(file && _fs.is_open())
+        _fs << std::endl;
+}
+
+
+void Logger::Flush(bool file)
+{
+    std::cout << std::flush;
+    if(file && _fs.is_open())
+        _fs << std::flush;
+}
+
+
+void Logger::ClearLine()
+{
+    std::cout << std::format("\r{:100}\r", "");
+}
+
+
 Logger &Logger::Get()
 {
     return _logger;
+}
+
+
+void LOG_R()
+{
+    Logger::Get().ClearLine();
 }
 
 }

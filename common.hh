@@ -146,8 +146,6 @@ uint64_t bit_diff(const T *data1, const T *data2, uint64_t count)
 }
 
 std::string normalize_string(const std::string &s);
-std::ostream &clear_line(std::ostream &os);
-std::ostream &print_multiple(std::ostream &os, const std::string &text, uint32_t count);
 std::vector<std::string> tokenize_quoted(const std::string &str, const char *delimiters, const char *quotes);
 std::string str_uppercase(const std::string &str);
 void replace_all_occurences(std::string &str, const std::string &from, const std::string &to);

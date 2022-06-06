@@ -7,6 +7,7 @@
 #include "common.hh"
 #include "crc16_gsm.hh"
 #include "endian.hh"
+#include "logger.hh"
 #include "toc.hh"
 
 
@@ -331,10 +332,10 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 		auto &pack_data = cd_text_data.Descriptors[i];
 
 		//DEBUG
-//		std::cout << std::format("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}{}{}{}{}{}{}{}{}{}{}{}",
+//		LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}{}{}{}{}{}{}{}{}{}{}{}",
 //								 pack_data.PackType, pack_data.TrackNumber, pack_data.ExtensionFlag, pack_data.SequenceNumber, pack_data.CharacterPosition, pack_data.BlockNumber, pack_data.Unicode,
 //								 (char)pack_data.Text[0], (char)pack_data.Text[1], (char)pack_data.Text[2], (char)pack_data.Text[3], (char)pack_data.Text[4], (char)pack_data.Text[5],
-//								 (char)pack_data.Text[6], (char)pack_data.Text[7], (char)pack_data.Text[8], (char)pack_data.Text[9], (char)pack_data.Text[10], (char)pack_data.Text[11]) << std::endl;
+//								 (char)pack_data.Text[6], (char)pack_data.Text[7], (char)pack_data.Text[8], (char)pack_data.Text[9], (char)pack_data.Text[10], (char)pack_data.Text[11]);
 
 		auto crc = crc16_gsm((uint8_t *)&pack_data, sizeof(pack_data) - sizeof(uint16_t));
 		// PLEXTOR PX-W5224TA: crc of last pack is always zeroed
@@ -520,7 +521,7 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 }
 
 
-std::ostream &TOC::Print(std::ostream &os, std::string indent, uint32_t indent_level) const
+void TOC::Print() const
 {
 	std::string track_format = std::format("{{:0{}}}", (uint32_t)log10(sessions.back().tracks.back().track_number) + 1);
 
@@ -536,13 +537,13 @@ std::ostream &TOC::Print(std::ostream &os, std::string indent, uint32_t indent_l
 			disc_type_string = "CD-I";
 		else if(disc_type == DiscType::CD_XA)
 			disc_type_string = "CD-XA";
-		print_multiple(os, indent, indent_level) << std::format("disc type: {}", disc_type_string) << std::endl;
+		LOG("{}disc type: {}", std::string(2, ' '), disc_type_string);
 	}
 
 	for(auto const &s : sessions)
 	{
 		if(multisession)
-			print_multiple(os, indent, indent_level) << std::format("session {}", s.session_number) << std::endl;
+			LOG("{}session {}", std::string(2, ' '), s.session_number);
 
 		for(auto const &t : s.tracks)
 		{
@@ -556,8 +557,8 @@ std::ostream &TOC::Print(std::ostream &os, std::string indent, uint32_t indent_l
 							   t.lba_start, t.lba_end - 1, track_length,
 							   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
 			}
-			print_multiple(os, indent, indent_level + (multisession ? 1 : 0)) << std::format("track {} {{ {}{} }}",
-						   std::format(track_format, t.track_number), (t.control & (uint8_t)ChannelQ::Control::DATA) ? " data" : "audio", track_properties) << std::endl;
+			LOG("{}track {} {{ {}{} }}", std::string(multisession ? 4 : 2, ' '), 
+						   std::format(track_format, t.track_number), (t.control & (uint8_t)ChannelQ::Control::DATA) ? " data" : "audio", track_properties);
 
 			auto indices = t.indices;
 			indices.insert(indices.begin(), t.lba_start);
@@ -587,12 +588,10 @@ std::ostream &TOC::Print(std::ostream &os, std::string indent, uint32_t indent_l
 				else
 					index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
 
-				print_multiple(os, indent, indent_level + (multisession ? 2 : 1)) << std::format("index {:02} {{ {} }}", i, index_properties) << std::endl;
+				LOG("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i, index_properties);
 			}
 		}
 	}
-
-	return os;
 }
 
 
@@ -608,7 +607,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 	if(!mcn_print.empty())
 		os << std::format("CATALOG {}", mcn_print) << std::endl;
 	if(cd_text_index < cd_text.size())
-		PrintCDTextCUE(os, cd_text[cd_text_index], "  ", 0);
+		PrintCDTextCUE(os, cd_text[cd_text_index], 0);
 
 	for(uint32_t j = 0; j < sessions.size(); ++j)
 	{
@@ -657,7 +656,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 
 			os << std::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
 			if(cd_text_index < t.cd_text.size())
-				PrintCDTextCUE(os, t.cd_text[cd_text_index], "  ", 2);
+				PrintCDTextCUE(os, t.cd_text[cd_text_index], 4);
 
 			std::string isrc_print(t.isrc);
 			if(isrc_print.empty() && cd_text_index < t.cd_text.size() && !t.cd_text[cd_text_index].mcn_isrc.empty())
@@ -856,18 +855,18 @@ void TOC::UpdateINDEX(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_
 }
 
 
-std::ostream &TOC::PrintCDTextCUE(std::ostream &os, const CDText &cdt, std::string indent, uint32_t indent_level)
+std::ostream &TOC::PrintCDTextCUE(std::ostream &os, const CDText &cdt, uint32_t indent_level)
 {
 	if(!cdt.title.empty())
-		print_multiple(os, indent, indent_level) << std::format("TITLE \"{}\"", cdt.title) << std::endl;
+		os << std::format("{}TITLE \"{}\"", std::string(indent_level, ' '), cdt.title) << std::endl;
 	if(!cdt.performer.empty())
-		print_multiple(os, indent, indent_level) << std::format("PERFORMER \"{}\"", cdt.performer) << std::endl;
+		os << std::format("{}PERFORMER \"{}\"", std::string(indent_level, ' '), cdt.performer) << std::endl;
 	if(!cdt.songwriter.empty())
-		print_multiple(os, indent, indent_level) << std::format("SONGWRITER \"{}\"", cdt.songwriter) << std::endl;
+		os << std::format("{}SONGWRITER \"{}\"", std::string(indent_level, ' '), cdt.songwriter) << std::endl;
 //	if(!cdt.composer.empty())
-//		print_multiple(os, indent, indent_level) << std::format("REM COMPOSER \"{}\"", cdt.composer) << std::endl;
+//		os << std::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
 //	if(!cdt.arranger.empty())
-//		print_multiple(os, indent, indent_level) << std::format("REM ARRANGER \"{}\"", cdt.arranger) << std::endl;
+//		os << std::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
 
 	return os;
 }

@@ -236,7 +236,8 @@ std::vector<uint8_t> plextor_read_leadin(SPTD &sptd)
 		uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE];
 		auto &status = *(SPTD::Status *)entry;
 
-		clear_line(std::cout) << std::format("[LBA: {:6}]", lba) << std::flush;
+		LOG_R();
+		LOGC_F("[LBA: {:6}]", lba);
 
 		status = cmd_read_sector(sptd, entry + sizeof(SPTD::Status), lba, 1, ReadCommand::READ_CDDA, ReadType::DATA_SUB, ReadFilter::CDDA);
 
@@ -248,7 +249,8 @@ std::vector<uint8_t> plextor_read_leadin(SPTD &sptd)
 			subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
 			//DEBUG
-//			clear_line(std::cout) << std::format("{}", Q.Decode()) << std::endl;
+//			LOG_R();
+//			LOGC("{}", Q.Decode());
 
 			if(Q.Valid())
 			{

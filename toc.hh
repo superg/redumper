@@ -75,7 +75,7 @@ struct TOC
 	void UpdateMCN(const ChannelQ *subq, uint32_t sectors_count);
 	bool UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer);
 
-	std::ostream &Print(std::ostream &os, std::string indent, uint32_t indent_level = 0) const;
+	void Print() const;
 	std::ostream &PrintCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index = 0) const;
 
 private:
@@ -124,7 +124,7 @@ private:
 	void InitTOC(const std::vector<uint8_t> &toc_buffer);
 	void InitFullTOC(const std::vector<uint8_t> &toc_buffer);
 	void UpdateINDEX(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start);
-	static std::ostream &PrintCDTextCUE(std::ostream &os, const CDText &cd_text, std::string indent, uint32_t indent_level);
+	static std::ostream &PrintCDTextCUE(std::ostream &os, const CDText &cd_text, uint32_t indent_level);
 	static bool IsTextPack(PackType pack_type);
 	CDText *GetCDText(uint8_t index, uint8_t track_number);
 };

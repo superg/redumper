@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 		Options options(argc, const_cast<const char **>(argv));
 
 		if(!options.image_name.empty())
-			Logger::Get().Reset((std::filesystem::canonical(options.image_path) / options.image_name).string() + ".log");
+			Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
 		LOG("{} (print usage: {})\n", redumper_version(), Options::HelpKeys());
 

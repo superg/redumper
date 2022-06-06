@@ -6,6 +6,7 @@
 #include "cmd.hh"
 #include "common.hh"
 #include "file_io.hh"
+#include "logger.hh"
 #include "split.hh"
 #include "subcode.hh"
 #include "version.hh"
@@ -80,48 +81,6 @@ void validate_options(Options &options)
 }
 
 
-void merge_logs(Options &options)
-{
-	std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
-
-	std::vector<std::string> modes = {"dump", "protection", "split", "info"};
-
-	bool merge = true;
-	for(auto const &m : modes)
-	{
-		std::filesystem::path log_path(image_prefix + std::format("_{}.txt", m));
-		if(!std::filesystem::exists(log_path))
-		{
-			merge = false;
-			break;
-		}
-	}
-
-	if(merge)
-	{
-		std::filesystem::path merge_log_path(image_prefix + ".txt");
-		std::fstream ofs(merge_log_path, std::fstream::out);
-		if(!ofs.is_open())
-			throw_line(std::format("unable to create file ({})", merge_log_path.filename().string()));
-
-		for(auto const &m : modes)
-		{
-			ofs << std::format("*** {} LOG ***", m) << std::endl;
-			std::filesystem::path log_path(image_prefix + std::format("_{}.txt", m));
-			std::fstream ifs(log_path, std::fstream::in);
-			if(!ifs.is_open())
-				throw_line(std::format("unable to open file ({})", log_path.filename().string()));
-
-			std::string line;
-			while(std::getline(ifs, line))
-				ofs << line << std::endl;
-
-			ofs << std::endl;
-		}
-	}
-}
-
-
 void redumper(Options &options)
 {
 	validate_options(options);
@@ -133,7 +92,7 @@ void redumper(Options &options)
 		if(skip_refine && p == "refine")
 			continue;
 
-		std::cout << std::format("*** MODE: {} ***", p) << std::endl;
+		LOG("*** MODE: {}", p);
 
 		if(p == "dump")
 			skip_refine = !redumper_dump(options, false);
@@ -152,9 +111,7 @@ void redumper(Options &options)
 		else if(p == "debug")
 			redumper_debug(options);
 		else
-			std::cout << std::format("warning: unknown mode, skipping ({})", p) << std::endl;
-
-		merge_logs(options);
+			LOG("warning: unknown mode, skipping ({})", p);
 	}
 }
 
@@ -165,19 +122,19 @@ bool redumper_dump(const Options &options, bool refine)
 	drive_init(sptd, options);
 
 	DriveInfo drive_info = drive_get_info(cmd_drive_query(sptd));
-	std::cout << std::format("drive path: {}", options.drive) << std::endl;
-	std::cout << std::format("drive: {}", drive_info_string(drive_info)) << std::endl;
+	LOG("drive path: {}", options.drive);
+	LOG("drive: {}", drive_info_string(drive_info));
 	{
 		std::string type_string("GENERIC");
 		if(drive_info.type == DriveInfo::Type::PLEXTOR)
 			type_string = "PLEXTOR";
 		else if(drive_info.type == DriveInfo::Type::LG_ASUS)
 			type_string = "LG/ASUS";
-		std::cout << std::format("drive type: {}", type_string) << std::endl;
+		LOG("drive type: {}", type_string);
 	}
 
 	if(options.unsupported)
-		std::cout << "warning: unsupported drive" << std::endl;
+		LOG("warning: unsupported drive");
 	else if(drive_info.type == DriveInfo::Type::GENERIC)
 	{
 		print_supported_drives();
@@ -190,10 +147,10 @@ bool redumper_dump(const Options &options, bool refine)
 	if(!refine && !options.image_path.empty())
 		std::filesystem::create_directories(options.image_path);
 
-	std::cout << std::format("image path: {}", std::filesystem::canonical(options.image_path.empty() ? "." : options.image_path).string()) << std::endl;
-	std::cout << std::format("image name: {}", options.image_name) << std::endl;
+	LOG("image path: {}", options.image_path.empty() ? "." : options.image_path);
+	LOG("image name: {}", options.image_name);
 
-	std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
+	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	// don't use replace_extension as it messes up paths with dot
 	std::filesystem::path scm_path(image_prefix + ".scram");
@@ -202,7 +159,6 @@ bool redumper_dump(const Options &options, bool refine)
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
-	std::filesystem::path log_path(image_prefix + "_dump.txt");
 	std::filesystem::path asus_path(image_prefix + ".asus"); //DEBUG
 
 	if(!refine && !options.overwrite && std::filesystem::exists(state_path))
@@ -241,9 +197,10 @@ bool redumper_dump(const Options &options, bool refine)
 
 		if(!refine)
 		{
-			std::cout << std::endl << "TOC:" << std::endl;
-			toc.Print(std::cout, "  ", 1);
-			std::cout << std::endl;
+			LOG("");
+			LOG("DISC TOC:");
+			toc.Print();
+			LOG("");
 		}
 
 		// fake TOC / swap exit criteria
@@ -254,7 +211,7 @@ bool redumper_dump(const Options &options, bool refine)
 			// fake TOC
 			// [PSX] Breaker Pro
 			if(toc.sessions.back().tracks.back().lba_end < 0)
-				std::cout << std::format("warning: fake TOC detected, using default 74min disc size") << std::endl;
+				LOG("warning: fake TOC detected, using default 74min disc size");
 			else
 				lba_end = toc.sessions.back().tracks.back().lba_end;
 		}
@@ -268,7 +225,7 @@ bool redumper_dump(const Options &options, bool refine)
 		{
 			auto status = cmd_read_cd_text(sptd, cd_text_buffer);
 			if(status.status_code)
-				std::cout << std::format("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status)) << std::endl;
+				LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
 		}
 
 		// compare disc / file TOC to make sure it's the same disc
@@ -365,7 +322,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 	uint32_t errors_q_last = errors_q;
 	
-	std::cout << std::format("{} started", refine ? "refine" : "dump") << std::endl;
+	LOG("{} started", refine ? "refine" : "dump");
 
 	auto dump_time_start = std::chrono::high_resolution_clock::now();
 
@@ -403,7 +360,8 @@ bool redumper_dump(const Options &options, bool refine)
 					read_sector(sector_buffer, sptd, drive_info, lba - 1);
 				}
 
-				clear_line(std::cout) << std::format("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba) << std::endl;
+				LOG_R();
+				LOG("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
 				{
 					auto cache = asus_cache_read(sptd);
 
@@ -415,7 +373,12 @@ bool redumper_dump(const Options &options, bool refine)
 				}
 
 				uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / ASUS_LEADOUT_ENTRY_SIZE;
-				clear_line(std::cout) << (entries_count ? std::format("LG/ASUS: lead-out found (LBA: {:6}, sectors: {})", lba, entries_count) : std::format("LG/ASUS: lead-out not found")) << std::endl;
+				
+				LOG_R();
+				if(entries_count)
+					LOG("LG/ASUS: lead-out found (LBA: {:6}, sectors: {})", lba, entries_count);
+				else
+					LOG("LG/ASUS: lead-out not found");
 			}
 
 			if(r != nullptr && lba >= r->first || lba >= lba_end)
@@ -435,7 +398,10 @@ bool redumper_dump(const Options &options, bool refine)
 						if(!refine)
 							++errors;
 						if(options.verbose)
-							clear_line(std::cout) << std::format("[LBA: {:6}] C2 error (bits: {})", lba, c2_count) << std::endl;
+						{
+							LOG_R();
+							LOG("[LBA: {:6}] C2 error (bits: {})", lba, c2_count);
+						}
 
 						//DEBUG
 //						debug_print_c2_scm_offsets(entry + CD_DATA_SIZE, lba_index, LBA_START, drive_info.read_offset);
@@ -482,7 +448,10 @@ bool redumper_dump(const Options &options, bool refine)
 					else
 					{
 						if(options.verbose)
-							clear_line(std::cout) << std::format("[LBA: {:6}] correction failure", lba) << std::endl;
+						{
+							LOG_R();
+							LOG("[LBA: {:6}] correction failure", lba);
+						}
 						read = false;
 						++refine_processed;
 						refine_counter = 0;
@@ -499,7 +468,10 @@ bool redumper_dump(const Options &options, bool refine)
 			else if(lba_refine == lba)
 			{
 				if(options.verbose)
-					clear_line(std::cout) << std::format("[LBA: {:6}] correction success", lba) << std::endl;
+				{
+					LOG_R();
+					LOG("[LBA: {:6}] correction success", lba);
+				}
 				++refine_processed;
 				refine_counter = 0;
 			}
@@ -535,7 +507,10 @@ bool redumper_dump(const Options &options, bool refine)
 					else
 						++errors;
 					if(options.verbose)
-						clear_line(std::cout) << std::format("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status)) << std::endl;
+					{
+						LOG_R();
+						LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+					}
 				}
 			}
 			else
@@ -550,7 +525,10 @@ bool redumper_dump(const Options &options, bool refine)
 					if(!refine)
 						++errors;
 					if(options.verbose)
-						clear_line(std::cout) << std::format("[LBA: {:6}] C2 error (bits: {})", lba, c2_count) << std::endl;
+					{
+						LOG_R();
+						LOG("[LBA: {:6}] C2 error (bits: {})", lba, c2_count);
+					}
 
 					//DEBUG
 //					debug_print_c2_scm_offsets(sector_buffer.data() + CD_DATA_SIZE, lba_index, LBA_START, drive_info.read_offset);
@@ -660,14 +638,20 @@ bool redumper_dump(const Options &options, bool refine)
 		if(refine)
 		{
 			if(lba == lba_refine)
-				clear_line(std::cout) << std::format("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI/C2: {}, Q: {} }} {}",
-													 percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries),
-													 lba, lba_overread, errors, errors_q, refine_status) << std::flush;
+			{
+				LOG_R();
+				LOGC_F("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI/C2: {}, Q: {} }} {}",
+					   percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries),
+					   lba, lba_overread, errors, errors_q, refine_status);
+			}
 		}
 		else
-			clear_line(std::cout) << std::format("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI/C2: {}, Q: {} }}",
-												 percentage(lba, lba_overread - 1), lba, lba_overread, errors, errors_q) << std::flush;
+		{
+			LOG_R();
+			LOGC_F("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI/C2: {}, Q: {} }}", percentage(lba, lba_overread - 1), lba, lba_overread, errors, errors_q);
+		}
 	}
+	LOGC("");
 
 	// keep files sector aligned
 	write_align(fs_scm, lba_overread - LBA_START, CD_DATA_SIZE, 0);
@@ -676,25 +660,13 @@ bool redumper_dump(const Options &options, bool refine)
 
 	auto dump_time_stop = std::chrono::high_resolution_clock::now();
 
-	std::cout << std::endl << std::format("{} complete (time: {}s)", refine ? "refine" : "dump", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count()) << std::endl << std::endl;
+	LOG("{} complete (time: {}s)", refine ? "refine" : "dump", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count());
+	LOG("");
 
-	if(!refine)
-	{
-		std::fstream ofs(log_path, std::fstream::out);
-		if(!ofs.is_open())
-			throw_line(std::format("unable to create file ({})", log_path.filename().string()));
-		ofs << std::format("DUMPER: {}", redumper_version()) << std::endl;
-		ofs << std::format("COMMAND: {}", options.command) << std::endl;
-		ofs << std::endl;
-
-		ofs << std::format("DRIVE: {}", drive_info_string(drive_info)) << std::endl;
-		ofs << std::endl;
-
-		ofs << "MEDIA ERRORS: " << std::endl;
-		ofs << std::format("\tSCSI/C2: {}", errors) << std::endl;
-		ofs << std::format("\tQ: {}", errors_q) << std::endl;
-		ofs << std::endl;
-	}
+	LOG("media errors: ");
+	LOG("  SCSI/C2: {}", errors);
+	LOG("  Q: {}", errors_q);
+	LOG("");
 
 	// always refine once if LG/ASUS to improve changes of capturing more lead-out sectors
 	return errors || drive_info.type == DriveInfo::Type::LG_ASUS;
@@ -707,15 +679,15 @@ void redumper_rings(const Options &options)
 	drive_init(sptd, options);
 
 	DriveInfo drive_info = drive_get_info(cmd_drive_query(sptd));
-	std::cout << std::format("drive path: {}", options.drive) << std::endl;
-	std::cout << std::format("drive: {}", drive_info_string(drive_info)) << std::endl;
+	LOG("drive path: {}", options.drive);
+	LOG("drive: {}", drive_info_string(drive_info));
 	{
 		std::string type_string("GENERIC");
 		if(drive_info.type == DriveInfo::Type::PLEXTOR)
 			type_string = "PLEXTOR";
 		else if(drive_info.type == DriveInfo::Type::LG_ASUS)
 			type_string = "LG/ASUS";
-		std::cout << std::format("drive type: {}", type_string) << std::endl;
+		LOG("drive type: {}", type_string);
 	}
 
 	// read TOC
@@ -727,12 +699,13 @@ void redumper_rings(const Options &options)
 //	if(toc.sessions.back().tracks.back().lba_end <= toc.sessions.back().tracks.back().lba_start)
 //		throw_line("fake TOC detected");
 
-	std::cout << std::endl << "TOC:" << std::endl;
-	toc.Print(std::cout, "  ", 1);
-	std::cout << std::endl;
+	LOG("");
+	LOG("TOC:");
+	toc.Print();
+	LOG("");
 
-	std::cout << "skip size: " << options.skip_size << std::endl;
-	std::cout << "ring size: " << options.ring_size << std::endl;
+	LOG("skip size: {}", options.skip_size);
+	LOG("ring size: {}", options.ring_size);
 
 	int32_t lba_leadout = toc.sessions.back().tracks.back().lba_end;
 	uint32_t pass = 0;
@@ -742,7 +715,8 @@ void redumper_rings(const Options &options)
 
 	std::vector<std::pair<int32_t, int32_t>> rings;
 
-	std::cout << std::endl << "analyze started" << std::endl;
+	LOG("");
+	LOG("analyze started");
 
 	auto time_start = std::chrono::high_resolution_clock::now();
 
@@ -750,21 +724,25 @@ void redumper_rings(const Options &options)
 	{
 		to_continue = false;
 
-		std::cout << std::endl << std::format("pass {}", pass + 1) << std::endl;
+		LOG("");
+		LOG("pass {}", pass + 1);
 
 		for(int32_t lba = 0; lba < lba_leadout;)
 		{
 			// sector not processed
 			if(scsi[lba].status_code == SPTD::Status::RESERVED.status_code)
 			{
-				std::cout << std::format("\rLBA: {:6}/{}", lba, lba_leadout) << std::flush;
+				LOG_F("\rLBA: {:6}/{}", lba, lba_leadout);
 
 				// broken, TOC incomplete, fix later
 				/*scsi[lba] = cmd_read_sector(sptd, buffer.data(), lba, 1, ReadCommand::READ_CD, ReadType::DATA, is_data_track(lba, toc) ? ReadFilter::DATA : ReadFilter::CDDA);
 				if(scsi[lba].status_code)
 				{
 					if(options.verbose)
-						clear_line(std::cout) << std::format("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(scsi[lba])) << std::endl;
+					{
+						LOG_R();
+						LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(scsi[lba]));
+					}
 				}*/
 			}
 
@@ -814,7 +792,10 @@ void redumper_rings(const Options &options)
 				}
 
 				if(options.verbose)
-					clear_line(std::cout) << std::format("LBA: {:6}, skipping (LBA: {})", lba, lba_next) << std::endl;
+				{
+					LOG_R();
+					LOG("LBA: {:6}, skipping (LBA: {})", lba, lba_next);
+				}
 
 				lba = lba_next;
 			}
@@ -847,25 +828,29 @@ void redumper_rings(const Options &options)
 			if(ring_start != -1)
 				rings.emplace_back(ring_start, lba_leadout - 1);
 
-			std::cout << std::endl << "pass rings: " << std::endl;
+			LOG("");
+			LOG("pass rings: ");
 			for(auto const &r : rings)
-				std::cout << std::format("{}-{}", r.first, r.second) << std::endl;
+				LOG("{}-{}", r.first, r.second);
 		}
 	}
 
-	std::cout << std::endl << "final rings: " << std::endl;
+	LOG("");
+	LOG("final rings: ");
 	for(auto const &r : rings)
-		std::cout << std::format("{}-{}", r.first, r.second) << std::endl;
+		LOG("{}-{}", r.first, r.second);
 
 	auto time_stop = std::chrono::high_resolution_clock::now();
 
-	std::cout << std::endl << std::format("analyze completed (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count()) << std::endl << std::endl;
+	LOG("");
+	LOG("analyze completed (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
+	LOG("");
 }
 
 
 void redumper_subchannel(const Options &options)
 {
-	std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
+	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path sub_path(image_prefix + ".sub");
 
@@ -889,12 +874,12 @@ void redumper_subchannel(const Options &options)
 		// Q is available
 		if(memcmp(&Q, &q_empty, sizeof(q_empty)))
 		{
-			std::cout << std::format("[LBA: {:6}] {}", LBA_START + (int32_t)lba_index, Q.Decode()) << std::endl;
+			LOG("[LBA: {:6}] {}", LBA_START + (int32_t)lba_index, Q.Decode());
 			empty = false;
 		}
 		else if(!empty)
 		{
-			std::cout << "..." << std::endl;
+			LOG("...");
 			empty = true;
 		}
 	}
@@ -903,7 +888,7 @@ void redumper_subchannel(const Options &options)
 
 void redumper_debug(const Options &options)
 {
-	std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
+	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path cache_path(image_prefix + ".asus");
 
@@ -917,7 +902,7 @@ void redumper_debug(const Options &options)
 //		auto asd = asus_cache_extract(cache, 128224, 0);
 //		auto asd = asus_cache_extract(cache, 156097, 100);
 
-		std::cout << "";
+		LOG("");
 	}
 
 
@@ -945,7 +930,7 @@ void redumper_debug(const Options &options)
 		fs_state.write((char *)states.data(), states.size() * sizeof(State));
 	}
 
-	std::cout << "";
+	LOG("");
 }
 
 
@@ -1000,7 +985,7 @@ void drive_init(SPTD &sptd, const Options &options)
 	uint16_t speed = options.speed ? 150 * *options.speed : 0xFFFF;
 	status = cmd_set_cd_speed(sptd, speed);
 	if(status.status_code)
-		std::cout << std::format("drive set speed failed, SCSI ({})", SPTD::StatusMessage(status)) << std::endl;
+		LOG("drive set speed failed, SCSI ({})", SPTD::StatusMessage(status));
 }
 
 
@@ -1077,7 +1062,8 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 	// employ a number of tricks to maximize the chance of getting everything
 	for(uint32_t i = 0; i < session_lba_start.size(); ++i)
 	{
-		clear_line(std::cout) << std::format("PLEXTOR: reading lead-in") << std::endl;
+		LOG_R();
+		LOG("PLEXTOR: reading lead-in");
 
 		// helps with "choosing" the first session
 		if(i == session_lba_start.size() - 1)
@@ -1120,11 +1106,13 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 
 							if(trim_count > entries_count)
 							{
-								clear_line(std::cout) << std::format("PLEXTOR: incomplete pre-gap, skipping (session index: {})", s) << std::endl;
+								LOG_R();
+								LOG("PLEXTOR: incomplete pre-gap, skipping (session index: {})", s);
 							}
 							else
 							{
-								clear_line(std::cout) << std::format("PLEXTOR: lead-in found (session index: {}, sectors: {})", s, trim_count) << std::endl;
+								LOG_R();
+								LOG("PLEXTOR: lead-in found (session index: {}, sectors: {})", s, trim_count);
 
 								if(trim_count < entries_count)
 									leadin_buffer.resize(trim_count * PLEXTOR_LEADIN_ENTRY_SIZE);
@@ -1146,7 +1134,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 	}
 
 	// store
-	std::cout << "storing lead-ins... ";
+	LOG_F("storing lead-ins... ");
 	for(uint32_t s = 0; s < leadin_buffers.size(); ++s)
 	{
 		auto &leadin_buffer = leadin_buffers[s];
@@ -1162,7 +1150,10 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 			if(status.status_code)
 			{
 				if(options.verbose)
-					clear_line(std::cout) << std::format("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status)) << std::endl;
+				{
+					LOG_R();
+					LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+				}
 			}
 			else
 			{
@@ -1197,7 +1188,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 			}
 		}
 	}
-	std::cout << "done" << std::endl;
+	LOG("done");
 }
 
 
@@ -1206,16 +1197,17 @@ void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int3
 	uint32_t scm_offset = lba_index * CD_DATA_SIZE - drive_read_offset * CD_SAMPLE_SIZE;
 	uint32_t state_offset = lba_index * SECTOR_STATE_SIZE - drive_read_offset;
 
-	std::cout << std::endl << std::format("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: ", (int32_t)lba_index + lba_start, scm_offset, state_offset);
+	std::string offset_str;
 	for(uint32_t i = 0; i < CD_DATA_SIZE; ++i)
 	{
 		uint32_t byte_offset = i / CHAR_BIT;
 		uint32_t bit_offset = ((CHAR_BIT - 1) - i % CHAR_BIT);
 
 		if(c2_data[byte_offset] & (1 << bit_offset))
-			std::cout << std::format("{:08X} ", scm_offset + i);
+			offset_str += std::format("{:08X} ", scm_offset + i);
 	}
-	std::cout << std::endl;
+	LOG("");
+	LOG("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: {}", (int32_t)lba_index + lba_start, scm_offset, state_offset, offset_str);
 }
 
 }

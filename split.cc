@@ -7,6 +7,7 @@
 #include "ecc_edc.hh"
 #include "file_io.hh"
 #include "image_browser.hh"
+#include "logger.hh"
 #include "md5.hh"
 #include "scrambler.hh"
 #include "sha1.hh"
@@ -366,14 +367,14 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 	std::vector<State> state(SECTOR_STATE_SIZE);
 
-	std::cout << "checking tracks" << std::endl;
+	LOG("checking tracks");
 
 	auto time_start = std::chrono::high_resolution_clock::now();
 	for(auto const &se : toc.sessions)
 	{
 		for(auto const &t : se.tracks)
 		{
-			std::cout << std::format("track {}... ", t.track_number) << std::flush;
+			LOG_F("track {}... ", t.track_number);
 
 			uint32_t skip_samples = 0;
 			uint32_t c2_samples = 0;
@@ -416,16 +417,17 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 			if(skip_sectors || c2_sectors)
 			{
-				std::cout << std::format("failed, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", skip_sectors, c2_sectors, skip_samples, c2_samples) << std::endl;
+				LOG("failed, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", skip_sectors, c2_sectors, skip_samples, c2_samples);
 				no_errors = false;
 			}
 			else
-				std::cout << "passed" << std::endl;
+				LOG("passed");
 		}
 	}
 	auto time_stop = std::chrono::high_resolution_clock::now();
 
-	std::cout << std::format("check complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count()) << std::endl << std::endl;
+	LOG("check complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
+	LOG("");
 
 	return no_errors;
 }
@@ -439,7 +441,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 	std::vector<uint8_t> sector(CD_DATA_SIZE);
 	std::vector<State> state(SECTOR_STATE_SIZE);
 
-	std::cout << "splitting tracks" << std::endl;
+	LOG("splitting tracks");
 
 	auto time_start = std::chrono::high_resolution_clock::now();
 	for(auto &s : toc.sessions)
@@ -449,12 +451,12 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 
 			std::string track_name = std::format("{}{}.bin", options.image_name, toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 ? "" : std::format(track_format, t.track_number));
-			std::cout << std::format("{}... ", track_name) << std::flush;
+			LOG_F("{}... ", track_name);
 
-			if(std::filesystem::exists(std::filesystem::canonical(options.image_path) / track_name) && !options.overwrite)
+			if(std::filesystem::exists(std::filesystem::path(options.image_path) / track_name) && !options.overwrite)
 				throw_line(std::format("file already exists ({})", track_name));
 
-			std::fstream fs_bin(std::filesystem::canonical(options.image_path) / track_name, std::fstream::out | std::fstream::binary);
+			std::fstream fs_bin(std::filesystem::path(options.image_path) / track_name, std::fstream::out | std::fstream::binary);
 			if(!fs_bin.is_open())
 				throw_line(std::format("unable to create file ({})", track_name));
 
@@ -522,10 +524,12 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 							if(!standard_sync)
 							{
 								int32_t write_offset_next = track_process_offset_shift(write_offset, lba, std::min(CDI_MAX_OFFSET_SHIFT, (uint32_t)(lba_end - lba)),
-																					   state_fs, scm_fs, std::filesystem::canonical(options.image_path) / track_name);
+																					   state_fs, scm_fs, std::filesystem::path(options.image_path) / track_name);
 								if(write_offset_next != std::numeric_limits<int32_t>::max() && write_offset_next != write_offset)
 								{
-									std::cout << std::endl << std::format("warning: offset shift detected (LBA: {:6}, offset: {}, difference: {:+})", lba, write_offset_next, write_offset_next - write_offset) << std::endl;
+									LOG("");
+									LOG("warning: offset shift detected (LBA: {:6}, offset: {}, difference: {:+})", lba, write_offset_next, write_offset_next - write_offset);
+
 									write_offset = write_offset_next;
 									read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * CD_SAMPLE_SIZE, 0);
 									standard_sync = true;
@@ -540,7 +544,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 							//DEBUG
 							if(!unscrambled)
 							{
-								std::cout << "";
+								LOG("");
 							}
 						}
 					}
@@ -565,12 +569,13 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 			track_entry.sha1 = bh_sha1.Final();
 			track_entries.push_back(track_entry);
 
-			std::cout << "done" << std::endl;
+			LOG("done");
 		}
 	}
 	auto time_stop = std::chrono::high_resolution_clock::now();
 
-	std::cout << std::format("split complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count()) << std::endl << std::endl;
+	LOG("split complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
+	LOG("");
 }
 
 
@@ -602,30 +607,30 @@ bool compare_toc(const TOC &toc, const TOC &qtoc)
 		if(tt != toc_tracks.end() && qt != qtoc_tracks.end())
 		{
 			if(tt->second->lba_start != qt->second->lba_start)
-				std::cout << std::format("warning: TOC / QTOC track index 00 mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_start, qt->second->lba_start) << std::endl;
+				LOG("warning: TOC / QTOC track index 00 mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_start, qt->second->lba_start);
 
 			auto tt_size = tt->second->indices.size();
 			auto qt_size = qt->second->indices.size();
 			if(tt_size == qt_size)
 			{
 				if(tt_size && qt_size && tt->second->indices.front() != qt->second->indices.front())
-					std::cout << std::format("warning: TOC / QTOC track index 01 mismatch (track: {}, LBA: {} / {})", t, tt->second->indices.front(), qt->second->indices.front()) << std::endl;
+					LOG("warning: TOC / QTOC track index 01 mismatch (track: {}, LBA: {} / {})", t, tt->second->indices.front(), qt->second->indices.front());
 			}
 			else
 			{
-				std::cout << std::format("warning: TOC / QTOC track index size mismatch (track: {})", t) << std::endl;
+				LOG("warning: TOC / QTOC track index size mismatch (track: {})", t);
 			}
 
 			if(tt->second->lba_end != qt->second->lba_end)
-				std::cout << std::format("warning: TOC / QTOC track length mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_end, qt->second->lba_end) << std::endl;
+				LOG("warning: TOC / QTOC track length mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_end, qt->second->lba_end);
 		}
 		else
 		{
 			if(tt == toc_tracks.end())
-				std::cout << std::format("warning: nonexistent track in TOC (track: {})", t) << std::endl;
+				LOG("warning: nonexistent track in TOC (track: {})", t);
 
 			if(qt == qtoc_tracks.end())
-				std::cout << std::format("warning: nonexistent track in QTOC (track: {})", t) << std::endl;
+				LOG("warning: nonexistent track in QTOC (track: {})", t);
 		}
 	}
 
@@ -638,14 +643,13 @@ void redumper_protection(Options &options)
 	if(options.image_name.empty())
 		throw_line("no image name provided");
 
-	std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
+	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
 	std::filesystem::path sub_path(image_prefix + ".sub");
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
-	std::filesystem::path log_path(image_prefix + "_protection.txt");
 
 	uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
 	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
@@ -668,26 +672,20 @@ void redumper_protection(Options &options)
 			toc.disc_type = toc_full.disc_type;
 	}
 
-	std::cout << std::endl << "TOC:" << std::endl;
-	toc.Print(std::cout, "  ", 1);
-	std::cout << std::endl;
-
-	//TODO: review TOC altering
-
 	{
 		auto &t = toc.sessions.back().tracks.back();
 
 		// fake TOC
 		if(t.lba_end < 0)
 		{
-			std::cout << std::format("warning: fake TOC detected, using default 74min disc size") << std::endl;
+			LOG("warning: fake TOC detected, using default 74min disc size");
 			t.lba_end = MSF_to_LBA(MSF{74, 0, 0});
 		}
 
 		// incomplete dump (dumped with --stop-lba)
 		if(t.lba_end > (int32_t)sectors_count + LBA_START)
 		{
-			std::cout << std::format("warning: incomplete dump detected, using available dump size") << std::endl;
+			LOG("warning: incomplete dump detected, using available dump size");
 			t.lba_end = (int32_t)sectors_count + LBA_START;
 		}
 	}
@@ -700,9 +698,9 @@ void redumper_protection(Options &options)
 	if(!state_fs.is_open())
 		throw_line(std::format("unable to open file ({})", state_path.filename().string()));
 
-	std::string protection("<NONE>");
+	std::string protection("N/A");
 
-	std::cout << "scan started" << std::endl;
+	LOG("scan started");
 
 	auto scan_time_start = std::chrono::high_resolution_clock::now();
 
@@ -802,23 +800,11 @@ void redumper_protection(Options &options)
 		}
 	}
 
-	std::cout << std::format("protection: {}", protection) << std::endl;
+	LOG("protection: {}", protection);
 
 	auto scan_time_stop = std::chrono::high_resolution_clock::now();
-	std::cout << std::format("scan complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(scan_time_stop - scan_time_start).count()) << std::endl << std::endl;
-
-	{
-		std::fstream ofs(log_path, std::fstream::out);
-		if(!ofs.is_open())
-			throw_line(std::format("unable to create file ({})", log_path.filename().string()));
-		ofs << std::format("DUMPER: {}", redumper_version()) << std::endl;
-		ofs << std::format("COMMAND: {}", options.command) << std::endl;
-		ofs << std::endl;
-
-		ofs << "PROTECTION: " << std::endl;
-		ofs << std::format("\t{}", protection) << std::endl;
-		ofs << std::endl;
-	}
+	LOG("scan complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(scan_time_stop - scan_time_start).count());
+	LOG("");
 }
 
 
@@ -827,7 +813,7 @@ void redumper_split(const Options &options)
 	if(options.image_name.empty())
 		throw_line("no image name provided");
 
-	std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
+	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
 	std::filesystem::path sub_path(image_prefix + ".sub");
@@ -835,7 +821,6 @@ void redumper_split(const Options &options)
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
-	std::filesystem::path log_path(image_prefix + "_split.txt");
 
 	uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
 	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
@@ -886,22 +871,24 @@ void redumper_split(const Options &options)
 	}
 
 	// correct Q
-	std::cout << "correcting Q... ";
+	LOG_F("correcting Q... ");
 	correct_program_subq(subq.data(), sectors_count);
-	std::cout << "done" << std::endl;
+	LOG("done");
 
 	toc.UpdateQ(subq.data(), sectors_count, LBA_START);
-	std::cout << std::endl << "TOC:" << std::endl;
-	toc.Print(std::cout, "  ", 1);
+	LOG("");
+	LOG("TOC:");
+	toc.Print();
 
 	TOC qtoc(subq.data(), sectors_count, LBA_START);
 
 	// derive disc type and track control from TOC
 	qtoc.Derive(toc);
 
-	std::cout << std::endl << "QTOC:" << std::endl;
-	qtoc.Print(std::cout, "  ", 1);
-	std::cout << std::endl;
+	LOG("");
+	LOG("QTOC:");
+	qtoc.Print();
+	LOG("");
 
 	// compare TOC and QTOC
 	bool use_qtoc = compare_toc(toc, qtoc);
@@ -909,7 +896,7 @@ void redumper_split(const Options &options)
 	if(!options.force_toc && (options.force_qtoc || use_qtoc))
 	{
 		toc = qtoc;
-		std::cout << "warning: split is performed by QTOC" << std::endl;
+		LOG("warning: split is performed by QTOC");
 	}
 
 	toc.UpdateMCN(subq.data(), sectors_count);
@@ -991,7 +978,7 @@ void redumper_split(const Options &options)
 				// shift first track out of pre-gap
 				t.lba_start -= MSF_LBA_SHIFT;
 
-				std::cout << "CD-i Ready disc detected, extending first track with pre-gap" << std::endl;
+				LOG("CD-i Ready disc detected, extending first track with pre-gap");
 			}
 		}
 	}
@@ -1005,7 +992,7 @@ void redumper_split(const Options &options)
 	if(write_offset == std::numeric_limits<int32_t>::max())
 		write_offset = 0;
 
-	std::cout << std::format("write offset: {:+}", write_offset) << std::endl;
+	LOG("write offset: {:+}", write_offset);
 
 	// check first track index 0 of each session for non zero data
 	for(auto &s : toc.sessions)
@@ -1054,8 +1041,8 @@ void redumper_split(const Options &options)
 				}
 			}
 			if(error_samples)
-				std::cout << std::format("warning: incomplete audio track pre-gap (session: {}, errors: {}, leading zeroes: {}, non-zeroes: {}/{})",
-										 s.session_number, error_samples, lead_zero_samples, non_zero_samples, state.size() - error_samples) << std::endl;
+				LOG("warning: incomplete audio track pre-gap (session: {}, errors: {}, leading zeroes: {}, non-zeroes: {}/{})",
+					s.session_number, error_samples, lead_zero_samples, non_zero_samples, state.size() - error_samples);
 			//FIXME: cut fixed 150 sectors, not index1!
 			if(non_zero_samples == 0)
 				t.lba_start = t.indices.front();
@@ -1072,99 +1059,83 @@ void redumper_split(const Options &options)
 
 	// write CUE-sheet
 	std::vector<std::string> cue_sheets;
-	std::cout << "writing CUE-sheet" << std::endl;
+	LOG("writing CUE-sheet");
 	if(toc.cd_text_lang.size() > 1)
 	{
 		cue_sheets.resize(toc.cd_text_lang.size());
 		for(uint32_t i = 0; i < toc.cd_text_lang.size(); ++i)
 		{
 			cue_sheets[i] = i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name);
-			std::cout << cue_sheets[i] << "... " << std::flush;
+			LOG_F("{}... ", cue_sheets[i]);
 
-			if(std::filesystem::exists(std::filesystem::canonical(options.image_path) / cue_sheets[i]) && !options.overwrite)
+			if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets[i]) && !options.overwrite)
 				throw_line(std::format("file already exists ({})", cue_sheets[i]));
 
-			std::fstream fs(std::filesystem::canonical(options.image_path) / cue_sheets[i], std::fstream::out);
+			std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets[i], std::fstream::out);
 			if(!fs.is_open())
 				throw_line(std::format("unable to create file ({})", cue_sheets[i]));
 			toc.PrintCUE(fs, options.image_name, i);
-			std::cout << "done" << std::endl;
+			LOG("done");
 		}
 	}
 	else
 	{
 		cue_sheets.push_back(std::format("{}.cue", options.image_name));
-		std::cout << cue_sheets.front() << "... " << std::flush;
+		LOG_F("{}... ", cue_sheets.front());
 
-		if(std::filesystem::exists(std::filesystem::canonical(options.image_path) / cue_sheets.front()) && !options.overwrite)
+		if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets.front()) && !options.overwrite)
 			throw_line(std::format("file already exists ({})", cue_sheets.front()));
 
-		std::fstream fs(std::filesystem::canonical(options.image_path) / cue_sheets.front(), std::fstream::out);
+		std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets.front(), std::fstream::out);
 		if(!fs.is_open())
 			throw_line(std::format("unable to create file ({})", cue_sheets.front()));
 		toc.PrintCUE(fs, options.image_name);
-		std::cout << "done" << std::endl;
+		LOG("done");
 	}
 
+	if(toc.sessions.size() > 1)
 	{
-		std::fstream ofs(log_path, std::fstream::out);
-		if(!ofs.is_open())
-			throw_line(std::format("unable to create file ({})", log_path.filename().string()));
-		ofs << std::format("DUMPER: {}", redumper_version()) << std::endl;
-		ofs << std::format("COMMAND: {}", options.command) << std::endl;
-		ofs << std::endl;
+		LOG("multisession: ");
+		for(auto const &s : toc.sessions)
+			LOG("  session {}: {}-{}", s.session_number, s.tracks.front().indices.empty() ? s.tracks.front().lba_start : s.tracks.front().indices.front(), s.tracks.back().lba_end - 1);
+		LOG("");
+	}
 
-		ofs << "CD: " << std::endl;
-		ofs << std::format("\twrite offset: {:+}", write_offset) << std::endl;
-		ofs << std::endl;
-		
-		if(toc.sessions.size() > 1)
-		{
-			ofs << "MULTISESSION: " << std::endl;
-			for(auto const &s : toc.sessions)
-				ofs << std::format("\tsession {}: {}-{}", s.session_number, s.tracks.front().indices.empty() ? s.tracks.front().lba_start : s.tracks.front().indices.front(), s.tracks.back().lba_end - 1) << std::endl;
-			ofs << std::endl;
-		}
+	for(auto const &t : track_entries)
+	{
+		if(!t.data)
+			continue;
 
-		// DATA ERRORS
-		for(auto const &t : track_entries)
-		{
-			if(!t.data)
-				continue;
-			
-			ofs << std::format("DATA ERRORS [{}]:", t.filename) << std::endl;
-			ofs << std::format("\tECC: {}", t.ecc_errors) << std::endl;
-			ofs << std::format("\tEDC: {}", t.edc_errors) << std::endl;
-			if(t.subheader_errors)
-				ofs << std::format("\tCD-XA SubHeader mismatch: {}", t.subheader_errors) << std::endl;
-			ofs << std::format("\tredump: {}", t.redump_errors) << std::endl;
-			ofs << std::endl;
-		}
-		
-		// DAT
-		ofs << "DAT:" << std::endl;
-		for(auto const &t : track_entries)
-		{
-			std::string filename = t.filename;
-			replace_all_occurences(filename, "&", "&amp;");
+		LOG("data errors [{}]:", t.filename);
+		LOG("  ECC: {}", t.ecc_errors);
+		LOG("  EDC: {}", t.edc_errors);
+		if(t.subheader_errors)
+			LOG("  CD-XA SubHeader mismatch: {}", t.subheader_errors);
+		LOG("  redump: {}", t.redump_errors);
+		LOG("");
+	}
 
-			ofs << std::format("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, std::filesystem::file_size(std::filesystem::canonical(options.image_path) / t.filename), t.crc, t.md5, t.sha1) << std::endl;
-		}
-		ofs << std::endl;
+	LOG("dat:");
+	for(auto const &t : track_entries)
+	{
+		std::string filename = t.filename;
+		replace_all_occurences(filename, "&", "&amp;");
 
-		// CUE
-		for(auto const &c : cue_sheets)
-		{
-			ofs << std::format("CUE [{}]:", c) << std::endl;
-			std::filesystem::path cue_path(std::filesystem::canonical(options.image_path) / c);
-			std::fstream ifs(cue_path, std::fstream::in);
-			if(!ifs.is_open())
-				throw_line(std::format("unable to open file ({})", cue_path.filename().string()));
-			std::string line;
-			while(std::getline(ifs, line))
-				ofs << line << std::endl;
-			ofs << std::endl;
-		}
+		LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, std::filesystem::file_size(std::filesystem::path(options.image_path) / t.filename), t.crc, t.md5, t.sha1);
+	}
+	LOG("");
+
+	for(auto const &c : cue_sheets)
+	{
+		LOG("CUE [{}]:", c);
+		std::filesystem::path cue_path(std::filesystem::path(options.image_path) / c);
+		std::fstream ifs(cue_path, std::fstream::in);
+		if(!ifs.is_open())
+			throw_line(std::format("unable to open file ({})", cue_path.filename().string()));
+		std::string line;
+		while(std::getline(ifs, line))
+			LOG(line);
+		LOG("");
 	}
 }
 
@@ -1204,15 +1175,7 @@ constexpr uint32_t SECTORS_AT_ONCE = 10000;
 
 void redumper_info(const Options &options)
 {
-	std::string image_prefix = (std::filesystem::canonical(options.image_path) / options.image_name).string();
-	std::filesystem::path log_path(image_prefix + "_info.txt");
-
-	std::fstream ofs(log_path, std::fstream::out);
-	if(!ofs.is_open())
-		throw_line(std::format("unable to create file ({})", log_path.filename().string()));
-	ofs << std::format("DUMPER: {}", redumper_version()) << std::endl;
-	ofs << std::format("COMMAND: {}", options.command) << std::endl;
-	ofs << std::endl;
+	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	auto tracks = cue_get_entries(image_prefix + ".cue");
 
@@ -1221,17 +1184,15 @@ void redumper_info(const Options &options)
 		if(!t.second)
 			continue;
 
-		if(ImageBrowser::IsDataTrack(std::filesystem::canonical(options.image_path) / t.first))
+		if(ImageBrowser::IsDataTrack(std::filesystem::path(options.image_path) / t.first))
 		{
-			ImageBrowser browser(std::filesystem::canonical(options.image_path) / t.first, 0, false);
+			ImageBrowser browser(std::filesystem::path(options.image_path) / t.first, 0, false);
 
-			ofs << std::format("ISO9660 [{}]:", t.first) << std::endl;
+			LOG("ISO9660 [{}]:", t.first);
 
-			// PVD
 			auto pvd = browser.GetPVD();
-			ofs << "\tPVD:" << std::endl;
-			ofs << hexdump((uint8_t *)&pvd, 0x320, 96);
-			ofs << std::endl;
+			LOG("  PVD:");
+			LOG(hexdump((uint8_t *)&pvd, 0x320, 96));
 		}
 	}
 }

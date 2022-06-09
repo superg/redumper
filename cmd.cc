@@ -1,9 +1,7 @@
-#include <windows.h>
-#include <scsi.h>
-#include <ntddcdrm.h>
 #include "cd.hh"
 #include "common.hh"
 #include "endian.hh"
+#include "mmc.hh"
 #include "cmd.hh"
 
 
@@ -81,9 +79,9 @@ static const uint32_t READ_CDDA_SIZES[] =
 
 SPTD::Status cmd_drive_ready(SPTD &sptd)
 {
-	CDB::_CDB6GENERIC cdb = {};
-	cdb.OperationCode = SCSIOP_TEST_UNIT_READY;
-	return sptd.SendCommand(&cdb, CDB6GENERIC_LENGTH, nullptr, 0);
+	CDB6_Generic cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::TEST_UNIT_READY;
+	return sptd.SendCommand(&cdb, sizeof(cdb), nullptr, 0);
 }
 
 
@@ -91,18 +89,18 @@ DriveQuery cmd_drive_query(SPTD &sptd)
 {
 	DriveQuery drive_query;
 
-	CDB::_CDB6INQUIRY3 cdb = {};
-	cdb.OperationCode = SCSIOP_INQUIRY;
-	cdb.AllocationLength = sizeof(INQUIRYDATA);
-	INQUIRYDATA inquiry_data;
-	auto status = sptd.SendCommand(&cdb, CDB6GENERIC_LENGTH, &inquiry_data, sizeof(inquiry_data));
+	CDB6_Inquiry3 cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::INQUIRY;
+	cdb.allocation_length = sizeof(InquiryData);
+	InquiryData inquiry_data;
+	auto status = sptd.SendCommand(&cdb, sizeof(cdb), &inquiry_data, sizeof(inquiry_data));
 	if(status.status_code)
 		throw_line(std::format("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status)));
 
-	drive_query.vendor_id = normalize_string(std::string((char *)inquiry_data.VendorId, sizeof(inquiry_data.VendorId)));
-	drive_query.product_id = normalize_string(std::string((char *)inquiry_data.ProductId, sizeof(inquiry_data.ProductId)));
-	drive_query.product_revision_level = normalize_string(std::string((char *)inquiry_data.ProductRevisionLevel, sizeof(inquiry_data.ProductRevisionLevel)));
-	drive_query.vendor_specific = normalize_string(std::string((char *)inquiry_data.VendorSpecific, sizeof(inquiry_data.VendorSpecific)));
+	drive_query.vendor_id = normalize_string(std::string((char *)inquiry_data.vendor_id, sizeof(inquiry_data.vendor_id)));
+	drive_query.product_id = normalize_string(std::string((char *)inquiry_data.product_id, sizeof(inquiry_data.product_id)));
+	drive_query.product_revision_level = normalize_string(std::string((char *)inquiry_data.product_revision_level, sizeof(inquiry_data.product_revision_level)));
+	drive_query.vendor_specific = normalize_string(std::string((char *)inquiry_data.vendor_specific, sizeof(inquiry_data.vendor_specific)));
 
 	return drive_query;
 }
@@ -110,21 +108,29 @@ DriveQuery cmd_drive_query(SPTD &sptd)
 
 std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 {
-	std::vector<uint8_t> toc(sizeof(CDROM_TOC));
+	std::vector<uint8_t> toc;
 
-	CDB::_READ_TOC cdb = {};
-	cdb.OperationCode = SCSIOP_READ_TOC;
-	cdb.Format2 = CDROM_READ_TOC_EX_FORMAT_TOC;
-	cdb.StartingTrack = 1;
+	CDB10_ReadTOC cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
+	cdb.format2 = (uint8_t)READ_TOC_ExFormat::TOC;
+	cdb.starting_track = 1;
 
-	*(USHORT *)cdb.AllocationLength = endian_swap((USHORT)toc.size());
-	auto status = sptd.SendCommand(&cdb, CDB10GENERIC_LENGTH, toc.data(), (uint32_t)toc.size());
-	if(status.status_code)
-		throw_line(std::format("unable to read TOC, SCSI ({})", SPTD::StatusMessage(status)));
+	// read TOC header first to get the full TOC size
+	READ_TOC_Response toc_response;
+	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
+	auto status = sptd.SendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
+	if(!status.status_code)
+	{
+		uint16_t toc_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
+		toc.resize(round_up(toc_buffer_size, sizeof(uint32_t)));
 
-	auto cdrom_toc = (CDROM_TOC *)toc.data();
-	uint16_t toc_buffer_size = sizeof(cdrom_toc->Length) + endian_swap(*(uint16_t *)cdrom_toc->Length);
-	toc.resize(toc_buffer_size);
+		*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(toc_buffer_size);
+		status = sptd.SendCommand(&cdb, sizeof(cdb), toc.data(), (uint32_t)toc.size());
+		if(status.status_code)
+			toc.clear();
+		else
+			toc.resize(toc_buffer_size);
+	}
 
 	return toc;
 }
@@ -134,22 +140,22 @@ std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> full_toc;
 
-	CDB::_READ_TOC cdb = {};
-	cdb.OperationCode = SCSIOP_READ_TOC;
-	cdb.Format2 = CDROM_READ_TOC_EX_FORMAT_FULL_TOC;
-	cdb.StartingTrack = 1;
+	CDB10_ReadTOC cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
+	cdb.format2 = (uint8_t)READ_TOC_ExFormat::FULL_TOC;
+	cdb.starting_track = 1;
 
 	// read TOC header first to get the full TOC size
-	CDROM_TOC_FULL_TOC_DATA toc_header;
-	*(USHORT *)cdb.AllocationLength = endian_swap<USHORT>(sizeof(toc_header));
-	auto status = sptd.SendCommand(&cdb, CDB10GENERIC_LENGTH, &toc_header, sizeof(toc_header));
+	READ_TOC_Response toc_response;
+	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
+	auto status = sptd.SendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
 	if(!status.status_code)
 	{
-		uint16_t toc_buffer_size = sizeof(toc_header.Length) + endian_swap(*(uint16_t *)toc_header.Length);
+		uint16_t toc_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
 		full_toc.resize(round_up(toc_buffer_size, sizeof(uint32_t)));
 
-		*(USHORT *)cdb.AllocationLength = endian_swap<USHORT>(toc_buffer_size);
-		status = sptd.SendCommand(&cdb, CDB10GENERIC_LENGTH, full_toc.data(), (uint32_t)full_toc.size());
+		*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(toc_buffer_size);
+		status = sptd.SendCommand(&cdb, sizeof(cdb), full_toc.data(), (uint32_t)full_toc.size());
 		if(status.status_code)
 			full_toc.clear();
 		else
@@ -164,23 +170,24 @@ SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 {
 	SPTD::Status status;
 
-	CDB::_READ_TOC cdb = {};
-	cdb.OperationCode = SCSIOP_READ_TOC;
-	cdb.Format2 = CDROM_READ_TOC_EX_FORMAT_CDTEXT;
+	CDB10_ReadTOC cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
+	cdb.format2 = (uint8_t)READ_TOC_ExFormat::CD_TEXT;
 
 	// read CD-TEXT header first to get the full TOC size
-	CDROM_TOC_CD_TEXT_DATA cd_text_header;
-	*(USHORT *)cdb.AllocationLength = endian_swap<USHORT>(sizeof(cd_text_header));
-	status = sptd.SendCommand(&cdb, CDB10GENERIC_LENGTH, &cd_text_header, sizeof(cd_text_header));
+	READ_TOC_Response toc_response;
+	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
+	status = sptd.SendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
 	if(!status.status_code)
 	{
-		uint16_t cd_text_buffer_size = sizeof(cd_text_header.Length) + endian_swap(*(uint16_t *)cd_text_header.Length);
-		if(cd_text_buffer_size > sizeof(cd_text_header))
+		uint16_t cd_text_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
+		if(cd_text_buffer_size > sizeof(toc_response))
 		{
 			cd_text.resize(round_up(cd_text_buffer_size, sizeof(uint32_t)));
 
-			*(USHORT *)cdb.AllocationLength = endian_swap<USHORT>(cd_text_buffer_size);
-			status = sptd.SendCommand(&cdb, CDB10GENERIC_LENGTH, cd_text.data(), (uint32_t)cd_text.size());
+			*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(cd_text_buffer_size);
+
+			status = sptd.SendCommand(&cdb, sizeof(cdb), cd_text.data(), (uint32_t)cd_text.size());
 			if(!status.status_code)
 				cd_text.resize(cd_text_buffer_size);
 		}
@@ -190,39 +197,37 @@ SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 }
 
 
-SPTD::Status cmd_read_sector(SPTD &sptd, uint8_t *buffer, int32_t start_lba, uint32_t transfer_length, ReadCommand command, ReadType type, ReadFilter filter)
+SPTD::Status cmd_read_sector(SPTD &sptd, uint8_t *buffer, int32_t start_lba, uint32_t transfer_length, CDB_OperationCode command, ReadType type, ReadFilter filter)
 {
-	std::vector<uint8_t> cdb(CDB12GENERIC_LENGTH);
+	CDB12_ReadCD cdb = {};
 
-	if(command == ReadCommand::READ_CDDA)
+	if(command == CDB_OperationCode::READ_CDDA)
 	{
-		auto &cdb_cdda = *(CDB::_PLXTR_READ_CDDA *)cdb.data();
-		cdb_cdda.OperationCode = (uint8_t)command;
-		cdb_cdda.LogicalUnitNumber = sptd.GetAddress().Lun;
-		*(int32_t *)&cdb_cdda.LogicalBlockByte0 = endian_swap(start_lba);
-		*(uint32_t *)&cdb_cdda.TransferBlockByte0 = endian_swap(transfer_length);
-		cdb_cdda.SubCode = (uint8_t)type;
+		auto &cdb_cdda = *(CDB12_PLEXTOR_ReadCDDA *)&cdb;
+		cdb_cdda.operation_code = (uint8_t)command;
+//GGG		cdb_cdda.lun = sptd.GetAddress().Lun;
+		*(int32_t *)cdb_cdda.starting_lba = endian_swap(start_lba);
+		*(uint32_t *)cdb_cdda.transfer_blocks = endian_swap(transfer_length);
+		cdb_cdda.sub_code = (uint8_t)type;
 	}
-	else if(command == ReadCommand::READ_CD)
+	else if(command == CDB_OperationCode::READ_CD)
 	{
 		if(type == ReadType::SUB)
 			throw_line(std::format("invalid sector read type ({})", (uint8_t)type));
 
-		auto &cdb_cd = *(CDB::_READ_CD *)cdb.data();
-
-		cdb_cd.OperationCode = (uint8_t)command;
-		cdb_cd.ExpectedSectorType = (uint8_t)filter;
-		cdb_cd.Lun = sptd.GetAddress().Lun;
-		*(int32_t *)cdb_cd.StartingLBA = endian_swap(start_lba);
-		cdb_cd.TransferBlocks[0] = ((uint8_t *)&transfer_length)[2];
-		cdb_cd.TransferBlocks[1] = ((uint8_t *)&transfer_length)[1];
-		cdb_cd.TransferBlocks[2] = ((uint8_t *)&transfer_length)[0];
-		cdb_cd.ErrorFlags = (uint8_t)(type == ReadType::DATA_C2_SUB ? ReadCDErrorFlags::C2 : ReadCDErrorFlags::NONE);
-		cdb_cd.IncludeEDC = 1;
-		cdb_cd.IncludeUserData = 1;
-		cdb_cd.HeaderCode = (UCHAR)ReadCDHeaderCode::ALL_HEADERS;
-		cdb_cd.IncludeSyncData = 1;
-		cdb_cd.SubChannelSelection = (uint8_t)(type == ReadType::DATA ? ReadCDSubChannelSelection::NONE : ReadCDSubChannelSelection::RAW);
+		cdb.operation_code = (uint8_t)command;
+		cdb.expected_sector_type = (uint8_t)filter;
+//GGG		cdb.lun = sptd.GetAddress().Lun;
+		*(int32_t *)cdb.starting_lba = endian_swap(start_lba);
+		cdb.transfer_blocks[0] = ((uint8_t *)&transfer_length)[2];
+		cdb.transfer_blocks[1] = ((uint8_t *)&transfer_length)[1];
+		cdb.transfer_blocks[2] = ((uint8_t *)&transfer_length)[0];
+		cdb.error_flags = (uint8_t)(type == ReadType::DATA_C2_SUB ? ReadCDErrorFlags::C2 : ReadCDErrorFlags::NONE);
+		cdb.include_edc = 1;
+		cdb.include_user_data = 1;
+		cdb.header_code = (uint8_t)ReadCDHeaderCode::ALL_HEADERS;
+		cdb.include_sync_data = 1;
+		cdb.sub_channel_selection = (uint8_t)(type == ReadType::DATA ? ReadCDSubChannelSelection::NONE : ReadCDSubChannelSelection::RAW);
 	}
 	else
 		throw_line(std::format("invalid sector read command ({:02X})", (uint8_t)command));
@@ -231,51 +236,53 @@ SPTD::Status cmd_read_sector(SPTD &sptd, uint8_t *buffer, int32_t start_lba, uin
 	if(buffer_length == 0)
 		throw_line(std::format("invalid sector read type ({})", (uint8_t)type));
 
-	return sptd.SendCommand(cdb.data(), (uint8_t)cdb.size(), buffer, buffer_length);
+	return sptd.SendCommand(&cdb, sizeof(cdb), buffer, buffer_length);
 }
 
 
 SPTD::Status cmd_plextor_reset(SPTD &sptd)
 {
-	CDB::_CDB6GENERIC cdb = {};
-	cdb.OperationCode = 0xEE;
+	CDB6_Generic cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::PLEXTOR_RESET;
 
-	return sptd.SendCommand(&cdb, CDB6GENERIC_LENGTH, nullptr, 0);
+	return sptd.SendCommand(&cdb, sizeof(cdb), nullptr, 0);
 }
 
 
 SPTD::Status cmd_synchronize_cache(SPTD &sptd)
 {
-	CDB::_CDB6GENERIC cdb = {};
-	cdb.OperationCode = SCSIOP_SYNCHRONIZE_CACHE;
+	CDB6_Generic cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::SYNCHRONIZE_CACHE;
 
-	return sptd.SendCommand(&cdb, CDB6GENERIC_LENGTH, nullptr, 0);
+	return sptd.SendCommand(&cdb, sizeof(cdb), nullptr, 0);
 }
 
 
 SPTD::Status cmd_flush_drive_cache(SPTD &sptd, int32_t lba)
 {
-	CDB::_READ12 cdb = {};
-	cdb.OperationCode = SCSIOP_READ12;
-	cdb.ForceUnitAccess = 1;
-	*(int32_t *)cdb.LogicalBlock = endian_swap(lba);
-	return sptd.SendCommand(&cdb, CDB12GENERIC_LENGTH, nullptr, 0);
+	CDB12_Read cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ12;
+	cdb.force_unit_access = 1;
+	*(int32_t *)cdb.starting_lba = endian_swap(lba);
+
+	return sptd.SendCommand(&cdb, sizeof(cdb), nullptr, 0);
 }
 
 
 SPTD::Status cmd_set_cd_speed(SPTD &sptd, uint16_t speed)
 {
-	CDB::_SET_CD_SPEED cdb = {};
-	cdb.OperationCode = SCSIOP_SET_CD_SPEED;
-	*(uint16_t *)cdb.ReadSpeed = endian_swap(speed);
-	return sptd.SendCommand(&cdb, CDB12GENERIC_LENGTH, nullptr, 0);
+	CDB12_SetCDSpeed cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::SET_CD_SPEED;
+	*(uint16_t *)cdb.read_speed = endian_swap(speed);
+
+	return sptd.SendCommand(&cdb, sizeof(cdb), nullptr, 0);
 }
 
 
 SPTD::Status cmd_asus_read_cache(SPTD &sptd, uint8_t *buffer, uint32_t offset, uint32_t size)
 {
 	CDB_ASUS_ReadCache cdb;
-	cdb.operation_code = 0xF1;
+	cdb.operation_code = (uint8_t)CDB_OperationCode::ASUS_READ_CACHE;
 	cdb.unknown = 6;
 	cdb.offset = endian_swap(offset);
 	cdb.size = endian_swap(size);

@@ -1,13 +1,12 @@
 #include <format>
 #include <map>
 #include <set>
-#include <windows.h>
-#include <ntddcdrm.h>
 #include "cd.hh"
 #include "common.hh"
 #include "crc16_gsm.hh"
 #include "endian.hh"
 #include "logger.hh"
+#include "mmc.hh"
 #include "toc.hh"
 
 
@@ -320,8 +319,8 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 {
 	bool success = true;
 
-	CDROM_TOC_CD_TEXT_DATA &cd_text_data = *(CDROM_TOC_CD_TEXT_DATA *)cdtext_buffer.data();
-	auto descriptors_count = (uint16_t)((cdtext_buffer.size() - sizeof(CDROM_TOC_CD_TEXT_DATA)) / sizeof(cd_text_data.Descriptors[0]));
+	auto descriptors_count = (uint16_t)((cdtext_buffer.size() - sizeof(READ_TOC_Response)) / sizeof(CD_TEXT_Descriptor));
+	auto descriptors = (CD_TEXT_Descriptor *)(cdtext_buffer.data() + sizeof(READ_TOC_Response));
 
 	// load first available block size information structure and block number statistics
 	BlockSizeInfo block_size_info;
@@ -329,7 +328,7 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 	std::set<uint8_t> blocks;
 	for(uint16_t i = 0; i < descriptors_count; ++i)
 	{
-		auto &pack_data = cd_text_data.Descriptors[i];
+		auto &pack_data = descriptors[i];
 
 		//DEBUG
 //		LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}{}{}{}{}{}{}{}{}{}{}{}",
@@ -339,28 +338,28 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 
 		auto crc = crc16_gsm((uint8_t *)&pack_data, sizeof(pack_data) - sizeof(uint16_t));
 		// PLEXTOR PX-W5224TA: crc of last pack is always zeroed
-		if(crc != endian_swap(*(uint16_t *)pack_data.CRC) && i + 1 != descriptors_count)
+		if(crc != endian_swap(pack_data.crc) && i + 1 != descriptors_count)
 		{
 			success = false;
 			break;
 		}
 
-		if(pack_data.ExtensionFlag)
+		if(pack_data.extension_flag)
 			continue;
 
-		if((PackType)pack_data.PackType == PackType::SIZE_INFO)
+		if((PackType)pack_data.pack_type == PackType::SIZE_INFO)
 		{
 			if(!bsi_found)
 			{
-				memcpy((char *)&block_size_info + pack_data.TrackNumber * sizeof(pack_data.Text), pack_data.Text, sizeof(pack_data.Text));
-				if(pack_data.TrackNumber == 2)
+				memcpy((char *)&block_size_info + pack_data.track_number * sizeof(pack_data.text), pack_data.text, sizeof(pack_data.text));
+				if(pack_data.track_number == 2)
 					bsi_found = true;
 			}
 		}
 		else
-			blocks.insert(pack_data.BlockNumber);
+			blocks.insert(pack_data.block_number);
 	}
-	
+
 	if(!success)
 		return success;
 
@@ -393,21 +392,21 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 
 	for(uint16_t i = 0; i < descriptors_count;)
 	{
-		auto &pack_data = cd_text_data.Descriptors[i];
+		auto &pack_data = descriptors[i];
 
-		if(pack_data.ExtensionFlag)
+		if(pack_data.extension_flag)
 			continue;
 
-		auto pack_type = (PackType)pack_data.PackType;
+		auto pack_type = (PackType)pack_data.pack_type;
 		if(IsTextPack(pack_type))
 		{
 			std::vector<char> text;
-			for(; i < descriptors_count && (PackType)cd_text_data.Descriptors[i].PackType == pack_type; ++i)
-				text.insert(text.end(), cd_text_data.Descriptors[i].Text, cd_text_data.Descriptors[i].Text + sizeof(cd_text_data.Descriptors[i].Text));
+			for(; i < descriptors_count; ++i)
+				text.insert(text.end(), descriptors[i].text, descriptors[i].text + sizeof(descriptors[i].text));
 
 			std::vector<char *> track_texts;
 
-			if(pack_data.Unicode)
+			if(pack_data.unicode)
 			{
 				uint16_t *text_unicode = (uint16_t *)text.data();
 				uint32_t unicode_size = (uint32_t)text.size() / sizeof(uint16_t);
@@ -439,7 +438,7 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 			uint32_t count = std::min((uint32_t)tracks_count + 1, (uint32_t)track_texts.size());
 			for(uint32_t j = 0; j < count; ++j)
 			{
-				CDText *cdt = GetCDText(blocks_map[pack_data.BlockNumber], j ? first_track + j - 1 : 0);
+				CDText *cdt = GetCDText(blocks_map[pack_data.block_number], j ? first_track + j - 1 : 0);
 
 				if(!cdt)
 					continue;
@@ -516,7 +515,7 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 			++i;
 		}
 	}
-	
+
 	return success;
 }
 
@@ -696,27 +695,27 @@ void TOC::InitTOC(const std::vector<uint8_t> &toc_buffer)
 	// don't rely on anything and sort by session number / track number
 	std::map<uint8_t, Session::Track> tracks;
 
-	CDROM_TOC &toc = *(CDROM_TOC *)toc_buffer.data();
+	auto descriptors_count = (uint16_t)((toc_buffer.size() - sizeof(READ_TOC_Response)) / sizeof(TOC_Descriptor));
+	auto descriptors = (TOC_Descriptor *)(toc_buffer.data() + sizeof(READ_TOC_Response));
 
-	uint16_t descriptors_count = (endian_swap(*(uint16_t *)toc.Length) - 2) / sizeof(toc.TrackData[0]);
 	for(uint16_t i = 0; i < descriptors_count; ++i)
 	{
-		auto &d = toc.TrackData[i];
+		auto &d = descriptors[i];
 
-		if(d.TrackNumber < MAXIMUM_NUMBER_TRACKS || d.TrackNumber == 0xAA)
+		if(d.track_number < CD_TRACKS_COUNT || d.track_number == 0xAA)
 		{
-			int32_t lba = endian_swap(*(int32_t *)d.Address);
+			int32_t lba = endian_swap(d.track_start_address);
 
-			auto &t = tracks[d.TrackNumber];
+			auto &t = tracks[d.track_number];
 
-			t.track_number = d.TrackNumber;
+			t.track_number = d.track_number;
 
 			// [CDI] Op Jacht naar Vernuft (Netherlands)
 			// make sure there are no duplicate entries, always use the latest one
 			t.indices.clear();
 
 			t.indices.push_back(lba);
-			t.control = d.Control;
+			t.control = d.control;
 			t.lba_start = lba;
 			t.lba_end = lba;
 			t.data_mode = 0;
@@ -749,20 +748,21 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 	// don't rely on anything and sort by session number / track number
 	std::map<uint8_t, std::map<uint8_t, Session::Track>> tracks;
 
-	CDROM_TOC_FULL_TOC_DATA &full_toc_data = *(CDROM_TOC_FULL_TOC_DATA *)toc_buffer.data();
-	auto descriptors_count = (uint16_t)((toc_buffer.size() - sizeof(CDROM_TOC_FULL_TOC_DATA)) / sizeof(full_toc_data.Descriptors[0]));
+	auto descriptors_count = (uint16_t)((toc_buffer.size() - sizeof(READ_TOC_Response)) / sizeof(FULL_TOC_Descriptor));
+	auto descriptors = (FULL_TOC_Descriptor *)(toc_buffer.data() + sizeof(READ_TOC_Response));
+
 	for(uint16_t i = 0; i < descriptors_count; ++i)
 	{
-		auto &d = full_toc_data.Descriptors[i];
+		auto &d = descriptors[i];
 
 		// according to the MMC specs, only Q mode 1 and mode 5 are provided here
-		if(d.Adr == 1)
+		if(d.adr == 1)
 		{
-			switch(d.Point)
+			switch(d.point)
 			{
 			// first track
 			case 0xA0:
-				disc_type = (DiscType)d.Msf[1];
+				disc_type = (DiscType)d.p_msf[1];
 				break;
 
 			// last track
@@ -770,17 +770,17 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 				break;
 
 			default:
-				if(d.Point < MAXIMUM_NUMBER_TRACKS || d.Point == 0xA2)
+				if(d.point < CD_TRACKS_COUNT || d.point == 0xA2)
 				{
-					int32_t lba = MSF_to_LBA(*(MSF *)d.Msf);
+					int32_t lba = MSF_to_LBA(*(MSF *)d.p_msf);
 
-					auto &t = tracks[d.SessionNumber][d.Point];
+					auto &t = tracks[d.session_number][d.point];
 
 					// make sure there are no duplicate entries, always use the latest one
 					t.indices.clear();
 
 					t.indices.push_back(lba);
-					t.control = d.Control;
+					t.control = d.control;
 					t.lba_start = lba;
 					t.lba_end = lba;
 					t.data_mode = 0;
@@ -789,7 +789,7 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 			}
 		}
 		// CD-R / CD-RW
-		else if(d.Adr == 5)
+		else if(d.adr == 5)
 		{
 			;
 		}

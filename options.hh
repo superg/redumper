@@ -4,7 +4,6 @@
 
 #include <list>
 #include <memory>
-#include <ostream>
 #include <string>
 
 
@@ -42,7 +41,7 @@ struct Options
     bool iso9660_trim;
     bool skip_leadin;
     bool cdi_correct_offset;
-    bool disable_toc_zero;
+    bool cdi_ready_normalize;
 
     Options(int argc, const char *argv[]);
 

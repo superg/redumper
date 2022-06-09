@@ -77,6 +77,8 @@ void validate_options(Options &options)
 		auto drive = options.drive;
 		drive.erase(remove(drive.begin(), drive.end(), ':'), drive.end());
 		options.image_name = std::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
+
+		Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 	}
 }
 
@@ -198,7 +200,7 @@ bool redumper_dump(const Options &options, bool refine)
 		if(!refine)
 		{
 			LOG("");
-			LOG("DISC TOC:");
+			LOG("disc TOC:");
 			toc.Print();
 			LOG("");
 		}
@@ -996,7 +998,7 @@ SPTD::Status read_sector(std::vector<uint8_t> &sector_buffer, SPTD &sptd, const 
 	uint32_t sectors_count = drive_info.c2_offset / CD_C2_SIZE + (drive_info.c2_offset % CD_C2_SIZE ? 1 : 0) + 1;
 	sector_buffer.resize((CD_DATA_SIZE + CD_C2_SIZE + CD_SUBCODE_SIZE) * sectors_count);
 
-	auto status = cmd_read_sector(sptd, sector_buffer.data(), lba, sectors_count, drive_info.type == DriveInfo::Type::PLEXTOR ? ReadCommand::READ_CDDA : ReadCommand::READ_CD, ReadType::DATA_C2_SUB, ReadFilter::CDDA);
+	auto status = cmd_read_sector(sptd, sector_buffer.data(), lba, sectors_count, drive_info.type == DriveInfo::Type::PLEXTOR ? CDB_OperationCode::READ_CDDA : CDB_OperationCode::READ_CD, ReadType::DATA_C2_SUB, ReadFilter::CDDA);
 	if(!status.status_code)
 	{
 		std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);

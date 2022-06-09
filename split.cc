@@ -170,10 +170,14 @@ int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &s
 				Sector &sector = *(Sector *)&data[sector_offset];
 				Scrambler scrambler;
 				scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector);
-				int32_t sector_lba = BCDMSF_to_LBA(sector.header.address);
 
-				write_offset = ((int32_t)sector_offset - (sector_lba - lba) * (int32_t)CD_DATA_SIZE) / (int32_t)CD_SAMPLE_SIZE;
-				break;
+				if(BCDMSF_valid(sector.header.address))
+				{
+					int32_t sector_lba = BCDMSF_to_LBA(sector.header.address);
+					write_offset = ((int32_t)sector_offset - (sector_lba - lba) * (int32_t)CD_DATA_SIZE) / (int32_t)CD_SAMPLE_SIZE;
+
+					break;
+				}
 			}
 		}
 	}
@@ -365,6 +369,8 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 {
 	bool no_errors = true;
 
+	std::string track_format = std::format("{{:0{}}}", (uint32_t)log10(toc.sessions.back().tracks.back().track_number) + 1);
+
 	std::vector<State> state(SECTOR_STATE_SIZE);
 
 	LOG("checking tracks");
@@ -374,7 +380,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 	{
 		for(auto const &t : se.tracks)
 		{
-			LOG_F("track {}... ", t.track_number);
+			LOG_F("track {}... ", std::format(track_format, t.track_number));
 
 			uint32_t skip_samples = 0;
 			uint32_t c2_samples = 0;
@@ -544,7 +550,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 							//DEBUG
 							if(!unscrambled)
 							{
-								LOG("");
+								LOG_F("");
 							}
 						}
 					}
@@ -876,17 +882,18 @@ void redumper_split(const Options &options)
 	LOG("done");
 
 	toc.UpdateQ(subq.data(), sectors_count, LBA_START);
+
 	LOG("");
-	LOG("TOC:");
+	LOG("final TOC:");
 	toc.Print();
+	LOG("");
 
 	TOC qtoc(subq.data(), sectors_count, LBA_START);
 
 	// derive disc type and track control from TOC
 	qtoc.Derive(toc);
 
-	LOG("");
-	LOG("QTOC:");
+	LOG("final QTOC:");
 	qtoc.Print();
 	LOG("");
 
@@ -909,11 +916,21 @@ void redumper_split(const Options &options)
 		toc.UpdateCDTEXT(cdtext_buffer);
 	}
 
-	if(!options.disable_toc_zero)
+	// CD-i Ready / AudioVision
+	if(options.cdi_ready_normalize)
 	{
-		auto &t = toc.sessions.front().tracks.front();
-		if(!t.indices.empty())
-			t.indices.front() = 0;
+		auto t0 = toc.sessions.front().tracks.front();
+		auto &t1 = toc.sessions.front().tracks.front();
+
+		t0.track_number = 0;
+		t0.lba_end = t1.indices.front();
+		t0.control = (uint8_t)ChannelQ::Control::DATA;
+		t0.indices.clear();
+		t0.indices.push_back(t1.lba_start - MSF_LBA_SHIFT);
+		
+		t1.lba_start = t1.indices.front();
+
+		toc.sessions.front().tracks.insert(toc.sessions.front().tracks.begin(), t0);
 	}
 
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
@@ -951,8 +968,8 @@ void redumper_split(const Options &options)
 
 					auto pvd = browser.GetPVD();
 
-					if(!memcmp(pvd.standard_identifier, iso9660::CDI_STANDARD_INDENTIFIER, sizeof(pvd.standard_identifier)) ||
-					   !memcmp(pvd.primary.system_identifier, iso9660::CDI_PRIMARY_SYSTEM_INDENTIFIER, sizeof(pvd.primary.system_identifier)))
+					if(!memcmp(pvd.standard_identifier, iso9660::CDI_STANDARD_INDENTIFIER, sizeof(pvd.standard_identifier))/* ||
+					   !memcmp(pvd.primary.system_identifier, iso9660::CDI_PRIMARY_SYSTEM_INDENTIFIER, sizeof(pvd.primary.system_identifier))*/)
 						t.cdi = true;
 				}
 				catch(...)
@@ -964,7 +981,8 @@ void redumper_split(const Options &options)
 		}
 	}
 
-	// CD-i Ready
+	// CD-i Ready offset detection
+	bool cdi_ready = false;
 	if(write_offset == std::numeric_limits<int32_t>::max() && toc.sessions.size() == 1)
 	{
 		auto &t = toc.sessions.front().tracks.front();
@@ -975,10 +993,8 @@ void redumper_split(const Options &options)
 
 			if(write_offset != std::numeric_limits<int32_t>::max() && track_sync_count(t.lba_start, t.lba_start + index0_count, write_offset, scm_fs) > index0_count / 2)
 			{
-				// shift first track out of pre-gap
-				t.lba_start -= MSF_LBA_SHIFT;
-
-				LOG("CD-i Ready disc detected, extending first track with pre-gap");
+				cdi_ready = true;
+				LOG("CD-i Ready / AudioVision disc detected");
 			}
 		}
 	}
@@ -992,26 +1008,29 @@ void redumper_split(const Options &options)
 	if(write_offset == std::numeric_limits<int32_t>::max())
 		write_offset = 0;
 
-	LOG("write offset: {:+}", write_offset);
-
 	// check first track index 0 of each session for non zero data
 	for(auto &s : toc.sessions)
 	{
 		TOC::Session::Track &t = s.tracks.front();
-		if(t.control & (uint8_t)ChannelQ::Control::DATA)
+
+		int32_t pregap_end = t.lba_start < 0 ? 0 : t.indices.front();
+
+		if(t.control & (uint8_t)ChannelQ::Control::DATA/* && !options.cdi_ready_normalize*/ || cdi_ready)
 		{
 			// unconditionally strip index 0 from first data track of each session
 			// TODO: analyze if not empty, store it separate?
-			s.tracks.front().lba_start = s.tracks.front().indices.front();
+			t.lba_start = pregap_end;
 		}
 		else
 		{
 			uint32_t lba_index = t.lba_start - LBA_START;
-			std::vector<uint32_t> data_samples((t.indices.front() - t.lba_start) * SECTOR_STATE_SIZE);
-			read_entry(scm_fs, (uint8_t *)data_samples.data(), CD_DATA_SIZE, lba_index, t.indices.front() - t.lba_start, -write_offset * CD_SAMPLE_SIZE, 0);
+			uint32_t sectors_to_check = pregap_end - t.lba_start;
 
-			std::vector<State> state((t.indices.front() - t.lba_start) * SECTOR_STATE_SIZE);
-			read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, lba_index, t.indices.front() - t.lba_start, -write_offset, (uint8_t)State::ERROR_SKIP);
+			std::vector<uint32_t> data_samples(sectors_to_check * SECTOR_STATE_SIZE);
+			read_entry(scm_fs, (uint8_t *)data_samples.data(), CD_DATA_SIZE, lba_index, sectors_to_check, -write_offset * CD_SAMPLE_SIZE, 0);
+
+			std::vector<State> state(sectors_to_check * SECTOR_STATE_SIZE);
+			read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, lba_index, sectors_to_check, -write_offset, (uint8_t)State::ERROR_SKIP);
 
 			bool lead_scan = true;
 			uint32_t lead_zero_samples = 0;
@@ -1043,11 +1062,15 @@ void redumper_split(const Options &options)
 			if(error_samples)
 				LOG("warning: incomplete audio track pre-gap (session: {}, errors: {}, leading zeroes: {}, non-zeroes: {}/{})",
 					s.session_number, error_samples, lead_zero_samples, non_zero_samples, state.size() - error_samples);
-			//FIXME: cut fixed 150 sectors, not index1!
+
 			if(non_zero_samples == 0)
-				t.lba_start = t.indices.front();
+				t.lba_start = pregap_end;
 		}
 	}
+
+	LOG("split TOC:");
+	toc.Print();
+	LOG("");
 
 	// check tracks
 	if(!check_tracks(toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, options) && !options.force_split)
@@ -1093,14 +1116,6 @@ void redumper_split(const Options &options)
 		LOG("done");
 	}
 
-	if(toc.sessions.size() > 1)
-	{
-		LOG("multisession: ");
-		for(auto const &s : toc.sessions)
-			LOG("  session {}: {}-{}", s.session_number, s.tracks.front().indices.empty() ? s.tracks.front().lba_start : s.tracks.front().indices.front(), s.tracks.back().lba_end - 1);
-		LOG("");
-	}
-
 	for(auto const &t : track_entries)
 	{
 		if(!t.data)
@@ -1114,6 +1129,17 @@ void redumper_split(const Options &options)
 		LOG("  redump: {}", t.redump_errors);
 		LOG("");
 	}
+
+	if(toc.sessions.size() > 1)
+	{
+		LOG("multisession: ");
+		for(auto const &s : toc.sessions)
+			LOG("  session {}: {}-{}", s.session_number, s.tracks.front().indices.empty() ? s.tracks.front().lba_start : s.tracks.front().indices.front(), s.tracks.back().lba_end - 1);
+		LOG("");
+	}
+
+	LOG("write offset: {:+}", write_offset);
+	LOG("");
 
 	LOG("dat:");
 	for(auto const &t : track_entries)
@@ -1134,7 +1160,7 @@ void redumper_split(const Options &options)
 			throw_line(std::format("unable to open file ({})", cue_path.filename().string()));
 		std::string line;
 		while(std::getline(ifs, line))
-			LOG(line);
+			LOG("{}", line);
 		LOG("");
 	}
 }
@@ -1192,7 +1218,7 @@ void redumper_info(const Options &options)
 
 			auto pvd = browser.GetPVD();
 			LOG("  PVD:");
-			LOG(hexdump((uint8_t *)&pvd, 0x320, 96));
+			LOG("{}", hexdump((uint8_t *)&pvd, 0x320, 96));
 		}
 	}
 }

@@ -215,7 +215,7 @@ void print_supported_drives()
 	LOG("");
 	LOG("supported drives: ");
 	for(auto const &di : SUPPORTED_DRIVES)
-		LOG(drive_info_string(di));
+		LOG("{}", drive_info_string(di));
 	LOG("");
 }
 
@@ -239,7 +239,7 @@ std::vector<uint8_t> plextor_read_leadin(SPTD &sptd)
 		LOG_R();
 		LOGC_F("[LBA: {:6}]", lba);
 
-		status = cmd_read_sector(sptd, entry + sizeof(SPTD::Status), lba, 1, ReadCommand::READ_CDDA, ReadType::DATA_SUB, ReadFilter::CDDA);
+		status = cmd_read_sector(sptd, entry + sizeof(SPTD::Status), lba, 1, CDB_OperationCode::READ_CDDA, ReadType::DATA_SUB, ReadFilter::CDDA);
 
 		if(!status.status_code)
 		{

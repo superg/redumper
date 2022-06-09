@@ -136,6 +136,28 @@ constexpr T bcd_encode(T value)
 }
 
 
+constexpr MSF BCDMSF_to_MSF(MSF bcdmsf)
+{
+	MSF msf;
+	msf.m = bcd_decode(bcdmsf.m);
+	msf.s = bcd_decode(bcdmsf.s);
+	msf.f = bcd_decode(bcdmsf.f);
+
+	return msf;
+}
+
+
+constexpr MSF MSF_to_BCDMSF(MSF msf)
+{
+	MSF bcdmsf;
+	bcdmsf.m = bcd_encode(msf.m);
+	bcdmsf.s = bcd_encode(msf.s);
+	bcdmsf.f = bcd_encode(msf.f);
+
+	return bcdmsf;
+}
+
+
 constexpr int32_t MSF_to_LBA(MSF msf)
 {
 	return MSF_LIMIT.f * (MSF_LIMIT.s * msf.m + msf.s) + msf.f + MSF_LBA_SHIFT - (msf.m >= MSF_MINUTES_WRAP ? LBA_LIMIT : 0);
@@ -163,25 +185,25 @@ constexpr MSF LBA_to_MSF(int32_t lba)
 
 constexpr int32_t BCDMSF_to_LBA(MSF bcdmsf)
 {
-	MSF msf;
-	msf.m = bcd_decode(bcdmsf.m);
-	msf.s = bcd_decode(bcdmsf.s);
-	msf.f = bcd_decode(bcdmsf.f);
-
-	return MSF_to_LBA(msf);
+	return MSF_to_LBA(BCDMSF_to_MSF(bcdmsf));
 }
 
 
 constexpr MSF LBA_to_BCDMSF(int32_t lba)
 {
-	MSF msf = LBA_to_MSF(lba);
+	return MSF_to_BCDMSF(LBA_to_MSF(lba));
+}
 
-	MSF bcdmsf;
-	bcdmsf.m = bcd_encode(msf.m);
-	bcdmsf.s = bcd_encode(msf.s);
-	bcdmsf.f = bcd_encode(msf.f);
 
-	return bcdmsf;
+constexpr bool MSF_valid(MSF msf)
+{
+	return msf.m < MSF_LIMIT.m && msf.s < MSF_LIMIT.s && msf.f < MSF_LIMIT.f;
+}
+
+
+constexpr bool BCDMSF_valid(MSF bcdmsf)
+{
+	return MSF_valid(BCDMSF_to_MSF(bcdmsf));
 }
 
 }

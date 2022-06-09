@@ -7,7 +7,7 @@
 #include <memory>
 #include <string>
 
-#include <windows.h> //FIXME: remove after GetAddress() removal
+#include <windows.h>
 #include <ntddscsi.h>
 #include <scsi.h>
 
@@ -36,7 +36,7 @@ public:
     Status SendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length);
 
     //FIXME: remove later?
-    SCSI_ADDRESS GetAddress() { return _address; }
+//    SCSI_ADDRESS GetAddress() { return _address; }
 
 private:
     static std::map<UCHAR, std::string> _SCSISTAT_STRINGS;

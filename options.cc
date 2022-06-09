@@ -25,7 +25,7 @@ Options::Options(int argc, const char *argv[])
     , iso9660_trim(false)
     , skip_leadin(false)
     , cdi_correct_offset(false)
-    , disable_toc_zero(false)
+    , cdi_ready_normalize(false)
 {
     for(int i = 0; i < argc; ++i)
     {
@@ -112,8 +112,8 @@ Options::Options(int argc, const char *argv[])
                     skip_leadin = true;
                 else if(key == "--cdi-correct-offset")
                     cdi_correct_offset = true;
-                else if(key == "--disable-toc-zero")
-                    disable_toc_zero = true;
+                else if(key == "--cdi-ready-normalize")
+                    cdi_ready_normalize = true;
                 // unknown option
                 else
                 {
@@ -187,7 +187,7 @@ void Options::PrintUsage()
     LOG("\t--iso9660-trim\ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
     LOG("\t--skip-leadin\tskip extracting lead-in using PLEXTOR negative range");
     LOG("\t--cdi-correct-offset\tcorrect mid-track CDI/VCD offset change");
-    LOG("\t--disable-toc-zero\tdon't alter first TOC track entry");
+    LOG("\t--cdi-ready-normalize\tseparate CDi-Ready track 1 index 0 to track 0");
 }
 
 }

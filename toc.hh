@@ -6,7 +6,6 @@
 #include <ostream>
 #include <string>
 #include <vector>
-#include "scsi.hh"
 #include "subcode.hh"
 
 

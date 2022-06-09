@@ -101,6 +101,7 @@ set(sources
 	"main.cc"
 	"md5.cc"
 	"md5.hh"
+	"mmc.hh"
 	"options.cc"
 	"options.hh"
 	"redumper.cc"

@@ -1,5 +1,6 @@
 #include <climits>
 #include <cstring>
+#include "common.hh"
 #include "scrambler.hh"
 
 
@@ -14,6 +15,49 @@ Scrambler::Scrambler()
 
 
 bool Scrambler::Unscramble(uint8_t *sector, int32_t lba) const
+{
+	bool unscrambled = true;
+
+	// unscramble sector
+	Process(sector, sector);
+
+	auto s = (Sector *)sector;
+
+	// mode 0
+	if(s->header.mode == 0)
+	{
+		// whole sector is expected to be zeroed
+		if(!is_zeroed(s->mode2.user_data, sizeof(s->mode2.user_data)))
+			unscrambled = false;
+	}
+	// invalid mode
+	else if(s->header.mode > 2)
+	{
+		// MSF matches
+		if(BCDMSF_to_LBA(((Sector *)sector)->header.address) == lba)
+		{
+			// intermediate data is not zeroed
+			if(!is_zeroed(s->mode1.intermediate, sizeof(s->mode1.intermediate)))
+				unscrambled = false;
+		}
+		// MSF doesn't match
+		else
+		{
+			// intermediate data is zeroed
+			if(is_zeroed(s->mode1.intermediate, sizeof(s->mode1.intermediate)))
+				unscrambled = false;
+		}
+	}
+
+	// scramble sector
+	if(!unscrambled)
+		Process(sector, sector);
+
+	return unscrambled;
+}
+
+
+bool Scrambler::UnscrambleScore(uint8_t *sector, int32_t lba) const
 {
 	uint32_t score_before = Score(sector);
 	Process(sector, sector);

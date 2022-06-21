@@ -42,6 +42,7 @@ struct Options
     bool skip_leadin;
     bool cdi_correct_offset;
     bool cdi_ready_normalize;
+    bool descramble_new;
 
     Options(int argc, const char *argv[]);
 

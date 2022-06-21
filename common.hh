@@ -48,6 +48,16 @@ void clean_write(T *dst, size_t dst_offset, size_t size, T data)
 	*dst = (*dst & ~mask) | (data & mask);
 };
 
+template<typename T>
+bool is_zeroed(const T *data, uint64_t size)
+{
+	for(uint32_t i = 0; i < size; ++i)
+		if(data[i])
+			return false;
+
+	return true;
+}
+
 template<typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
 void bit_copy(T *dst, size_t dst_offset, const T *src, size_t src_offset, size_t size)
 {

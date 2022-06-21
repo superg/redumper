@@ -18,10 +18,6 @@
 namespace gpsxre
 {
 
-constexpr uint8_t CDI_EMPTY_SYNC[] =
-{
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
 constexpr uint32_t CDI_MAX_OFFSET_SHIFT = 4;
 
 
@@ -543,9 +539,9 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 							}
 						}
 
-						if(standard_sync || !memcmp(sector.data(), CDI_EMPTY_SYNC, sizeof(CDI_EMPTY_SYNC)))
+						if(standard_sync)
 						{
-							bool unscrambled = scrambler.Unscramble(sector.data(), lba);
+							bool unscrambled = options.descramble_new ? scrambler.UnscrambleScore(sector.data(), lba) : scrambler.Unscramble(sector.data(), lba);
 
 							//DEBUG
 							if(!unscrambled)
@@ -890,12 +886,12 @@ void redumper_split(const Options &options)
 
 	TOC qtoc(subq.data(), sectors_count, LBA_START);
 
-	// derive disc type and track control from TOC
-	qtoc.Derive(toc);
-
 	LOG("final QTOC:");
 	qtoc.Print();
 	LOG("");
+
+	// derive disc type and track control from TOC
+	qtoc.Derive(toc);
 
 	// compare TOC and QTOC
 	bool use_qtoc = compare_toc(toc, qtoc);
@@ -1003,6 +999,59 @@ void redumper_split(const Options &options)
 	if(write_offset == std::numeric_limits<int32_t>::max())
 	{
 		// TODO: intelligent silence based audio write offset detection
+/*
+		//DEBUG
+		uint32_t samples[SECTOR_STATE_SIZE];
+		std::vector<std::pair<uint64_t, uint64_t>> zero_ranges;
+		int64_t zero = -1;
+		for(uint32_t i = 0; i < sectors_count; ++i)
+		{
+			read_entry(scm_fs, (uint8_t *)samples, CD_DATA_SIZE, i, 1, 0, 0);
+
+			for(uint32_t j = 0; j < SECTOR_STATE_SIZE; ++j)
+			{
+				auto sss = (int16_t *)&samples[j];
+				constexpr int32_t threshold = 100;
+
+				// zero data
+				if(std::abs(sss[0]) < threshold && std::abs(sss[1]) < threshold)
+				{
+					if(zero == -1)
+					{
+						zero = i * SECTOR_STATE_SIZE + j;
+					}
+					else
+					{
+						;
+					}
+				}
+				else
+				{
+					if(zero == -1)
+					{
+						;
+					}
+					else
+					{
+						uint64_t zero_end = i * SECTOR_STATE_SIZE + j;
+						if(zero == 0 || zero_end - zero > SECTOR_STATE_SIZE * 75)
+							zero_ranges.emplace_back(zero, zero_end);
+						zero = -1;
+					}
+				}
+			}
+		}
+		if(zero != -1)
+			zero_ranges.emplace_back(zero, sectors_count * CD_DATA_SIZE / CD_SAMPLE_SIZE);
+
+		{
+			uint64_t samples_start = (0 - LBA_START) * SECTOR_STATE_SIZE;
+			uint64_t samples_end = (toc.sessions.back().tracks.back().lba_end - LBA_START) * SECTOR_STATE_SIZE;
+			LOG("primary range: {}-{}, diff: {}", samples_start, samples_end, samples_end - samples_start);
+			LOG("data range diff: {}", zero_ranges.back().first - zero_ranges.front().second);
+		}
+*/
+		LOGC("");
 	}
 
 	if(write_offset == std::numeric_limits<int32_t>::max())

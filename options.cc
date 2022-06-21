@@ -26,6 +26,7 @@ Options::Options(int argc, const char *argv[])
     , skip_leadin(false)
     , cdi_correct_offset(false)
     , cdi_ready_normalize(false)
+    , descramble_new(false)
 {
     for(int i = 0; i < argc; ++i)
     {
@@ -114,6 +115,8 @@ Options::Options(int argc, const char *argv[])
                     cdi_correct_offset = true;
                 else if(key == "--cdi-ready-normalize")
                     cdi_ready_normalize = true;
+                else if(key == "--descramble-new")
+                    descramble_new = true;
                 // unknown option
                 else
                 {
@@ -188,6 +191,7 @@ void Options::PrintUsage()
     LOG("\t--skip-leadin\tskip extracting lead-in using PLEXTOR negative range");
     LOG("\t--cdi-correct-offset\tcorrect mid-track CDI/VCD offset change");
     LOG("\t--cdi-ready-normalize\tseparate CDi-Ready track 1 index 0 to track 0");
+    LOG("\t--descramble-new\timproved score based descrambled method");
 }
 
 }

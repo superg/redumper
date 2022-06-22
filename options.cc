@@ -158,7 +158,7 @@ void Options::PrintUsage()
     LOG("");
 
     LOG("modes: ");
-    LOG("\tcd\taggregate \"Do It All\" mode {dump => protection => refine => split => info} (default)");
+    LOG("\tcd\taggregate \"Do It All\" mode {{dump => protection => refine => split => info}} (default)");
     LOG("\tdump\tdumps CD");
     LOG("\tprotection\tscans dump for protection");
     LOG("\trefine\trefines the dump from a CD by rereading erroneous sectors");

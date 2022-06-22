@@ -182,6 +182,37 @@ int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &s
 }
 
 
+int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs, const std::string &magic)
+{
+	int32_t write_offset = std::numeric_limits<int32_t>::max();
+
+	const uint32_t sectors_to_check = lba_end - lba_start;
+
+	std::vector<uint8_t> data(sectors_to_check * CD_DATA_SIZE);
+	std::vector<State> state(sectors_to_check * SECTOR_STATE_SIZE);
+
+	read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba_start - LBA_START, sectors_to_check, 0, 0);
+	read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, lba_start - LBA_START, sectors_to_check, 0, (uint8_t)State::ERROR_SKIP);
+
+	bool data_correct = true;
+	for(auto const &s : state)
+		if(s == State::ERROR_SKIP || s == State::ERROR_C2)
+		{
+			data_correct = false;
+			continue;
+		}
+
+	if(data_correct)
+	{
+		auto it = std::search(data.begin(), data.end(), magic.begin(), magic.end());
+		if(it != data.end())
+			write_offset = (uint32_t)(it - data.begin());
+	}
+
+	return write_offset;
+}
+
+
 int32_t track_process_offset_shift(int32_t write_offset, int32_t lba, uint32_t count, std::fstream &state_fs, std::fstream &scm_fs, const std::filesystem::path &track_path)
 {
 	int32_t write_offset_next = std::numeric_limits<int32_t>::max();
@@ -992,6 +1023,20 @@ void redumper_split(const Options &options)
 				cdi_ready = true;
 				LOG("CD-i Ready / AudioVision disc detected");
 			}
+		}
+	}
+
+	// Atari Jaguar CD
+	if(write_offset == std::numeric_limits<int32_t>::max() && toc.sessions.size() == 2 && !(toc.sessions.back().tracks.front().control & (uint8_t)ChannelQ::Control::DATA))
+	{
+		auto &t = toc.sessions.back().tracks.front();
+
+		int32_t byte_offset = byte_offset_by_magic(t.indices.front() - 1, t.indices.front() + 1, state_fs, scm_fs, std::string("TAIRTAIR"));
+		if(byte_offset != std::numeric_limits<int32_t>::max())
+		{
+			byte_offset -= sizeof(uint16_t);
+			write_offset = byte_offset / CD_SAMPLE_SIZE - SECTOR_STATE_SIZE;
+			LOG("Atari Jaguar CD disc detected");
 		}
 	}
 

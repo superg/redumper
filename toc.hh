@@ -69,7 +69,7 @@ struct TOC
 	TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start);
 
 	void DeriveINDEX(const TOC &toc);
-	void Derive(const TOC &toc);
+	void MergeControl(const TOC &toc);
 	void UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start);
 	void UpdateMCN(const ChannelQ *subq, uint32_t sectors_count);
 	bool UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer);

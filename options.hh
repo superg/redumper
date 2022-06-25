@@ -43,6 +43,10 @@ struct Options
     bool cdi_correct_offset;
     bool cdi_ready_normalize;
     bool descramble_new;
+    std::unique_ptr<int> force_offset;
+    int audio_silence_threshold;
+    int audio_min_size;
+    int audio_offset_max_shift;
 
     Options(int argc, const char *argv[]);
 

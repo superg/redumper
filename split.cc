@@ -671,6 +671,65 @@ bool compare_toc(const TOC &toc, const TOC &qtoc)
 }
 
 
+std::vector<std::pair<int64_t, int64_t>> audio_get_toc_index0_ranges(const TOC &toc)
+{
+	std::vector<std::pair<int64_t, int64_t>> index0_ranges;
+
+	for(auto &s : toc.sessions)
+	{
+		for(auto &t : s.tracks)
+		{
+			int32_t index0_end = t.indices.empty() ? t.lba_end : t.indices.front();
+			if(index0_end > t.lba_start)
+				index0_ranges.emplace_back(t.lba_start * (int32_t)SECTOR_STATE_SIZE, index0_end * (int32_t)SECTOR_STATE_SIZE);
+		}
+	}
+
+	return index0_ranges;
+}
+
+
+std::vector<std::pair<int64_t, int64_t>> audio_get_silence_ranges(std::fstream &scm_fs, uint32_t sectors_count, uint16_t silence_threshold, uint64_t min_count)
+{
+	std::vector<std::pair<int64_t, int64_t>> silence_ranges;
+
+	uint32_t samples[SECTOR_STATE_SIZE];
+
+	int64_t silence_start = -1;
+	for(uint32_t i = 0; i < sectors_count; ++i)
+	{
+		read_entry(scm_fs, (uint8_t *)samples, CD_DATA_SIZE, i, 1, 0, 0);
+
+		for(uint32_t j = 0; j < SECTOR_STATE_SIZE; ++j)
+		{
+			uint64_t position = i * SECTOR_STATE_SIZE + j;
+
+			auto sample = (int16_t *)&samples[j];
+
+			// silence
+			if(std::abs(sample[0]) <= (int)silence_threshold && std::abs(sample[1]) <= (int)silence_threshold)
+			{
+				if(silence_start == -1)
+					silence_start = position;
+			}
+			// not silence
+			else if(silence_start != -1)
+			{
+				if(silence_start == 0 || position - silence_start >= min_count)
+					silence_ranges.emplace_back(silence_start ? silence_start + (LBA_START * (int64_t)SECTOR_STATE_SIZE) : std::numeric_limits<int64_t>::min(), position + (LBA_START * (int64_t)SECTOR_STATE_SIZE));
+
+				silence_start = -1;
+			}
+		}
+	}
+
+	// tail
+	silence_ranges.emplace_back((silence_start == -1 ? sectors_count * SECTOR_STATE_SIZE : silence_start) + LBA_START, std::numeric_limits<int64_t>::max());
+
+	return silence_ranges;
+}
+
+
 void redumper_protection(Options &options)
 {
 	if(options.image_name.empty())
@@ -921,11 +980,12 @@ void redumper_split(const Options &options)
 	qtoc.Print();
 	LOG("");
 
-	// derive disc type and track control from TOC
-	qtoc.Derive(toc);
-
 	// compare TOC and QTOC
 	bool use_qtoc = compare_toc(toc, qtoc);
+
+	// merge control flags
+	toc.MergeControl(qtoc);
+	qtoc.MergeControl(toc);
 
 	if(!options.force_toc && (options.force_qtoc || use_qtoc))
 	{
@@ -962,8 +1022,9 @@ void redumper_split(const Options &options)
 
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
 
+	int32_t write_offset = options.force_offset ? *options.force_offset : std::numeric_limits<int32_t>::max();
+
 	// determine write offset and data modes based on a data track
-	int32_t write_offset = std::numeric_limits<int32_t>::max();
 	for(auto &s : toc.sessions)
 	{
 		for(auto &t : s.tracks)
@@ -1031,89 +1092,161 @@ void redumper_split(const Options &options)
 	{
 		auto &t = toc.sessions.back().tracks.front();
 
-		int32_t byte_offset = byte_offset_by_magic(t.indices.front() - 1, t.indices.front() + 1, state_fs, scm_fs, std::string("TAIRTAIR"));
-		if(byte_offset != std::numeric_limits<int32_t>::max())
+		if(!t.indices.empty())
 		{
-			byte_offset -= sizeof(uint16_t);
-			write_offset = byte_offset / CD_SAMPLE_SIZE - SECTOR_STATE_SIZE;
-			LOG("Atari Jaguar CD disc detected");
+			int32_t byte_offset = byte_offset_by_magic(t.indices.front() - 1, t.indices.front() + 1, state_fs, scm_fs, std::string("TAIRTAIR"));
+			if(byte_offset != std::numeric_limits<int32_t>::max())
+			{
+				byte_offset -= sizeof(uint16_t);
+				write_offset = byte_offset / CD_SAMPLE_SIZE - SECTOR_STATE_SIZE;
+				LOG("Atari Jaguar CD detected");
+			}
 		}
 	}
 
+/*
+	// PSX GameShark Upgrade CD
+	if(write_offset == std::numeric_limits<int32_t>::max() && toc.sessions.size() == 1)
+	{
+		auto &t = toc.sessions.back().tracks.front();
+
+		if(!t.indices.empty())
+		{
+			int32_t byte_offset = byte_offset_by_magic(t.indices.front(), t.indices.front() + 8, state_fs, scm_fs, std::string("G.THORNTON"));
+			if(byte_offset != std::numeric_limits<int32_t>::max())
+			{
+				write_offset = byte_offset / CD_SAMPLE_SIZE;
+				LOG("PSX GameShark Upgrade CD detected");
+			}
+		}
+	}
+*/
 	// audio cd
 	if(write_offset == std::numeric_limits<int32_t>::max())
 	{
-		// TODO: intelligent silence based audio write offset detection
-/*
-		//DEBUG
-		uint32_t samples[SECTOR_STATE_SIZE];
-		std::vector<std::pair<uint64_t, uint64_t>> zero_ranges;
-		int64_t zero = -1;
-		for(uint32_t i = 0; i < sectors_count; ++i)
+		LOG_F("detecting audio offset... ");
+		auto index0_ranges = audio_get_toc_index0_ranges(toc);
+		auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, options.audio_silence_threshold, options.audio_min_size * SECTOR_STATE_SIZE);
+
+		std::vector<std::pair<int32_t, int32_t>> offset_ranges;
+		for(int32_t sample_offset = -options.audio_offset_max_shift; sample_offset <= options.audio_offset_max_shift; ++sample_offset)
 		{
-			read_entry(scm_fs, (uint8_t *)samples, CD_DATA_SIZE, i, 1, 0, 0);
+			bool match = true;
 
-			for(uint32_t j = 0; j < SECTOR_STATE_SIZE; ++j)
+			uint32_t cache_i = 0;
+			for(auto const &r : index0_ranges)
 			{
-				auto sss = (int16_t *)&samples[j];
-				constexpr int32_t threshold = 100;
+				bool found = false;
 
-				// zero data
-				if(std::abs(sss[0]) < threshold && std::abs(sss[1]) < threshold)
+				std::pair<int64_t, int64_t> ir(r.first + sample_offset, r.second + sample_offset);
+
+				for(uint32_t i = cache_i; i < silence_ranges.size(); ++i)
 				{
-					if(zero == -1)
+					bool ahead = ir.first >= silence_ranges[i].first;
+					if(ahead)
+						cache_i = i;
+
+					if(ahead && ir.second <= silence_ranges[i].second)
 					{
-						zero = i * SECTOR_STATE_SIZE + j;
+						found = true;
+						break;
 					}
-					else
-					{
-						;
-					}
+
+					if(ir.second < silence_ranges[i].first)
+						break;
+				}
+
+				if(!found)
+				{
+					match = false;
+					break;
+				}
+			}
+
+			if(match)
+			{
+				if(offset_ranges.empty())
+				{
+					offset_ranges.emplace_back(sample_offset, sample_offset);
 				}
 				else
 				{
-					if(zero == -1)
-					{
-						;
-					}
+					if(offset_ranges.back().second + 1 == sample_offset)
+						offset_ranges.back().second = sample_offset;
 					else
+						offset_ranges.emplace_back(sample_offset, sample_offset);
+				}
+			}
+		}
+		LOG("done");
+
+		if(offset_ranges.empty())
+			LOG("");
+		else
+		{
+			LOG_F("perfect audio offset: ");
+			for(uint32_t i = 0; i < offset_ranges.size(); ++i)
+			{
+				auto const &r = offset_ranges[i];
+
+				if(r.first == r.second)
+					LOG_F("{}{}", r.first, i + 1 == offset_ranges.size() ? "" : ", ");
+				else
+					LOG_F("[{} .. {}]{}", r.first, r.second, i + 1 == offset_ranges.size() ? "" : ", ");
+			}
+			LOG("");
+
+			// only one perfect offset exists
+			if(offset_ranges.size() == 1 && offset_ranges.front().first == offset_ranges.front().second)
+				write_offset = offset_ranges.front().first;
+			// multiple perfect offsets
+			else
+			{
+				// favor offset 0 if it belongs to perfect range
+				for(auto const r : offset_ranges)
+				{
+					if(0 >= r.first && 0 <= r.second)
 					{
-						uint64_t zero_end = i * SECTOR_STATE_SIZE + j;
-						if(zero == 0 || zero_end - zero > SECTOR_STATE_SIZE * 75)
-							zero_ranges.emplace_back(zero, zero_end);
-						zero = -1;
+						write_offset = 0;
+						break;
+					}
+				}
+
+				// choose the closest offset to 0
+				if(write_offset == std::numeric_limits<int32_t>::max())
+				{
+					for(auto const r : offset_ranges)
+					{
+						if(std::abs(r.first) < std::abs(write_offset))
+							write_offset = r.first;
+
+						if(std::abs(r.second) < std::abs(write_offset))
+							write_offset = r.second;
 					}
 				}
 			}
 		}
-		if(zero != -1)
-			zero_ranges.emplace_back(zero, sectors_count * CD_DATA_SIZE / CD_SAMPLE_SIZE);
-
-		{
-			uint64_t samples_start = (0 - LBA_START) * SECTOR_STATE_SIZE;
-			uint64_t samples_end = (toc.sessions.back().tracks.back().lba_end - LBA_START) * SECTOR_STATE_SIZE;
-			LOG("primary range: {}-{}, diff: {}", samples_start, samples_end, samples_end - samples_start);
-			LOG("data range diff: {}", zero_ranges.back().first - zero_ranges.front().second);
-		}
-*/
-		LOGC("");
 	}
 
 	if(write_offset == std::numeric_limits<int32_t>::max())
+	{
 		write_offset = 0;
+		LOG("warning: fallback offset 0 applied");
+	}
 
-	// check first track index 0 of each session for non zero data
+	// check session pre-gaps for non-zero data
 	for(auto &s : toc.sessions)
 	{
 		TOC::Session::Track &t = s.tracks.front();
 
 		int32_t pregap_end = t.lba_start < 0 ? 0 : t.indices.front();
 
-		if(t.control & (uint8_t)ChannelQ::Control::DATA/* && !options.cdi_ready_normalize*/ || cdi_ready)
+		if(t.control & (uint8_t)ChannelQ::Control::DATA || cdi_ready)
 		{
 			// unconditionally strip index 0 from first data track of each session
-			// TODO: analyze if not empty, store it separate?
 			t.lba_start = pregap_end;
+
+			// TODO: analyze if not empty?
 		}
 		else
 		{
@@ -1126,42 +1259,100 @@ void redumper_split(const Options &options)
 			std::vector<State> state(sectors_to_check * SECTOR_STATE_SIZE);
 			read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, lba_index, sectors_to_check, -write_offset, (uint8_t)State::ERROR_SKIP);
 
-			bool lead_scan = true;
-			uint32_t lead_zero_samples = 0;
+			bool head_scan = true;
+			uint32_t head_zero_samples = 0;
 			uint32_t error_samples = 0;
 			uint32_t non_zero_samples = 0;
 			for(uint32_t i = 0; i < (uint32_t)state.size(); ++i)
 			{
 				if(state[i] == State::ERROR_C2 || state[i] == State::ERROR_SKIP)
 				{
-					if(lead_scan && lead_zero_samples)
-						lead_scan = false;
+					if(head_scan && head_zero_samples)
+						head_scan = false;
 
 					++error_samples;
 				}
 				else
 				{
-					if(lead_scan)
+					if(head_scan)
 					{
 						if(data_samples[i])
-							lead_scan = false;
+							head_scan = false;
 						else
-							++lead_zero_samples;
+							++head_zero_samples;
 					}
 
 					if(data_samples[i])
 						++non_zero_samples;
 				}
 			}
-			if(error_samples)
-				LOG("warning: incomplete audio track pre-gap (session: {}, errors: {}, leading zeroes: {}, non-zeroes: {}/{})",
-					s.session_number, error_samples, lead_zero_samples, non_zero_samples, state.size() - error_samples);
 
-			if(non_zero_samples == 0)
+			if(error_samples)
+				LOG("warning: pre-gap audio is incomplete (session: {}, errors: {})", s.session_number, error_samples);
+
+			if(non_zero_samples)
+				LOG("warning: pre-gap audio contains non-zero data, preserving (session: {}, leading zeroes: {}, non-zeroes: {}/{})", s.session_number, head_zero_samples, non_zero_samples, state.size() - error_samples);
+			else
 				t.lba_start = pregap_end;
 		}
 	}
 
+	// check session lead-outs for non-zero data
+	for(uint32_t i = 0; i < toc.sessions.size(); ++i)
+	{
+		TOC::Session::Track &t = toc.sessions[i].tracks.back();
+
+		if(t.control & (uint8_t)ChannelQ::Control::DATA)
+		{
+			// TODO: analyze if not empty?
+		}
+		else
+		{
+			ChannelQ q_empty;
+			memset(&q_empty, 0, sizeof(q_empty));
+
+			// find available lead-out sectors based on Q
+			int32_t leadout_end = t.lba_end;
+			for(; leadout_end < (int32_t)sectors_count + LBA_START; ++leadout_end)
+			{
+				uint32_t lba_index = leadout_end - LBA_START;
+
+				auto &Q = subq[lba_index];
+				if(!memcmp(&Q, &q_empty, sizeof(q_empty)))
+					break;
+
+				if(Q.Valid())
+				{
+					uint8_t adr = Q.control_adr & 0x0F;
+					if((adr != 1 || Q.mode1.tno != 0xAA) && adr != 2 && adr != 5)
+						break;
+				}
+			}
+
+			uint32_t sectors_to_check = std::min(leadout_end - t.lba_end, -MSF_LBA_SHIFT);
+			std::vector<uint32_t> data_samples(sectors_to_check * SECTOR_STATE_SIZE);
+			read_entry(scm_fs, (uint8_t *)data_samples.data(), CD_DATA_SIZE, t.lba_end - LBA_START, sectors_to_check, -write_offset * CD_SAMPLE_SIZE, 0);
+
+			std::vector<State> state(sectors_to_check * SECTOR_STATE_SIZE);
+			read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, t.lba_end - LBA_START, sectors_to_check, -write_offset, (uint8_t)State::ERROR_SKIP);
+
+			uint32_t tail = 0;
+			for(uint32_t j = 0; j < (uint32_t)state.size(); ++j)
+			{
+				if(state[j] != State::ERROR_C2 && state[j] != State::ERROR_SKIP && data_samples[j])
+					tail = j;
+			}
+
+			if(tail)
+			{
+				LOG("warning: lead-out audio contains non-zero data, extending (session: {}, extra samples: {})", toc.sessions[i].session_number, tail);
+				uint32_t tail_bytes = tail * CD_SAMPLE_SIZE;
+				t.lba_end += tail_bytes / CD_DATA_SIZE + (tail_bytes % CD_DATA_SIZE ? 1 : 0);
+			}
+		}
+	}
+
+	LOG("");
 	LOG("split TOC:");
 	toc.Print();
 	LOG("");

@@ -142,9 +142,8 @@ void TOC::DeriveINDEX(const TOC &toc)
 }
 
 
-void TOC::Derive(const TOC &toc)
+void TOC::MergeControl(const TOC &toc)
 {
-	disc_type = toc.disc_type;
 	for(auto &s : sessions)
 	{
 		for(auto &t : s.tracks)
@@ -153,7 +152,7 @@ void TOC::Derive(const TOC &toc)
 				for(auto const &toc_t : toc_s.tracks)
 					if(t.track_number == toc_t.track_number)
 					{
-						t.control = toc_t.control;
+						t.control |= toc_t.control;
 						break;
 					}
 		}

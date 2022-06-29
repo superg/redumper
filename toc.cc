@@ -545,18 +545,16 @@ void TOC::Print() const
 
 		for(auto const &t : s.tracks)
 		{
-			std::string track_properties;
-			int32_t track_length = t.lba_end - t.lba_start;
-			if(track_length > 0)
-			{
-				MSF msf_start = LBA_to_MSF(t.lba_start);
-				MSF msf_end = LBA_to_MSF(t.lba_end - 1);
-				track_properties = std::format(", LBA: {:6} .. {:6}, length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02} }}",
-							   t.lba_start, t.lba_end - 1, track_length,
-							   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
-			}
-			LOG("{}track {} {{ {}{} }}", std::string(multisession ? 4 : 2, ' '), 
-						   std::format(track_format, t.track_number), (t.control & (uint8_t)ChannelQ::Control::DATA) ? " data" : "audio", track_properties);
+			std::string flags(t.control & (uint8_t)ChannelQ::Control::DATA ? " data" : "audio");
+			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
+				flags += ", four-channel";
+			if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
+				flags += ", dcp";
+			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
+				flags += ", pre-emphasis";
+
+			LOG("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), 
+						   std::format(track_format, t.track_number), flags);
 
 			auto indices = t.indices;
 			indices.insert(indices.begin(), t.lba_start);

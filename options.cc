@@ -27,9 +27,8 @@ Options::Options(int argc, const char *argv[])
     , cdi_correct_offset(false)
     , cdi_ready_normalize(false)
     , descramble_new(false)
-    , audio_silence_threshold(0)
+    , audio_silence_threshold(32)
     , audio_min_size(75)
-    , audio_offset_max_shift(88200)
 {
     for(int i = 0; i < argc; ++i)
     {
@@ -129,8 +128,6 @@ Options::Options(int argc, const char *argv[])
                     i_value = &audio_silence_threshold;
                 else if(key == "--audio-min-size")
                     i_value = &audio_min_size;
-                else if(key == "--audio-offset-max-shift")
-                    i_value = &audio_offset_max_shift;
                 // unknown option
                 else
                 {
@@ -207,7 +204,6 @@ void Options::PrintUsage()
     LOG("\t--cdi-ready-normalize\tseparate CDi-Ready track 1 index 0 to track 0");
     LOG("\t--descramble-new\timproved score based descrambled method");
     LOG("\t--force-offset=VALUE\toverride offset autodetection and use supplied value");
-    LOG("\t--audio-offset-max-shift=VALUE\tmaximum audio offset shift (default: {})", audio_offset_max_shift);
     LOG("\t--audio-silence-threshold=VALUE\tmaximum absolute sample value to treat it as silence (default: {})", audio_silence_threshold);
     LOG("\t--audio-silence-min-size=VALUE\tminimum consecutive silence size to take into account, in sectors (default: {})", audio_min_size);
 }

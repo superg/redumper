@@ -612,8 +612,10 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 }
 
 
-bool compare_toc(const TOC &toc, const TOC &qtoc)
+int compare_toc(const TOC &toc, const TOC &qtoc)
 {
+	int diff = 0;
+
 	std::set<uint8_t> tracks;
 
 	std::map<uint8_t, const TOC::Session::Track *> toc_tracks;
@@ -639,35 +641,59 @@ bool compare_toc(const TOC &toc, const TOC &qtoc)
 
 		if(tt != toc_tracks.end() && qt != qtoc_tracks.end())
 		{
+			if(tt->second->control != qt->second->control)
+			{
+				diff = 1;
+				LOG("warning: TOC / QTOC control mismatch (track: {}, control: {:04b} / {:04b})", t, tt->second->control, qt->second->control);
+			}
+
 			if(tt->second->lba_start != qt->second->lba_start)
+			{
+				diff = 1;
 				LOG("warning: TOC / QTOC track index 00 mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_start, qt->second->lba_start);
+			}
 
 			auto tt_size = tt->second->indices.size();
 			auto qt_size = qt->second->indices.size();
 			if(tt_size == qt_size)
 			{
 				if(tt_size && qt_size && tt->second->indices.front() != qt->second->indices.front())
+				{
+					diff = 1;
 					LOG("warning: TOC / QTOC track index 01 mismatch (track: {}, LBA: {} / {})", t, tt->second->indices.front(), qt->second->indices.front());
+				}
 			}
 			else
 			{
+				diff = 1;
 				LOG("warning: TOC / QTOC track index size mismatch (track: {})", t);
 			}
 
 			if(tt->second->lba_end != qt->second->lba_end)
+			{
+				diff = 1;
 				LOG("warning: TOC / QTOC track length mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_end, qt->second->lba_end);
+			}
 		}
 		else
 		{
 			if(tt == toc_tracks.end())
+			{
+				diff = 1;
 				LOG("warning: nonexistent track in TOC (track: {})", t);
+			}
 
 			if(qt == qtoc_tracks.end())
+			{
+				diff = 1;
 				LOG("warning: nonexistent track in QTOC (track: {})", t);
+			}
 		}
 	}
 
-	return qtoc_tracks.size() > toc_tracks.size();
+	if(diff && qtoc_tracks.size() > toc_tracks.size())
+		diff = -1;
+	return diff;
 }
 
 
@@ -695,36 +721,43 @@ std::vector<std::pair<int64_t, int64_t>> audio_get_silence_ranges(std::fstream &
 
 	uint32_t samples[SECTOR_STATE_SIZE];
 
-	int64_t silence_start = -1;
+	int64_t silence_start = std::numeric_limits<int64_t>::min();
+	bool in = true;
 	for(uint32_t i = 0; i < sectors_count; ++i)
 	{
 		read_entry(scm_fs, (uint8_t *)samples, CD_DATA_SIZE, i, 1, 0, 0);
 
 		for(uint32_t j = 0; j < SECTOR_STATE_SIZE; ++j)
 		{
-			uint64_t position = i * SECTOR_STATE_SIZE + j;
+			int64_t position = i * SECTOR_STATE_SIZE + j + (LBA_START * (int64_t)SECTOR_STATE_SIZE);
 
 			auto sample = (int16_t *)&samples[j];
 
 			// silence
 			if(std::abs(sample[0]) <= (int)silence_threshold && std::abs(sample[1]) <= (int)silence_threshold)
 			{
-				if(silence_start == -1)
+				if(!in)
+				{
 					silence_start = position;
+					in = true;
+				}
 			}
 			// not silence
-			else if(silence_start != -1)
+			else
 			{
-				if(silence_start == 0 || position - silence_start >= min_count)
-					silence_ranges.emplace_back(silence_start ? silence_start + (LBA_START * (int64_t)SECTOR_STATE_SIZE) : std::numeric_limits<int64_t>::min(), position + (LBA_START * (int64_t)SECTOR_STATE_SIZE));
+				if(in)
+				{
+					if(silence_start == std::numeric_limits<int64_t>::min() || position - silence_start >= (int64_t)min_count)
+						silence_ranges.emplace_back(silence_start, position);
 
-				silence_start = -1;
+					in = false;
+				}
 			}
 		}
 	}
-
+	
 	// tail
-	silence_ranges.emplace_back((silence_start == -1 ? sectors_count * SECTOR_STATE_SIZE : silence_start) + LBA_START, std::numeric_limits<int64_t>::max());
+	silence_ranges.emplace_back(in ? silence_start : sectors_count * SECTOR_STATE_SIZE + (LBA_START * (int64_t)SECTOR_STATE_SIZE), std::numeric_limits<int64_t>::max());
 
 	return silence_ranges;
 }
@@ -966,31 +999,35 @@ void redumper_split(const Options &options)
 	LOG_F("correcting Q... ");
 	correct_program_subq(subq.data(), sectors_count);
 	LOG("done");
+	LOG("");
 
 	toc.UpdateQ(subq.data(), sectors_count, LBA_START);
 
-	LOG("");
 	LOG("final TOC:");
 	toc.Print();
 	LOG("");
 
 	TOC qtoc(subq.data(), sectors_count, LBA_START);
 
-	LOG("final QTOC:");
-	qtoc.Print();
-	LOG("");
-
 	// compare TOC and QTOC
-	bool use_qtoc = compare_toc(toc, qtoc);
-
-	// merge control flags
-	toc.MergeControl(qtoc);
-	qtoc.MergeControl(toc);
-
-	if(!options.force_toc && (options.force_qtoc || use_qtoc))
+	int toc_diff = compare_toc(toc, qtoc);
+	if(toc_diff)
 	{
+		LOG("final QTOC:");
+		qtoc.Print();
+		LOG("");
+	}
+
+	if(!options.force_toc && (options.force_qtoc || toc_diff < 0))
+	{
+		qtoc.MergeControl(toc);
 		toc = qtoc;
 		LOG("warning: split is performed by QTOC");
+		LOG("");
+	}
+	else
+	{
+		toc.MergeControl(qtoc);
 	}
 
 	toc.UpdateMCN(subq.data(), sectors_count);
@@ -1020,7 +1057,8 @@ void redumper_split(const Options &options)
 		toc.sessions.front().tracks.insert(toc.sessions.front().tracks.begin(), t0);
 	}
 
-	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
+	LOG("detecting offset");
+	auto time_start = std::chrono::high_resolution_clock::now();
 
 	int32_t write_offset = options.force_offset ? *options.force_offset : std::numeric_limits<int32_t>::max();
 
@@ -1036,7 +1074,10 @@ void redumper_split(const Options &options)
 				int32_t track_write_offset = track_offset_by_sync(lba, t.lba_end, state_fs, scm_fs);
 
 				if(write_offset == std::numeric_limits<int32_t>::max())
+				{
 					write_offset = track_write_offset;
+					LOG("data disc detected");
+				}
 
 				// data mode
 				{
@@ -1124,108 +1165,122 @@ void redumper_split(const Options &options)
 	// audio cd
 	if(write_offset == std::numeric_limits<int32_t>::max())
 	{
-		LOG_F("detecting audio offset... ");
 		auto index0_ranges = audio_get_toc_index0_ranges(toc);
-		auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, options.audio_silence_threshold, options.audio_min_size * SECTOR_STATE_SIZE);
 
-		std::vector<std::pair<int32_t, int32_t>> offset_ranges;
-		for(int32_t sample_offset = -options.audio_offset_max_shift; sample_offset <= options.audio_offset_max_shift; ++sample_offset)
+		std::pair<int32_t, int32_t> offset_limit;
+
+		for(uint16_t t = 0; t <= options.audio_silence_threshold; ++t)
 		{
-			bool match = true;
-
-			uint32_t cache_i = 0;
-			for(auto const &r : index0_ranges)
+			LOG_R();
+			LOGC_F("audio offset (silence threshold: {})", t);
+			auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, t, options.audio_min_size * SECTOR_STATE_SIZE);
+			if(!t)
 			{
-				bool found = false;
-
-				std::pair<int64_t, int64_t> ir(r.first + sample_offset, r.second + sample_offset);
-
-				for(uint32_t i = cache_i; i < silence_ranges.size(); ++i)
-				{
-					bool ahead = ir.first >= silence_ranges[i].first;
-					if(ahead)
-						cache_i = i;
-
-					if(ahead && ir.second <= silence_ranges[i].second)
-					{
-						found = true;
-						break;
-					}
-
-					if(ir.second < silence_ranges[i].first)
-						break;
-				}
-
-				if(!found)
-				{
-					match = false;
-					break;
-				}
+				offset_limit.first = (int32_t)(silence_ranges.back().first - toc.sessions.back().tracks.back().lba_end * (int32_t)SECTOR_STATE_SIZE);
+				offset_limit.second = (int32_t)(silence_ranges.front().second - toc.sessions.front().tracks.front().lba_start * (int32_t)SECTOR_STATE_SIZE);
 			}
 
-			if(match)
+			std::vector<std::pair<int32_t, int32_t>> offset_ranges;
+			for(int32_t sample_offset = offset_limit.first; sample_offset <= offset_limit.second; ++sample_offset)
 			{
-				if(offset_ranges.empty())
+				bool match = true;
+
+				uint32_t cache_i = 0;
+				for(auto const &r : index0_ranges)
 				{
-					offset_ranges.emplace_back(sample_offset, sample_offset);
+					bool found = false;
+
+					std::pair<int64_t, int64_t> ir(r.first + sample_offset, r.second + sample_offset);
+
+					for(uint32_t i = cache_i; i < silence_ranges.size(); ++i)
+					{
+						bool ahead = ir.first >= silence_ranges[i].first;
+						if(ahead)
+							cache_i = i;
+
+						if(ahead && ir.second <= silence_ranges[i].second)
+						{
+							found = true;
+							break;
+						}
+
+						if(ir.second < silence_ranges[i].first)
+							break;
+					}
+
+					if(!found)
+					{
+						match = false;
+						break;
+					}
 				}
-				else
+
+				if(match)
 				{
-					if(offset_ranges.back().second + 1 == sample_offset)
-						offset_ranges.back().second = sample_offset;
-					else
+					if(offset_ranges.empty())
+					{
 						offset_ranges.emplace_back(sample_offset, sample_offset);
-				}
-			}
-		}
-		LOG("done");
-
-		if(offset_ranges.empty())
-			LOG("");
-		else
-		{
-			LOG_F("perfect audio offset: ");
-			for(uint32_t i = 0; i < offset_ranges.size(); ++i)
-			{
-				auto const &r = offset_ranges[i];
-
-				if(r.first == r.second)
-					LOG_F("{}{}", r.first, i + 1 == offset_ranges.size() ? "" : ", ");
-				else
-					LOG_F("[{} .. {}]{}", r.first, r.second, i + 1 == offset_ranges.size() ? "" : ", ");
-			}
-			LOG("");
-
-			// only one perfect offset exists
-			if(offset_ranges.size() == 1 && offset_ranges.front().first == offset_ranges.front().second)
-				write_offset = offset_ranges.front().first;
-			// multiple perfect offsets
-			else
-			{
-				// favor offset 0 if it belongs to perfect range
-				for(auto const r : offset_ranges)
-				{
-					if(0 >= r.first && 0 <= r.second)
+					}
+					else
 					{
-						write_offset = 0;
-						break;
+						if(offset_ranges.back().second + 1 == sample_offset)
+							offset_ranges.back().second = sample_offset;
+						else
+							offset_ranges.emplace_back(sample_offset, sample_offset);
 					}
 				}
+			}
 
-				// choose the closest offset to 0
-				if(write_offset == std::numeric_limits<int32_t>::max())
+			if(!offset_ranges.empty())
+			{
+				LOG_R();
+				LOG_F("perfect audio offset (silence threshold: {}): ", t);
+				for(uint32_t i = 0; i < offset_ranges.size(); ++i)
 				{
+					auto const &r = offset_ranges[i];
+
+					if(r.first == r.second)
+						LOG_F("{:+}{}", r.first, i + 1 == offset_ranges.size() ? "" : ", ");
+					else
+						LOG_F("[{:+} .. {:+}]{}", r.first, r.second, i + 1 == offset_ranges.size() ? "" : ", ");
+				}
+				LOG("");
+
+				// only one perfect offset exists
+				if(offset_ranges.size() == 1 && offset_ranges.front().first == offset_ranges.front().second)
+					write_offset = offset_ranges.front().first;
+				// multiple perfect offsets
+				else
+				{
+					// favor offset 0 if it belongs to perfect range
 					for(auto const r : offset_ranges)
 					{
-						if(std::abs(r.first) < std::abs(write_offset))
-							write_offset = r.first;
+						if(0 >= r.first && 0 <= r.second)
+						{
+							write_offset = 0;
+							break;
+						}
+					}
 
-						if(std::abs(r.second) < std::abs(write_offset))
-							write_offset = r.second;
+					// choose the closest offset to 0
+					if(write_offset == std::numeric_limits<int32_t>::max())
+					{
+						for(auto const r : offset_ranges)
+						{
+							if(std::abs(r.first) < std::abs(write_offset))
+								write_offset = r.first;
+
+							if(std::abs(r.second) < std::abs(write_offset))
+								write_offset = r.second;
+						}
 					}
 				}
+
+				break;
 			}
 		}
+		if(write_offset == std::numeric_limits<int32_t>::max())
+			LOG("");
 	}
 
 	if(write_offset == std::numeric_limits<int32_t>::max())
@@ -1233,6 +1288,8 @@ void redumper_split(const Options &options)
 		write_offset = 0;
 		LOG("warning: fallback offset 0 applied");
 	}
+
+	LOG("disc write offset: {:+}", write_offset);
 
 	// check session pre-gaps for non-zero data
 	for(auto &s : toc.sessions)
@@ -1351,11 +1408,11 @@ void redumper_split(const Options &options)
 			}
 		}
 	}
+	auto time_stop = std::chrono::high_resolution_clock::now();
+	LOG("detection complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
+	LOG("");
 
-	LOG("");
-	LOG("split TOC:");
-	toc.Print();
-	LOG("");
+	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
 
 	// check tracks
 	if(!check_tracks(toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, options) && !options.force_split)
@@ -1399,6 +1456,7 @@ void redumper_split(const Options &options)
 			throw_line(std::format("unable to create file ({})", cue_sheets.front()));
 		toc.PrintCUE(fs, options.image_name);
 		LOG("done");
+		LOG("");
 	}
 
 	for(auto const &t : track_entries)
@@ -1422,9 +1480,6 @@ void redumper_split(const Options &options)
 			LOG("  session {}: {}-{}", s.session_number, s.tracks.front().indices.empty() ? s.tracks.front().lba_start : s.tracks.front().indices.front(), s.tracks.back().lba_end - 1);
 		LOG("");
 	}
-
-	LOG("write offset: {:+}", write_offset);
-	LOG("");
 
 	LOG("dat:");
 	for(auto const &t : track_entries)

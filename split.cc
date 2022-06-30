@@ -697,9 +697,9 @@ int compare_toc(const TOC &toc, const TOC &qtoc)
 }
 
 
-std::vector<std::pair<int64_t, int64_t>> audio_get_toc_index0_ranges(const TOC &toc)
+std::vector<std::pair<int32_t, int32_t>> audio_get_toc_index0_ranges(const TOC &toc)
 {
-	std::vector<std::pair<int64_t, int64_t>> index0_ranges;
+	std::vector<std::pair<int32_t, int32_t>> index0_ranges;
 
 	for(auto &s : toc.sessions)
 	{
@@ -715,49 +715,52 @@ std::vector<std::pair<int64_t, int64_t>> audio_get_toc_index0_ranges(const TOC &
 }
 
 
-std::vector<std::pair<int64_t, int64_t>> audio_get_silence_ranges(std::fstream &scm_fs, uint32_t sectors_count, uint16_t silence_threshold, uint64_t min_count)
+std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(std::fstream &scm_fs, uint32_t sectors_count, uint16_t silence_threshold, uint64_t min_count)
 {
-	std::vector<std::pair<int64_t, int64_t>> silence_ranges;
+	std::vector<std::vector<std::pair<int32_t, int32_t>>> silence_ranges(silence_threshold + 1);
 
 	uint32_t samples[SECTOR_STATE_SIZE];
 
-	int64_t silence_start = std::numeric_limits<int64_t>::min();
-	bool in = true;
+	// don't use std::vector here because it's too slow
+	auto silence_start = std::make_unique<int32_t[]>(silence_threshold + 1);
+	std::fill_n(silence_start.get(), silence_threshold + 1, std::numeric_limits<int32_t>::min());
+
 	for(uint32_t i = 0; i < sectors_count; ++i)
 	{
 		read_entry(scm_fs, (uint8_t *)samples, CD_DATA_SIZE, i, 1, 0, 0);
 
 		for(uint32_t j = 0; j < SECTOR_STATE_SIZE; ++j)
 		{
-			int64_t position = i * SECTOR_STATE_SIZE + j + (LBA_START * (int64_t)SECTOR_STATE_SIZE);
+			int32_t position = i * SECTOR_STATE_SIZE + j + (LBA_START * (int32_t)SECTOR_STATE_SIZE);
 
 			auto sample = (int16_t *)&samples[j];
-
-			// silence
-			if(std::abs(sample[0]) <= (int)silence_threshold && std::abs(sample[1]) <= (int)silence_threshold)
+			
+			for(uint16_t k = 0; k <= silence_threshold; ++k)
 			{
-				if(!in)
+				// silence
+				if(std::abs(sample[0]) <= (int)k && std::abs(sample[1]) <= (int)k)
 				{
-					silence_start = position;
-					in = true;
+					if(silence_start[k] == std::numeric_limits<int32_t>::max())
+						silence_start[k] = position;
 				}
-			}
-			// not silence
-			else
-			{
-				if(in)
+				// not silence
+				else
 				{
-					if(silence_start == std::numeric_limits<int64_t>::min() || position - silence_start >= (int64_t)min_count)
-						silence_ranges.emplace_back(silence_start, position);
+					if(silence_start[k] != std::numeric_limits<int32_t>::max())
+					{
+						if(silence_start[k] == std::numeric_limits<int32_t>::min() || position - silence_start[k] >= (int32_t)min_count)
+							silence_ranges[k].emplace_back(silence_start[k], position);
 
-					in = false;
+						silence_start[k] = std::numeric_limits<int32_t>::max();
+					}
 				}
 			}
 		}
 	}
 	
 	// tail
-	silence_ranges.emplace_back(in ? silence_start : sectors_count * SECTOR_STATE_SIZE + (LBA_START * (int64_t)SECTOR_STATE_SIZE), std::numeric_limits<int64_t>::max());
+	for(uint16_t k = 0; k <= silence_threshold; ++k)
+		silence_ranges[k].emplace_back(silence_start[k] == std::numeric_limits<int32_t>::max() ? sectors_count * SECTOR_STATE_SIZE + (LBA_START * (int32_t)SECTOR_STATE_SIZE) : silence_start[k], std::numeric_limits<int32_t>::max());
 
 	return silence_ranges;
 }
@@ -1013,6 +1016,7 @@ void redumper_split(const Options &options)
 	int toc_diff = compare_toc(toc, qtoc);
 	if(toc_diff)
 	{
+		LOG("");
 		LOG("final QTOC:");
 		qtoc.Print();
 		LOG("");
@@ -1167,18 +1171,19 @@ void redumper_split(const Options &options)
 	{
 		auto index0_ranges = audio_get_toc_index0_ranges(toc);
 
-		std::pair<int32_t, int32_t> offset_limit;
+		LOG_F("audio silence detection... ");
+		auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, options.audio_silence_threshold, options.audio_min_size * SECTOR_STATE_SIZE);
+		LOG("done");
+
+		std::pair<int32_t, int32_t> toc_sample_range(toc.sessions.front().tracks.front().lba_start * (int32_t)SECTOR_STATE_SIZE, toc.sessions.back().tracks.back().lba_end * (int32_t)SECTOR_STATE_SIZE);
+		std::pair<int32_t, int32_t> data_sample_range(silence_ranges[0].front().second, silence_ranges[0].back().first);
+		int32_t pregap_sample_size = 150 * SECTOR_STATE_SIZE;
+
+		std::pair<int32_t, int32_t> offset_limit((int32_t)(data_sample_range.second - toc_sample_range.second), (int32_t)(data_sample_range.first - toc_sample_range.first));
 
 		for(uint16_t t = 0; t <= options.audio_silence_threshold; ++t)
 		{
-			LOG_R();
-			LOGC_F("audio offset (silence threshold: {})", t);
-			auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, t, options.audio_min_size * SECTOR_STATE_SIZE);
-			if(!t)
-			{
-				offset_limit.first = (int32_t)(silence_ranges.back().first - toc.sessions.back().tracks.back().lba_end * (int32_t)SECTOR_STATE_SIZE);
-				offset_limit.second = (int32_t)(silence_ranges.front().second - toc.sessions.front().tracks.front().lba_start * (int32_t)SECTOR_STATE_SIZE);
-			}
+			auto &silence_range = silence_ranges[t];
 
 			std::vector<std::pair<int32_t, int32_t>> offset_ranges;
 			for(int32_t sample_offset = offset_limit.first; sample_offset <= offset_limit.second; ++sample_offset)
@@ -1190,21 +1195,21 @@ void redumper_split(const Options &options)
 				{
 					bool found = false;
 
-					std::pair<int64_t, int64_t> ir(r.first + sample_offset, r.second + sample_offset);
+					std::pair<int32_t, int32_t> ir(r.first + sample_offset, r.second + sample_offset);
 
-					for(uint32_t i = cache_i; i < silence_ranges.size(); ++i)
+					for(uint32_t i = cache_i; i < silence_range.size(); ++i)
 					{
-						bool ahead = ir.first >= silence_ranges[i].first;
+						bool ahead = ir.first >= silence_range[i].first;
 						if(ahead)
 							cache_i = i;
 
-						if(ahead && ir.second <= silence_ranges[i].second)
+						if(ahead && ir.second <= silence_range[i].second)
 						{
 							found = true;
 							break;
 						}
 
-						if(ir.second < silence_ranges[i].first)
+						if(ir.second < silence_range[i].first)
 							break;
 					}
 
@@ -1233,8 +1238,7 @@ void redumper_split(const Options &options)
 
 			if(!offset_ranges.empty())
 			{
-				LOG_R();
-				LOG_F("perfect audio offset (silence threshold: {}): ", t);
+				LOG_F("perfect audio offset (silence level: {}): ", t);
 				for(uint32_t i = 0; i < offset_ranges.size(); ++i)
 				{
 					auto const &r = offset_ranges[i];
@@ -1252,13 +1256,16 @@ void redumper_split(const Options &options)
 				// multiple perfect offsets
 				else
 				{
-					// favor offset 0 if it belongs to perfect range
-					for(auto const r : offset_ranges)
+					// if no audio data in pre-gap, favor offset 0
+					if(data_sample_range.first >= toc_sample_range.first + pregap_sample_size)
 					{
-						if(0 >= r.first && 0 <= r.second)
+						for(auto const r : offset_ranges)
 						{
-							write_offset = 0;
-							break;
+							if(0 >= r.first && 0 <= r.second)
+							{
+								write_offset = 0;
+								break;
+							}
 						}
 					}
 
@@ -1279,8 +1286,29 @@ void redumper_split(const Options &options)
 				break;
 			}
 		}
+
+		// failed to find perfect offset
 		if(write_offset == std::numeric_limits<int32_t>::max())
-			LOG("");
+		{
+			LOG("perfect audio offset not found");
+			int32_t data_sample_size = data_sample_range.second - data_sample_range.first;
+			int32_t toc_sample_size = toc_sample_range.second - toc_sample_range.first;
+			if(data_sample_size < toc_sample_size)
+			{
+				// move data out of lead-out
+				if(data_sample_range.second > toc_sample_range.second)
+				{
+					LOG("moving audio data out of lead-out");
+					write_offset = data_sample_range.second - toc_sample_range.second;
+				}
+				// move data out of pre-gap only if we can get rid of it whole
+				else if(data_sample_range.first < toc_sample_range.first + pregap_sample_size && data_sample_size + pregap_sample_size <= toc_sample_size)
+				{
+					LOG("moving audio data out of pre-gap");
+					write_offset = data_sample_range.first - (toc_sample_range.first + pregap_sample_size);
+				}
+			}
+		}
 	}
 
 	if(write_offset == std::numeric_limits<int32_t>::max())

@@ -45,7 +45,6 @@ struct Options
     bool descramble_new;
     std::unique_ptr<int> force_offset;
     int audio_silence_threshold;
-    int audio_min_size;
 
     Options(int argc, const char *argv[]);
 

@@ -44,7 +44,7 @@ static const std::vector<DriveInfo> SUPPORTED_DRIVES =
 //	{"PLEXTOR", "CD-ROM PX-40TW"  , "", ""},
 
 	// PLEXTOR CD
-	{"PLEXTOR", "CD-R PREMIUM"  , ""    , ""              ,  +30, 294, DriveInfo::Type::PLEXTOR},
+	{"PLEXTOR", "CD-R PREMIUM"  , "1.04", "09/04/03 15:00",  +30, 294, DriveInfo::Type::PLEXTOR},
 	{"PLEXTOR", "CD-R PREMIUM2" , ""    , ""              ,  +30, 294, DriveInfo::Type::PLEXTOR},
 	{"PLEXTOR", "CD-R PX-320A"  , ""    , ""              ,  +98, 294, DriveInfo::Type::PLEXTOR},
 	{"PLEXTOR", "CD-R PX-R412C" , ""    , ""              , +355, 294, DriveInfo::Type::PLEXTOR},

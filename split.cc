@@ -715,7 +715,7 @@ std::vector<std::pair<int32_t, int32_t>> audio_get_toc_index0_ranges(const TOC &
 }
 
 
-std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(std::fstream &scm_fs, uint32_t sectors_count, uint16_t silence_threshold, uint64_t min_count)
+std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(std::fstream &scm_fs, uint32_t sectors_count, uint16_t silence_threshold, uint32_t min_count)
 {
 	std::vector<std::vector<std::pair<int32_t, int32_t>>> silence_ranges(silence_threshold + 1);
 
@@ -1148,7 +1148,7 @@ void redumper_split(const Options &options)
 			}
 		}
 	}
-
+	
 /*
 	// PSX GameShark Upgrade CD
 	if(write_offset == std::numeric_limits<int32_t>::max() && toc.sessions.size() == 1)
@@ -1170,13 +1170,22 @@ void redumper_split(const Options &options)
 	if(write_offset == std::numeric_limits<int32_t>::max())
 	{
 		auto index0_ranges = audio_get_toc_index0_ranges(toc);
+		uint32_t silence_samples_min = std::numeric_limits<uint32_t>::max();
+		for(auto const &r : index0_ranges)
+		{
+			uint32_t length = r.second - r.first;
+			if(silence_samples_min > length)
+				silence_samples_min = length;
+		}
 
 		LOG_F("audio silence detection... ");
-		auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, options.audio_silence_threshold, options.audio_min_size * SECTOR_STATE_SIZE);
+		auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, options.audio_silence_threshold, silence_samples_min);
 		LOG("done");
 
 		std::pair<int32_t, int32_t> toc_sample_range(toc.sessions.front().tracks.front().lba_start * (int32_t)SECTOR_STATE_SIZE, toc.sessions.back().tracks.back().lba_end * (int32_t)SECTOR_STATE_SIZE);
 		std::pair<int32_t, int32_t> data_sample_range(silence_ranges[0].front().second, silence_ranges[0].back().first);
+		int32_t data_sample_size = data_sample_range.second - data_sample_range.first;
+		int32_t toc_sample_size = toc_sample_range.second - toc_sample_range.first;
 		int32_t pregap_sample_size = 150 * SECTOR_STATE_SIZE;
 
 		std::pair<int32_t, int32_t> offset_limit((int32_t)(data_sample_range.second - toc_sample_range.second), (int32_t)(data_sample_range.first - toc_sample_range.first));
@@ -1250,36 +1259,54 @@ void redumper_split(const Options &options)
 				}
 				LOG("");
 
+				// AUDIO OFFSET LOGIC
+
 				// only one perfect offset exists
 				if(offset_ranges.size() == 1 && offset_ranges.front().first == offset_ranges.front().second)
 					write_offset = offset_ranges.front().first;
-				// multiple perfect offsets
-				else
+
+				// try to move out data from pre-gap if it's still in perfect range
+				if(write_offset == std::numeric_limits<int32_t>::max())
 				{
-					// if no audio data in pre-gap, favor offset 0
-					if(data_sample_range.first >= toc_sample_range.first + pregap_sample_size)
+					if(data_sample_range.first < toc_sample_range.first + pregap_sample_size && data_sample_size + pregap_sample_size <= toc_sample_size)
 					{
+						int32_t wo = data_sample_range.first - (toc_sample_range.first + pregap_sample_size);
+
 						for(auto const r : offset_ranges)
 						{
-							if(0 >= r.first && 0 <= r.second)
+							if(wo >= r.first && wo <= r.second)
 							{
-								write_offset = 0;
+								LOG("moving audio data out of pre-gap");
+								write_offset = wo;
 								break;
 							}
 						}
 					}
+				}
 
-					// choose the closest offset to 0
-					if(write_offset == std::numeric_limits<int32_t>::max())
+				// favor offset 0 if it belongs to perfect range
+				if(write_offset == std::numeric_limits<int32_t>::max())
+				{
+					for(auto const r : offset_ranges)
 					{
-						for(auto const r : offset_ranges)
+						if(0 >= r.first && 0 <= r.second)
 						{
-							if(std::abs(r.first) < std::abs(write_offset))
-								write_offset = r.first;
-
-							if(std::abs(r.second) < std::abs(write_offset))
-								write_offset = r.second;
+							write_offset = 0;
+							break;
 						}
+					}
+				}
+
+				// choose the closest offset to 0
+				if(write_offset == std::numeric_limits<int32_t>::max())
+				{
+					for(auto const r : offset_ranges)
+					{
+						if(std::abs(r.first) < std::abs(write_offset))
+							write_offset = r.first;
+
+						if(std::abs(r.second) < std::abs(write_offset))
+							write_offset = r.second;
 					}
 				}
 
@@ -1291,9 +1318,7 @@ void redumper_split(const Options &options)
 		if(write_offset == std::numeric_limits<int32_t>::max())
 		{
 			LOG("perfect audio offset not found");
-			int32_t data_sample_size = data_sample_range.second - data_sample_range.first;
-			int32_t toc_sample_size = toc_sample_range.second - toc_sample_range.first;
-			if(data_sample_size < toc_sample_size)
+			if(data_sample_size <= toc_sample_size)
 			{
 				// move data out of lead-out
 				if(data_sample_range.second > toc_sample_range.second)
@@ -1311,6 +1336,7 @@ void redumper_split(const Options &options)
 		}
 	}
 
+	// fallback
 	if(write_offset == std::numeric_limits<int32_t>::max())
 	{
 		write_offset = 0;
@@ -1430,9 +1456,9 @@ void redumper_split(const Options &options)
 
 			if(tail)
 			{
-				LOG("warning: lead-out audio contains non-zero data, extending (session: {}, extra samples: {})", toc.sessions[i].session_number, tail);
-				uint32_t tail_bytes = tail * CD_SAMPLE_SIZE;
-				t.lba_end += tail_bytes / CD_DATA_SIZE + (tail_bytes % CD_DATA_SIZE ? 1 : 0);
+				LOG("warning: lead-out audio contains non-zero data (session: {}, extra samples: {})", toc.sessions[i].session_number, tail);
+//				uint32_t tail_bytes = tail * CD_SAMPLE_SIZE;
+//				t.lba_end += tail_bytes / CD_DATA_SIZE + (tail_bytes % CD_DATA_SIZE ? 1 : 0);
 			}
 		}
 	}

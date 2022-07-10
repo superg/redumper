@@ -28,7 +28,6 @@ Options::Options(int argc, const char *argv[])
     , cdi_ready_normalize(false)
     , descramble_new(false)
     , audio_silence_threshold(32)
-    , audio_min_size(75)
 {
     for(int i = 0; i < argc; ++i)
     {
@@ -126,8 +125,6 @@ Options::Options(int argc, const char *argv[])
                 }
                 else if(key == "--audio-silence-threshold")
                     i_value = &audio_silence_threshold;
-                else if(key == "--audio-min-size")
-                    i_value = &audio_min_size;
                 // unknown option
                 else
                 {
@@ -205,7 +202,6 @@ void Options::PrintUsage()
     LOG("\t--descramble-new\timproved score based descrambled method");
     LOG("\t--force-offset=VALUE\toverride offset autodetection and use supplied value");
     LOG("\t--audio-silence-threshold=VALUE\tmaximum absolute sample value to treat it as silence (default: {})", audio_silence_threshold);
-    LOG("\t--audio-silence-min-size=VALUE\tminimum consecutive silence size to take into account, in sectors (default: {})", audio_min_size);
 }
 
 }

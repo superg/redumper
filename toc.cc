@@ -554,7 +554,7 @@ void TOC::Print() const
 				flags += ", pre-emphasis";
 
 			LOG("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), 
-						   std::format(track_format, t.track_number), flags);
+						   std::vformat(track_format, std::make_format_args(t.track_number)), flags);
 
 			auto indices = t.indices;
 			indices.insert(indices.begin(), t.lba_start);
@@ -635,7 +635,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 
 		for(auto const &t : s.tracks)
 		{
-			os << std::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : std::format(track_format, t.track_number), t.track_number) << std::endl;
+			os << std::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : std::vformat(track_format, std::make_format_args(t.track_number)), t.track_number) << std::endl;
 
 			std::string track_type;
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)

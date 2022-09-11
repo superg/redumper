@@ -407,7 +407,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 	{
 		for(auto const &t : se.tracks)
 		{
-			LOG_F("track {}... ", std::format(track_format, t.track_number));
+			LOG_F("track {}... ", std::vformat(track_format, std::make_format_args(t.track_number)));
 
 			uint32_t skip_samples = 0;
 			uint32_t c2_samples = 0;
@@ -483,7 +483,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 		{
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 
-			std::string track_name = std::format("{}{}.bin", options.image_name, toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 ? "" : std::format(track_format, t.track_number));
+			std::string track_name = std::format("{}{}.bin", options.image_name, toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 ? "" : std::vformat(track_format, std::make_format_args(t.track_number)));
 			LOG_F("{}... ", track_name);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / track_name) && !options.overwrite)

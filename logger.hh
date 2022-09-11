@@ -21,7 +21,7 @@ public:
 	template<typename... Args>
 	void Log(bool file, std::string fmt, const Args &... args)
 	{
-		auto message = std::format(fmt, args...);
+		auto message = std::vformat(fmt, std::make_format_args(args...));
 
 		std::cout << message;
 

@@ -36,8 +36,8 @@ Options::Options(int argc, const char *argv[])
         bool quoted = false;
         if(argument.find(' ') != std::string::npos)
             quoted = true;
-
-        command += std::format(quoted ? "\"{}\"{}" : "{}{}", argument, i + 1 == argc ? "" : " ");
+        
+        command += std::vformat("{}{}{}{}", std::make_format_args(quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " "));
     }
 
     std::string *s_value = nullptr;

@@ -913,7 +913,7 @@ void redumper_debug(const Options &options)
 	{
 		std::fstream fs_state(state_path, std::fstream::out | std::fstream::in | std::fstream::binary);
 		uint64_t states_count = std::filesystem::file_size(state_path) / sizeof(State);
-		std::vector<State> states(states_count);
+		std::vector<State> states((std::vector<State>::size_type)states_count);
 		fs_state.read((char *)states.data(), states.size() * sizeof(State));
 		for(auto &s : states)
 		{

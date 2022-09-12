@@ -33,6 +33,9 @@ if(MSVC)
     # multithreaded build
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -DNOMINMAX -D_NTSCSI_USER_MODE_)
+	
+	# support Windows 7
+#	add_definitions(-DWINVER=0x0601 -D_WIN32_WINNT=0x0601)
 endif()
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 

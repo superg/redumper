@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "common.hh"
+#include "logger.hh"
 #include "windows.hh"
 #include "scsi.hh"
 
@@ -135,10 +136,16 @@ SPTD::SPTD(const std::string &drive_path, uint32_t timeout)
 	if(_handle.get() == INVALID_HANDLE_VALUE)
 		throw_line(std::format("unable to open drive ({})", drive_path));
 
+	// make sure the address is initialized if subsequent call fails
+	memset(&_address, 0, sizeof(_address));
+
+	// the call fails on Windows 7 32-bit
+	// according to Microsoft, this request is not relevant to storage class drivers that support
+	// Plug and Play because the port driver supplies the address information on behalf of the class drive
 	DWORD bytes_returned;
 	BOOL success = DeviceIoControl(_handle.get(), IOCTL_SCSI_GET_ADDRESS, &_address, sizeof(_address), &_address, sizeof(_address), &bytes_returned, nullptr);
 	if(success != TRUE)
-		throw_line(std::format("WIN32 ({})", get_last_error()));
+		LOG("warning: DeviceIoControl IOCTL_SCSI_GET_ADDRESS call failed ({})", get_last_error());
 }
 
 

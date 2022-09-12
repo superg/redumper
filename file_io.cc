@@ -91,7 +91,7 @@ void write_align(std::fstream &fs, uint32_t index, uint32_t entry_size, uint8_t 
 
 	if(file_size < index * entry_size)
 	{
-		std::vector<uint8_t> pad(index * entry_size - file_size, fill_byte);
+		std::vector<uint8_t> pad((std::vector<uint8_t>::size_type)(index * entry_size - file_size), fill_byte);
 		fs.write((char *)pad.data(), pad.size());
 		if(fs.fail())
 			throw_line("write failed");
@@ -101,7 +101,7 @@ void write_align(std::fstream &fs, uint32_t index, uint32_t entry_size, uint8_t 
 
 std::vector<uint8_t> read_vector(const std::filesystem::path &file_path)
 {
-	std::vector<uint8_t> data(std::filesystem::file_size(file_path));
+	std::vector<uint8_t> data((std::vector<uint8_t>::size_type)std::filesystem::file_size(file_path));
 
 	std::fstream fs(file_path, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())

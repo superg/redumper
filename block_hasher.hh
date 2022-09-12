@@ -41,7 +41,7 @@ public:
 			}
 		}
 
-		for(; data_end - data >= _blockSize; data += _blockSize)
+		for(; (uint32_t)(data_end - data) >= _blockSize; data += _blockSize)
 			Update(data);
 
 		_tail.insert(_tail.end(), data, data_end);

@@ -32,30 +32,20 @@ if(MSVC)
 
     # multithreaded build
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -DNOMINMAX -D_NTSCSI_USER_MODE_)
-	
-	# support Windows 7
-#	add_definitions(-DWINVER=0x0601 -D_WIN32_WINNT=0x0601)
 endif()
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
-# target that depends on never generated file hack
-add_custom_target(redumper_always_run ALL DEPENDS always_run)
-set_property(TARGET redumper_always_run PROPERTY FOLDER "CMakePredefinedTargets")
 
 # version
 string(TIMESTAMP REDUMPER_VERSION_MAJOR "%Y")
 string(TIMESTAMP REDUMPER_VERSION_MINOR "%m")
-string(TIMESTAMP REDUMPER_TIMESTAMP "%m/%d/%Y %H:%M:%S")
 add_definitions(-DREDUMPER_VERSION_MAJOR=${REDUMPER_VERSION_MAJOR}
-                -DREDUMPER_VERSION_MINOR=${REDUMPER_VERSION_MINOR}
-				-DREDUMPER_TIMESTAMP=${REDUMPER_TIMESTAMP})
+                -DREDUMPER_VERSION_MINOR=${REDUMPER_VERSION_MINOR})
 
-add_custom_command(OUTPUT always_run "${PROJECT_BINARY_DIR}/version.cc"
-    COMMAND cmake -E echo "version touch"
+add_custom_target(version_touch ALL
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/version.cc" "${PROJECT_BINARY_DIR}"
-	COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_BINARY_DIR}/version.cc"
-)
+	COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_BINARY_DIR}/version.cc")
 
 # packaging
 set(CPACK_GENERATOR "ZIP")
@@ -140,6 +130,7 @@ set(libs
 add_executable(redumper ${sources})
 target_include_directories(redumper PUBLIC ${includes})
 target_link_libraries(redumper ${libs})
+add_dependencies(redumper version_touch)
 
 install(TARGETS redumper DESTINATION "bin")
 

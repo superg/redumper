@@ -114,7 +114,6 @@ set(sources
 	"version.cc"
 	"driveoffsets.txt"
 	${DRIVEOFFSETS_FN}
-	"redumper.exe.manifest"
 )
 
 set(includes
@@ -130,6 +129,10 @@ target_link_libraries(redumper ${libs})
 add_dependencies(redumper version_touch)
 
 install(TARGETS redumper DESTINATION "bin")
+
+if(MSVC AND ${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
+	set_target_properties(redumper PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
+endif()
 
 # flatten the sources lists
 file(GLOB_RECURSE files LIST_DIRECTORIES false RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *)

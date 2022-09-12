@@ -42,10 +42,7 @@ string(TIMESTAMP REDUMPER_VERSION_MAJOR "%Y")
 string(TIMESTAMP REDUMPER_VERSION_MINOR "%m")
 add_definitions(-DREDUMPER_VERSION_MAJOR=${REDUMPER_VERSION_MAJOR}
                 -DREDUMPER_VERSION_MINOR=${REDUMPER_VERSION_MINOR})
-
-add_custom_target(version_touch ALL
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/version.cc" "${PROJECT_BINARY_DIR}"
-	COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_BINARY_DIR}/version.cc")
+add_custom_target(version_touch ALL COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_SOURCE_DIR}/version.cc")
 
 # packaging
 set(CPACK_GENERATOR "ZIP")
@@ -114,7 +111,7 @@ set(sources
 	"windows.cc"
 	"windows.hh"
 	"version.hh"
-	"${PROJECT_BINARY_DIR}/version.cc"
+	"version.cc"
 	"driveoffsets.txt"
 	${DRIVEOFFSETS_FN}
 	"redumper.exe.manifest"

@@ -64,7 +64,8 @@ void Logger::Flush(bool file)
 
 void Logger::ClearLine()
 {
-    std::cout << std::format("\r{:100}\r", "");
+    // default 80 terminal width - 1 is the largest value which doesn't wrap to a new line on Windows 7
+    std::cout << std::format("\r{:79}\r", "");
 }
 
 

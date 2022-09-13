@@ -35,3 +35,7 @@ jobs:
       working-directory: ${{github.workspace}}/build.${{matrix.platform}}
       run: cpack --config CPackConfig.cmake
       
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        path: ${{github.workspace}}/build.${{matrix.platform}}/**/*.zip

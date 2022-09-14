@@ -1,26 +1,24 @@
-cmake_minimum_required(VERSION 3.14.1)
+cmake_minimum_required(VERSION 3.16)
+cmake_policy(SET CMP0096 NEW) # preserve leading zeroes in version components
 
-enable_testing()
-
+# project / version
 set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
-project(${REDUMPER_PROJECT_NAME})
+string(TIMESTAMP REDUMPER_VERSION_MAJOR "%Y")
+string(TIMESTAMP REDUMPER_VERSION_MINOR "%m")
+set(REDUMPER_VERSION_PATCH "0" CACHE STRING "Version patch")
+project(${REDUMPER_PROJECT_NAME} VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
 
 # build type
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the build type" FORCE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
-# hide incomplete configurations from Visual Studio
-set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE} CACHE INTERNAL "Active configuration" FORCE)
-mark_as_advanced(FORCE CMAKE_CONFIGURATION_TYPES)
 
-# installation
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/INSTALL" CACHE PATH "Installation prefix" FORCE)
-endif()
-set(CMAKE_INSTALL_MESSAGE LAZY)
-
+# C/C++
 set(CMAKE_CXX_STANDARD 23)
+add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+                -DREDUMPER_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+                -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH})
 
 # Visual Studio settings
 if(MSVC)
@@ -34,25 +32,20 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -DNOMINMAX -D_NTSCSI_USER_MODE_)
+	
+	set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+	# flatten the sources lists
+	file(GLOB_RECURSE files LIST_DIRECTORIES false RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *)
+	foreach(i IN LISTS files)
+		get_filename_component(source_path "${i}" PATH)
+		string(REPLACE "/" "\\" source_path "${source_path}")
+		source_group("${source_path}" FILES ${i})
+	endforeach()
 endif()
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-# version
-string(TIMESTAMP REDUMPER_VERSION_MAJOR "%Y")
-string(TIMESTAMP REDUMPER_VERSION_MINOR "%m")
-add_definitions(-DREDUMPER_VERSION_MAJOR=${REDUMPER_VERSION_MAJOR}
-                -DREDUMPER_VERSION_MINOR=${REDUMPER_VERSION_MINOR})
-add_custom_target(version_touch ALL COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_SOURCE_DIR}/version.cc")
-
-# packaging
-set(CPACK_GENERATOR "ZIP")
-set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}")
-include(CPack)
-
+# generated source file
 set(DRIVEOFFSETS_FN "${CMAKE_CURRENT_BINARY_DIR}/driveoffsets.inc")
-
 add_executable(generate_offsets generate_offsets.cc)
-
 add_custom_command(
 	OUTPUT ${DRIVEOFFSETS_FN}
 	COMMAND generate_offsets "${CMAKE_CURRENT_SOURCE_DIR}/driveoffsets.txt"
@@ -120,26 +113,20 @@ set(includes
 	${CMAKE_CURRENT_BINARY_DIR}
 )
 
-set(libs
-)
-
 add_executable(redumper ${sources})
 target_include_directories(redumper PUBLIC ${includes})
-target_link_libraries(redumper ${libs})
+
+add_custom_target(version_touch ALL COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_SOURCE_DIR}/version.cc")
 add_dependencies(redumper version_touch)
 
 install(TARGETS redumper DESTINATION "bin")
 
+# Windows 7 requires administrative access in order to access the disc drive
 if(MSVC AND ${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
 	set_target_properties(redumper PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
 endif()
 
-# flatten the sources lists
-file(GLOB_RECURSE files LIST_DIRECTORIES false RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *)
-foreach(i IN LISTS files)
-    get_filename_component(source_path "${i}" PATH)
-    string(REPLACE "/" "\\" source_path "${source_path}")
-    source_group("${source_path}" FILES ${i})
-endforeach()
+include(CPack)
 
+enable_testing()
 add_subdirectory("tests")

@@ -34,12 +34,19 @@ jobs:
     - name: Package
       working-directory: ${{github.workspace}}/build.${{matrix.platform}}
       run: cpack -G ZIP --config CPackConfig.cmake
-      
-    - name: Upload
-      uses: actions/upload-artifact@v3
-      with:
-        path: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
 
+     - name: GitHub Release
+       uses: actions/create-release@v1
+       env:
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+       with:
+         tag_name: ${{ github.ref }}
+         release_name: ${{ github.run_number }}
+      
+#    - name: Upload
+#      uses: actions/upload-artifact@v3
+#      with:
+#        path: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
 #    - name: Release
 #      uses: softprops/action-gh-release@v1
 #      with:

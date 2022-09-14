@@ -35,20 +35,13 @@ jobs:
       working-directory: ${{github.workspace}}/build.${{matrix.platform}}
       run: cpack -G ZIP --config CPackConfig.cmake
       
-#    - name: Upload Artifact
-#      uses: actions/upload-artifact@v3
-#      with:
-#        path: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        path: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
 
 #    - name: Release
 #      uses: softprops/action-gh-release@v1
 #      with:
 #        tag_name: BUILD
 #        files: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
-
-     - name: Release
-       uses: marvinpinto/action-automatic-releases@latest
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          files: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip

@@ -42,4 +42,5 @@ jobs:
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
+        name: asdf
         files: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip

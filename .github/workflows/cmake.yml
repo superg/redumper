@@ -35,7 +35,11 @@ jobs:
       working-directory: ${{github.workspace}}/build.${{matrix.platform}}
       run: cpack --config CPackConfig.cmake
       
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+#    - name: Upload Artifact
+#      uses: actions/upload-artifact@v3
+#      with:
+#        path: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
+    - name: Release
+      uses: softprops/action-gh-release@v1
       with:
-        path: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
+        files: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip

@@ -43,4 +43,5 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         name: asdf
+        tag_name: fdsa
         files: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip

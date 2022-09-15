@@ -9,6 +9,7 @@ on:
 #    branches: [ "main" ]
 
 env:
+  release_name: ${{ format('build_{}', github.run_number) }}
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
 
@@ -24,9 +25,10 @@ jobs:
     - uses: actions/checkout@v3
     
     - name: GitHub Release
-      run: |
-        hub tag tagactiontest
-        hub push origin tagactiontest
+      run: echo ${{ release_name }}
+#      run: |
+#        hub tag tagactiontest
+#        hub push origin tagactiontest
 #      run: hub release create -m "test title" "test date"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

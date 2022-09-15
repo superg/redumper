@@ -9,7 +9,7 @@ on:
 #    branches: [ "main" ]
 
 env:
-  release_name: ${{ format('build_{}', github.run_number) }}
+  release_name: ${{ format('build_{0}', github.run_number) }}
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
 

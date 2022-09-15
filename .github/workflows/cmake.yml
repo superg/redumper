@@ -21,12 +21,12 @@ jobs:
     runs-on: windows-latest
 
     steps:
-#    - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
     
     - name: GitHub Release
       run: hub release create -m "test title" "test date"
       env:
-        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 #    - name: Configure
 #      run: cmake -B ${{github.workspace}}/build.${{matrix.platform}} -G "Visual Studio 17 2022" -A ${{matrix.platform}} -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DREDUMPER_VERSION_PATCH=${{github.run_number}}

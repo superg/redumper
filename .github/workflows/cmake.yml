@@ -28,6 +28,8 @@ jobs:
       run: hub release create ${{ env.release_name }}
 #        hub tag ${{ env.release_name }}
 #        hub push origin ${{ env.release_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
     - name: GitHub Release 2
       continue-on-error: true

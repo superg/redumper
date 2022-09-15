@@ -25,7 +25,7 @@ jobs:
     - uses: actions/checkout@v3
     
     - name: GitHub Release
-      run: echo ${{ release_name }}
+      run: echo ${{ env.release_name }}
 #      run: |
 #        hub tag tagactiontest
 #        hub push origin tagactiontest

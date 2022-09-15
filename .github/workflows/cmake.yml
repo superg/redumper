@@ -25,11 +25,11 @@ jobs:
     - uses: actions/checkout@v3
     
     - name: GitHub Release
-      run: echo ${{ env.release_name }}
-#      run: |
-#        hub tag tagactiontest
-#        hub push origin tagactiontest
-#      run: hub release create -m "test title" "test date"
+      run: |
+        hub tag ${{ env.release_name }}
+        hub push origin ${{ env.release_name }}
+        hub release create ${{ env.release_name }} --generate-notes
+        hub release create ${{ env.release_name }} --generate-notes
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

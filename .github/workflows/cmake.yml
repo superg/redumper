@@ -3,8 +3,10 @@ name: CMake
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    tags-ignore:
+      - '**'
+#  pull_request:
+#    branches: [ "main" ]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -21,30 +23,25 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Configure
-      run: cmake -B ${{github.workspace}}/build.${{matrix.platform}} -G "Visual Studio 17 2022" -A ${{matrix.platform}} -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DREDUMPER_VERSION_PATCH=${{github.run_number}}
-
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build.${{matrix.platform}} --config ${{env.BUILD_TYPE}}
-      
-    - name: Test
-      working-directory: ${{github.workspace}}/build.${{matrix.platform}}
-      run: ctest -C ${{env.BUILD_TYPE}}
-
-    - name: Package
-      working-directory: ${{github.workspace}}/build.${{matrix.platform}}
-      run: cpack -G ZIP --config CPackConfig.cmake
-
+#    - name: Configure
+#      run: cmake -B ${{github.workspace}}/build.${{matrix.platform}} -G "Visual Studio 17 2022" -A ${{matrix.platform}} -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DREDUMPER_VERSION_PATCH=${{github.run_number}}
+#
+#    - name: Build
+#      run: cmake --build ${{github.workspace}}/build.${{matrix.platform}} --config ${{env.BUILD_TYPE}}
+#      
+#    - name: Test
+#      working-directory: ${{github.workspace}}/build.${{matrix.platform}}
+#      run: ctest -C ${{env.BUILD_TYPE}}
+#
+#    - name: Package
+#      working-directory: ${{github.workspace}}/build.${{matrix.platform}}
+#      run: cpack -G ZIP --config CPackConfig.cmake
+#
     - name: GitHub Release
-      uses: actions/create-release@latest
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: ${{ github.run_number }}
-        draft: false
-        prerelease: false
-      
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: hub release create -m "test title" "test date"
+
 #    - name: Upload
 #      uses: actions/upload-artifact@v3
 #      with:

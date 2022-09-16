@@ -45,8 +45,6 @@ jobs:
         name: ${{env.release_name}}
         path: ${{env.build_directory}}/redumper-*.zip
 
-    - name: 'Echo download path'
-      run: echo ${{steps.download.outputs.download-path}}
 #    - name: Release
 #      uses: softprops/action-gh-release@v1
 #      with:
@@ -73,8 +71,13 @@ jobs:
     steps:
       - name: Download
         uses: actions/download-artifact@v3
+        id: download
         with:
           name: ${{env.release_name}}
       
       - name: Display structure of downloaded files
         run: ls -R
+
+      - name: 'Echo download path'
+        run: echo ${{steps.download.outputs.download-path}}
+

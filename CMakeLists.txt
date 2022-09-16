@@ -5,7 +5,8 @@ cmake_policy(SET CMP0096 NEW) # preserve leading zeroes in version components
 set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
 string(TIMESTAMP REDUMPER_VERSION_MAJOR "%Y")
 string(TIMESTAMP REDUMPER_VERSION_MINOR "%m")
-set(REDUMPER_VERSION_PATCH "0" CACHE STRING "Version patch")
+string(TIMESTAMP REDUMPER_VERSION_PATCH "%d")
+set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Version patch")
 project(${REDUMPER_PROJECT_NAME} VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
 
 # build type
@@ -13,6 +14,23 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the build type" FORCE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
+set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE} CACHE INTERNAL "Active configuration" FORCE)
+
+# packaging
+set(CPACK_GENERATOR "ZIP")
+# add build number to a package file name if it was provided
+if(NOT REDUMPER_VERSION_BUILD STREQUAL "LOCAL")
+	set(system_name__ ${CMAKE_SYSTEM_NAME})
+	if(system_name__ MATCHES "Windows")
+		if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+			set(system_name__ "win64")
+		else()
+			set(system_name__ "win32")
+		endif()
+	endif()
+	set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${CMAKE_PROJECT_VERSION}_build${REDUMPER_VERSION_BUILD}-${system_name__}")
+endif()
+include(CPack)
 
 # C/C++
 set(CMAKE_CXX_STANDARD 23)
@@ -125,8 +143,6 @@ install(TARGETS redumper DESTINATION "bin")
 if(MSVC AND ${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
 	set_target_properties(redumper PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
 endif()
-
-include(CPack)
 
 enable_testing()
 add_subdirectory("tests")

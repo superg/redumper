@@ -64,3 +64,15 @@ jobs:
 #      run: hub release create ${{ env.release_name }} -m ${{ env.release_name }}
 #      env:
 #        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{env.release_name}}
+      
+      - name: Display structure of downloaded files
+        run: ls -R

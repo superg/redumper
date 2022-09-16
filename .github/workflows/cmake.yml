@@ -9,9 +9,9 @@ on:
 #    branches: [ "main" ]
 
 env:
-  release_name: ${{ format('build_{0}', github.run_number) }}
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Release
+  build_directory: ${{github.workspace}}/BUILD
+  build_type: Release
+  release_name: build_${{github.run_number}}
 
 jobs:
   build:
@@ -22,42 +22,45 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: GitHub Release
-      run: hub release create ${{ env.release_name }} -m ${{ env.release_name }}
-#        hub tag ${{ env.release_name }}
-#        hub push origin ${{ env.release_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: GitHub Release 2
-      continue-on-error: true
-      run: hub release create ${{ env.release_name }} -m ${{ env.release_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Checkout
+      uses: actions/checkout@v3
 
+    - name: Configure
+      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A ${{matrix.platform}} -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
-#    - name: Configure
-#      run: cmake -B ${{github.workspace}}/build.${{matrix.platform}} -G "Visual Studio 17 2022" -A ${{matrix.platform}} -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DREDUMPER_VERSION_PATCH=${{github.run_number}}
-#
-#    - name: Build
-#      run: cmake --build ${{github.workspace}}/build.${{matrix.platform}} --config ${{env.BUILD_TYPE}}
-#      
-#    - name: Test
-#      working-directory: ${{github.workspace}}/build.${{matrix.platform}}
-#      run: ctest -C ${{env.BUILD_TYPE}}
-#
-#    - name: Package
-#      working-directory: ${{github.workspace}}/build.${{matrix.platform}}
-#      run: cpack -G ZIP --config CPackConfig.cmake
-#
-#    - name: Upload
-#      uses: actions/upload-artifact@v3
-#      with:
-#        path: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
+    - name: Build
+      run: cmake --build ${{env.build_directory}} --config ${{env.build_type}}
+      
+    - name: Test
+      working-directory: ${{env.build_directory}}
+      run: ctest -C ${{env.build_type}}
+
+    - name: Package
+      working-directory: ${{env.build_directory}}
+      run: cpack -G ZIP --config CPackConfig.cmake
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{env.release_name}}
+        path: ${{env.build_directory}}/redumper-*.zip
+
 #    - name: Release
 #      uses: softprops/action-gh-release@v1
 #      with:
 #        tag_name: BUILD
 #        files: ${{github.workspace}}/build.${{matrix.platform}}/redumper-*.zip
+
+#    - name: GitHub Release
+#      run: hub release create ${{ env.release_name }} -m ${{ env.release_name }}
+#        hub tag ${{ env.release_name }}
+#        hub push origin ${{ env.release_name }}
+#      env:
+#        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+#    - name: GitHub Release 2
+# use hub release show build_28 and check output
+#      continue-on-error: true
+#      run: hub release create ${{ env.release_name }} -m ${{ env.release_name }}
+#      env:
+#        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

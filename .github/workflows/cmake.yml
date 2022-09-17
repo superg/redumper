@@ -21,21 +21,21 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
 
-    - name: Configure
+    - name: CMake Configure
       run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A ${{matrix.platform}} -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
-    - name: Build
+    - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}}
       
-    - name: Test
+    - name: CMake Test
       working-directory: ${{env.build_directory}}
       run: ctest -C ${{env.build_type}}
 
-    - name: Package
+    - name: CMake Package
       working-directory: ${{env.build_directory}}
       run: cpack -G ZIP --config CPackConfig.cmake
 
-    - name: Upload
+    - name: Upload Artifact
       uses: actions/upload-artifact@v3
       with:
         name: ${{env.release_name}}
@@ -48,13 +48,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Download
+      - name: Download Artifact
         uses: actions/download-artifact@v3
         id: download
         with:
           name: ${{env.release_name}}
       
-      - name: 'Release'
+      - name: 'Create Release'
         shell: bash
         run: |
           for f in redumper-*.zip; do FILES+=" -a $f"; done

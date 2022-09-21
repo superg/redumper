@@ -144,8 +144,6 @@ SPTD::SPTD(const std::string &drive_path, uint32_t timeout)
 	// Plug and Play because the port driver supplies the address information on behalf of the class drive
 	DWORD bytes_returned;
 	BOOL success = DeviceIoControl(_handle.get(), IOCTL_SCSI_GET_ADDRESS, &_address, sizeof(_address), &_address, sizeof(_address), &bytes_returned, nullptr);
-	if(success != TRUE)
-		LOG("warning: DeviceIoControl IOCTL_SCSI_GET_ADDRESS call failed ({})", get_last_error());
 }
 
 

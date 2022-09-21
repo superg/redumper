@@ -505,7 +505,7 @@ bool redumper_dump(const Options &options, bool refine)
 				if(inside_range(lba, error_ranges) == nullptr && lba < lba_end)
 				{
 					if(refine)
-						refine_status = std::format("retry: {}, SCSI", refine_counter + 1);
+						refine_status = std::format("R: {}, SCSI", refine_counter + 1);
 					else
 						++errors;
 					if(options.verbose)
@@ -537,7 +537,7 @@ bool redumper_dump(const Options &options, bool refine)
 				}
 
 				if(refine)
-					refine_status = std::format("retry: {}, C2 (bits: {})", refine_counter + 1, c2_count);
+					refine_status = std::format("R: {}, C2 (B: {})", refine_counter + 1, c2_count);
 
 				store = true;
 			}

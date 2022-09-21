@@ -41,7 +41,7 @@ or (you can use spaces and = interchangeably)
 
 `redumper cd --verbose --drive F: --retries 100 --image-name my_dump_name --image-path my_dump_directory`
 
-Will dump a disc in drive F: with 100 retries count in case of errors (refine). The dump files will be stored in my_dump_name directory and dump files will have my_dump_name base name and you will get verbose messages.
+Will dump a disc in drive F: with 100 retries count in case of errors (refine). The dump files will be stored in my_dump_directory directory and dump files will have my_dump_name base name and you will get verbose messages.
 
 3. You know what you do:
 

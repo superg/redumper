@@ -42,7 +42,7 @@ struct ChannelQ
 			union
 			{
 //				uint8_t data[9];
-				struct Mode1
+				struct
 				{
 					union
 					{
@@ -68,14 +68,14 @@ struct ChannelQ
 					};
 				} mode1;
 
-				struct Mode2
+				struct
 				{
 					uint8_t mcn[7];
 					uint8_t zero;
 					uint8_t a_frame;
 				} mode2;
 
-				struct Mode3
+				struct
 				{
 					uint8_t isrc[8];
 					uint8_t a_frame;

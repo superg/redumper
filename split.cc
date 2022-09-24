@@ -252,10 +252,10 @@ int32_t track_process_offset_shift(int32_t write_offset, int32_t lba, uint32_t c
 				int32_t sector_offset = (int32_t)i - (sector_lba - lba) * CD_DATA_SIZE;
 				if(sector_offset > 0)
 				{
-					std::filesystem::path track_garbage_path = std::format("{}.{:06}", track_path.string(), lba);
+					std::filesystem::path track_garbage_path = fmt::format("{}.{:06}", track_path.string(), lba);
 					std::fstream fs(track_garbage_path, std::fstream::out | std::fstream::binary);
 					if(!fs.is_open())
-						throw_line(std::format("unable to create file ({})", track_garbage_path.filename().string()));
+						throw_line(fmt::format("unable to create file ({})", track_garbage_path.filename().string()));
 					fs.write((char *)data.data(), sector_offset);
 				}
 
@@ -396,7 +396,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 {
 	bool no_errors = true;
 
-	std::string track_format = std::format("{{:0{}}}", (uint32_t)log10(toc.sessions.back().tracks.back().track_number) + 1);
+	std::string track_format = fmt::format("{{:0{}}}", (uint32_t)log10(toc.sessions.back().tracks.back().track_number) + 1);
 
 	std::vector<State> state(SECTOR_STATE_SIZE);
 
@@ -407,7 +407,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 	{
 		for(auto const &t : se.tracks)
 		{
-			LOG_F("track {}... ", std::vformat(track_format, std::make_format_args(t.track_number)));
+			LOG_F("track {}... ", fmt::vformat(track_format, fmt::make_format_args(t.track_number)));
 
 			uint32_t skip_samples = 0;
 			uint32_t c2_samples = 0;
@@ -468,7 +468,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, int32_t write_offset, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, int32_t lba_start, const Options &options)
 {
-	std::string track_format = std::format(" (Track {{:0{}}})", (uint32_t)log10(toc.sessions.back().tracks.back().track_number) + 1);
+	std::string track_format = fmt::format(" (Track {{:0{}}})", (uint32_t)log10(toc.sessions.back().tracks.back().track_number) + 1);
 
 	Scrambler scrambler;
 	std::vector<uint8_t> sector(CD_DATA_SIZE);
@@ -483,15 +483,15 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 		{
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 
-			std::string track_name = std::format("{}{}.bin", options.image_name, toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 ? "" : std::vformat(track_format, std::make_format_args(t.track_number)));
+			std::string track_name = fmt::format("{}{}.bin", options.image_name, toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 ? "" : fmt::vformat(track_format, fmt::make_format_args(t.track_number)));
 			LOG_F("{}... ", track_name);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / track_name) && !options.overwrite)
-				throw_line(std::format("file already exists ({})", track_name));
+				throw_line(fmt::format("file already exists ({})", track_name));
 
 			std::fstream fs_bin(std::filesystem::path(options.image_path) / track_name, std::fstream::out | std::fstream::binary);
 			if(!fs_bin.is_open())
-				throw_line(std::format("unable to create file ({})", track_name));
+				throw_line(fmt::format("unable to create file ({})", track_name));
 
 			TrackEntry track_entry;
 			track_entry.filename = track_name;
@@ -594,7 +594,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 
 				fs_bin.write((char *)sector.data(), sector.size());
 				if(fs_bin.fail())
-					throw_line(std::format("write failed ({})", track_name));
+					throw_line(fmt::format("write failed ({})", track_name));
 			}
 
 			track_entry.crc = crc32_final(crc);
@@ -781,9 +781,9 @@ void redumper_protection(Options &options)
 
 	uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
 	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-		throw_line(std::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
+		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
 	if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-		throw_line(std::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
+		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
 
 	// TOC
 	std::vector<uint8_t> toc_buffer = read_vector(toc_path);
@@ -820,11 +820,11 @@ void redumper_protection(Options &options)
 
 	std::fstream scm_fs(scm_path, std::fstream::in | std::fstream::binary);
 	if(!scm_fs.is_open())
-		throw_line(std::format("unable to open file ({})", scm_path.filename().string()));
+		throw_line(fmt::format("unable to open file ({})", scm_path.filename().string()));
 
 	std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
 	if(!state_fs.is_open())
-		throw_line(std::format("unable to open file ({})", state_path.filename().string()));
+		throw_line(fmt::format("unable to open file ({})", state_path.filename().string()));
 
 	std::string protection("N/A");
 
@@ -916,7 +916,7 @@ void redumper_protection(Options &options)
 
 						if(range.second > range.first)
 						{
-							protection = std::format("PS2/Datel {}, C2: {}, range: {}-{}", protected_filename, range.second - range.first, range.first, range.second - 1);
+							protection = fmt::format("PS2/Datel {}, C2: {}, range: {}-{}", protected_filename, range.second - range.first, range.first, range.second - 1);
 
 							auto skip_ranges = string_to_ranges(options.skip);
 							skip_ranges.push_back(range);
@@ -952,17 +952,17 @@ void redumper_split(const Options &options)
 
 	uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
 	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-		throw_line(std::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
+		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
 	if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-		throw_line(std::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
+		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
 
 	std::fstream scm_fs(scm_path, std::fstream::in | std::fstream::binary);
 	if(!scm_fs.is_open())
-		throw_line(std::format("unable to open file ({})", scm_path.filename().string()));
+		throw_line(fmt::format("unable to open file ({})", scm_path.filename().string()));
 
 	std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
 	if(!state_fs.is_open())
-		throw_line(std::format("unable to open file ({})", state_path.filename().string()));
+		throw_line(fmt::format("unable to open file ({})", state_path.filename().string()));
 
 	// TOC
 	std::vector<uint8_t> toc_buffer = read_vector(toc_path);
@@ -988,7 +988,7 @@ void redumper_split(const Options &options)
 	{
 		std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
 		if(!fs.is_open())
-			throw_line(std::format("unable to open file ({})", sub_path.filename().string()));
+			throw_line(fmt::format("unable to open file ({})", sub_path.filename().string()));
 
 		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
 		for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
@@ -1470,7 +1470,7 @@ void redumper_split(const Options &options)
 
 	// check tracks
 	if(!check_tracks(toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, options) && !options.force_split)
-		throw_line(std::format("data errors detected, unable to continue"));
+		throw_line(fmt::format("data errors detected, unable to continue"));
 
 	// write tracks
 	std::vector<TrackEntry> track_entries;
@@ -1484,30 +1484,30 @@ void redumper_split(const Options &options)
 		cue_sheets.resize(toc.cd_text_lang.size());
 		for(uint32_t i = 0; i < toc.cd_text_lang.size(); ++i)
 		{
-			cue_sheets[i] = i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name);
+			cue_sheets[i] = i ? fmt::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : fmt::format("{}.cue", options.image_name);
 			LOG_F("{}... ", cue_sheets[i]);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets[i]) && !options.overwrite)
-				throw_line(std::format("file already exists ({})", cue_sheets[i]));
+				throw_line(fmt::format("file already exists ({})", cue_sheets[i]));
 
 			std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets[i], std::fstream::out);
 			if(!fs.is_open())
-				throw_line(std::format("unable to create file ({})", cue_sheets[i]));
+				throw_line(fmt::format("unable to create file ({})", cue_sheets[i]));
 			toc.PrintCUE(fs, options.image_name, i);
 			LOG("done");
 		}
 	}
 	else
 	{
-		cue_sheets.push_back(std::format("{}.cue", options.image_name));
+		cue_sheets.push_back(fmt::format("{}.cue", options.image_name));
 		LOG_F("{}... ", cue_sheets.front());
 
 		if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets.front()) && !options.overwrite)
-			throw_line(std::format("file already exists ({})", cue_sheets.front()));
+			throw_line(fmt::format("file already exists ({})", cue_sheets.front()));
 
 		std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets.front(), std::fstream::out);
 		if(!fs.is_open())
-			throw_line(std::format("unable to create file ({})", cue_sheets.front()));
+			throw_line(fmt::format("unable to create file ({})", cue_sheets.front()));
 		toc.PrintCUE(fs, options.image_name);
 		LOG("done");
 		LOG("");
@@ -1551,7 +1551,7 @@ void redumper_split(const Options &options)
 		std::filesystem::path cue_path(std::filesystem::path(options.image_path) / c);
 		std::fstream ifs(cue_path, std::fstream::in);
 		if(!ifs.is_open())
-			throw_line(std::format("unable to open file ({})", cue_path.filename().string()));
+			throw_line(fmt::format("unable to open file ({})", cue_path.filename().string()));
 		std::string line;
 		while(std::getline(ifs, line))
 			LOG("{}", line);
@@ -1566,7 +1566,7 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 
 	std::fstream fs(cue_path, std::fstream::in);
 	if(!fs.is_open())
-		throw_line(std::format("unable to open file ({})", cue_path.filename().string()));
+		throw_line(fmt::format("unable to open file ({})", cue_path.filename().string()));
 
 	std::pair<std::string, bool> entry;
 	std::string line;

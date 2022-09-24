@@ -32,11 +32,29 @@ if(NOT REDUMPER_VERSION_BUILD STREQUAL "LOCAL")
 endif()
 include(CPack)
 
+# platform
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	set(REDUMPER_TARGET_LINUX 1)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+	set(REDUMPER_TARGET_WINDOWS 1)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+	set(REDUMPER_TARGET_MACOSX 1)
+else()
+	message(FATAL_ERROR "Unknown target platform")
+endif()
+
 # C/C++
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_MINOR=${PROJECT_VERSION_MINOR}
                 -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH})
+
+# fmt
+# remove this after gcc/clang gets full std::format support
+set(FMT_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/fmt/include")
+add_definitions(-DFMT_HEADER_ONLY)
 
 # Visual Studio settings
 if(MSVC)
@@ -64,6 +82,7 @@ endif()
 # generated source file
 set(DRIVEOFFSETS_FN "${CMAKE_CURRENT_BINARY_DIR}/driveoffsets.inc")
 add_executable(generate_offsets generate_offsets.cc)
+target_include_directories(generate_offsets PUBLIC ${FMT_INCLUDE})
 add_custom_command(
 	OUTPUT ${DRIVEOFFSETS_FN}
 	COMMAND generate_offsets "${CMAKE_CURRENT_SOURCE_DIR}/driveoffsets.txt"
@@ -119,8 +138,6 @@ set(sources
 	"subcode.hh"
 	"toc.cc"
 	"toc.hh"
-	"windows.cc"
-	"windows.hh"
 	"version.hh"
 	"version.cc"
 	"driveoffsets.txt"
@@ -129,6 +146,7 @@ set(sources
 
 set(includes
 	${CMAKE_CURRENT_BINARY_DIR}
+	${FMT_INCLUDE}
 )
 
 add_executable(redumper ${sources})

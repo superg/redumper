@@ -1,4 +1,4 @@
-#include <format>
+#include <fmt/format.h>
 #include <map>
 #include <set>
 #include "cd.hh"
@@ -274,7 +274,7 @@ void TOC::UpdateMCN(const ChannelQ *subq, uint32_t sectors_count)
 			if(mcn.empty())
 			{
 				for(uint32_t i = 0; i < sizeof(Q.mode2.mcn); ++i)
-					mcn += std::format("{:02}", bcd_decode(Q.mode2.mcn[i]));
+					mcn += fmt::format("{:02}", bcd_decode(Q.mode2.mcn[i]));
 				mcn.pop_back();
 			}
 			break;
@@ -297,7 +297,7 @@ void TOC::UpdateMCN(const ChannelQ *subq, uint32_t sectors_count)
 
 					// 7 BCD 4-bit numbers
 					for(uint32_t i = 4; i < 8; ++i)
-						tracks[track_index]->isrc += std::format("{:02}", bcd_decode(Q.mode3.isrc[i]));
+						tracks[track_index]->isrc += fmt::format("{:02}", bcd_decode(Q.mode3.isrc[i]));
 					tracks[track_index]->isrc.pop_back();
 				}
 			}
@@ -521,7 +521,7 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 
 void TOC::Print() const
 {
-	std::string track_format = std::format("{{:0{}}}", (uint32_t)log10(sessions.back().tracks.back().track_number) + 1);
+	std::string track_format = fmt::format("{{:0{}}}", (uint32_t)log10(sessions.back().tracks.back().track_number) + 1);
 
 	bool multisession = sessions.size() > 1;
 
@@ -554,7 +554,7 @@ void TOC::Print() const
 				flags += ", pre-emphasis";
 
 			LOG("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), 
-						   std::vformat(track_format, std::make_format_args(t.track_number)), flags);
+						   fmt::vformat(track_format, fmt::make_format_args(t.track_number)), flags);
 
 			auto indices = t.indices;
 			indices.insert(indices.begin(), t.lba_start);
@@ -577,12 +577,12 @@ void TOC::Print() const
 				if(index_length > 0)
 				{
 					MSF msf_end = LBA_to_MSF(t.lba_end - 1);
-					index_properties = std::format("LBA: {:6} .. {:6}, length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
+					index_properties = fmt::format("LBA: {:6} .. {:6}, length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
 												   index_start, index_end - 1, index_length,
 												   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
 				}
 				else
-					index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
+					index_properties = fmt::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
 
 				LOG("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i, index_properties);
 			}
@@ -593,7 +593,7 @@ void TOC::Print() const
 
 std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const
 {
-	std::string track_format = std::format(" (Track {{:0{}}})", (uint32_t)log10(sessions.back().tracks.back().track_number) + 1);
+	std::string track_format = fmt::format(" (Track {{:0{}}})", (uint32_t)log10(sessions.back().tracks.back().track_number) + 1);
 
 	bool multisession = sessions.size() > 1;
 
@@ -601,7 +601,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 	if(mcn_print.empty() && cd_text_index < cd_text.size() && !cd_text[cd_text_index].mcn_isrc.empty())
 		mcn_print = "0" + cd_text[cd_text_index].mcn_isrc;
 	if(!mcn_print.empty())
-		os << std::format("CATALOG {}", mcn_print) << std::endl;
+		os << fmt::format("CATALOG {}", mcn_print) << std::endl;
 	if(cd_text_index < cd_text.size())
 		PrintCDTextCUE(os, cd_text[cd_text_index], 0);
 
@@ -621,21 +621,21 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(j)
 			{
 				msf = LBA_to_MSF(leadout_size + MSF_LBA_SHIFT);
-				os << std::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				os << fmt::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 			}
-			os << std::format("REM SESSION {:02}", s.session_number) << std::endl;
+			os << fmt::format("REM SESSION {:02}", s.session_number) << std::endl;
 			if(j)
 			{
 				msf = LBA_to_MSF(leadin_size + MSF_LBA_SHIFT);
-				os << std::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				os << fmt::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 				msf = LBA_to_MSF(pregap_size + MSF_LBA_SHIFT);
-				os << std::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				os << fmt::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 			}
 		}
 
 		for(auto const &t : s.tracks)
 		{
-			os << std::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : std::vformat(track_format, std::make_format_args(t.track_number)), t.track_number) << std::endl;
+			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : fmt::vformat(track_format, fmt::make_format_args(t.track_number)), t.track_number) << std::endl;
 
 			std::string track_type;
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)
@@ -644,13 +644,13 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 				if(t.cdi)
 					track_mode = "CDI";
 				else
-					track_mode = std::format("MODE{}", t.data_mode);
-				track_type = std::format("{}/2352", track_mode);
+					track_mode = fmt::format("MODE{}", t.data_mode);
+				track_type = fmt::format("{}/2352", track_mode);
 			}
 			else
 				track_type = "AUDIO";
 
-			os << std::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
+			os << fmt::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
 			if(cd_text_index < t.cd_text.size())
 				PrintCDTextCUE(os, t.cd_text[cd_text_index], 4);
 
@@ -658,7 +658,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(isrc_print.empty() && cd_text_index < t.cd_text.size() && !t.cd_text[cd_text_index].mcn_isrc.empty())
 				isrc_print = t.cd_text[cd_text_index].mcn_isrc;
 			if(!isrc_print.empty())
-				os << std::format("    ISRC {}", isrc_print) << std::endl;
+				os << fmt::format("    ISRC {}", isrc_print) << std::endl;
 
 			std::string flags;
 			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
@@ -668,7 +668,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
 				flags += " PRE";
 			if(!flags.empty())
-				os << std::format("    FLAGS{}", flags) << std::endl;
+				os << fmt::format("    FLAGS{}", flags) << std::endl;
 
 			if(!t.indices.empty())
 			{
@@ -677,7 +677,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 					if(!i && t.indices[i] == t.lba_start)
 						continue;
 					MSF msf = LBA_to_MSF((i == 0 ? 0 : t.indices[i - 1] - t.lba_start) + MSF_LBA_SHIFT);
-					os << std::format("    INDEX {:02} {:02}:{:02}:{:02}", i, msf.m, msf.s, msf.f) << std::endl;
+					os << fmt::format("    INDEX {:02} {:02}:{:02}:{:02}", i, msf.m, msf.s, msf.f) << std::endl;
 				}
 			}
 		}
@@ -855,15 +855,15 @@ void TOC::UpdateINDEX(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_
 std::ostream &TOC::PrintCDTextCUE(std::ostream &os, const CDText &cdt, uint32_t indent_level)
 {
 	if(!cdt.title.empty())
-		os << std::format("{}TITLE \"{}\"", std::string(indent_level, ' '), cdt.title) << std::endl;
+		os << fmt::format("{}TITLE \"{}\"", std::string(indent_level, ' '), cdt.title) << std::endl;
 	if(!cdt.performer.empty())
-		os << std::format("{}PERFORMER \"{}\"", std::string(indent_level, ' '), cdt.performer) << std::endl;
+		os << fmt::format("{}PERFORMER \"{}\"", std::string(indent_level, ' '), cdt.performer) << std::endl;
 	if(!cdt.songwriter.empty())
-		os << std::format("{}SONGWRITER \"{}\"", std::string(indent_level, ' '), cdt.songwriter) << std::endl;
+		os << fmt::format("{}SONGWRITER \"{}\"", std::string(indent_level, ' '), cdt.songwriter) << std::endl;
 //	if(!cdt.composer.empty())
-//		os << std::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
+//		os << fmt::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
 //	if(!cdt.arranger.empty())
-//		os << std::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
+//		os << fmt::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
 
 	return os;
 }

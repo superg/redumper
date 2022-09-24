@@ -21,7 +21,7 @@ namespace gpsxre
 static constexpr uint32_t SPTD_DEFAULT_TIMEOUT = 60;
 static constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
 #if 1
-static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
+static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
 #else
 // easier debugging, LBA starts with 0, plextor lead-in and asus cache are disabled
  static constexpr int32_t LBA_START = 0;

@@ -1,7 +1,8 @@
 #include <algorithm>
 #include <chrono>
 #include <ctime>
-#include <format>
+#include <fmt/format.h>
+#include <iomanip>
 #include <set>
 #include <sstream>
 #include "common.hh"
@@ -125,7 +126,7 @@ std::string ranges_to_string(const std::vector<std::pair<int32_t, int32_t>> &ran
     std::string str;
 
     for(auto const &r : ranges)
-        str += std::format("{}-{}:", r.first, r.second - 1);
+        str += fmt::format("{}-{}:", r.first, r.second - 1);
 
     if(!str.empty())
         str.pop_back();

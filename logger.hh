@@ -3,7 +3,7 @@
 
 
 #include <filesystem>
-#include <format>
+#include <fmt/format.h>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -21,7 +21,7 @@ public:
 	template<typename... Args>
 	void Log(bool file, std::string fmt, const Args &... args)
 	{
-		auto message = std::vformat(fmt, std::make_format_args(args...));
+		auto message = fmt::vformat(fmt, fmt::make_format_args(args...));
 
 		std::cout << message;
 

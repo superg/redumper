@@ -30,13 +30,13 @@ bool Logger::Reset(std::filesystem::path log_path)
 
             _fs.open(log_path, std::fstream::out | std::fstream::app);
             if(_fs.fail())
-                throw_line(std::format("unable to open file ({})", log_path.filename().string()));
+                throw_line(fmt::format("unable to open file ({})", log_path.filename().string()));
 
             if(nl)
                 _fs << std::endl;
 
             auto dt = system_date_time(" %F %T ");
-            _fs << std::format("{}{}{}", std::string(3, '='), dt, std::string(80 - 3 - dt.length(), '=')) << std::endl;
+            _fs << fmt::format("{}{}{}", std::string(3, '='), dt, std::string(80 - 3 - dt.length(), '=')) << std::endl;
         }
 
         reset = true;
@@ -65,7 +65,7 @@ void Logger::Flush(bool file)
 void Logger::ClearLine()
 {
     // default 80 terminal width - 1 is the largest value which doesn't wrap to a new line on Windows 7
-    std::cout << std::format("\r{:79}\r", "");
+    std::cout << fmt::format("\r{:79}\r", "");
 }
 
 

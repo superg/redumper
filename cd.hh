@@ -56,20 +56,20 @@ struct Sector
 
 	union
 	{
-		struct Mode1
+		struct
 		{
 			uint8_t user_data[FORM1_DATA_SIZE];
 			uint32_t edc;
 			uint8_t intermediate[8];
 			ECC ecc;
 		} mode1;
-		struct Mode2
+		struct
 		{
 			union
 			{
 				uint8_t user_data[2336];
 
-				struct XA
+				struct
 				{
 					struct SubHeader
 					{
@@ -82,13 +82,13 @@ struct Sector
 
 					union
 					{
-						struct Form1
+						struct
 						{
 							uint8_t user_data[FORM1_DATA_SIZE];
 							uint32_t edc;
 							ECC ecc;
 						} form1;
-						struct Form2
+						struct
 						{
 							uint8_t user_data[FORM2_DATA_SIZE];
 							uint32_t edc; // reserved
@@ -136,74 +136,13 @@ constexpr T bcd_encode(T value)
 }
 
 
-constexpr MSF BCDMSF_to_MSF(MSF bcdmsf)
-{
-	MSF msf;
-	msf.m = bcd_decode(bcdmsf.m);
-	msf.s = bcd_decode(bcdmsf.s);
-	msf.f = bcd_decode(bcdmsf.f);
-
-	return msf;
-}
-
-
-constexpr MSF MSF_to_BCDMSF(MSF msf)
-{
-	MSF bcdmsf;
-	bcdmsf.m = bcd_encode(msf.m);
-	bcdmsf.s = bcd_encode(msf.s);
-	bcdmsf.f = bcd_encode(msf.f);
-
-	return bcdmsf;
-}
-
-
-constexpr int32_t MSF_to_LBA(MSF msf)
-{
-	return MSF_LIMIT.f * (MSF_LIMIT.s * msf.m + msf.s) + msf.f + MSF_LBA_SHIFT - (msf.m >= MSF_MINUTES_WRAP ? LBA_LIMIT : 0);
-}
-
-
-constexpr MSF LBA_to_MSF(int32_t lba)
-{
-	MSF msf;
-
-	lba -= MSF_LBA_SHIFT;
-
-	if(lba < 0)
-		lba += LBA_LIMIT;
-
-	msf.f = lba % MSF_LIMIT.f;
-	lba /= MSF_LIMIT.f;
-	msf.s = lba % MSF_LIMIT.s;
-	lba /= MSF_LIMIT.s;
-	msf.m = lba;
-
-	return msf;
-}
-
-
-constexpr int32_t BCDMSF_to_LBA(MSF bcdmsf)
-{
-	return MSF_to_LBA(BCDMSF_to_MSF(bcdmsf));
-}
-
-
-constexpr MSF LBA_to_BCDMSF(int32_t lba)
-{
-	return MSF_to_BCDMSF(LBA_to_MSF(lba));
-}
-
-
-constexpr bool MSF_valid(MSF msf)
-{
-	return msf.m < MSF_LIMIT.m && msf.s < MSF_LIMIT.s && msf.f < MSF_LIMIT.f;
-}
-
-
-constexpr bool BCDMSF_valid(MSF bcdmsf)
-{
-	return MSF_valid(BCDMSF_to_MSF(bcdmsf));
-}
+MSF BCDMSF_to_MSF(MSF bcdmsf);
+MSF MSF_to_BCDMSF(MSF msf);
+int32_t MSF_to_LBA(MSF msf);
+MSF LBA_to_MSF(int32_t lba);
+int32_t BCDMSF_to_LBA(MSF bcdmsf);
+MSF LBA_to_BCDMSF(int32_t lba);
+bool MSF_valid(MSF msf);
+bool BCDMSF_valid(MSF bcdmsf);
 
 }

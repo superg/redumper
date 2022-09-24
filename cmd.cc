@@ -95,7 +95,7 @@ DriveQuery cmd_drive_query(SPTD &sptd)
 	InquiryData inquiry_data;
 	auto status = sptd.SendCommand(&cdb, sizeof(cdb), &inquiry_data, sizeof(inquiry_data));
 	if(status.status_code)
-		throw_line(std::format("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status)));
+		throw_line(fmt::format("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status)));
 
 	drive_query.vendor_id = normalize_string(std::string((char *)inquiry_data.vendor_id, sizeof(inquiry_data.vendor_id)));
 	drive_query.product_id = normalize_string(std::string((char *)inquiry_data.product_id, sizeof(inquiry_data.product_id)));
@@ -205,7 +205,6 @@ SPTD::Status cmd_read_sector(SPTD &sptd, uint8_t *buffer, int32_t start_lba, uin
 	{
 		auto &cdb_cdda = *(CDB12_PLEXTOR_ReadCDDA *)&cdb;
 		cdb_cdda.operation_code = (uint8_t)command;
-//GGG		cdb_cdda.lun = sptd.GetAddress().Lun;
 		*(int32_t *)cdb_cdda.starting_lba = endian_swap(start_lba);
 		*(uint32_t *)cdb_cdda.transfer_blocks = endian_swap(transfer_length);
 		cdb_cdda.sub_code = (uint8_t)type;
@@ -213,11 +212,10 @@ SPTD::Status cmd_read_sector(SPTD &sptd, uint8_t *buffer, int32_t start_lba, uin
 	else if(command == CDB_OperationCode::READ_CD)
 	{
 		if(type == ReadType::SUB)
-			throw_line(std::format("invalid sector read type ({})", (uint8_t)type));
+			throw_line(fmt::format("invalid sector read type ({})", (uint8_t)type));
 
 		cdb.operation_code = (uint8_t)command;
 		cdb.expected_sector_type = (uint8_t)filter;
-//GGG		cdb.lun = sptd.GetAddress().Lun;
 		*(int32_t *)cdb.starting_lba = endian_swap(start_lba);
 		cdb.transfer_blocks[0] = ((uint8_t *)&transfer_length)[2];
 		cdb.transfer_blocks[1] = ((uint8_t *)&transfer_length)[1];
@@ -230,11 +228,11 @@ SPTD::Status cmd_read_sector(SPTD &sptd, uint8_t *buffer, int32_t start_lba, uin
 		cdb.sub_channel_selection = (uint8_t)(type == ReadType::DATA ? ReadCDSubChannelSelection::NONE : ReadCDSubChannelSelection::RAW);
 	}
 	else
-		throw_line(std::format("invalid sector read command ({:02X})", (uint8_t)command));
+		throw_line(fmt::format("invalid sector read command ({:02X})", (uint8_t)command));
 
 	uint32_t buffer_length = ((uint8_t)type < dim(READ_CDDA_SIZES) ? READ_CDDA_SIZES[(uint8_t)type] : 0) * transfer_length;
 	if(buffer_length == 0)
-		throw_line(std::format("invalid sector read type ({})", (uint8_t)type));
+		throw_line(fmt::format("invalid sector read type ({})", (uint8_t)type));
 
 	return sptd.SendCommand(&cdb, sizeof(cdb), buffer, buffer_length);
 }

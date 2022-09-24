@@ -89,7 +89,7 @@ struct VolumeDescriptor
 	union
 	{
 		uint8_t data[2041];
-		struct Primary
+		struct
 		{
 			uint8_t unused1;
 			char system_identifier[32];

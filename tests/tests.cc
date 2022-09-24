@@ -1,4 +1,4 @@
-#include <format>
+#include <fmt/format.h>
 #include <iostream>
 #include <vector>
 
@@ -31,18 +31,18 @@ bool test_cd()
 
 	for(size_t i = 0; i < cases.size(); ++i)
 	{
-		std::cout << std::format("{:02}:{:02}:{:02} <=> {:6}", cases[i].first.m, cases[i].first.s, cases[i].first.f, cases[i].second) << std::endl;
+		std::cout << fmt::format("{:02}:{:02}:{:02} <=> {:6}", cases[i].first.m, cases[i].first.s, cases[i].first.f, cases[i].second) << std::endl;
 		auto lba = MSF_to_LBA(cases[i].first);
 		if(lba != cases[i].second)
 		{
-			std::cout << std::format("MSF_to_LBA failed, lba: {:6}", lba) << std::endl;
+			std::cout << fmt::format("MSF_to_LBA failed, lba: {:6}", lba) << std::endl;
 			success = false;
 		}
 
 		auto msf = LBA_to_MSF(cases[i].second);
 		if(msf.m != cases[i].first.m || msf.s != cases[i].first.s || msf.f != cases[i].first.f)
 		{
-			std::cout << std::format("LBA_to_MSF failed, msf: {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+			std::cout << fmt::format("LBA_to_MSF failed, msf: {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 			success = false;
 		}
 	}

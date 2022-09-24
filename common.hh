@@ -3,11 +3,15 @@
 
 
 #include <cstddef>
-#include <format>
+#include <fmt/format.h>
 #include <ostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#ifdef _MSC_VER
+#include <intrin.h>
+#define __builtin_popcount __popcnt
+#endif
 
 
 
@@ -17,9 +21,9 @@
 
 // meaningful throw
 #ifdef NDEBUG
-#define throw_line(arg__) throw std::runtime_error(std::format("{}", arg__))
+#define throw_line(arg__) throw std::runtime_error(fmt::format("{}", arg__))
 #else
-#define throw_line(arg__) throw std::runtime_error(std::format("{} {{{}:{}}}", arg__, __FILE__, __LINE__))
+#define throw_line(arg__) throw std::runtime_error(fmt::format("{} {{{}:{}}}", arg__, __FILE__, __LINE__))
 #endif
 
 
@@ -150,7 +154,7 @@ uint64_t bit_diff(const T *data1, const T *data2, uint64_t count)
 	uint64_t bits_count = 0;
 
 	for(uint64_t i = 0; i < count; ++i)
-		bits_count += std::popcount<T>(data1[i] ^ data2[i]);
+		bits_count += __builtin_popcount(data1[i] ^ data2[i]);
 
 	return bits_count;
 }

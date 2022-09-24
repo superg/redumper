@@ -1,5 +1,5 @@
 #include <chrono>
-#include <format>
+#include <fmt/format.h>
 #include <fstream>
 #include <iostream>
 #include <thread>
@@ -181,11 +181,11 @@ int32_t drive_get_generic_read_offset(const std::string &vendor, const std::stri
 	else
 		v = vendor;
 
-	std::string vendor_product(std::format("{} - {}", v, product));
+	std::string vendor_product(fmt::format("{} - {}", v, product));
 	if(auto it = DRIVE_READ_OFFSETS.find(vendor_product); it != DRIVE_READ_OFFSETS.end())
 		offset = it->second;
 	else
-		throw_line(std::format("drive read offset not found ({})", vendor_product));
+		throw_line(fmt::format("drive read offset not found ({})", vendor_product));
 
 	return offset;
 }
@@ -203,10 +203,10 @@ int32_t drive_get_pregap_start(DriveInfo::Type type)
 
 std::string drive_info_string(const DriveInfo &di)
 {
-	std::string revision_level(di.product_revision_level.empty() ? "" : std::format(", revision level: {}", di.product_revision_level));
-	std::string vendor_specific(di.vendor_specific.empty() ? "" : std::format(", vendor specific: {}", di.vendor_specific));
+	std::string revision_level(di.product_revision_level.empty() ? "" : fmt::format(", revision level: {}", di.product_revision_level));
+	std::string vendor_specific(di.vendor_specific.empty() ? "" : fmt::format(", vendor specific: {}", di.vendor_specific));
 
-	return std::format("{} - {} (read offset: {:+}, C2 offset: {}{}{})", di.vendor_id, di.product_id, di.read_offset, di.c2_offset, revision_level, vendor_specific);
+	return fmt::format("{} - {} (read offset: {:+}, C2 offset: {}{}{})", di.vendor_id, di.product_id, di.read_offset, di.c2_offset, revision_level, vendor_specific);
 }
 
 
@@ -238,7 +238,7 @@ std::vector<uint8_t> plextor_read_leadin(SPTD &sptd)
 
 		LOG_R();
 		LOGC_F("[LBA: {:6}]", lba);
-
+		
 		status = cmd_read_sector(sptd, entry + sizeof(SPTD::Status), lba, 1, CDB_OperationCode::READ_CDDA, ReadType::DATA_SUB, ReadFilter::CDDA);
 
 		if(!status.status_code)
@@ -281,7 +281,7 @@ std::vector<uint8_t> asus_cache_read(SPTD &sptd)
 	{
 		SPTD::Status status = cmd_asus_read_cache(sptd, cache.data() + offset, offset, std::min(read_size, n - offset));
 		if(status.status_code)
-			throw_line(std::format("read cache failed, SCSI ({})", SPTD::StatusMessage(status)));
+			throw_line(fmt::format("read cache failed, SCSI ({})", SPTD::StatusMessage(status)));
 	}
 
 	return cache;

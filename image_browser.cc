@@ -103,7 +103,7 @@ ImageBrowser::ImageBrowser(std::fstream &fs, uint64_t file_offset, bool scramble
 void ImageBrowser::Init()
 {
 	if(_fs.fail())
-		throw_line(std::format("unable to open file ({})", std::strerror(errno)));
+		throw_line(fmt::format("unable to open file ({})", std::strerror(errno)));
 
     Sector sector;
     Scrambler scrambler;

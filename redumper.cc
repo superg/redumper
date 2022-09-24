@@ -10,7 +10,6 @@
 #include "split.hh"
 #include "subcode.hh"
 #include "version.hh"
-#include "windows.hh"
 #include "redumper.hh"
 
 
@@ -20,7 +19,7 @@ namespace gpsxre
 
 std::string redumper_version()
 {
-	return std::format("redumper v{}.{}.{} [{}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR), XSTRINGIFY(REDUMPER_VERSION_PATCH), version::build());
+	return fmt::format("redumper v{}.{}.{} [{}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR), XSTRINGIFY(REDUMPER_VERSION_PATCH), version::build());
 }
 
 
@@ -65,18 +64,21 @@ void validate_options(Options &options)
 	}
 
 	// add drive colon if unspecified
+#ifdef _WIN32
 	if(!options.drive.empty())
 	{
 		if(options.drive.back() != ':')
 			options.drive += ':';
 	}
+#endif
 
 	// autogenerate image name if unspecified
 	if(name_generate && options.image_name.empty())
 	{
 		auto drive = options.drive;
 		drive.erase(remove(drive.begin(), drive.end(), ':'), drive.end());
-		options.image_name = std::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
+		drive.erase(remove(drive.begin(), drive.end(), '/'), drive.end());
+		options.image_name = fmt::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
 
 		Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 	}
@@ -120,7 +122,7 @@ void redumper(Options &options)
 
 bool redumper_dump(const Options &options, bool refine)
 {
-	SPTD sptd(options.drive, SPTD_DEFAULT_TIMEOUT);
+	SPTD sptd(options.drive);
 	drive_init(sptd, options);
 
 	DriveInfo drive_info = drive_get_info(cmd_drive_query(sptd));
@@ -164,7 +166,7 @@ bool redumper_dump(const Options &options, bool refine)
 	std::filesystem::path asus_path(image_prefix + ".asus"); //DEBUG
 
 	if(!refine && !options.overwrite && std::filesystem::exists(state_path))
-		throw_line(std::format("dump already exists (name: {})", options.image_name));
+		throw_line(fmt::format("dump already exists (name: {})", options.image_name));
 
 	std::fstream fs_scm(scm_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 	std::fstream fs_sub(sub_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
@@ -281,9 +283,9 @@ bool redumper_dump(const Options &options, bool refine)
 	{
 		uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
 		if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-			throw_line(std::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
+			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
 		if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-			throw_line(std::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
+			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
 
 		for(int32_t lba = drive_get_pregap_start(drive_info.type); lba < lba_end; ++lba)
 		{
@@ -505,7 +507,7 @@ bool redumper_dump(const Options &options, bool refine)
 				if(inside_range(lba, error_ranges) == nullptr && lba < lba_end)
 				{
 					if(refine)
-						refine_status = std::format("R: {}, SCSI", refine_counter + 1);
+						refine_status = fmt::format("R: {}, SCSI", refine_counter + 1);
 					else
 						++errors;
 					if(options.verbose)
@@ -537,7 +539,7 @@ bool redumper_dump(const Options &options, bool refine)
 				}
 
 				if(refine)
-					refine_status = std::format("R: {}, C2 (B: {})", refine_counter + 1, c2_count);
+					refine_status = fmt::format("R: {}, C2 (B: {})", refine_counter + 1, c2_count);
 
 				store = true;
 			}
@@ -677,7 +679,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 void redumper_rings(const Options &options)
 {
-	SPTD sptd(options.drive, SPTD_DEFAULT_TIMEOUT);
+	SPTD sptd(options.drive);
 	drive_init(sptd, options);
 
 	DriveInfo drive_info = drive_get_info(cmd_drive_query(sptd));
@@ -859,7 +861,7 @@ void redumper_subchannel(const Options &options)
 	uint32_t sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
 	std::fstream sub_fs(sub_path, std::fstream::in | std::fstream::binary);
 	if(!sub_fs.is_open())
-		throw_line(std::format("unable to open file ({})", sub_path.filename().string()));
+		throw_line(fmt::format("unable to open file ({})", sub_path.filename().string()));
 
 	ChannelQ q_empty;
 	memset(&q_empty, 0, sizeof(q_empty));
@@ -951,12 +953,12 @@ std::string first_ready_drive()
 {
 	std::string drive;
 
-	auto drives = list_logical_drives();
+	auto drives = SPTD::ListDrives();
 	for(const auto &d : drives)
 	{
 		try
 		{
-			SPTD sptd(d, SPTD_DEFAULT_TIMEOUT);
+			SPTD sptd(d);
 
 			auto status = cmd_drive_ready(sptd);
 			if(!status.status_code)
@@ -981,7 +983,7 @@ void drive_init(SPTD &sptd, const Options &options)
 	// test unit ready
 	SPTD::Status status = cmd_drive_ready(sptd);
 	if(status.status_code)
-		throw_line(std::format("drive not ready, SCSI ({})", SPTD::StatusMessage(status)));
+		throw_line(fmt::format("drive not ready, SCSI ({})", SPTD::StatusMessage(status)));
 
 	// set drive speed
 	uint16_t speed = options.speed ? 150 * *options.speed : 0xFFFF;
@@ -1047,7 +1049,7 @@ uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data)
 		if(c2_quad)
 		{
 			state[i] = State::ERROR_C2;
-			c2_count += std::popcount(c2_quad);
+			c2_count += __builtin_popcount(c2_quad);
 		}
 	}
 
@@ -1206,7 +1208,7 @@ void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int3
 		uint32_t bit_offset = ((CHAR_BIT - 1) - i % CHAR_BIT);
 
 		if(c2_data[byte_offset] & (1 << bit_offset))
-			offset_str += std::format("{:08X} ", scm_offset + i);
+			offset_str += fmt::format("{:08X} ", scm_offset + i);
 	}
 	LOG("");
 	LOG("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: {}", (int32_t)lba_index + lba_start, scm_offset, state_offset, offset_str);

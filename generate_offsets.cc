@@ -1,5 +1,5 @@
 #include <filesystem>
-#include <format>
+#include <fmt/format.h>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -18,13 +18,13 @@ int main(int argc, char *argv[])
 			std::filesystem::path p(argv[1]);
 			std::fstream ifs(p, std::fstream::in);
 			if(!ifs.is_open())
-				throw std::runtime_error(std::format("unable to open input file [{}]", p.string()));
+				throw std::runtime_error(fmt::format("unable to open input file [{}]", p.string()));
 
 			std::filesystem::path h(p.filename());
 			h.replace_extension(".inc");
 			std::fstream ofs(h, std::fstream::out);
 			if(!ofs.is_open())
-				throw std::runtime_error(std::format("unable to create output file [{}]", h.string()));
+				throw std::runtime_error(fmt::format("unable to create output file [{}]", h.string()));
 
 			int32_t offset_min = 0;
 			int32_t offset_max = 0;
@@ -52,10 +52,10 @@ int main(int argc, char *argv[])
 //				if(drive[0] == '-')
 //					drive.insert(drive.begin(), ' ');
 
-				ofs << std::format("{{\"{}\", {}}}, ", drive, offset) << std::endl;
+				ofs << fmt::format("{{\"{}\", {}}}, ", drive, offset) << std::endl;
 			}
 
-			std::cout << std::format("offset min: {}, offset max: {:+}", offset_min, offset_max) << std::endl;
+			std::cout << fmt::format("offset min: {}, offset max: {:+}", offset_min, offset_max) << std::endl;
 		}
 		catch(const std::string &e)
 		{

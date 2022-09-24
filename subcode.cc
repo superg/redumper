@@ -1,5 +1,5 @@
 #include <climits>
-#include <format>
+#include <fmt/format.h>
 #include "cd.hh"
 #include "crc16_gsm.hh"
 #include "endian.hh"
@@ -24,17 +24,17 @@ std::string ChannelQ::Decode() const
 	switch(adr)
 	{
 	case 1:
-		q_data = std::format("tno: {:02X}, P/I: {:02X}, MSF: {:02X}:{:02X}:{:02X}, zero: {:02X}, A/P MSF: {:02X}:{:02X}:{:02X}",
+		q_data = fmt::format("tno: {:02X}, P/I: {:02X}, MSF: {:02X}:{:02X}:{:02X}, zero: {:02X}, A/P MSF: {:02X}:{:02X}:{:02X}",
 							 mode1.tno, mode1.index, mode1.msf.m, mode1.msf.s, mode1.msf.f, mode1.zero, mode1.a_msf.m, mode1.a_msf.s, mode1.a_msf.f);
 		break;
 
 		// RAW
 	default:
-		q_data = std::format("{:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}",
+		q_data = fmt::format("{:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}",
 							 raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9]);
 	}
 
-	return std::format("control: {:04b}, ADR: {}, {}, crc: {:04X} ({})", control, adr, q_data, crc, Valid() ? "+" : "-");
+	return fmt::format("control: {:04b}, ADR: {}, {}, crc: {:04X} ({})", control, adr, q_data, crc, Valid() ? "+" : "-");
 }
 
 

@@ -193,7 +193,7 @@ std::set<std::string> SPTD::ListDrives()
 		{
 			std::string drive(fmt::format("{}:", (char)('A' + i)));
 			if(GetDriveType(fmt::format("{}\\", drive).c_str()) == DRIVE_CDROM)
-				drives.push_back(drive);
+				drives.emplace(drive);
 			;
 		}
 	}
@@ -272,26 +272,12 @@ SPTD::SPTD(const std::string &drive_path)
 {
 #ifdef _WIN32
 	_handle = CreateFile(fmt::format("//./{}", drive_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-	if(_handle.get() == INVALID_HANDLE_VALUE)
+	if(_handle == INVALID_HANDLE_VALUE)
 #else
 	_handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
 	if(_handle < 0)
 #endif
 		throw_line(fmt::format("unable to open drive ({}, SYSTEM: {})", drive_path, GetLastError()));
-	
-/*
-	//TODO: check and remove?
-#ifdef _WIN32
-	// make sure the address is initialized if subsequent call fails
-	memset(&_address, 0, sizeof(_address));
-
-	// the call fails on Windows 7 32-bit
-	// according to Microsoft, this request is not relevant to storage class drivers that support
-	// Plug and Play because the port driver supplies the address information on behalf of the class drive
-	DWORD bytes_returned;
-	BOOL success = DeviceIoControl(_handle.get(), IOCTL_SCSI_GET_ADDRESS, &_address, sizeof(_address), &_address, sizeof(_address), &bytes_returned, nullptr);
-#endif
-*/
 }
 
 
@@ -316,9 +302,6 @@ SPTD::Status SPTD::SendCommand(const void *cdb, uint8_t cdb_length, void *buffer
 	//FIXME: simplify and reuse common SenseData
 	SPTD_SD sptd_sd = {};
 	sptd_sd.sptd.Length = sizeof(sptd_sd.sptd);
-//	sptd_sd.sptd.PathId = _address.PathId;
-//	sptd_sd.sptd.TargetId = _address.TargetId;
-//	sptd_sd.sptd.Lun = _address.Lun;
 	sptd_sd.sptd.CdbLength = cdb_length;
 	sptd_sd.sptd.SenseInfoLength = sizeof(sptd_sd.sd);
 	sptd_sd.sptd.DataIn = SCSI_IOCTL_DATA_IN;
@@ -329,7 +312,7 @@ SPTD::Status SPTD::SendCommand(const void *cdb, uint8_t cdb_length, void *buffer
 	memcpy(sptd_sd.sptd.Cdb, cdb, cdb_length);
 
 	DWORD bytes_returned;
-	BOOL success = DeviceIoControl(_handle.get(), IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
+	BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
 	if(success != TRUE)
 		throw_line(fmt::format("SYSTEM ({})", GetLastError()));
 

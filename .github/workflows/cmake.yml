@@ -15,9 +15,9 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
         platform: [32, 64]
-      exclude:
-        - os: ubuntu-latest
-          platform: 32
+        exclude:
+          - os: ubuntu-latest
+            platform: 32
         
     runs-on: ${{matrix.os}}
 

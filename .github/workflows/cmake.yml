@@ -28,15 +28,15 @@ jobs:
         submodules: 'true'
 
     - name: CMake Configure (win32)
-      if: ${{ matrix.os == windows-latest && matrix.platform == 32 }}
+      if: ${{ matrix.os == 'windows-latest' && matrix.platform == 32 }}
       run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Configure (win64)
-      if: ${{ matrix.os == windows-latest && matrix.platform == 64 }}
+      if: ${{ matrix.os == 'windows-latest' && matrix.platform == 64 }}
       run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Configure (linux64)
-      if: ${{ matrix.os == ubuntu-latest }}
+      if: ${{ matrix.os == 'ubuntu-latest' }}
       run: cmake -B ${{env.build_directory}} -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Build

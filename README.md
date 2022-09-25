@@ -1,8 +1,8 @@
 # redumper
 Copyright 2021-2022 Hennadiy Brych
 
-## Preambule
-A fresh take on a CD dumper utility. The main goals are to develop a portable, byte perfect CD dumper which supports incremental dumps, advanced SCSI/C2 repair and is future proof. Everything is written from scratch in C++. The primary development platform is Windows, Linux and MacOSX versions are planned.
+## Intro
+A fresh take on a CD dumper utility. The main goals are to develop a portable, byte perfect CD dumper which supports incremental dumps, advanced SCSI/C2 repair and is future proof. Everything is written from scratch in C++. Available for both Windows and Linux, MacOSX version is planned.
 
 ## General
 The dumper operates using modes. The current modes are "dump", "protection", "refine", "split" and "info" but for the convenience sake, the aggregate mode "cd" does it all in a row and covers most of the use cases.

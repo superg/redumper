@@ -13,9 +13,13 @@ jobs:
   build:
     strategy:
       matrix:
-        platform: [Win32, x64]
+        os: [windows-latest, ubuntu-latest]
+        platform: [32, 64]
+      exclude:
+        - os: ubuntu-latest
+          platform: 32
         
-    runs-on: windows-latest
+    runs-on: ${{matrix.os}}
 
     steps:
     - name: Checkout
@@ -24,16 +28,21 @@ jobs:
         submodules: 'true'
 
     - name: CMake Configure
-      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A ${{matrix.platform}} -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      if: ${{ matrix.os == windows-latest && matrix.platform == 32 }}
+      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      if: ${{ matrix.os == windows-latest && matrix.platform == 64 }}
+      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      if: ${{ matrix.os == ubuntu-latest }}
+      run: cmake -B ${{env.build_directory}} -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}}
       
-    - name: CMake Test
+    - name: CTest
       working-directory: ${{env.build_directory}}
       run: ctest -C ${{env.build_type}}
 
-    - name: CMake Package
+    - name: CPack
       working-directory: ${{env.build_directory}}
       run: cpack -G ZIP --config CPackConfig.cmake
 

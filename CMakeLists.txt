@@ -21,7 +21,7 @@ set(CPACK_GENERATOR "ZIP")
 # add build number to a package file name if it was provided
 if(NOT REDUMPER_VERSION_BUILD STREQUAL "LOCAL")
 	set(system_name__ ${CMAKE_SYSTEM_NAME})
-	if(system_name__ MATCHES "Windows")
+	if(system_name__ STREQUAL "Windows")
 		if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 			set(system_name__ "win64")
 		else()

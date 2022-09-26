@@ -20,7 +20,7 @@ MD5::MD5()
 	, _hash(DefaultHash())
 {
 	for(uint32_t i = 0; i < 64; ++i)
-		_k[i] = (uint32_t)floor((UINT64_C(1) << 32) * abs(sin(i + 1)));
+		_k[i] = (uint32_t)floor((UINT64_C(1) << 32) * std::abs(sin(i + 1)));
 }
 
 

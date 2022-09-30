@@ -1,0 +1,6 @@
+* text=auto
+*.cc text
+*.hh text
+*.txt
+*.md
+

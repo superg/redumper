@@ -183,7 +183,7 @@ void Options::PrintUsage()
     LOG("\t--overwrite\toverwrites previously generated dump files");
     LOG("\t--force-split\t\tforce track split with errors");
     LOG("\t--leave-unchanged\t\tdon't replace erroneous sectors with generated ones");
-    LOG("\t--unsupported\t\tenabled unsupported drives");
+    LOG("\t--unsupported\t\tenable unsupported drives");
     LOG("\t--drive=VALUE\t\tdrive to use, first available drive with disc, if not provided");
     LOG("\t--speed=VALUE\t\tdrive read speed, optimal drive speed will be used if not provided");
     LOG("\t--retries=VALUE\tnumber of sector retries in case of SCSI/C2 error (default: {})", retries);

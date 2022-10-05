@@ -774,7 +774,7 @@ void redumper_protection(Options &options)
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
-	std::filesystem::path sub_path(image_prefix + ".sub");
+	std::filesystem::path sub_path(image_prefix + ".subcode");
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
@@ -944,7 +944,7 @@ void redumper_split(const Options &options)
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
-	std::filesystem::path sub_path(image_prefix + ".sub");
+	std::filesystem::path sub_path(image_prefix + ".subcode");
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");

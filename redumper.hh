@@ -64,7 +64,7 @@ void drive_init(SPTD &sptd, const Options &options);
 SPTD::Status read_sector(std::vector<uint8_t> &sector_buffer, SPTD &sptd, const DriveInfo &drive_info, int32_t lba);
 bool is_data_track(int32_t lba, const TOC &toc);
 uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data);
-void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, int32_t read_offset, const Options &options);
+void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveInfo &di, const Options &options);
 void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int32_t lba_start, int32_t drive_read_offset);
 
 }

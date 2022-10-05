@@ -15,6 +15,7 @@ enum class CDB_OperationCode : uint8_t
     INQUIRY           = 0x12,
     SYNCHRONIZE_CACHE = 0x35,
     READ_TOC          = 0x43,
+    GET_CONFIGURATION = 0x46,
     READ12            = 0xA8,
     SET_CD_SPEED      = 0xBB,
     READ_CD           = 0xBE,
@@ -32,6 +33,69 @@ enum class READ_TOC_ExFormat : uint8_t
     PMA      = 0x03,
     ATIP     = 0x04,
     CD_TEXT  = 0x05
+};
+
+
+enum class GET_CONFIGURATION_RequestedType : uint8_t
+{
+    ALL      = 0x00,
+    CURRENT  = 0x01,
+    ONE      = 0x02,
+    RESERVED = 0x03
+};
+
+
+enum class READ_CD_ExpectedSectorType : uint8_t
+{
+    ALL_TYPES   = 0, // mandatory
+    CD_DA       = 1, // optional
+    MODE1       = 2, // mandatory
+    MODE2       = 3, // mandatory
+    MODE2_FORM1 = 4, // mandatory
+    MODE2_FORM2 = 5, // mandatory
+    RESERVED1   = 6,
+    RESERVED2   = 7
+};
+
+
+enum class READ_CD_HeaderCode : uint8_t
+{
+    NONE       = 0,
+    HEADER     = 1,
+    SUB_HEADER = 2,
+    ALL        = 3
+};
+
+
+enum class READ_CD_ErrorField : uint8_t
+{
+    NONE     = 0,
+    C2       = 1,
+    C2_BEB   = 2,
+    RESERVED = 3
+};
+
+
+enum class READ_CD_SubChannel : uint8_t
+{
+    NONE      = 0, // mandatory
+    RAW       = 1, // optional
+    Q         = 2, // optional
+    RESERVED1 = 3,
+    PW        = 4, // optional
+    RESERVED2 = 5,
+    RESERVED3 = 6,
+    RESERVED4 = 7
+};
+
+
+enum class READ_CDDA_SubCode : uint8_t
+{
+	DATA = 0,
+	DATA_SUBQ = 1,
+	DATA_SUB = 2,
+	SUB = 3,
+	DATA_C2_SUB = 8
 };
 
 
@@ -77,6 +141,27 @@ struct CD_TEXT_Descriptor
     uint8_t unicode            :1;
     uint8_t text[12];
     uint16_t crc;
+};
+
+
+struct GET_CONFIGURATION_FeatureHeader
+{
+    uint32_t data_length;
+    uint8_t reserved1;
+    uint8_t reserved2;
+    uint16_t current_profile;
+};
+
+
+struct GET_CONFIGURATION_FeatureDescriptor
+{
+    uint16_t feature_code;
+    uint8_t current    :1;
+    uint8_t persistent :1;
+    uint8_t version    :4;
+    uint8_t reserved   :2;
+    uint8_t additional_length;
+    uint8_t feature_dependent_data[0];
 };
 
 
@@ -198,6 +283,21 @@ struct CDB10_ReadTOC
 };
 
 
+struct CDB10_GetConfiguration
+{
+    uint8_t operation_code;
+    uint8_t requested_type        :2;
+    uint8_t reserved2             :3;
+    uint8_t reserved1             :3;
+    uint16_t starting_feature_number;
+    uint8_t reserved3;
+    uint8_t reserved4;
+    uint8_t reserved5;
+    uint8_t allocation_length[2]; // unaligned
+    uint8_t control;
+};
+
+
 struct CDB12_ReadCD
 {
     uint8_t operation_code;
@@ -219,7 +319,7 @@ struct CDB12_ReadCD
 };
 
 
-struct CDB12_PLEXTOR_ReadCDDA
+struct CDB12_ReadCDDA
 {
     uint8_t operation_code;
     uint8_t reserved1           :5;

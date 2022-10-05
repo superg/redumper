@@ -6,62 +6,25 @@
 
 
 
+//DEBUG
+#include <iostream>
+
+
+
 namespace gpsxre
 {
 
-enum class ReadCDExpectedSectorType : uint8_t
+static const uint32_t READ_CD_SUB_SIZES[] =
 {
-	ALL_TYPES = 0,
-	CDDA = 1,
-	MODE1 = 2,
-	MODE2 = 3,
-	MODE2_FORM1 = 4,
-	MODE2_FORM2 = 5,
-	RESERVED6 = 6,
-	RESERVED7 = 7
+	0,
+	CD_SUBCODE_SIZE,
+	16,
+	0,
+	CD_SUBCODE_SIZE,
+	0,
+	0,
+	0
 };
-
-
-enum class ReadCDHeaderCode : uint8_t
-{
-	NONE = 0,
-	HEADER_ONLY = 1,
-	SUBHEADER_ONLY = 2,
-	ALL_HEADERS = 3
-};
-
-
-enum class ReadCDErrorFlags : uint8_t
-{
-	NONE = 0,
-	C2 = 1,
-	C2_BEB = 2,
-	RESERVED3 = 3
-};
-
-
-enum class ReadCDSubChannelSelection : uint8_t
-{
-	NONE = 0,
-	RAW = 1,
-	Q = 2,
-	RESERVED3 = 3,
-	PW = 4,
-	RESERVED5 = 5,
-	RESERVED6 = 6,
-	RESERVED7 = 7
-};
-
-
-enum class ReadCDDASubCode : uint8_t
-{
-	DATA = 0,
-	DATA_WITH_SUBQ = 1,
-	DATA_WITH_SUB_ALL = 2,
-	SUB_ALL = 3,
-	DATA_WITH_C2_WITH_SUB_ALL = 8
-};
-
 
 static const uint32_t READ_CDDA_SIZES[] =
 {
@@ -73,7 +36,7 @@ static const uint32_t READ_CDDA_SIZES[] =
 	0,
 	0,
 	0,
-	CD_DATA_SIZE + CD_C2_SIZE + CD_SUBCODE_SIZE
+	CD_RAW_DATA_SIZE
 };
 
 
@@ -197,44 +160,41 @@ SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 }
 
 
-SPTD::Status cmd_read_sector(SPTD &sptd, uint8_t *buffer, int32_t start_lba, uint32_t transfer_length, CDB_OperationCode command, ReadType type, ReadFilter filter)
+SPTD::Status cmd_read_cd(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_SubChannel sub_channel)
 {
 	CDB12_ReadCD cdb = {};
 
-	if(command == CDB_OperationCode::READ_CDDA)
-	{
-		auto &cdb_cdda = *(CDB12_PLEXTOR_ReadCDDA *)&cdb;
-		cdb_cdda.operation_code = (uint8_t)command;
-		*(int32_t *)cdb_cdda.starting_lba = endian_swap(start_lba);
-		*(uint32_t *)cdb_cdda.transfer_blocks = endian_swap(transfer_length);
-		cdb_cdda.sub_code = (uint8_t)type;
-	}
-	else if(command == CDB_OperationCode::READ_CD)
-	{
-		if(type == ReadType::SUB)
-			throw_line(fmt::format("invalid sector read type ({})", (uint8_t)type));
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_CD;
+	cdb.expected_sector_type = (uint8_t)expected_sector_type;
+	*(int32_t *)cdb.starting_lba = endian_swap(start_lba);
+	cdb.transfer_blocks[0] = ((uint8_t *)&transfer_length)[2];
+	cdb.transfer_blocks[1] = ((uint8_t *)&transfer_length)[1];
+	cdb.transfer_blocks[2] = ((uint8_t *)&transfer_length)[0];
+	cdb.error_flags = (uint8_t)READ_CD_ErrorField::C2;
+	cdb.include_edc = 1;
+	cdb.include_user_data = 1;
+	cdb.header_code = (uint8_t)READ_CD_HeaderCode::ALL;
+	cdb.include_sync_data = 1;
+	cdb.sub_channel_selection = (uint8_t)sub_channel;
 
-		cdb.operation_code = (uint8_t)command;
-		cdb.expected_sector_type = (uint8_t)filter;
-		*(int32_t *)cdb.starting_lba = endian_swap(start_lba);
-		cdb.transfer_blocks[0] = ((uint8_t *)&transfer_length)[2];
-		cdb.transfer_blocks[1] = ((uint8_t *)&transfer_length)[1];
-		cdb.transfer_blocks[2] = ((uint8_t *)&transfer_length)[0];
-		cdb.error_flags = (uint8_t)(type == ReadType::DATA_C2_SUB ? ReadCDErrorFlags::C2 : ReadCDErrorFlags::NONE);
-		cdb.include_edc = 1;
-		cdb.include_user_data = 1;
-		cdb.header_code = (uint8_t)ReadCDHeaderCode::ALL_HEADERS;
-		cdb.include_sync_data = 1;
-		cdb.sub_channel_selection = (uint8_t)(type == ReadType::DATA ? ReadCDSubChannelSelection::NONE : ReadCDSubChannelSelection::RAW);
-	}
-	else
-		throw_line(fmt::format("invalid sector read command ({:02X})", (uint8_t)command));
+	sector_buffer.resize((CD_DATA_SIZE + CD_C2_SIZE + ((uint8_t)sub_channel < dim(READ_CD_SUB_SIZES) ? READ_CD_SUB_SIZES[(uint8_t)sub_channel] : 0)) * transfer_length);
 
-	uint32_t buffer_length = ((uint8_t)type < dim(READ_CDDA_SIZES) ? READ_CDDA_SIZES[(uint8_t)type] : 0) * transfer_length;
-	if(buffer_length == 0)
-		throw_line(fmt::format("invalid sector read type ({})", (uint8_t)type));
+	return sptd.SendCommand(&cdb, sizeof(cdb), sector_buffer.data(), sector_buffer.size());
+}
 
-	return sptd.SendCommand(&cdb, sizeof(cdb), buffer, buffer_length);
+
+SPTD::Status cmd_read_cdda(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
+{
+	CDB12_ReadCDDA cdb = {};
+
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_CDDA;
+	*(int32_t *)cdb.starting_lba = endian_swap(start_lba);
+	*(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
+	cdb.sub_code = (uint8_t)sub_code;
+
+	sector_buffer.resize(((uint8_t)sub_code < dim(READ_CDDA_SIZES) ? READ_CDDA_SIZES[(uint8_t)sub_code] : 0) * transfer_length);
+
+	return sptd.SendCommand(&cdb, sizeof(cdb), sector_buffer.data(), sector_buffer.size());
 }
 
 
@@ -286,6 +246,38 @@ SPTD::Status cmd_asus_read_cache(SPTD &sptd, uint8_t *buffer, uint32_t offset, u
 	cdb.size = endian_swap(size);
 
 	return sptd.SendCommand(&cdb, sizeof(cdb), buffer, size);
+}
+
+
+//DEBUG
+SPTD::Status cmd_get_configuration(SPTD &sptd)
+{
+	CDB10_GetConfiguration cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::GET_CONFIGURATION;
+	cdb.requested_type = (uint8_t)GET_CONFIGURATION_RequestedType::ALL;
+	cdb.starting_feature_number = 0;
+
+	uint16_t size = std::numeric_limits<uint16_t>::max();
+	*(uint16_t *)cdb.allocation_length = endian_swap(size);
+	std::vector<uint8_t> buffer(size);
+
+	auto status = sptd.SendCommand(&cdb, sizeof(cdb), buffer.data(), buffer.size());
+
+	auto feature_header = (GET_CONFIGURATION_FeatureHeader *)buffer.data();
+	uint32_t fds_size = endian_swap(feature_header->data_length) - (sizeof(GET_CONFIGURATION_FeatureHeader) - sizeof(feature_header->data_length));
+	uint8_t *fds_start = buffer.data() + sizeof(GET_CONFIGURATION_FeatureHeader);
+	uint8_t *fds_end = fds_start + fds_size;
+
+	//FIXME: support more than 0xFFFF size?
+
+	for(auto fds = (GET_CONFIGURATION_FeatureDescriptor *)fds_start;
+		(uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) <= fds_end &&
+		(uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length <= fds_end; fds = (GET_CONFIGURATION_FeatureDescriptor *)((uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length))
+	{
+		std::cout << endian_swap(fds->feature_code) << std::endl;
+	}
+
+	return status;
 }
 
 }

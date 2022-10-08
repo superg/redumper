@@ -14,6 +14,14 @@
 namespace gpsxre
 {
 
+static const uint32_t READ_CD_C2_SIZES[] =
+{
+    0,
+    CD_C2_SIZE,
+    2 + CD_C2_SIZE,
+    0
+};
+
 static const uint32_t READ_CD_SUB_SIZES[] =
 {
 	0,
@@ -160,7 +168,7 @@ SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 }
 
 
-SPTD::Status cmd_read_cd(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_SubChannel sub_channel)
+SPTD::Status cmd_read_cd(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
 {
 	CDB12_ReadCD cdb = {};
 
@@ -170,14 +178,16 @@ SPTD::Status cmd_read_cd(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int32_
 	cdb.transfer_blocks[0] = ((uint8_t *)&transfer_length)[2];
 	cdb.transfer_blocks[1] = ((uint8_t *)&transfer_length)[1];
 	cdb.transfer_blocks[2] = ((uint8_t *)&transfer_length)[0];
-	cdb.error_flags = (uint8_t)READ_CD_ErrorField::C2;
+	cdb.error_flags = (uint8_t)error_field;
 	cdb.include_edc = 1;
 	cdb.include_user_data = 1;
 	cdb.header_code = (uint8_t)READ_CD_HeaderCode::ALL;
 	cdb.include_sync_data = 1;
 	cdb.sub_channel_selection = (uint8_t)sub_channel;
 
-	sector_buffer.resize((CD_DATA_SIZE + CD_C2_SIZE + ((uint8_t)sub_channel < dim(READ_CD_SUB_SIZES) ? READ_CD_SUB_SIZES[(uint8_t)sub_channel] : 0)) * transfer_length);
+	sector_buffer.resize((CD_DATA_SIZE
+	                     + ((uint8_t)error_field < dim(READ_CD_C2_SIZES) ? READ_CD_C2_SIZES[(uint8_t)error_field] : 0)
+						 + ((uint8_t)sub_channel < dim(READ_CD_SUB_SIZES) ? READ_CD_SUB_SIZES[(uint8_t)sub_channel] : 0)) * transfer_length);
 
 	return sptd.SendCommand(&cdb, sizeof(cdb), sector_buffer.data(), sector_buffer.size());
 }

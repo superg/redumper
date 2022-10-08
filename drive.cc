@@ -85,7 +85,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 //	{"ASUS"    , "BW-16D1HT"      , "3.10", "WM01601KL8J9NJ3134" , +6, 0, -135, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC}, // RIB
 //	{"HL-DT-ST", "DVDRAM GH24NSC0", "LY00", "C010101 KMIJ8O50256", +6, 0, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASUS},
 //	{"HL-DT-ST", "BD-RE WH16NS40" , "1.05", "N000900KLZL4TG5625" , +6, 0, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASUS},
-	{"ASUS"    , "SDRW-08D2S-U"   , "B901", "2015/03/03 15:29"   , +6, 0, 0, DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC},
+	{"ASUS"    , "SDRW-08D2S-U"   , "B901", "2015/03/03 15:29"   , +6, 0, 0, DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // CHECKED, internal model: DU-8A6NH11B
 
 	// OTHER
 //	{"QPS"    , "CD-W524E"      , "1.5A", "10/23/01"      ,  +686, 0, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // TEAC
@@ -101,14 +101,14 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 // 
 // It is also possible to read large negative offset ranges (starting from 0xFFFFFFFF - smallest negative 32-bit integer)
 // with BE command with disabled C2 if the disc first track is a data track. Regardless of a starting point, such reads
-// are "virtualized" by Plextor drive and will always start close to lead-in toc area and sequentially read until the end
-// of the data track under normal circumstances. After end of the data track, the drive is wrapping around and starts in
+// are "virtualized" by Plextor drive and will always start somewhere in the lead-in toc area and sequentially read until
+// the end of the data track under normal circumstances. After some point, the drive will wrap around and start in
 // the lead-in toc area again. This process will continue until drive reaches firmware blocked LBA ranges specified here.
 // However, any external pause between sequential reads (Debugger pause, sleep() call etc.) will lead to drive counter
 // resetting and starting reading in the lead-in toc area again.
 // 
 // However the following range, while preserving the above behaviour, is unlocked for both BE and D8 commands with
-// disabled C2. Use it to dynamically find first second of pregap based on the Q subcode and prepend it to the rest of
+// disabled C2. Use it to dynamically find first second of pre-gap based on the Q subcode and prepend it to the rest of
 // [-75 .. leadout) Plextor dump, optionally saving the lead-in
 static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = {-20150, -1150};
 
@@ -125,7 +125,7 @@ constexpr uint32_t ASUS_CACHE_ENTRY_SIZE = 0xB00;
 constexpr uint32_t ASUS_CACHE_ENTRIES_COUNT = 1070;
 
 
-DriveConfig drive_get_info(const DriveQuery &drive_query)
+DriveConfig drive_get_config(const DriveQuery &drive_query)
 {
 	DriveConfig drive_config = DRIVE_CONFIG_GENERIC;
 
@@ -223,6 +223,7 @@ std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, const DriveConfig &di)
 		
 		std::vector<uint8_t> sector_buffer;
 		status = cmd_read_cdda(sptd, sector_buffer, lba, 1, READ_CDDA_SubCode::DATA_SUB);
+//		status = cmd_read_cd(sptd, sector_buffer, lba, 1, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::NONE, READ_CD_SubChannel::RAW);
 
 		if(!status.status_code)
 		{

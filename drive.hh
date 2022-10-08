@@ -40,7 +40,7 @@ struct DriveConfig
 
 inline constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
 
-DriveConfig drive_get_info(const DriveQuery &drive_query);
+DriveConfig drive_get_config(const DriveQuery &drive_query);
 int32_t drive_get_generic_read_offset(const std::string &vendor, const std::string &product);
 std::string drive_info_string(const DriveConfig &di);
 void print_supported_drives();

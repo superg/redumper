@@ -124,7 +124,7 @@ bool redumper_dump(const Options &options, bool refine)
 	SPTD sptd(options.drive);
 	drive_init(sptd, options);
 
-	DriveConfig drive_config = drive_get_info(cmd_drive_query(sptd));
+	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
 	LOG("drive path: {}", options.drive);
 	LOG("drive: {}", drive_info_string(drive_config));
 	{
@@ -694,7 +694,7 @@ void redumper_rings(const Options &options)
 	SPTD sptd(options.drive);
 	drive_init(sptd, options);
 
-	DriveConfig drive_config = drive_get_info(cmd_drive_query(sptd));
+	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
 	LOG("drive path: {}", options.drive);
 	LOG("drive: {}", drive_info_string(drive_config));
 	{
@@ -1018,11 +1018,11 @@ SPTD::Status read_sector(std::vector<uint8_t> &sector_buffer, SPTD &sptd, const 
 	}
 	else if(drive_config.type == DriveConfig::Type::LG_ASUS)
 	{
-		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, READ_CD_SubChannel::RAW);
+		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, READ_CD_ErrorField::C2, READ_CD_SubChannel::RAW);
 	}
 	else
 	{
-		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, READ_CD_SubChannel::RAW);
+		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::C2, READ_CD_SubChannel::RAW);
 	}
 
 	// compensate C2 offset

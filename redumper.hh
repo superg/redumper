@@ -35,7 +35,6 @@ static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
 										 // GS GCD   9162 .. 17000-17010  // F05 0004
 										 // XPLO FM  7770 .. 10700-10704
 //static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
-#define OMIT_LEADIN_AND_CACHE
 #endif
 static constexpr uint32_t SECTOR_STATE_SIZE = CD_DATA_SIZE / CD_SAMPLE_SIZE;
 

@@ -6,6 +6,7 @@
 #include "common.hh"
 #include "file_io.hh"
 #include "logger.hh"
+#include "scrambler.hh"
 #include "split.hh"
 #include "subcode.hh"
 #include "version.hh"
@@ -125,16 +126,11 @@ bool redumper_dump(const Options &options, bool refine)
 	drive_init(sptd, options);
 
 	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
+	drive_override_config(drive_config, options.drive_type.get(),
+						  options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_sector_order.get());
 	LOG("drive path: {}", options.drive);
 	LOG("drive: {}", drive_info_string(drive_config));
-	{
-		std::string type_string("GENERIC");
-		if(drive_config.type == DriveConfig::Type::PLEXTOR)
-			type_string = "PLEXTOR";
-		else if(drive_config.type == DriveConfig::Type::LG_ASUS)
-			type_string = "LG/ASUS";
-		LOG("drive type: {}", type_string);
-	}
+	LOG("drive configuration: {}", drive_config_string(drive_config));
 
 
 
@@ -149,7 +145,7 @@ bool redumper_dump(const Options &options, bool refine)
 */
 
 
-	if(options.unsupported)
+	if(options.drive_type && *options.drive_type == "GENERIC")
 		LOG("warning: unsupported drive");
 	else if(drive_config.type == DriveConfig::Type::GENERIC)
 	{
@@ -187,7 +183,9 @@ bool redumper_dump(const Options &options, bool refine)
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); //FIXME: transition to samples
 	std::vector<std::pair<int32_t, int32_t>> error_ranges;
 
+	int32_t lba_start = drive_config.pregap_start;
 	int32_t lba_end = MSF_to_LBA(MSF{74, 0, 0}); // default: 74min / 650Mb
+
 	{
 		// TOC
 		std::vector<uint8_t> toc_buffer = cmd_read_toc(sptd);
@@ -219,18 +217,13 @@ bool redumper_dump(const Options &options, bool refine)
 			LOG("");
 		}
 
-		// fake TOC / swap exit criteria
-		if(options.stop_lba)
-			lba_end = *options.stop_lba;
+		// fake TOC
+		// [PSX] Breaker Pro
+		if(toc.sessions.back().tracks.back().lba_end < 0)
+			LOG("warning: fake TOC detected, using default 74min disc size");
+		// last session last track end
 		else
-		{
-			// fake TOC
-			// [PSX] Breaker Pro
-			if(toc.sessions.back().tracks.back().lba_end < 0)
-				LOG("warning: fake TOC detected, using default 74min disc size");
-			else
-				lba_end = toc.sessions.back().tracks.back().lba_end;
-		}
+			lba_end = toc.sessions.back().tracks.back().lba_end;
 
 		// multisession gaps
 		for(uint32_t i = 0; i < toc.sessions.size() - 1; ++i)
@@ -261,9 +254,8 @@ bool redumper_dump(const Options &options, bool refine)
 				write_vector(cdtext_path, cd_text_buffer);
 		}
 
-#ifndef OMIT_LEADIN_AND_CACHE
 		// read lead-in early as it improves the chance of extracting both sessions at once
-		if(drive_config.type == DriveConfig::Type::PLEXTOR && drive_config.product_id != "CD-R PX-W4824A" && !options.skip_leadin)
+		if(drive_config.type == DriveConfig::Type::PLEXTOR && drive_config.product_id != "CD-R PX-W4824A" && !options.plextor_skip_leadin)
 		{
 			std::vector<int32_t> session_lba_start;
 			for(uint32_t i = 0; i < toc.sessions.size(); ++i)
@@ -271,9 +263,14 @@ bool redumper_dump(const Options &options, bool refine)
 
 			plextor_store_sessions_leadin(fs_scm, fs_sub, fs_state, sptd, session_lba_start, drive_config, options);
 		}
-#endif
 	}
 
+	// override using options
+	if(options.lba_start)
+		lba_start = *options.lba_start;
+	if(options.lba_end)
+		lba_end = *options.lba_end;
+	
 	uint32_t errors = 0;
 	uint32_t errors_q = 0;
 
@@ -299,7 +296,7 @@ bool redumper_dump(const Options &options, bool refine)
 		if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
 			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
 
-		for(int32_t lba = drive_config.pregap_start; lba < lba_end; ++lba)
+		for(int32_t lba = lba_start; lba < lba_end; ++lba)
 		{
 			int32_t lba_index = lba - LBA_START;
 			if(lba_index >= (int32_t)sectors_count)
@@ -344,7 +341,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 	int32_t lba_next = 0;
 	int32_t lba_overread = lba_end;
-	for(int32_t lba = drive_config.pregap_start; lba < lba_overread; lba = lba_next)
+	for(int32_t lba = lba_start; lba < lba_overread; lba = lba_next)
 	{
 		if(auto r = inside_range(lba, skip_ranges); r != nullptr)
 		{
@@ -361,9 +358,8 @@ bool redumper_dump(const Options &options, bool refine)
 		bool read = true;
 		bool store = false;
 
-#ifndef OMIT_LEADIN_AND_CACHE
 		// mirror lead-out
-		if(drive_config.type == DriveConfig::Type::LG_ASUS)
+		if(drive_config.type == DriveConfig::Type::LG_ASUS && !options.asus_skip_leadout)
 		{
 			// initial cache read
 			auto r = inside_range(lba, error_ranges);
@@ -428,7 +424,6 @@ bool redumper_dump(const Options &options, bool refine)
 				}
 			}
 		}
-#endif
 
 		if(refine && read)
 		{
@@ -638,7 +633,7 @@ bool redumper_dump(const Options &options, bool refine)
 			}
 
 			// grow lead-out overread if we still can read
-			if(lba + 1 == lba_overread && !options.stop_lba)
+			if(lba + 1 == lba_overread && !options.lba_end)
 				++lba_overread;
 		}
 		else
@@ -685,7 +680,7 @@ bool redumper_dump(const Options &options, bool refine)
 	LOG("");
 
 	// always refine once if LG/ASUS to improve changes of capturing more lead-out sectors
-	return errors || drive_config.type == DriveConfig::Type::LG_ASUS;
+	return errors || drive_config.type == DriveConfig::Type::LG_ASUS && !options.asus_skip_leadout;
 }
 
 
@@ -695,16 +690,11 @@ void redumper_rings(const Options &options)
 	drive_init(sptd, options);
 
 	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
+	drive_override_config(drive_config, options.drive_type.get(),
+						  options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_sector_order.get());
 	LOG("drive path: {}", options.drive);
 	LOG("drive: {}", drive_info_string(drive_config));
-	{
-		std::string type_string("GENERIC");
-		if(drive_config.type == DriveConfig::Type::PLEXTOR)
-			type_string = "PLEXTOR";
-		else if(drive_config.type == DriveConfig::Type::LG_ASUS)
-			type_string = "LG/ASUS";
-		LOG("drive type: {}", type_string);
-	}
+	LOG("drive configuration: {}", drive_config_string(drive_config));
 
 	// read TOC
 	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(sptd);
@@ -1009,7 +999,7 @@ SPTD::Status read_sector(std::vector<uint8_t> &sector_buffer, SPTD &sptd, const 
 {
 	// PLEXTOR: C2 is shifted 294/295 bytes late, read as much sectors as needed to get whole C2
 	// as a consequence, lead-out overread will fail a few sectors earlier
-	uint32_t sectors_count = drive_config.c2_offset / CD_C2_SIZE + (drive_config.c2_offset % CD_C2_SIZE ? 1 : 0) + 1;
+	uint32_t sectors_count = drive_config.c2_shift / CD_C2_SIZE + (drive_config.c2_shift % CD_C2_SIZE ? 1 : 0) + 1;
 
 	SPTD::Status status;
 	if(drive_config.type == DriveConfig::Type::PLEXTOR)
@@ -1025,14 +1015,14 @@ SPTD::Status read_sector(std::vector<uint8_t> &sector_buffer, SPTD &sptd, const 
 		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::C2, READ_CD_SubChannel::RAW);
 	}
 
-	// compensate C2 offset
+	// compensate C2 shift
 	if(!status.status_code)
 	{
 		std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);
 		for(uint32_t i = 0; i < sectors_count; ++i)
 			memcpy(c2_buffer.data() + CD_C2_SIZE * i, sector_buffer.data() + CD_RAW_DATA_SIZE * i + CD_DATA_SIZE, CD_C2_SIZE);
 
-		memcpy(sector_buffer.data() + CD_DATA_SIZE, c2_buffer.data() + drive_config.c2_offset, CD_C2_SIZE);
+		memcpy(sector_buffer.data() + CD_DATA_SIZE, c2_buffer.data() + drive_config.c2_shift, CD_C2_SIZE);
 	}
 	sector_buffer.resize(CD_RAW_DATA_SIZE);
 
@@ -1108,7 +1098,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 		if(i == session_lba_start.size() - 1)
 			cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
 
-		auto leadin_buffer = plextor_read_leadin(sptd, di);
+		auto leadin_buffer = plextor_read_leadin(sptd, di.pregap_start);
 		uint32_t entries_count = (uint32_t)leadin_buffer.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
 
 		if(entries_count < (uint32_t)(di.pregap_start - MSF_LBA_SHIFT))

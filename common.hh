@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <fmt/format.h>
+#include <map>
 #include <ostream>
 #include <stdexcept>
 #include <string>
@@ -158,6 +159,44 @@ uint64_t bit_diff(const T *data1, const T *data2, uint64_t count)
 
 	return bits_count;
 }
+
+template<typename T>
+std::string dictionary_values(const std::map<T, std::string> &dictionary)
+{
+	std::string values;
+
+	std::string delimiter;
+	for(auto &d : dictionary)
+	{
+		values += delimiter + d.second;
+		if(delimiter.empty())
+			delimiter = ", ";
+	}
+
+	return values;
+}
+
+template<typename T>
+std::string enum_to_string(T value, const std::map<T, std::string> &dictionary)
+{
+	auto it = dictionary.find(value);
+	if(it == dictionary.end())
+		throw_line(fmt::format("enum_to_string failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
+	
+	return it->second;
+	
+}
+
+template<typename T>
+T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
+{
+	for(auto &d : dictionary)
+		if(d.second == value)
+			return d.first;
+
+	throw_line(fmt::format("string_to_enum failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
+}
+
 
 std::string normalize_string(const std::string &s);
 std::vector<std::string> tokenize_quoted(const std::string &str, const char *delimiters, const char *quotes);

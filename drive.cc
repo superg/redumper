@@ -243,8 +243,9 @@ std::string drive_config_string(const DriveConfig &drive_config)
 	else if(drive_config.type == DriveConfig::Type::LG_ASUS)
 		type_string = "LG/ASUS";
 
-	return fmt::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, sector order: {})", enum_to_string(drive_config.type, TYPE_STRING),
-	                   drive_config.read_offset, drive_config.c2_shift, drive_config.pregap_start, enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
+	return fmt::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})",
+	                   enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset, drive_config.c2_shift,
+					   drive_config.pregap_start, enum_to_string(drive_config.read_method, READ_METHOD_STRING), enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
 }
 
 

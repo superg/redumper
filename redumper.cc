@@ -132,32 +132,8 @@ bool redumper_dump(const Options &options, bool refine)
 	LOG("drive: {}", drive_info_string(drive_config));
 	LOG("drive configuration: {}", drive_config_string(drive_config));
 
-
-
-	//DEBUG
-/*
-	// features
-	{
-		cmd_get_configuration(sptd);
-
-		std::cout << "";
-	}
-*/
-
-
-	if(options.drive_type && *options.drive_type == "GENERIC")
-		LOG("warning: unsupported drive");
-	else if(drive_config.type == DriveConfig::Type::GENERIC)
-	{
-		print_supported_drives();
-		throw_line("unsupported drive");
-	}
-
 	if(options.image_name.empty())
 		throw_line("image name is not provided");
-
-	if(!refine && !options.image_path.empty())
-		std::filesystem::create_directories(options.image_path);
 
 	LOG("image path: {}", options.image_path.empty() ? "." : options.image_path);
 	LOG("image name: {}", options.image_name);
@@ -171,14 +147,11 @@ bool redumper_dump(const Options &options, bool refine)
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
+	std::filesystem::path be_path(image_prefix + ".be");
 	std::filesystem::path asus_path(image_prefix + ".asus"); //DEBUG
 
 	if(!refine && !options.overwrite && std::filesystem::exists(state_path))
 		throw_line(fmt::format("dump already exists (name: {})", options.image_name));
-
-	std::fstream fs_scm(scm_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
-	std::fstream fs_sub(sub_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
-	std::fstream fs_state(state_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); //FIXME: transition to samples
 	std::vector<std::pair<int32_t, int32_t>> error_ranges;
@@ -186,83 +159,129 @@ bool redumper_dump(const Options &options, bool refine)
 	int32_t lba_start = drive_config.pregap_start;
 	int32_t lba_end = MSF_to_LBA(MSF{74, 0, 0}); // default: 74min / 650Mb
 
+	// TOC
+	std::vector<uint8_t> toc_buffer = cmd_read_toc(sptd);
+	TOC toc(toc_buffer, false);
+
+	// FULL TOC
+	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(sptd);
+	if(!full_toc_buffer.empty())
 	{
-		// TOC
-		std::vector<uint8_t> toc_buffer = cmd_read_toc(sptd);
-		TOC toc(toc_buffer, false);
+		TOC toc_full(full_toc_buffer, true);
 
-		// FULL TOC
-		std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(sptd);
+		// [PSX] Motocross Mania
+		// [ENHANCED-CD] Vanishing Point
+		// PX-W5224TA: incorrect FULL TOC data in some cases
+		toc_full.DeriveINDEX(toc);
+
+		// prefer TOC for single session discs and FULL TOC for multisession discs
+		if(toc_full.sessions.size() > 1)
+			toc = toc_full;
+		else
+			toc.disc_type = toc_full.disc_type;
+	}
+
+	if(!refine)
+	{
+		LOG("");
+		LOG("disc TOC:");
+		toc.Print();
+		LOG("");
+	}
+
+	// allow BE read mode only for audio discs and data discs without audio tracks
+	{
+		bool data_tracks = false;
+		bool audio_tracks = false;
+		for(auto &s : toc.sessions)
+		{
+			for(auto &t : s.tracks)
+			{
+				if(t.control & (uint8_t)ChannelQ::Control::DATA)
+					data_tracks = true;
+				else
+					audio_tracks = true;
+			}
+		}
+		
+		if(!options.drive_type && drive_config.read_method == DriveConfig::ReadMethod::BE && data_tracks && audio_tracks)
+		{
+			print_supported_drives();
+			throw_line("unsupported drive read method for mixed data/audio");
+		}
+
+		if(drive_config.read_method == DriveConfig::ReadMethod::BE)
+		{
+			LOG("warning: unsupported drive read method");
+
+			if(!refine)
+			{
+				std::fstream fs_be(be_path, std::fstream::out | std::fstream::trunc | std::fstream::binary);
+				uint8_t be_flag = 1;
+				fs_be.write((char *)&be_flag, sizeof(be_flag));
+			}
+		}
+	}
+
+	if(refine)
+	{
+		bool be = std::filesystem::exists(be_path);
+		if(be && drive_config.read_method != DriveConfig::ReadMethod::BE || !be && drive_config.read_method == DriveConfig::ReadMethod::BE)
+			throw_line("refine using mixed read methods is unsupported");
+	}
+
+	if(!refine && !options.image_path.empty())
+		std::filesystem::create_directories(options.image_path);
+
+	std::fstream fs_scm(scm_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
+	std::fstream fs_sub(sub_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
+	std::fstream fs_state(state_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
+
+	// fake TOC
+	// [PSX] Breaker Pro
+	if(toc.sessions.back().tracks.back().lba_end < 0)
+		LOG("warning: fake TOC detected, using default 74min disc size");
+	// last session last track end
+	else
+		lba_end = toc.sessions.back().tracks.back().lba_end;
+
+	// multisession gaps
+	for(uint32_t i = 0; i < toc.sessions.size() - 1; ++i)
+		error_ranges.emplace_back(toc.sessions[i].tracks.back().lba_end, toc.sessions[i + 1].tracks.front().indices.front() + drive_config.pregap_start);
+
+	// CD-TEXT
+	std::vector<uint8_t> cd_text_buffer;
+	{
+		auto status = cmd_read_cd_text(sptd, cd_text_buffer);
+		if(status.status_code)
+			LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
+	}
+
+	// compare disc / file TOC to make sure it's the same disc
+	if(refine)
+	{
+		std::vector<uint8_t> toc_buffer_file = read_vector(toc_path);
+		if(toc_buffer != toc_buffer_file)
+			throw_line("disc / file TOC don't match, refining from a different disc?");
+	}
+	// store TOC
+	else
+	{
+		write_vector(toc_path, toc_buffer);
 		if(!full_toc_buffer.empty())
-		{
-			TOC toc_full(full_toc_buffer, true);
+			write_vector(fulltoc_path, full_toc_buffer);
+		if(!cd_text_buffer.empty())
+			write_vector(cdtext_path, cd_text_buffer);
+	}
 
-			// [PSX] Motocross Mania
-			// [ENHANCED-CD] Vanishing Point
-			// PX-W5224TA: incorrect FULL TOC data in some cases
-			toc_full.DeriveINDEX(toc);
+	// read lead-in early as it improves the chance of extracting both sessions at once
+	if(drive_config.type == DriveConfig::Type::PLEXTOR && drive_config.product_id != "CD-R PX-W4824A" && !options.plextor_skip_leadin)
+	{
+		std::vector<int32_t> session_lba_start;
+		for(uint32_t i = 0; i < toc.sessions.size(); ++i)
+			session_lba_start.push_back((i ? toc.sessions[i].tracks.front().indices.front() : 0) + MSF_LBA_SHIFT);
 
-			// prefer TOC for single session discs and FULL TOC for multisession discs
-			if(toc_full.sessions.size() > 1)
-				toc = toc_full;
-			else
-				toc.disc_type = toc_full.disc_type;
-		}
-
-		if(!refine)
-		{
-			LOG("");
-			LOG("disc TOC:");
-			toc.Print();
-			LOG("");
-		}
-
-		// fake TOC
-		// [PSX] Breaker Pro
-		if(toc.sessions.back().tracks.back().lba_end < 0)
-			LOG("warning: fake TOC detected, using default 74min disc size");
-		// last session last track end
-		else
-			lba_end = toc.sessions.back().tracks.back().lba_end;
-
-		// multisession gaps
-		for(uint32_t i = 0; i < toc.sessions.size() - 1; ++i)
-			error_ranges.emplace_back(toc.sessions[i].tracks.back().lba_end, toc.sessions[i + 1].tracks.front().indices.front() + drive_config.pregap_start);
-
-		// CD-TEXT
-		std::vector<uint8_t> cd_text_buffer;
-		{
-			auto status = cmd_read_cd_text(sptd, cd_text_buffer);
-			if(status.status_code)
-				LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
-		}
-
-		// compare disc / file TOC to make sure it's the same disc
-		if(refine)
-		{
-			std::vector<uint8_t> toc_buffer_file = read_vector(toc_path);
-			if(toc_buffer != toc_buffer_file)
-				throw_line("disc / file TOC don't match, refining from a different disc?");
-		}
-		// store TOC
-		else
-		{
-			write_vector(toc_path, toc_buffer);
-			if(!full_toc_buffer.empty())
-				write_vector(fulltoc_path, full_toc_buffer);
-			if(!cd_text_buffer.empty())
-				write_vector(cdtext_path, cd_text_buffer);
-		}
-
-		// read lead-in early as it improves the chance of extracting both sessions at once
-		if(drive_config.type == DriveConfig::Type::PLEXTOR && drive_config.product_id != "CD-R PX-W4824A" && !options.plextor_skip_leadin)
-		{
-			std::vector<int32_t> session_lba_start;
-			for(uint32_t i = 0; i < toc.sessions.size(); ++i)
-				session_lba_start.push_back((i ? toc.sessions[i].tracks.front().indices.front() : 0) + MSF_LBA_SHIFT);
-
-			plextor_store_sessions_leadin(fs_scm, fs_sub, fs_state, sptd, session_lba_start, drive_config, options);
-		}
+		plextor_store_sessions_leadin(fs_scm, fs_sub, fs_state, sptd, session_lba_start, drive_config, options);
 	}
 
 	// override using options

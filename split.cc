@@ -949,6 +949,7 @@ void redumper_split(const Options &options)
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
+	std::filesystem::path be_path(image_prefix + ".be");
 
 	uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
 	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)

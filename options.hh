@@ -31,6 +31,7 @@ struct Options
     std::unique_ptr<int> drive_read_offset;
     std::unique_ptr<int> drive_c2_shift;
     std::unique_ptr<int> drive_pregap_start;
+    std::unique_ptr<std::string> drive_read_method;
     std::unique_ptr<std::string> drive_sector_order;
     std::unique_ptr<int> speed;
     int retries;

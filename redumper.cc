@@ -127,7 +127,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
 	drive_override_config(drive_config, options.drive_type.get(),
-						  options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_sector_order.get());
+						  options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
 	LOG("drive path: {}", options.drive);
 	LOG("drive: {}", drive_info_string(drive_config));
 	LOG("drive configuration: {}", drive_config_string(drive_config));
@@ -691,7 +691,7 @@ void redumper_rings(const Options &options)
 
 	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
 	drive_override_config(drive_config, options.drive_type.get(),
-						  options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_sector_order.get());
+						  options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
 	LOG("drive path: {}", options.drive);
 	LOG("drive: {}", drive_info_string(drive_config));
 	LOG("drive configuration: {}", drive_config_string(drive_config));
@@ -1002,18 +1002,20 @@ SPTD::Status read_sector(std::vector<uint8_t> &sector_buffer, SPTD &sptd, const 
 	uint32_t sectors_count = drive_config.c2_shift / CD_C2_SIZE + (drive_config.c2_shift % CD_C2_SIZE ? 1 : 0) + 1;
 
 	SPTD::Status status;
-	if(drive_config.type == DriveConfig::Type::PLEXTOR)
+	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
 	{
 		status = cmd_read_cdda(sptd, sector_buffer, lba, sectors_count, READ_CDDA_SubCode::DATA_C2_SUB);
 	}
-	else if(drive_config.type == DriveConfig::Type::LG_ASUS)
+	else if(drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA)
 	{
 		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, READ_CD_ErrorField::C2, READ_CD_SubChannel::RAW);
 	}
-	else
+	else if(drive_config.read_method == DriveConfig::ReadMethod::BE)
 	{
 		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::C2, READ_CD_SubChannel::RAW);
 	}
+	else
+		throw_line("invalid drive read mode specified");
 
 	// compensate C2 shift
 	if(!status.status_code)

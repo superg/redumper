@@ -100,6 +100,11 @@ Options::Options(int argc, const char *argv[])
                     drive_pregap_start = std::make_unique<int>();
                     i_value = drive_pregap_start.get();
                 }
+                else if(key == "--drive-read-method")
+                {
+                    drive_read_method = std::make_unique<std::string>();
+                    s_value = drive_read_method.get();
+                }
                 else if(key == "--drive-sector-order")
                 {
                     drive_sector_order = std::make_unique<std::string>();
@@ -218,6 +223,7 @@ void Options::PrintUsage()
     LOG("\t--drive-read-offset=VALUE\t\toverride drive read offset");
     LOG("\t--drive-c2-shift=VALUE\t\toverride drive C2 shift");
     LOG("\t--drive-pregap-start=VALUE\t\toverride drive pre-gap start LBA");
+    LOG("\t--drive-read-method=VALUE\t\toverride drive read method, possible values: BE, D8, BE_CDDA");
     LOG("\t--drive-sector-order=VALUE\t\toverride drive sector order, possible values: DATA_C2_SUB, DATA_SUB_C2");
     LOG("\t--speed=VALUE\t\tdrive read speed, optimal drive speed will be used if not provided");
     LOG("\t--retries=VALUE\tnumber of sector retries in case of SCSI/C2 error (default: {})", retries);

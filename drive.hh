@@ -24,6 +24,13 @@ struct DriveConfig
     uint32_t c2_shift;
     int32_t pregap_start;
 
+    enum class ReadMethod
+    {
+        BE,
+        D8,
+        BE_CDDA
+    } read_method;
+
     enum class SectorOrder
     {
         DATA_C2_SUB,
@@ -41,7 +48,7 @@ struct DriveConfig
 inline constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
 
 DriveConfig drive_get_config(const DriveQuery &drive_query);
-void drive_override_config(DriveConfig &drive_config, const std::string *type, const int *read_offset, const int *c2_shift, const int *pregap_start, const std::string *sector_order);
+void drive_override_config(DriveConfig &drive_config, const std::string *type, const int *read_offset, const int *c2_shift, const int *pregap_start, const std::string *read_method, const std::string *sector_order);
 int32_t drive_get_generic_read_offset(const std::string &vendor, const std::string &product);
 std::string drive_info_string(const DriveConfig &di);
 std::string drive_config_string(const DriveConfig &di);

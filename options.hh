@@ -49,7 +49,6 @@ struct Options
     bool asus_skip_leadout;
     bool cdi_correct_offset;
     bool cdi_ready_normalize;
-    bool descramble_new;
     std::unique_ptr<int> force_offset;
     int audio_silence_threshold;
 

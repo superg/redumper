@@ -26,7 +26,6 @@ Options::Options(int argc, const char *argv[])
     , asus_skip_leadout(false)
     , cdi_correct_offset(false)
     , cdi_ready_normalize(false)
-    , descramble_new(false)
     , audio_silence_threshold(32)
 {
     for(int i = 0; i < argc; ++i)
@@ -151,8 +150,6 @@ Options::Options(int argc, const char *argv[])
                     cdi_correct_offset = true;
                 else if(key == "--cdi-ready-normalize")
                     cdi_ready_normalize = true;
-                else if(key == "--descramble-new")
-                    descramble_new = true;
                 else if(key == "--force-offset")
                 {
                     force_offset = std::make_unique<int>();
@@ -241,7 +238,6 @@ void Options::PrintUsage()
     LOG("\t--asus-skip-leadout\tskip extracting lead-out from drive cache");
     LOG("\t--cdi-correct-offset\tcorrect mid-track CDI/VCD offset change");
     LOG("\t--cdi-ready-normalize\tseparate CDi-Ready track 1 index 0 to track 0");
-    LOG("\t--descramble-new\timproved score based descrambled method");
     LOG("\t--force-offset=VALUE\toverride offset autodetection and use supplied value");
     LOG("\t--audio-silence-threshold=VALUE\tmaximum absolute sample value to treat it as silence (default: {})", audio_silence_threshold);
 }

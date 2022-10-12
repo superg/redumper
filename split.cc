@@ -165,7 +165,7 @@ int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &s
 			{
 				Sector &sector = *(Sector *)&data[sector_offset];
 				Scrambler scrambler;
-				scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector);
+				scrambler.Descramble((uint8_t *)&sector, nullptr);
 
 				if(BCDMSF_valid(sector.header.address))
 				{
@@ -243,7 +243,7 @@ int32_t track_process_offset_shift(int32_t write_offset, int32_t lba, uint32_t c
 		{
 			Sector &sector = *(Sector *)&data[i];
 			Scrambler scrambler;
-			scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector, head_size);
+			scrambler.Descramble((uint8_t *)&sector, nullptr, head_size);
 
 			// expected sector
 			int32_t sector_lba = BCDMSF_to_LBA(sector.header.address);
@@ -572,7 +572,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 
 						if(standard_sync)
 						{
-							bool unscrambled = options.descramble_new ? scrambler.UnscrambleScore(sector.data(), lba) : scrambler.Unscramble(sector.data(), lba);
+							bool unscrambled = scrambler.Descramble(sector.data(), &lba);
 
 							//DEBUG
 							if(!unscrambled)
@@ -965,6 +965,8 @@ void redumper_split(const Options &options)
 	if(!state_fs.is_open())
 		throw_line(fmt::format("unable to open file ({})", state_path.filename().string()));
 
+	bool be = std::filesystem::exists(be_path);
+
 	// TOC
 	std::vector<uint8_t> toc_buffer = read_vector(toc_path);
 	TOC toc(toc_buffer, false);
@@ -1090,7 +1092,7 @@ void redumper_split(const Options &options)
 					read_entry(scm_fs, (uint8_t *)&sector, CD_DATA_SIZE, lba - LBA_START, 1, -track_write_offset * CD_SAMPLE_SIZE, 0);
 
 					Scrambler scrambler;
-					scrambler.Unscramble((uint8_t *)&sector, lba);
+					scrambler.Descramble((uint8_t *)&sector, &lba);
 
 					t.data_mode = sector.header.mode;
 				}
@@ -1098,7 +1100,7 @@ void redumper_split(const Options &options)
 				// CDI
 				try
 				{
-					ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + track_write_offset * CD_SAMPLE_SIZE, true);
+					ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + track_write_offset * CD_SAMPLE_SIZE, !be);
 
 					auto pvd = browser.GetPVD();
 

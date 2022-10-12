@@ -384,15 +384,15 @@ void edc_ecc_check(TrackEntry &track_entry, Sector &sector)
 }
 
 
-uint32_t iso9660_volume_size(std::fstream &scm_fs, uint64_t scm_offset)
+uint32_t iso9660_volume_size(std::fstream &scm_fs, uint64_t scm_offset, bool scrap)
 {
-	ImageBrowser browser(scm_fs, scm_offset, true);
+	ImageBrowser browser(scm_fs, scm_offset, !scrap);
 	auto volume_size = browser.GetPVD().primary.volume_space_size.lsb;
 	return volume_size;
 }
 
 
-bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, int32_t write_offset, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, int32_t lba_start, const Options &options)
+bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, int32_t write_offset, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, int32_t lba_start, bool scrap, const Options &options)
 {
 	bool no_errors = true;
 
@@ -416,7 +416,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 			//FIXME: omit iso9660 volume size if the filesystem is different
 
-			uint32_t track_length = options.iso9660_trim && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty() ? iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE) : t.lba_end - t.lba_start;
+			uint32_t track_length = options.iso9660_trim && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty() ? iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, scrap) : t.lba_end - t.lba_start;
 			for(int32_t lba = t.lba_start; lba < t.lba_start + (int32_t)track_length; ++lba)
 			{
 				if(inside_range(lba, skip_ranges) != nullptr)
@@ -466,7 +466,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 }
 
 
-void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, int32_t write_offset, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, int32_t lba_start, const Options &options)
+void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, int32_t write_offset, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, int32_t lba_start, bool scrap, const Options &options)
 {
 	std::string track_format = fmt::format(" (Track {{:0{}}})", (uint32_t)log10(toc.sessions.back().tracks.back().track_number) + 1);
 
@@ -507,7 +507,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, const TOC &toc, std::f
 
 			int32_t lba_end = t.lba_end;
 			if(options.iso9660_trim && data_track && !t.indices.empty())
-				lba_end = t.lba_start + iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE);
+				lba_end = t.lba_start + iso9660_volume_size(scm_fs, (-lba_start + t.indices.front()) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, scrap);
 
 			for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
 			{
@@ -774,16 +774,20 @@ void redumper_protection(Options &options)
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
+	std::filesystem::path scp_path(image_prefix + ".scrap");
 	std::filesystem::path sub_path(image_prefix + ".subcode");
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 
-	uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
+	bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
+	auto scra_path(scrap ? scp_path : scm_path);
+
+	uint32_t sectors_count = check_file(scra_path, CD_DATA_SIZE);
 	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
+		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), sub_path.filename().string()));
 	if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
+		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), state_path.filename().string()));
 
 	// TOC
 	std::vector<uint8_t> toc_buffer = read_vector(toc_path);
@@ -818,9 +822,9 @@ void redumper_protection(Options &options)
 		}
 	}
 
-	std::fstream scm_fs(scm_path, std::fstream::in | std::fstream::binary);
+	std::fstream scm_fs(scra_path, std::fstream::in | std::fstream::binary);
 	if(!scm_fs.is_open())
-		throw_line(fmt::format("unable to open file ({})", scm_path.filename().string()));
+		throw_line(fmt::format("unable to open file ({})", scra_path.filename().string()));
 
 	std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
 	if(!state_fs.is_open())
@@ -866,7 +870,7 @@ void redumper_protection(Options &options)
 				{
 					std::string protected_filename;
 					{
-						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, true);
+						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, !scrap);
 						auto root_dir = browser.RootDirectory();
 
 						// protection file exists
@@ -944,28 +948,29 @@ void redumper_split(const Options &options)
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
+	std::filesystem::path scp_path(image_prefix + ".scrap");
 	std::filesystem::path sub_path(image_prefix + ".subcode");
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
-	std::filesystem::path be_path(image_prefix + ".be");
 
-	uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
+	bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
+	auto scra_path(scrap ? scp_path : scm_path);
+
+	uint32_t sectors_count = check_file(scra_path, CD_DATA_SIZE);
 	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
+		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), sub_path.filename().string()));
 	if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
+		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), state_path.filename().string()));
 
-	std::fstream scm_fs(scm_path, std::fstream::in | std::fstream::binary);
+	std::fstream scm_fs(scra_path, std::fstream::in | std::fstream::binary);
 	if(!scm_fs.is_open())
-		throw_line(fmt::format("unable to open file ({})", scm_path.filename().string()));
+		throw_line(fmt::format("unable to open file ({})", scra_path.filename().string()));
 
 	std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
 	if(!state_fs.is_open())
 		throw_line(fmt::format("unable to open file ({})", state_path.filename().string()));
-
-	bool be = std::filesystem::exists(be_path);
 
 	// TOC
 	std::vector<uint8_t> toc_buffer = read_vector(toc_path);
@@ -1100,7 +1105,7 @@ void redumper_split(const Options &options)
 				// CDI
 				try
 				{
-					ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + track_write_offset * CD_SAMPLE_SIZE, !be);
+					ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + track_write_offset * CD_SAMPLE_SIZE, !scrap);
 
 					auto pvd = browser.GetPVD();
 
@@ -1472,12 +1477,12 @@ void redumper_split(const Options &options)
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
 
 	// check tracks
-	if(!check_tracks(toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, options) && !options.force_split)
+	if(!check_tracks(toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, scrap, options) && !options.force_split)
 		throw_line(fmt::format("data errors detected, unable to continue"));
 
 	// write tracks
 	std::vector<TrackEntry> track_entries;
-	write_tracks(track_entries, toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, options);
+	write_tracks(track_entries, toc, scm_fs, state_fs, write_offset, skip_ranges, LBA_START, scrap, options);
 
 	// write CUE-sheet
 	std::vector<std::string> cue_sheets;

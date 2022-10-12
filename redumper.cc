@@ -142,12 +142,12 @@ bool redumper_dump(const Options &options, bool refine)
 
 	// don't use replace_extension as it messes up paths with dot
 	std::filesystem::path scm_path(image_prefix + ".scram");
+	std::filesystem::path scp_path(image_prefix + ".scrap");
 	std::filesystem::path sub_path(image_prefix + ".subcode");
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
-	std::filesystem::path be_path(image_prefix + ".be");
 	std::filesystem::path asus_path(image_prefix + ".asus"); //DEBUG
 
 	if(!refine && !options.overwrite && std::filesystem::exists(state_path))
@@ -189,7 +189,9 @@ bool redumper_dump(const Options &options, bool refine)
 		LOG("");
 	}
 
-	// allow BE read mode only for audio discs and data discs without audio tracks
+	// BE read mode
+	bool scrap = false;
+	if(drive_config.read_method == DriveConfig::ReadMethod::BE)
 	{
 		bool data_tracks = false;
 		bool audio_tracks = false;
@@ -204,36 +206,29 @@ bool redumper_dump(const Options &options, bool refine)
 			}
 		}
 		
-		if(!options.drive_type && drive_config.read_method == DriveConfig::ReadMethod::BE && data_tracks && audio_tracks)
+		if(data_tracks)
 		{
-			print_supported_drives();
-			throw_line("unsupported drive read method for mixed data/audio");
-		}
+			// by default don't allow BE mode for mixed data/audio discs
+			// can be overriden with specifying any drive type in the options
+			if(!options.drive_type && audio_tracks)
+			{
+				print_supported_drives();
+				throw_line("unsupported drive read method for mixed data/audio");
+			}
 
-		if(drive_config.read_method == DriveConfig::ReadMethod::BE)
-		{
 			LOG("warning: unsupported drive read method");
 
-			if(!refine)
-			{
-				std::fstream fs_be(be_path, std::fstream::out | std::fstream::trunc | std::fstream::binary);
-				uint8_t be_flag = 1;
-				fs_be.write((char *)&be_flag, sizeof(be_flag));
-			}
+			scrap = true;
 		}
 	}
 
-	if(refine)
-	{
-		bool be = std::filesystem::exists(be_path);
-		if(be && drive_config.read_method != DriveConfig::ReadMethod::BE || !be && drive_config.read_method == DriveConfig::ReadMethod::BE)
-			throw_line("refine using mixed read methods is unsupported");
-	}
+	if(refine && (std::filesystem::exists(scm_path) && scrap || std::filesystem::exists(scp_path) && !scrap))
+		throw_line("refine using mixed read methods is unsupported");
 
 	if(!refine && !options.image_path.empty())
 		std::filesystem::create_directories(options.image_path);
 
-	std::fstream fs_scm(scm_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
+	std::fstream fs_scm(scrap ? scp_path : scm_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 	std::fstream fs_sub(sub_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 	std::fstream fs_state(state_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 
@@ -309,11 +304,12 @@ bool redumper_dump(const Options &options, bool refine)
 
 	if(refine)
 	{
-		uint32_t sectors_count = check_file(scm_path, CD_DATA_SIZE);
+		auto scra_path = scrap ? scp_path : scm_path;
+		uint32_t sectors_count = check_file(scra_path, CD_DATA_SIZE);
 		if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), sub_path.filename().string()));
+			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), sub_path.filename().string()));
 		if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scm_path.filename().string(), state_path.filename().string()));
+			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), state_path.filename().string()));
 
 		for(int32_t lba = lba_start; lba < lba_end; ++lba)
 		{

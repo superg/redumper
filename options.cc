@@ -26,6 +26,7 @@ Options::Options(int argc, const char *argv[])
     , asus_skip_leadout(false)
     , cdi_correct_offset(false)
     , cdi_ready_normalize(false)
+    , perfect_audio_offset(false)
     , audio_silence_threshold(32)
 {
     for(int i = 0; i < argc; ++i)
@@ -155,6 +156,8 @@ Options::Options(int argc, const char *argv[])
                     force_offset = std::make_unique<int>();
                     i_value = force_offset.get();
                 }
+                else if(key == "--perfect-audio-offset")
+                    perfect_audio_offset = true;
                 else if(key == "--audio-silence-threshold")
                     i_value = &audio_silence_threshold;
                 // unknown option
@@ -239,6 +242,7 @@ void Options::PrintUsage()
     LOG("\t--cdi-correct-offset\tcorrect mid-track CDI/VCD offset change");
     LOG("\t--cdi-ready-normalize\tseparate CDi-Ready track 1 index 0 to track 0");
     LOG("\t--force-offset=VALUE\toverride offset autodetection and use supplied value");
+    LOG("\t--perfect-audio-offset\tintelligent silence based audio offset detection");
     LOG("\t--audio-silence-threshold=VALUE\tmaximum absolute sample value to treat it as silence (default: {})", audio_silence_threshold);
 }
 

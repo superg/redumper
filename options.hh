@@ -50,6 +50,7 @@ struct Options
     bool cdi_correct_offset;
     bool cdi_ready_normalize;
     std::unique_ptr<int> force_offset;
+    bool perfect_audio_offset;
     int audio_silence_threshold;
 
     Options(int argc, const char *argv[]);

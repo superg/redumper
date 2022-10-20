@@ -47,14 +47,16 @@ enum class GET_CONFIGURATION_RequestedType : uint8_t
 
 enum class READ_CD_ExpectedSectorType : uint8_t
 {
-    ALL_TYPES   = 0, // mandatory
-    CD_DA       = 1, // optional
-    MODE1       = 2, // mandatory
-    MODE2       = 3, // mandatory
-    MODE2_FORM1 = 4, // mandatory
-    MODE2_FORM2 = 5, // mandatory
-    RESERVED1   = 6,
-    RESERVED2   = 7
+    ALL_TYPES  , // mandatory
+    CD_DA      , // optional
+    MODE1      , // mandatory
+    MODE2      , // mandatory
+    MODE2_FORM1, // mandatory
+    MODE2_FORM2, // mandatory
+    RESERVED1  ,
+    RESERVED2  ,
+
+    COUNT
 };
 
 

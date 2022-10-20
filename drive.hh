@@ -53,7 +53,7 @@ int32_t drive_get_generic_read_offset(const std::string &vendor, const std::stri
 std::string drive_info_string(const DriveConfig &di);
 std::string drive_config_string(const DriveConfig &di);
 void print_supported_drives();
-std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, int32_t lba_stop);
+std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size);
 std::vector<uint8_t> asus_cache_read(SPTD &sptd);
 std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32_t lba_start, uint32_t entries_count);
 void asus_cache_print_subq(const std::vector<uint8_t> &cache);

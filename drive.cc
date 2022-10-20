@@ -72,7 +72,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	// PLEXTOR CD
 	{"PLEXTOR", "CD-R PREMIUM"  , "1.04", "09/04/03 15:00",  +30, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
 	{"PLEXTOR", "CD-R PREMIUM2" , ""    , ""              ,  +30, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
-	{"PLEXTOR", "CD-R PX-320A"  , ""    , ""              ,  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
+//	{"PLEXTOR", "CD-R PX-320A"  , ""    , ""              ,  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // NO D8?
 	{"PLEXTOR", "CD-R PX-R412C" , ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
 	{"PLEXTOR", "CD-R PX-R820T" , ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
 	{"PLEXTOR", "CD-R PX-S88T"  , ""    , ""              ,  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
@@ -118,10 +118,10 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 // Plextor firmware blocked LBA ranges:
 // BE [-inf .. -20000], (-1000 .. -75)
 // D8 [-inf .. -20150], (-1150 .. -75)
-// 
+//
 // BE is having trouble reading LBA close to -1150]
 // D8 range boundaries are shifted left by 150 sectors comparing to BE
-// 
+//
 // It is also possible to read large negative offset ranges (starting from 0xFFFFFFFF - smallest negative 32-bit integer)
 // with BE command with disabled C2 if the disc first track is a data track. Regardless of a starting point, such reads
 // are "virtualized" by Plextor drive and will always start somewhere in the lead-in toc area and sequentially read until
@@ -129,7 +129,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 // the lead-in toc area again. This process will continue until drive reaches firmware blocked LBA ranges specified here.
 // However, any external pause between sequential reads (Debugger pause, sleep() call etc.) will lead to drive counter
 // resetting and starting reading in the lead-in toc area again.
-// 
+//
 // However the following range, while preserving the above behavior, is unlocked for both BE and D8 commands with
 // disabled C2. Use it to dynamically find first second of pre-gap based on the Q subcode and prepend it to the rest of
 // [-75 .. leadout) Plextor dump, optionally saving the lead-in
@@ -181,7 +181,7 @@ void drive_override_config(DriveConfig &drive_config, const std::string *type, c
 {
 	if(type != nullptr)
 		drive_config.type = string_to_enum(*type, TYPE_STRING);
-	
+
 	if(read_offset != nullptr)
 		drive_config.read_offset = *read_offset;
 
@@ -190,7 +190,7 @@ void drive_override_config(DriveConfig &drive_config, const std::string *type, c
 
 	if(pregap_start != nullptr)
 		drive_config.pregap_start = *pregap_start;
-	
+
 	if(read_method != nullptr)
 		drive_config.read_method = string_to_enum(*read_method, READ_METHOD_STRING);
 
@@ -260,27 +260,28 @@ void print_supported_drives()
 }
 
 
-std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, int32_t lba_stop)
+std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 {
 	std::vector<uint8_t> buffer;
 
 	buffer.reserve(5000 * PLEXTOR_LEADIN_ENTRY_SIZE);
 
-	int32_t lba_start = PLEXTOR_TOC_RANGE.first + 1;
-	int32_t lba_end = PLEXTOR_TOC_RANGE.second + 1;
+	int32_t neg_start = PLEXTOR_TOC_RANGE.first + 1;
+	int32_t neg_limit = PLEXTOR_TOC_RANGE.second + 1;
+	int32_t neg_end = neg_limit;
 
-	for(int32_t lba = lba_start; lba < lba_end; ++lba)
+	for(int32_t neg = neg_start; neg < neg_end; ++neg)
 	{
-		uint32_t lba_index = lba - lba_start;
+		uint32_t lba_index = neg - neg_start;
 		buffer.resize((lba_index + 1) * PLEXTOR_LEADIN_ENTRY_SIZE);
 		uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE];
 		auto &status = *(SPTD::Status *)entry;
 
 		LOG_R();
-		LOGC_F("[LBA: {:6}]", lba);
-		
+		LOGC_F("[LBA: {:6}]", neg);
+
 		std::vector<uint8_t> sector_buffer;
-		status = cmd_read_cdda(sptd, sector_buffer, lba, 1, READ_CDDA_SubCode::DATA_SUB);
+		status = cmd_read_cdda(sptd, sector_buffer, neg, 1, READ_CDDA_SubCode::DATA_SUB);
 //		status = cmd_read_cd(sptd, sector_buffer, lba, 1, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::NONE, READ_CD_SubChannel::RAW);
 
 		if(!status.status_code)
@@ -298,12 +299,8 @@ std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, int32_t lba_stop)
 			if(Q.Valid())
 			{
 				uint8_t adr = Q.control_adr & 0x0F;
-				if(adr == 1 && Q.mode1.tno)
-				{
-					int32_t limit = lba + (lba_stop - MSF_LBA_SHIFT);
-					if(limit < lba_end)
-						lba_end = limit;
-				}
+				if(adr == 1 && Q.mode1.tno && neg_end == neg_limit)
+					neg_end = neg + tail_size;
 			}
 		}
 	}
@@ -352,7 +349,7 @@ std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32
 		uint8_t adr = Q.control_adr & 0x0F;
 		if(adr != 1 || !Q.mode1.tno)
 			continue;
-			
+
 		int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
 		if(lba == lba_start)
 		{
@@ -422,7 +419,7 @@ std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32
 			data.insert(data.end(), sub_data, sub_data + CD_SUBCODE_SIZE);
 		}
 	}
-	
+
 	return data;
 }
 

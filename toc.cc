@@ -16,9 +16,9 @@ namespace gpsxre
 
 const char TOC::_ISRC_TABLE[] =
 {
-	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_', '_', '_', '_', '_', '_', 
+	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_', '_', '_', '_', '_', '_',
 	'_', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '_', '_', '_', '_', '_', 
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '_', '_', '_', '_', '_',
 	'_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'
 };
 
@@ -553,7 +553,7 @@ void TOC::Print() const
 			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
 				flags += ", pre-emphasis";
 
-			LOG("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), 
+			LOG("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '),
 						   fmt::vformat(track_format, fmt::make_format_args(t.track_number)), flags);
 
 			auto indices = t.indices;

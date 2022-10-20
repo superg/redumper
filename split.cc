@@ -1378,7 +1378,7 @@ void redumper_split(const Options &options)
 	}
 
 	// perfect audio offset
-	if(write_offset == std::numeric_limits<int32_t>::max())
+	if(write_offset == std::numeric_limits<int32_t>::max() && !scrap)
 	{
 		int32_t perfect_audio_offset = disc_offset_by_silence(toc, scm_fs, sectors_count, options);
 		if(perfect_audio_offset != std::numeric_limits<int32_t>::max() && options.perfect_audio_offset)

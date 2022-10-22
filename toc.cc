@@ -519,6 +519,22 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 }
 
 
+void TOC::GenerateIndex0()
+{
+	for(auto &s : sessions)
+	{
+		for(uint32_t i = 0; i < s.tracks.size(); ++i)
+		{
+			auto &t = s.tracks[i];
+			if(!t.indices.empty())
+				t.lba_start = t.indices.front() + MSF_LBA_SHIFT;
+			if(i)
+				s.tracks[i - 1].lba_end = t.lba_start;
+		}
+	}
+}
+
+
 void TOC::Print() const
 {
 	std::string track_format = fmt::format("{{:0{}}}", (uint32_t)log10(sessions.back().tracks.back().track_number) + 1);

@@ -73,6 +73,7 @@ struct TOC
 	void UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start);
 	void UpdateMCN(const ChannelQ *subq, uint32_t sectors_count);
 	bool UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer);
+	void GenerateIndex0();
 
 	void Print() const;
 	std::ostream &PrintCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index = 0) const;

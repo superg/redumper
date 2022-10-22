@@ -168,7 +168,7 @@ SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 }
 
 
-SPTD::Status cmd_read_cd(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
+SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
 {
 	CDB12_ReadCD cdb = {};
 
@@ -185,15 +185,11 @@ SPTD::Status cmd_read_cd(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int32_
 	cdb.include_sync_data = 1;
 	cdb.sub_channel_selection = (uint8_t)sub_channel;
 
-	sector_buffer.resize((CD_DATA_SIZE
-	                     + ((uint8_t)error_field < dim(READ_CD_C2_SIZES) ? READ_CD_C2_SIZES[(uint8_t)error_field] : 0)
-						 + ((uint8_t)sub_channel < dim(READ_CD_SUB_SIZES) ? READ_CD_SUB_SIZES[(uint8_t)sub_channel] : 0)) * transfer_length);
-
-	return sptd.SendCommand(&cdb, sizeof(cdb), sector_buffer.data(), sector_buffer.size());
+	return sptd.SendCommand(&cdb, sizeof(cdb), sector, CD_RAW_DATA_SIZE * transfer_length);
 }
 
 
-SPTD::Status cmd_read_cdda(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
+SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
 {
 	CDB12_ReadCDDA cdb = {};
 
@@ -202,9 +198,7 @@ SPTD::Status cmd_read_cdda(SPTD &sptd, std::vector<uint8_t> &sector_buffer, int3
 	*(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
 	cdb.sub_code = (uint8_t)sub_code;
 
-	sector_buffer.resize(((uint8_t)sub_code < dim(READ_CDDA_SIZES) ? READ_CDDA_SIZES[(uint8_t)sub_code] : 0) * transfer_length);
-
-	return sptd.SendCommand(&cdb, sizeof(cdb), sector_buffer.data(), sector_buffer.size());
+	return sptd.SendCommand(&cdb, sizeof(cdb), sector, CD_RAW_DATA_SIZE * transfer_length);
 }
 
 

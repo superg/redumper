@@ -137,8 +137,9 @@ uint32_t check_file(const std::filesystem::path &file_path, uint32_t entry_size)
 	if(!file_size)
 		throw_line(fmt::format("file is empty ({})", file_path.filename().string()));
 
-	if(file_size % entry_size)
-		throw_line(fmt::format("incomplete file or garbage in the end ({})", file_path.filename().string()));
+	//TODO: improve unaligned handling
+//	if(file_size % entry_size)
+//		throw_line(fmt::format("incomplete file or garbage in the end ({})", file_path.filename().string()));
 
 	return file_size / entry_size;
 }

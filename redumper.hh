@@ -21,7 +21,7 @@ namespace gpsxre
 static constexpr uint32_t SPTD_DEFAULT_TIMEOUT = 60;
 static constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
 #if 1
-static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
+static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START); // -45150
 #else
 // easier debugging, LBA starts with 0, plextor lead-in and asus cache are disabled
  static constexpr int32_t LBA_START = 0;
@@ -60,7 +60,7 @@ void redumper_debug(const Options &options);
 uint32_t percentage(int32_t value, uint32_t value_max);
 std::string first_ready_drive();
 void drive_init(SPTD &sptd, const Options &options);
-SPTD::Status read_sector(std::vector<uint8_t> &sector_buffer, SPTD &sptd, const DriveConfig &drive_config, int32_t lba);
+SPTD::Status read_sector(uint8_t *sector_buffer, SPTD &sptd, const DriveConfig &drive_config, int32_t lba);
 bool is_data_track(int32_t lba, const TOC &toc);
 uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data);
 void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveConfig &di, const Options &options);

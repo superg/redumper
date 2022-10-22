@@ -750,7 +750,7 @@ std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(s
 			int32_t position = i * SECTOR_STATE_SIZE + j + (LBA_START * (int32_t)SECTOR_STATE_SIZE);
 
 			auto sample = (int16_t *)&samples[j];
-			
+
 			for(uint16_t k = 0; k <= silence_threshold; ++k)
 			{
 				// silence
@@ -773,7 +773,7 @@ std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(s
 			}
 		}
 	}
-	
+
 	// tail
 	for(uint16_t k = 0; k <= silence_threshold; ++k)
 		silence_ranges[k].emplace_back(silence_start[k] == std::numeric_limits<int32_t>::max() ? sectors_count * SECTOR_STATE_SIZE + (LBA_START * (int32_t)SECTOR_STATE_SIZE) : silence_start[k], std::numeric_limits<int32_t>::max());
@@ -977,7 +977,7 @@ int32_t disc_offset_by_overlap(const TOC &toc, std::fstream &scm_fs, int32_t wri
 				break;
 			}
 		}
-		
+
 		if(write_offset != std::numeric_limits<int32_t>::max())
 			break;
 	}
@@ -1003,11 +1003,8 @@ void redumper_protection(Options &options)
 	bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
 	auto scra_path(scrap ? scp_path : scm_path);
 
-	uint32_t sectors_count = check_file(scra_path, CD_DATA_SIZE);
-	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), sub_path.filename().string()));
-	if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), state_path.filename().string()));
+	//TODO: rework
+	uint32_t sectors_count = check_file(state_path, SECTOR_STATE_SIZE);
 
 	// TOC
 	std::vector<uint8_t> toc_buffer = read_vector(toc_path);
@@ -1175,14 +1172,12 @@ void redumper_split(const Options &options)
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
 
+	bool subcode = std::filesystem::exists(sub_path);
 	bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
 	auto scra_path(scrap ? scp_path : scm_path);
 
-	uint32_t sectors_count = check_file(scra_path, CD_DATA_SIZE);
-	if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), sub_path.filename().string()));
-	if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-		throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), state_path.filename().string()));
+	//TODO: rework
+	uint32_t sectors_count = check_file(state_path, SECTOR_STATE_SIZE);
 
 	std::fstream scm_fs(scra_path, std::fstream::in | std::fstream::binary);
 	if(!scm_fs.is_open())
@@ -1213,6 +1208,7 @@ void redumper_split(const Options &options)
 
 	// preload subchannel Q
 	std::vector<ChannelQ> subq(sectors_count);
+	if(subcode)
 	{
 		std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
 		if(!fs.is_open())
@@ -1224,45 +1220,53 @@ void redumper_split(const Options &options)
 			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba_index, 1, 0, 0);
 			subcode_extract_channel((uint8_t *)&subq[lba_index], sub_buffer.data(), Subchannel::Q);
 		}
+
+		// correct Q
+		LOG_F("correcting Q... ");
+		correct_program_subq(subq.data(), sectors_count);
+		LOG("done");
+		LOG("");
+
+		toc.UpdateQ(subq.data(), sectors_count, LBA_START);
 	}
-
-	// correct Q
-	LOG_F("correcting Q... ");
-	correct_program_subq(subq.data(), sectors_count);
-	LOG("done");
-	LOG("");
-
-	toc.UpdateQ(subq.data(), sectors_count, LBA_START);
+	else
+	{
+		LOG("warning: subchannel data is not available, generating TOC index 0 entries");
+		toc.GenerateIndex0();
+	}
 
 	LOG("final TOC:");
 	toc.Print();
 	LOG("");
 
-	TOC qtoc(subq.data(), sectors_count, LBA_START);
-
-	// compare TOC and QTOC
-	int toc_diff = compare_toc(toc, qtoc);
-	if(toc_diff)
+	if(subcode)
 	{
-		LOG("");
-		LOG("final QTOC:");
-		qtoc.Print();
-		LOG("");
-	}
+		TOC qtoc(subq.data(), sectors_count, LBA_START);
 
-	if(!options.force_toc && (options.force_qtoc || toc_diff < 0))
-	{
-		qtoc.MergeControl(toc);
-		toc = qtoc;
-		LOG("warning: split is performed by QTOC");
-		LOG("");
-	}
-	else
-	{
-		toc.MergeControl(qtoc);
-	}
+		// compare TOC and QTOC
+		int toc_diff = compare_toc(toc, qtoc);
+		if(toc_diff)
+		{
+			LOG("");
+			LOG("final QTOC:");
+			qtoc.Print();
+			LOG("");
+		}
 
-	toc.UpdateMCN(subq.data(), sectors_count);
+		if(!options.force_toc && (options.force_qtoc || toc_diff < 0))
+		{
+			qtoc.MergeControl(toc);
+			toc = qtoc;
+			LOG("warning: split is performed by QTOC");
+			LOG("");
+		}
+		else
+		{
+			toc.MergeControl(qtoc);
+		}
+
+		toc.UpdateMCN(subq.data(), sectors_count);
+	}
 
 	// CD-TEXT
 	if(std::filesystem::exists(cdtext_path))
@@ -1283,7 +1287,7 @@ void redumper_split(const Options &options)
 		t0.control = (uint8_t)ChannelQ::Control::DATA;
 		t0.indices.clear();
 		t0.indices.push_back(t1.lba_start - MSF_LBA_SHIFT);
-		
+
 		t1.lba_start = t1.indices.front();
 
 		toc.sessions.front().tracks.insert(toc.sessions.front().tracks.begin(), t0);
@@ -1347,7 +1351,7 @@ void redumper_split(const Options &options)
 			}
 		}
 	}
-	
+
 /*
 	// PSX GameShark Upgrade CD
 	if(write_offset == std::numeric_limits<int32_t>::max())
@@ -1526,56 +1530,59 @@ void redumper_split(const Options &options)
 	}
 
 	// check session lead-outs for non-zero data
-	for(uint32_t i = 0; i < toc.sessions.size(); ++i)
+	if(subcode)
 	{
-		TOC::Session::Track &t = toc.sessions[i].tracks.back();
-
-		if(t.control & (uint8_t)ChannelQ::Control::DATA)
+		for(uint32_t i = 0; i < toc.sessions.size(); ++i)
 		{
-			// TODO: analyze if not empty?
-		}
-		else
-		{
-			ChannelQ q_empty;
-			memset(&q_empty, 0, sizeof(q_empty));
+			TOC::Session::Track &t = toc.sessions[i].tracks.back();
 
-			// find available lead-out sectors based on Q
-			int32_t leadout_end = t.lba_end;
-			for(; leadout_end < (int32_t)sectors_count + LBA_START; ++leadout_end)
+			if(t.control & (uint8_t)ChannelQ::Control::DATA)
 			{
-				uint32_t lba_index = leadout_end - LBA_START;
+				// TODO: analyze if not empty?
+			}
+			else
+			{
+				ChannelQ q_empty;
+				memset(&q_empty, 0, sizeof(q_empty));
 
-				auto &Q = subq[lba_index];
-				if(!memcmp(&Q, &q_empty, sizeof(q_empty)))
-					break;
-
-				if(Q.Valid())
+				// find available lead-out sectors based on Q
+				int32_t leadout_end = t.lba_end;
+				for(; leadout_end < (int32_t)sectors_count + LBA_START; ++leadout_end)
 				{
-					uint8_t adr = Q.control_adr & 0x0F;
-					if((adr != 1 || Q.mode1.tno != 0xAA) && adr != 2 && adr != 5)
+					uint32_t lba_index = leadout_end - LBA_START;
+
+					auto &Q = subq[lba_index];
+					if(!memcmp(&Q, &q_empty, sizeof(q_empty)))
 						break;
+
+					if(Q.Valid())
+					{
+						uint8_t adr = Q.control_adr & 0x0F;
+						if((adr != 1 || Q.mode1.tno != 0xAA) && adr != 2 && adr != 5)
+							break;
+					}
 				}
-			}
 
-			uint32_t sectors_to_check = std::min(leadout_end - t.lba_end, -MSF_LBA_SHIFT);
-			std::vector<uint32_t> data_samples(sectors_to_check * SECTOR_STATE_SIZE);
-			read_entry(scm_fs, (uint8_t *)data_samples.data(), CD_DATA_SIZE, t.lba_end - LBA_START, sectors_to_check, -write_offset * CD_SAMPLE_SIZE, 0);
+				uint32_t sectors_to_check = std::min(leadout_end - t.lba_end, -MSF_LBA_SHIFT);
+				std::vector<uint32_t> data_samples(sectors_to_check * SECTOR_STATE_SIZE);
+				read_entry(scm_fs, (uint8_t *)data_samples.data(), CD_DATA_SIZE, t.lba_end - LBA_START, sectors_to_check, -write_offset * CD_SAMPLE_SIZE, 0);
 
-			std::vector<State> state(sectors_to_check * SECTOR_STATE_SIZE);
-			read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, t.lba_end - LBA_START, sectors_to_check, -write_offset, (uint8_t)State::ERROR_SKIP);
+				std::vector<State> state(sectors_to_check * SECTOR_STATE_SIZE);
+				read_entry(state_fs, (uint8_t *)state.data(), SECTOR_STATE_SIZE, t.lba_end - LBA_START, sectors_to_check, -write_offset, (uint8_t)State::ERROR_SKIP);
 
-			uint32_t tail = 0;
-			for(uint32_t j = 0; j < (uint32_t)state.size(); ++j)
-			{
-				if(state[j] != State::ERROR_C2 && state[j] != State::ERROR_SKIP && data_samples[j])
-					tail = j;
-			}
+				uint32_t tail = 0;
+				for(uint32_t j = 0; j < (uint32_t)state.size(); ++j)
+				{
+					if(state[j] != State::ERROR_C2 && state[j] != State::ERROR_SKIP && data_samples[j])
+						tail = j;
+				}
 
-			if(tail)
-			{
-				LOG("warning: lead-out audio contains non-zero data (session: {}, extra samples: {})", toc.sessions[i].session_number, tail);
-//				uint32_t tail_bytes = tail * CD_SAMPLE_SIZE;
-//				t.lba_end += tail_bytes / CD_DATA_SIZE + (tail_bytes % CD_DATA_SIZE ? 1 : 0);
+				if(tail)
+				{
+					LOG("warning: lead-out audio contains non-zero data (session: {}, extra samples: {})", toc.sessions[i].session_number, tail);
+//					uint32_t tail_bytes = tail * CD_SAMPLE_SIZE;
+//					t.lba_end += tail_bytes / CD_DATA_SIZE + (tail_bytes % CD_DATA_SIZE ? 1 : 0);
+				}
 			}
 		}
 	}

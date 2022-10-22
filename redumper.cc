@@ -189,6 +189,18 @@ bool redumper_dump(const Options &options, bool refine)
 		LOG("");
 	}
 
+	bool subcode = true;
+	{
+		auto layout = sector_order_layout(drive_config.sector_order);
+		if(layout.subcode_offset == CD_RAW_DATA_SIZE)
+		{
+			subcode = false;
+			LOG("warning: drive doesn't support reading of subchannel data");
+		}
+		if(layout.c2_offset == CD_RAW_DATA_SIZE)
+			LOG("warning: drive doesn't support C2 Error pointers");
+	}
+
 	// BE read mode
 	bool scrap = false;
 	if(drive_config.read_method == DriveConfig::ReadMethod::BE)
@@ -205,7 +217,7 @@ bool redumper_dump(const Options &options, bool refine)
 					audio_tracks = true;
 			}
 		}
-		
+
 		if(data_tracks)
 		{
 			// by default don't allow BE mode for mixed data/audio discs
@@ -229,7 +241,9 @@ bool redumper_dump(const Options &options, bool refine)
 		std::filesystem::create_directories(options.image_path);
 
 	std::fstream fs_scm(scrap ? scp_path : scm_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
-	std::fstream fs_sub(sub_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
+	std::fstream fs_sub;
+	if(subcode)
+		fs_sub.open(sub_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 	std::fstream fs_state(state_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 
 	// fake TOC
@@ -270,7 +284,7 @@ bool redumper_dump(const Options &options, bool refine)
 	}
 
 	// read lead-in early as it improves the chance of extracting both sessions at once
-	if(drive_config.type == DriveConfig::Type::PLEXTOR && drive_config.product_id != "CD-R PX-W4824A" && !options.plextor_skip_leadin)
+	if(drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_skip_leadin)
 	{
 		std::vector<int32_t> session_lba_start;
 		for(uint32_t i = 0; i < toc.sessions.size(); ++i)
@@ -284,7 +298,7 @@ bool redumper_dump(const Options &options, bool refine)
 		lba_start = *options.lba_start;
 	if(options.lba_end)
 		lba_end = *options.lba_end;
-	
+
 	uint32_t errors = 0;
 	uint32_t errors_q = 0;
 
@@ -305,11 +319,9 @@ bool redumper_dump(const Options &options, bool refine)
 	if(refine)
 	{
 		auto scra_path = scrap ? scp_path : scm_path;
-		uint32_t sectors_count = check_file(scra_path, CD_DATA_SIZE);
-		if(check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), sub_path.filename().string()));
-		if(check_file(state_path, SECTOR_STATE_SIZE) != sectors_count)
-			throw_line(fmt::format("file sizes mismatch ({} <=> {})", scra_path.filename().string(), state_path.filename().string()));
+		uint32_t sectors_count = check_file(state_path, SECTOR_STATE_SIZE);
+		if(subcode && check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
+			throw_line(fmt::format("file sizes mismatch ({} <=> {})", state_path.filename().string(), sub_path.filename().string()));
 
 		for(int32_t lba = lba_start; lba < lba_end; ++lba)
 		{
@@ -333,14 +345,17 @@ bool redumper_dump(const Options &options, bool refine)
 				}
 			}
 
-			read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
-			ChannelQ Q;
-			subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-			if(!Q.Valid())
+			if(subcode)
 			{
-				++errors_q;
-				if(options.refine_subchannel)
-					refine_sector = true;
+				read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
+				ChannelQ Q;
+				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+				if(!Q.Valid())
+				{
+					++errors_q;
+					if(options.refine_subchannel)
+						refine_sector = true;
+				}
 			}
 
 			if(refine_sector)
@@ -349,7 +364,7 @@ bool redumper_dump(const Options &options, bool refine)
 	}
 
 	uint32_t errors_q_last = errors_q;
-	
+
 	LOG("{} started", refine ? "refine" : "dump");
 
 	auto dump_time_start = std::chrono::high_resolution_clock::now();
@@ -374,7 +389,7 @@ bool redumper_dump(const Options &options, bool refine)
 		bool store = false;
 
 		// mirror lead-out
-		if(drive_config.type == DriveConfig::Type::LG_ASUS && !options.asus_skip_leadout)
+		if(drive_is_asus(drive_config) && !options.asus_skip_leadout)
 		{
 			// initial cache read
 			auto r = inside_range(lba, error_ranges);
@@ -383,24 +398,23 @@ bool redumper_dump(const Options &options, bool refine)
 				// dummy read to cache lead-out
 				if(refine)
 				{
-					std::vector<uint8_t> sector_buffer;
-					read_sector(sector_buffer, sptd, drive_config, lba - 1);
+					std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+					read_sector(sector_buffer.data(), sptd, drive_config, lba - 1);
 				}
 
 				LOG_R();
 				LOG("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
 				{
-					auto cache = asus_cache_read(sptd);
+					auto cache = asus_cache_read(sptd, drive_config.type);
 
 					//DEBUG
-					if(!std::filesystem::exists(asus_path))
-						write_vector(asus_path, cache);
+					write_vector(asus_path, cache);
 
-					asus_leadout_buffer = asus_cache_extract(cache, lba, 100);
+					asus_leadout_buffer = asus_cache_extract(cache, lba, 100, drive_config.type);
 				}
 
 				uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
-				
+
 				LOG_R();
 				if(entries_count)
 					LOG("LG/ASUS: lead-out found (LBA: {:6}, sectors: {})", lba, entries_count);
@@ -453,7 +467,7 @@ bool redumper_dump(const Options &options, bool refine)
 				}
 
 			// refine subchannel (based on Q crc)
-			if(options.refine_subchannel && !read)
+			if(options.refine_subchannel && subcode && !read)
 			{
 				read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 				ChannelQ Q;
@@ -505,13 +519,13 @@ bool redumper_dump(const Options &options, bool refine)
 
 		if(read)
 		{
-			std::vector<uint8_t> sector_buffer;
+			std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 
 			if(refine)
 				cmd_flush_drive_cache(sptd, lba);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
-			auto status = read_sector(sector_buffer, sptd, drive_config, lba);
+			auto status = read_sector(sector_buffer.data(), sptd, drive_config, lba);
 			auto read_time_stop = std::chrono::high_resolution_clock::now();
 			bool slow = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
 
@@ -557,7 +571,7 @@ bool redumper_dump(const Options &options, bool refine)
 					}
 
 					//DEBUG
-//					debug_print_c2_scm_offsets(sector_buffer.data() + CD_DATA_SIZE, lba_index, LBA_START, drive_config.read_offset);
+//					debug_print_c2_scm_offsets(sector_buffer + CD_DATA_SIZE, lba_index, LBA_START, drive_config.read_offset);
 				}
 
 				if(refine)
@@ -604,47 +618,55 @@ bool redumper_dump(const Options &options, bool refine)
 						--errors;
 				}
 
-				ChannelQ Q;
-				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-				if(Q.Valid())
+				if(subcode)
 				{
-					std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
-					read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
-					ChannelQ Q_file;
-					subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
-					if(!Q_file.Valid())
+					ChannelQ Q;
+					subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+					if(Q.Valid())
 					{
-						write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
-						if(inside_range(lba, error_ranges) == nullptr)
-							--errors_q;
+						std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
+						read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
+						ChannelQ Q_file;
+						subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
+						if(!Q_file.Valid())
+						{
+							write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
+							if(inside_range(lba, error_ranges) == nullptr)
+								--errors_q;
+						}
 					}
 				}
 			}
 			else
 			{
 				write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
-				write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
-				write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset);
 
-				ChannelQ Q;
-				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-				if(Q.Valid())
+				if(subcode)
 				{
-					errors_q_last = errors_q;
-				}
-				else
-				{
-					// PLEXTOR: some drives desync on subchannel after mass C2 errors with high bit count
-					// prevent this by flushing drive cache after C2 error range
-					// (flush cache on 5 consecutive Q errors)
-					if(errors_q - errors_q_last > 5)
+					write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
+
+					ChannelQ Q;
+					subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+					if(Q.Valid())
 					{
-						cmd_flush_drive_cache(sptd, lba);
 						errors_q_last = errors_q;
 					}
+					else
+					{
+						// PLEXTOR: some drives desync on subchannel after mass C2 errors with high bit count
+						// prevent this by flushing drive cache after C2 error range
+						// (flush cache on 5 consecutive Q errors)
+						if(errors_q - errors_q_last > 5)
+						{
+							cmd_flush_drive_cache(sptd, lba);
+							errors_q_last = errors_q;
+						}
 
-					++errors_q;
+						++errors_q;
+					}
 				}
+
+				write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset);
 			}
 
 			// grow lead-out overread if we still can read
@@ -680,9 +702,10 @@ bool redumper_dump(const Options &options, bool refine)
 	LOGC("");
 
 	// keep files sector aligned
-	write_align(fs_scm, lba_overread - LBA_START, CD_DATA_SIZE, 0);
+//	write_align(fs_scm, lba_overread - LBA_START, CD_DATA_SIZE, 0);
 	write_align(fs_state, lba_overread - LBA_START, SECTOR_STATE_SIZE, (uint8_t)State::ERROR_SKIP);
-	write_align(fs_sub, lba_overread - LBA_START, CD_SUBCODE_SIZE, 0);
+	if(subcode)
+		write_align(fs_sub, lba_overread - LBA_START, CD_SUBCODE_SIZE, 0);
 
 	auto dump_time_stop = std::chrono::high_resolution_clock::now();
 
@@ -694,8 +717,8 @@ bool redumper_dump(const Options &options, bool refine)
 	LOG("  Q: {}", errors_q);
 	LOG("");
 
-	// always refine once if LG/ASUS to improve changes of capturing more lead-out sectors
-	return errors || drive_config.type == DriveConfig::Type::LG_ASUS && !options.asus_skip_leadout;
+	// always refine once if LG/ASUS to improve chances of capturing enough lead-out sectors
+	return errors || drive_is_asus(drive_config) && !options.asus_skip_leadout;
 }
 
 
@@ -917,7 +940,7 @@ void redumper_debug(const Options &options)
 	{
 		std::vector<uint8_t> cache = read_vector(cache_path);
 
-		asus_cache_print_subq(cache);
+		asus_cache_print_subq(cache, DriveConfig::Type::LG_ASU8);
 
 //		auto asd = asus_cache_unroll(cache);
 //		auto asd = asus_cache_extract(cache, 128224, 0);
@@ -990,7 +1013,7 @@ std::string first_ready_drive()
 			;
 		}
 	}
-		
+
 	return drive;
 }
 
@@ -1010,48 +1033,53 @@ void drive_init(SPTD &sptd, const Options &options)
 }
 
 
-SPTD::Status read_sector(std::vector<uint8_t> &sector_buffer, SPTD &sptd, const DriveConfig &drive_config, int32_t lba)
+SPTD::Status read_sector(uint8_t *sector, SPTD &sptd, const DriveConfig &drive_config, int32_t lba)
 {
+	auto layout = sector_order_layout(drive_config.sector_order);
+
 	// PLEXTOR: C2 is shifted 294/295 bytes late, read as much sectors as needed to get whole C2
 	// as a consequence, lead-out overread will fail a few sectors earlier
 	uint32_t sectors_count = drive_config.c2_shift / CD_C2_SIZE + (drive_config.c2_shift % CD_C2_SIZE ? 1 : 0) + 1;
+	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
 
 	SPTD::Status status;
+	// D8
 	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
 	{
-		status = cmd_read_cdda(sptd, sector_buffer, lba, sectors_count, READ_CDDA_SubCode::DATA_C2_SUB);
+		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
+		                       drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
 	}
-	else if(drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA)
-	{
-		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, READ_CD_ErrorField::C2, READ_CD_SubChannel::RAW);
-	}
-	else if(drive_config.read_method == DriveConfig::ReadMethod::BE)
-	{
-		status = cmd_read_cd(sptd, sector_buffer, lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::C2, READ_CD_SubChannel::RAW);
-	}
+	// BE
 	else
-		throw_line("invalid drive read mode specified");
+	{
+		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
+		                     drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
+		                     layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
+		                     layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
+	}
 
-	// compensate C2 shift
 	if(!status.status_code)
 	{
-		std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);
-		for(uint32_t i = 0; i < sectors_count; ++i)
-			memcpy(c2_buffer.data() + CD_C2_SIZE * i, sector_buffer.data() + CD_RAW_DATA_SIZE * i + CD_DATA_SIZE, CD_C2_SIZE);
+		memset(sector, 0x00, CD_RAW_DATA_SIZE);
 
-		memcpy(sector_buffer.data() + CD_DATA_SIZE, c2_buffer.data() + drive_config.c2_shift, CD_C2_SIZE);
-	}
-	sector_buffer.resize(CD_RAW_DATA_SIZE);
+		// copy data
+		if(layout.data_offset != CD_RAW_DATA_SIZE)
+			memcpy(sector + 0, sector_buffer.data() + layout.data_offset, CD_DATA_SIZE);
 
-	// swap C2 and SUB
-	if(drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB_C2)
-	{
-		std::vector<uint8_t> sector_buffer_swap(sector_buffer.size());
-		memcpy(sector_buffer_swap.data(), sector_buffer.data(), CD_DATA_SIZE);
-		memcpy(sector_buffer_swap.data() + CD_DATA_SIZE, sector_buffer.data() + CD_DATA_SIZE + CD_SUBCODE_SIZE, CD_C2_SIZE);
-		memcpy(sector_buffer_swap.data() + CD_DATA_SIZE + CD_C2_SIZE, sector_buffer.data() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+		// copy C2
+		if(layout.c2_offset != CD_RAW_DATA_SIZE)
+		{
+			// compensate C2 shift
+			std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);
+			for(uint32_t i = 0; i < sectors_count; ++i)
+				memcpy(c2_buffer.data() + CD_C2_SIZE * i, sector_buffer.data() + layout.size * i + layout.c2_offset, CD_C2_SIZE);
 
-		sector_buffer.swap(sector_buffer_swap);
+			memcpy(sector + CD_DATA_SIZE, c2_buffer.data() + drive_config.c2_shift, CD_C2_SIZE);
+		}
+
+		// copy subcode
+		if(layout.subcode_offset != CD_RAW_DATA_SIZE)
+			memcpy(sector + CD_DATA_SIZE + CD_C2_SIZE, sector_buffer.data() + layout.subcode_offset, CD_SUBCODE_SIZE);
 	}
 
 	return status;
@@ -1115,7 +1143,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 		if(i == session_lba_start.size() - 1)
 			cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
 
-		auto leadin_buffer = plextor_read_leadin(sptd, di.pregap_start);
+		auto leadin_buffer = plextor_read_leadin(sptd, di.pregap_start - MSF_LBA_SHIFT);
 		uint32_t entries_count = (uint32_t)leadin_buffer.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
 
 		if(entries_count < (uint32_t)(di.pregap_start - MSF_LBA_SHIFT))

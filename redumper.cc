@@ -932,6 +932,20 @@ void redumper_subchannel(const Options &options)
 
 void redumper_debug(const Options &options)
 {
+	{
+		SPTD sptd(options.drive);
+		drive_init(sptd, options);
+
+		DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
+		drive_override_config(drive_config, options.drive_type.get(),
+							options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
+		LOG("drive path: {}", options.drive);
+		LOG("drive: {}", drive_info_string(drive_config));
+		LOG("drive configuration: {}", drive_config_string(drive_config));
+
+		auto cache = asus_cache_read(sptd, drive_config.type);
+	}
+
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path cache_path(image_prefix + ".asus");

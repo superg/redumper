@@ -114,9 +114,13 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 //	{"HL-DT-ST", "BD-RE WH16NS40" , "1.05", "N000900KLZL4TG5625" , +6, 0, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3},
 
 	// OTHER
-	{"ASUS"    , "SDRW-08D2S-U"   , "B901", "2015/03/03 15:29"   ,    +6, 0,    0, DriveConfig::ReadMethod::BE, DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // CHECKED, internal model: DU-8A6NH11B
-	{"Lite-On" , "LTN483S 48x Max", "PD03", ""                   , -1164, 0,    0, DriveConfig::ReadMethod::BE, DriveConfig::SectorOrder::DATA_C2    , DriveConfig::Type::GENERIC}, // CHECKED, no subchannel data support
-//	{"QPS"    , "CD-W524E"      , "1.5A", "10/23/01"      ,  +686, 0, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // TEAC
+	{"ASUS"    , "SDRW-08D2S-U"    , "B901", "2015/03/03 15:29"  ,    +6, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // internal model: DU-8A6NH11B
+	{"Lite-On" , "LTN483S 48x Max" , "PD03", ""                  , -1164, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_C2    , DriveConfig::Type::GENERIC}, // no subchannel data support
+	{"hp"      , "DVD-ROM TS-H353C", "H410", "R67468CZ11"        ,    +6, 0,    0, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC}, // no pre-gap/lead-out support
+	{"PIONEER" , "BD-RW BDR-209D"  , "1.10", "13/09/10 PIONEER"  ,  +667, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // no C2 support, BE_CDDA is useless, data content is still unscrambled
+	{"HL-DT-ST", "DVD+-RW GH50N"   , "B103", "000819093O9CQ82239",  +667, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC},
+
+//	{"QPS"     , "CD-W524E"        , "1.5A", "10/23/01"          ,  +686, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // TEAC
 };
 
 

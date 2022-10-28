@@ -140,7 +140,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
-	// don't use replace_extension as it messes up paths with dot
+	// don't use .replace_extension() as it messes up paths with dot
 	std::filesystem::path scm_path(image_prefix + ".scram");
 	std::filesystem::path scp_path(image_prefix + ".scrap");
 	std::filesystem::path sub_path(image_prefix + ".subcode");
@@ -240,6 +240,10 @@ bool redumper_dump(const Options &options, bool refine)
 	if(!refine && !options.image_path.empty())
 		std::filesystem::create_directories(options.image_path);
 
+	// delete remnants of other dump mode
+	if(std::filesystem::exists(scrap ? scm_path : scp_path))
+		std::filesystem::remove(scrap ? scm_path : scp_path);
+
 	std::fstream fs_scm(scrap ? scp_path : scm_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 	std::fstream fs_sub;
 	if(subcode)
@@ -306,6 +310,8 @@ bool redumper_dump(const Options &options, bool refine)
 	std::vector<uint8_t> sector_data(CD_DATA_SIZE);
 	std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
 	std::vector<State> sector_state(SECTOR_STATE_SIZE);
+
+	int32_t subcode_shift = 0;
 
 	// drive specific
 	std::vector<uint8_t> asus_leadout_buffer;
@@ -469,7 +475,7 @@ bool redumper_dump(const Options &options, bool refine)
 			// refine subchannel (based on Q crc)
 			if(options.refine_subchannel && subcode && !read)
 			{
-				read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
+				read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0, 0);
 				ChannelQ Q;
 				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
 				if(!Q.Valid())
@@ -571,7 +577,7 @@ bool redumper_dump(const Options &options, bool refine)
 					}
 
 					//DEBUG
-//					debug_print_c2_scm_offsets(sector_buffer + CD_DATA_SIZE, lba_index, LBA_START, drive_config.read_offset);
+//					debug_print_c2_scm_offsets(sector_buffer.data() + CD_DATA_SIZE, lba_index, LBA_START, drive_config.read_offset);
 				}
 
 				if(refine)
@@ -583,6 +589,29 @@ bool redumper_dump(const Options &options, bool refine)
 
 		if(store)
 		{
+			// some drives desync at a random sector
+			if(subcode)
+			{
+				ChannelQ Q;
+				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+				if(Q.Valid())
+				{
+					uint8_t adr = Q.control_adr & 0x0F;
+					if(adr == 1 && Q.mode1.tno)
+					{
+						int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
+
+						int32_t shift = lbaq - lba;
+						if(subcode_shift != shift)
+						{
+							subcode_shift = shift;
+							LOG_R();
+							LOG("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
+						}
+					}
+				}
+			}
+
 			if(refine)
 			{
 				std::vector<State> sector_state_file(SECTOR_STATE_SIZE);
@@ -625,12 +654,12 @@ bool redumper_dump(const Options &options, bool refine)
 					if(Q.Valid())
 					{
 						std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
-						read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
+						read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0, 0);
 						ChannelQ Q_file;
 						subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
 						if(!Q_file.Valid())
 						{
-							write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
+							write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0);
 							if(inside_range(lba, error_ranges) == nullptr)
 								--errors_q;
 						}
@@ -643,7 +672,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 				if(subcode)
 				{
-					write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
+					write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0);
 
 					ChannelQ Q;
 					subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
@@ -653,7 +682,7 @@ bool redumper_dump(const Options &options, bool refine)
 					}
 					else
 					{
-						// PLEXTOR: some drives desync on subchannel after mass C2 errors with high bit count
+						// PLEXTOR: some drives byte desync on subchannel after mass C2 errors with high bit count
 						// prevent this by flushing drive cache after C2 error range
 						// (flush cache on 5 consecutive Q errors)
 						if(errors_q - errors_q_last > 5)
@@ -918,7 +947,9 @@ void redumper_subchannel(const Options &options)
 		// Q is available
 		if(memcmp(&Q, &q_empty, sizeof(q_empty)))
 		{
-			LOG("[LBA: {:6}] {}", LBA_START + (int32_t)lba_index, Q.Decode());
+			int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
+
+			LOGC("[LBA: {:6}, LBAQ: {:6}] {}", LBA_START + (int32_t)lba_index, lbaq, Q.Decode());
 			empty = false;
 		}
 		else if(!empty)

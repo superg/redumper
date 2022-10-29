@@ -132,6 +132,8 @@ set(sources
 	"scsi.hh"
 	"sha1.cc"
 	"sha1.hh"
+	"signal.cc"
+	"signal.hh"
 	"split.cc"
 	"split.hh"
 	"subcode.cc"

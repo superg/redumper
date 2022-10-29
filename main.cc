@@ -6,6 +6,7 @@
 #include "logger.hh"
 #include "options.hh"
 #include "redumper.hh"
+#include "signal.hh"
 
 
 
@@ -16,6 +17,8 @@ using namespace gpsxre;
 int main(int argc, char *argv[])
 {
 	int exit_code(0);
+
+	Signal::GetInstance();
 
 	try
 	{

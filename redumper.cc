@@ -7,6 +7,7 @@
 #include "file_io.hh"
 #include "logger.hh"
 #include "scrambler.hh"
+#include "signal.hh"
 #include "split.hh"
 #include "subcode.hh"
 #include "version.hh"
@@ -375,6 +376,13 @@ bool redumper_dump(const Options &options, bool refine)
 
 	auto dump_time_start = std::chrono::high_resolution_clock::now();
 
+	Signal::GetInstance().Engage();
+	int dummy = 0;
+	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&dummy, [](int *)
+	{
+		Signal::GetInstance().Disengage();
+    });
+
 	int32_t lba_next = 0;
 	int32_t lba_overread = lba_end;
 	for(int32_t lba = lba_start; lba < lba_overread; lba = lba_next)
@@ -712,6 +720,13 @@ bool redumper_dump(const Options &options, bool refine)
 				lba_next = r->second;
 		}
 
+		if(!Signal::GetInstance().IsEngaged())
+		{
+			LOG_R();
+			LOG("[LBA: {:6}] forced stop ", lba);
+			lba_overread = lba;
+		}
+
 		if(refine)
 		{
 			if(lba == lba_refine)
@@ -729,6 +744,8 @@ bool redumper_dump(const Options &options, bool refine)
 		}
 	}
 	LOGC("");
+
+	signal_guard.reset();
 
 	// keep files sector aligned
 //	write_align(fs_scm, lba_overread - LBA_START, CD_DATA_SIZE, 0);

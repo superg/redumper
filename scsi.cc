@@ -21,10 +21,6 @@
 namespace gpsxre
 {
 
-const SPTD::Status SPTD::Status::SUCCESS  = {0x00, 0x00, 0x00, 0x00};
-const SPTD::Status SPTD::Status::RESERVED = {0xFF, 0xFF, 0xFF, 0xFF};
-
-
 std::map<uint8_t, std::string> SPTD::_SCSISTAT_STRINGS =
 {
 	{0x00, "GOOD"                        },
@@ -210,7 +206,7 @@ std::set<std::string> SPTD::ListDrives()
 			{
 				if(!std::filesystem::is_directory(de.path()))
 					continue;
-				
+
 				std::filesystem::path type_path(de.path() / "type");
 				if(!std::filesystem::exists(type_path))
 					continue;
@@ -223,7 +219,7 @@ std::set<std::string> SPTD::ListDrives()
 				ifs >> type;
 				if(!ifs)
 					continue;
-				
+
 				if(type != 5)
 					continue;
 

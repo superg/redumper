@@ -21,15 +21,14 @@ namespace gpsxre
 class SPTD
 {
 public:
+	static constexpr uint32_t DEFAULT_TIMEOUT = 50000;
+
     struct Status
     {
         uint8_t status_code;
         uint8_t sense_key;
         uint8_t asc;
         uint8_t ascq;
-
-        static const Status SUCCESS;
-        static const Status RESERVED;
     };
 
     static std::set<std::string> ListDrives();
@@ -38,8 +37,7 @@ public:
     SPTD(const std::string &drive_path);
     ~SPTD();
 
-    //TODO: review timeout on windows
-    Status SendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, uint32_t timeout = 50000);
+    Status SendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, uint32_t timeout = DEFAULT_TIMEOUT);
 
 private:
     struct SenseData

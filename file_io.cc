@@ -34,6 +34,7 @@ void write_entry(std::fstream &fs, const uint8_t *data, uint32_t entry_size, uin
 		fs.write((char *)(data + total_size - size), size);
 		if(fs.fail())
 			throw_line("write failed");
+		fs << std::flush;
 	}
 }
 

@@ -19,6 +19,9 @@
 namespace gpsxre
 {
 
+static const std::string PROGRESS_FORMAT("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}");
+
+
 std::string redumper_version()
 {
 	return fmt::format("redumper v{}.{}.{} [{}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR), XSTRINGIFY(REDUMPER_VERSION_PATCH), version::build());
@@ -155,7 +158,7 @@ bool redumper_dump(const Options &options, bool refine)
 	if(!refine && !options.overwrite && std::filesystem::exists(state_path))
 		throw_line(fmt::format("dump already exists (name: {})", options.image_name));
 
-	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); //FIXME: transition to samples
+	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); //FIXME: transition to samples?
 	std::vector<std::pair<int32_t, int32_t>> error_ranges;
 
 	int32_t lba_start = drive_config.pregap_start;
@@ -305,7 +308,8 @@ bool redumper_dump(const Options &options, bool refine)
 	if(options.lba_end)
 		lba_end = *options.lba_end;
 
-	uint32_t errors = 0;
+	uint32_t errors_scsi = 0;
+	uint32_t errors_c2 = 0;
 	uint32_t errors_q = 0;
 
 	// buffers
@@ -326,31 +330,38 @@ bool redumper_dump(const Options &options, bool refine)
 
 	if(refine)
 	{
-		auto scra_path = scrap ? scp_path : scm_path;
-		uint32_t sectors_count = check_file(state_path, SECTOR_STATE_SIZE);
-		if(subcode && check_file(sub_path, CD_SUBCODE_SIZE) != sectors_count)
-			throw_line(fmt::format("file sizes mismatch ({} <=> {})", state_path.filename().string(), sub_path.filename().string()));
-
 		for(int32_t lba = lba_start; lba < lba_end; ++lba)
 		{
 			int32_t lba_index = lba - LBA_START;
-			if(lba_index >= (int32_t)sectors_count)
-				break;
 
 			if(inside_range(lba, skip_ranges) != nullptr || inside_range(lba, error_ranges) != nullptr)
 				continue;
 
 			bool refine_sector = false;
 
+			bool scsi_exists = false;
+			bool c2_exists = false;
 			read_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 			for(auto const &ss : sector_state)
 			{
-				if(ss == State::ERROR_C2 || ss == State::ERROR_SKIP)
+				if(ss == State::ERROR_SKIP)
 				{
-					++errors;
-					refine_sector = true;
+					scsi_exists = true;
 					break;
 				}
+				else if(ss == State::ERROR_C2)
+					c2_exists = true;
+			}
+
+			if(scsi_exists)
+			{
+				++errors_scsi;
+				refine_sector = true;
+			}
+			else if(c2_exists)
+			{
+				++errors_c2;
+				refine_sector = true;
 			}
 
 			if(subcode)
@@ -378,8 +389,8 @@ bool redumper_dump(const Options &options, bool refine)
 	auto dump_time_start = std::chrono::high_resolution_clock::now();
 
 	Signal::GetInstance().Engage();
-	int dummy = 0;
-	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&dummy, [](int *)
+	int signal_dummy = 0;
+	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&signal_dummy, [](int *)
 	{
 		Signal::GetInstance().Disengage();
     });
@@ -398,9 +409,8 @@ bool redumper_dump(const Options &options, bool refine)
 
 		int32_t lba_index = lba - LBA_START;
 
-		std::string refine_status;
-
 		bool read = true;
+		bool flush = false;
 		bool store = false;
 
 		// mirror lead-out
@@ -452,7 +462,8 @@ bool redumper_dump(const Options &options, bool refine)
 					if(c2_count)
 					{
 						if(!refine)
-							++errors;
+							++errors_c2;
+
 						if(options.verbose)
 						{
 							LOG_R();
@@ -473,13 +484,24 @@ bool redumper_dump(const Options &options, bool refine)
 		{
 			read = false;
 
+			bool c2_exists = false;
+			bool skip_exists = false;
 			read_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 			for(auto const &ss : sector_state)
-				if(ss == State::ERROR_C2 || ss == State::ERROR_SKIP)
+			{
+				if(ss == State::ERROR_C2)
+					c2_exists = true;
+				else if(ss == State::ERROR_SKIP)
 				{
-					read = true;
+					skip_exists = true;
 					break;
 				}
+			}
+
+			if(c2_exists || skip_exists)
+				read = true;
+			if(c2_exists)
+				flush = true;
 
 			// refine subchannel (based on Q crc)
 			if(options.refine_subchannel && subcode && !read)
@@ -536,7 +558,7 @@ bool redumper_dump(const Options &options, bool refine)
 		{
 			std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 
-			if(refine)
+			if(flush)
 				cmd_flush_drive_cache(sptd, lba);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
@@ -557,10 +579,9 @@ bool redumper_dump(const Options &options, bool refine)
 				// don't log lead-out overread SCSI error
 				if(inside_range(lba, error_ranges) == nullptr && lba < lba_end)
 				{
-					if(refine)
-						refine_status = fmt::format("R: {}, SCSI", refine_counter + 1);
-					else
-						++errors;
+					if(!refine)
+						++errors_scsi;
+
 					if(options.verbose)
 					{
 						LOG_R();
@@ -578,7 +599,8 @@ bool redumper_dump(const Options &options, bool refine)
 				if(c2_count)
 				{
 					if(!refine)
-						++errors;
+						++errors_c2;
+
 					if(options.verbose)
 					{
 						LOG_R();
@@ -588,9 +610,6 @@ bool redumper_dump(const Options &options, bool refine)
 					//DEBUG
 //					debug_print_c2_scm_offsets(sector_buffer.data() + CD_DATA_SIZE, lba_index, LBA_START, drive_config.read_offset);
 				}
-
-				if(refine)
-					refine_status = fmt::format("R: {}, C2 (B: {})", refine_counter + 1, c2_count);
 
 				store = true;
 			}
@@ -628,10 +647,18 @@ bool redumper_dump(const Options &options, bool refine)
 				read_entry(fs_state, (uint8_t *)sector_state_file.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 				read_entry(fs_scm, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE, 0);
 
-				bool sector_fixed = true;
 				bool update = false;
+				bool scsi_exists_file = false;
+				bool c2_exists_file = false;
+				bool scsi_exists = false;
+				bool c2_exists = false;
 				for(uint32_t i = 0; i < SECTOR_STATE_SIZE; ++i)
 				{
+					if(sector_state_file[i] == State::ERROR_SKIP)
+						scsi_exists_file = true;
+					else if(sector_state_file[i] == State::ERROR_C2)
+						c2_exists_file = true;
+
 					// new data is improved
 					if(sector_state[i] > sector_state_file[i])
 						update = true;
@@ -643,8 +670,10 @@ bool redumper_dump(const Options &options, bool refine)
 						((uint32_t *)sector_data.data())[i] = ((uint32_t *)sector_data_file.data())[i];
 					}
 
-					if(sector_state[i] == State::ERROR_C2 || sector_state[i] == State::ERROR_SKIP)
-						sector_fixed = false;
+					if(sector_state[i] == State::ERROR_SKIP)
+						scsi_exists = true;
+					else if(sector_state[i] == State::ERROR_C2)
+						c2_exists = true;
 				}
 
 				if(update)
@@ -652,8 +681,17 @@ bool redumper_dump(const Options &options, bool refine)
 					write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
 					write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset);
 
-					if(sector_fixed && inside_range(lba, error_ranges) == nullptr)
-						--errors;
+					if(inside_range(lba, error_ranges) == nullptr && lba < lba_end)
+					{
+						if(scsi_exists_file && !scsi_exists)
+						{
+							--errors_scsi;
+							if(c2_exists)
+								++errors_c2;
+						}
+						else if(c2_exists_file && !c2_exists)
+							--errors_c2;
+					}
 				}
 
 				if(subcode)
@@ -721,7 +759,7 @@ bool redumper_dump(const Options &options, bool refine)
 				lba_next = r->second;
 		}
 
-		if(!Signal::GetInstance().IsEngaged())
+		if(Signal::GetInstance().Interrupt())
 		{
 			LOG_R();
 			LOG("[LBA: {:6}] forced stop ", lba);
@@ -733,26 +771,16 @@ bool redumper_dump(const Options &options, bool refine)
 			if(lba == lba_refine)
 			{
 				LOG_R();
-				LOGC_F("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI/C2: {}, Q: {} }} {}",
-					   percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries),
-					   lba, lba_overread, errors, errors_q, refine_status);
+				LOGC_F(PROGRESS_FORMAT, percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 			}
 		}
 		else
 		{
 			LOG_R();
-			LOGC_F("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI/C2: {}, Q: {} }}", percentage(lba, lba_overread - 1), lba, lba_overread, errors, errors_q);
+			LOGC_F(PROGRESS_FORMAT, percentage(lba, lba_overread - 1), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 		}
 	}
 	LOGC("");
-
-	signal_guard.reset();
-
-	// keep files sector aligned
-//	write_align(fs_scm, lba_overread - LBA_START, CD_DATA_SIZE, 0);
-	write_align(fs_state, lba_overread - LBA_START, SECTOR_STATE_SIZE, (uint8_t)State::ERROR_SKIP);
-	if(subcode)
-		write_align(fs_sub, lba_overread - LBA_START, CD_SUBCODE_SIZE, 0);
 
 	auto dump_time_stop = std::chrono::high_resolution_clock::now();
 
@@ -760,17 +788,20 @@ bool redumper_dump(const Options &options, bool refine)
 	LOG("");
 
 	LOG("media errors: ");
-	LOG("  SCSI/C2: {}", errors);
+	LOG("  SCSI: {}", errors_scsi);
+	LOG("  C2: {}", errors_c2);
 	LOG("  Q: {}", errors_q);
 	LOG("");
 
 	// always refine once if LG/ASUS to improve chances of capturing enough lead-out sectors
-	return errors || drive_is_asus(drive_config) && !options.asus_skip_leadout;
+	return errors_scsi || errors_c2 || drive_is_asus(drive_config) && !options.asus_skip_leadout;
 }
 
 
 void redumper_rings(const Options &options)
 {
+//FIXME: outdated code due to numerous changes, review later
+#if 0
 	SPTD sptd(options.drive);
 	drive_init(sptd, options);
 
@@ -936,6 +967,7 @@ void redumper_rings(const Options &options)
 	LOG("");
 	LOG("analyze completed (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
 	LOG("");
+#endif
 }
 
 

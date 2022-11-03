@@ -3,7 +3,7 @@
 
 
 
-static volatile sig_atomic_t e_sigint_flag = 0;
+static volatile sig_atomic_t g_sigint_flag = 0;
 
 
 
@@ -20,19 +20,19 @@ Signal &Signal::GetInstance()
 
 void Signal::Engage()
 {
-	e_sigint_flag = 1;
+	g_sigint_flag = 2;
 }
 
 
 void Signal::Disengage()
 {
-	e_sigint_flag = 0;
+	g_sigint_flag = 0;
 }
 
 
-bool Signal::IsEngaged()
+bool Signal::Interrupt()
 {
-	return e_sigint_flag;
+	return g_sigint_flag == 1;
 }
 
 
@@ -44,13 +44,13 @@ Signal::Signal()
 
 void Signal::Handler(int sig)
 {
-	if(e_sigint_flag)
-		e_sigint_flag = 0;
-	else
+	if(!g_sigint_flag)
 	{
 		signal(sig, SIG_DFL);
 		raise(sig);
 	}
+	else if(g_sigint_flag == 2)
+		g_sigint_flag = 1;
 }
 
 }

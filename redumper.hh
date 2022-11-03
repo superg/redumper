@@ -18,7 +18,7 @@
 namespace gpsxre
 {
 
-static constexpr uint32_t SPTD_DEFAULT_TIMEOUT = 60;
+static constexpr uint32_t SECTOR_STATE_SIZE = CD_DATA_SIZE / CD_SAMPLE_SIZE;
 static constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
 #if 1
 static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START); // -45150
@@ -36,7 +36,6 @@ static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START); // -45150
 										 // XPLO FM  7770 .. 10700-10704
 //static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
 #endif
-static constexpr uint32_t SECTOR_STATE_SIZE = CD_DATA_SIZE / CD_SAMPLE_SIZE;
 
 
 enum class State : uint8_t

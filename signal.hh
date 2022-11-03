@@ -12,7 +12,7 @@ public:
 
 	void Engage();
 	void Disengage();
-	bool IsEngaged();
+	bool Interrupt();
 
 	Signal(Signal const &) = delete;
 	void operator=(Signal const &) = delete;

@@ -5,6 +5,7 @@
 #include <iostream>
 #include "cmd.hh"
 #include "common.hh"
+#include "crc32.hh"
 #include "file_io.hh"
 #include "logger.hh"
 #include "scrambler.hh"
@@ -456,9 +457,10 @@ bool redumper_dump(const Options &options, bool refine)
 
 					memcpy(sector_data.data(), entry, CD_DATA_SIZE);
 					memcpy(sector_subcode.data(), entry + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
+					uint8_t *sector_c2 = entry + CD_DATA_SIZE;
 
 					std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_SCSI_OFF);
-					auto c2_count = state_from_c2(sector_state, entry + CD_DATA_SIZE);
+					auto c2_count = state_from_c2(sector_state, sector_c2);
 					if(c2_count)
 					{
 						if(!refine)
@@ -466,12 +468,15 @@ bool redumper_dump(const Options &options, bool refine)
 
 						if(options.verbose)
 						{
+							uint32_t data_crc = crc32(sector_data.data(), CD_DATA_SIZE);
+							uint32_t c2_crc = crc32(sector_c2, CD_C2_SIZE);
+
 							LOG_R();
-							LOG("[LBA: {:6}] C2 error (bits: {})", lba, c2_count);
+							LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X})", lba, c2_count, data_crc, c2_crc);
 						}
 
 						//DEBUG
-//						debug_print_c2_scm_offsets(entry + CD_DATA_SIZE, lba_index, LBA_START, drive_config.read_offset);
+//						debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, drive_config.read_offset);
 					}
 
 					store = true;
@@ -593,9 +598,10 @@ bool redumper_dump(const Options &options, bool refine)
 			{
 				memcpy(sector_data.data(), sector_buffer.data(), CD_DATA_SIZE);
 				memcpy(sector_subcode.data(), sector_buffer.data() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
+				uint8_t *sector_c2 = sector_buffer.data() + CD_DATA_SIZE;
 
 				std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS);
-				auto c2_count = state_from_c2(sector_state, sector_buffer.data() + CD_DATA_SIZE);
+				auto c2_count = state_from_c2(sector_state, sector_c2);
 				if(c2_count)
 				{
 					if(!refine)
@@ -603,12 +609,15 @@ bool redumper_dump(const Options &options, bool refine)
 
 					if(options.verbose)
 					{
+						uint32_t data_crc = crc32(sector_data.data(), CD_DATA_SIZE);
+						uint32_t c2_crc = crc32(sector_c2, CD_C2_SIZE);
+
 						LOG_R();
-						LOG("[LBA: {:6}] C2 error (bits: {})", lba, c2_count);
+						LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X})", lba, c2_count, data_crc, c2_crc);
 					}
 
 					//DEBUG
-//					debug_print_c2_scm_offsets(sector_buffer.data() + CD_DATA_SIZE, lba_index, LBA_START, drive_config.read_offset);
+//					debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, drive_config.read_offset);
 				}
 
 				store = true;
@@ -729,9 +738,8 @@ bool redumper_dump(const Options &options, bool refine)
 					}
 					else
 					{
-						// PLEXTOR: some drives byte desync on subchannel after mass C2 errors with high bit count
-						// prevent this by flushing drive cache after C2 error range
-						// (flush cache on 5 consecutive Q errors)
+						// PLEXTOR: some drives byte desync on subchannel after mass C2 errors with high bit count on high speed
+						// prevent this by flushing drive cache after C2 error range (flush cache on 5 consecutive Q errors)
 						if(errors_q - errors_q_last > 5)
 						{
 							cmd_flush_drive_cache(sptd, lba);

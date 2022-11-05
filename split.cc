@@ -557,11 +557,9 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 					// data: might need unscramble
 					if(data_track)
 					{
-						bool standard_sync = !memcmp(sector.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
-
 						if(options.cdi_correct_offset)
 						{
-							if(!standard_sync)
+							if(memcmp(sector.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
 							{
 								int32_t offset_shift = track_process_offset_shift(write_offset, lba, std::min(CDI_MAX_OFFSET_SHIFT, (uint32_t)(lba_end - lba)),
 																				  state_fs, scm_fs, std::filesystem::path(options.image_path) / track_name);
@@ -575,26 +573,29 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 									LOG("warning: offset shift detected (LBA: {:6}, offset: {}, difference: {:+})", lba, write_offset, offset_shift);
 
 									read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * CD_SAMPLE_SIZE, 0);
-									standard_sync = true;
 								}
 							}
 						}
 
-						if(standard_sync)
+						if(lba == 235399)
 						{
-							bool unscrambled = scrambler.Descramble(sector.data(), &lba);
+							LOG("");
+						}
 
-							//DEBUG
-							if(!unscrambled)
-							{
-								LOG_F("");
-							}
-
+						if(scrambler.Descramble(sector.data(), &lba))
+						{
 							if(!data_mode_set)
 							{
 								t.data_mode = ((Sector *)sector.data())->header.mode;
 								data_mode_set = true;
 							}
+						}
+						else
+						{
+							LOG("warning: descramble failed (LBA: {:6})", lba);
+
+							//DEBUG
+							;
 						}
 					}
 				}
@@ -1529,6 +1530,8 @@ void redumper_split(const Options &options)
 		}
 	}
 
+//TODO: review, detach from subq?
+/*
 	// check session lead-outs for non-zero data
 	if(subcode)
 	{
@@ -1586,6 +1589,7 @@ void redumper_split(const Options &options)
 			}
 		}
 	}
+*/
 	auto time_stop = std::chrono::high_resolution_clock::now();
 	LOG("detection complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
 	LOG("");
@@ -1696,7 +1700,7 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 	std::string line;
 	while(std::getline(fs, line))
 	{
-		auto tokens(tokenize_quoted(line, " \t", "\"\""));
+		auto tokens(tokenize(line, " \t", "\"\""));
 		if(tokens.size() == 3)
 		{
 			if(tokens[0] == "FILE")

@@ -182,9 +182,9 @@ std::string enum_to_string(T value, const std::map<T, std::string> &dictionary)
 	auto it = dictionary.find(value);
 	if(it == dictionary.end())
 		throw_line(fmt::format("enum_to_string failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
-	
+
 	return it->second;
-	
+
 }
 
 template<typename T>
@@ -199,7 +199,7 @@ T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
 
 
 std::string normalize_string(const std::string &s);
-std::vector<std::string> tokenize_quoted(const std::string &str, const char *delimiters, const char *quotes);
+std::vector<std::string> tokenize(const std::string &str, const char *delimiters, const char *quotes);
 std::string str_uppercase(const std::string &str);
 void replace_all_occurences(std::string &str, const std::string &from, const std::string &to);
 std::vector<std::pair<int32_t, int32_t>> string_to_ranges(const std::string &str);

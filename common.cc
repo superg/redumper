@@ -29,7 +29,7 @@ std::string normalize_string(const std::string &s)
 }
 
 
-std::vector<std::string> tokenize_quoted(const std::string &str, const char *delimiters, const char *quotes)
+std::vector<std::string> tokenize(const std::string &str, const char *delimiters, const char *quotes)
 {
     std::vector<std::string> tokens;
 
@@ -44,7 +44,7 @@ std::vector<std::string> tokenize_quoted(const std::string &str, const char *del
         if(in)
         {
             // quoted
-            if(*s == quotes[0])
+            if(quotes != nullptr && *s == quotes[0])
             {
                 if(*it == quotes[1])
                 {

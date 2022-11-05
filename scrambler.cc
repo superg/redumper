@@ -18,6 +18,8 @@ Scrambler::Scrambler()
 bool Scrambler::Descramble(uint8_t *sector, int32_t *lba, uint32_t size) const
 {
 	bool unscrambled = false;
+	if(memcmp(sector, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
+		return unscrambled;
 
 	// unscramble sector
 	Process(sector, sector, size);
@@ -32,37 +34,36 @@ bool Scrambler::Descramble(uint8_t *sector, int32_t *lba, uint32_t size) const
 		{
 			uint32_t size_to_check = std::min(size - offsetof(Sector, mode2.user_data), sizeof(s->mode2.user_data));
 
-			// whole sector is expected to be zeroed
+			// whole sector data is expected to be zeroed
 			unscrambled = is_zeroed(s->mode2.user_data, size_to_check);
 		}
 		// mode 1 / mode 2
-		if(s->header.mode == 1 || s->header.mode == 2)
+		else if(s->header.mode == 1 || s->header.mode == 2)
 		{
 			unscrambled = true;
 		}
+		// this is better way but disabled to be compatible to DIC
+/*
 		// invalid mode but MSF matches
 		else
 		{
 			unscrambled = lba != nullptr && BCDMSF_to_LBA(s->header.address) == *lba;
 		}
-/*
-		// invalid mode
+*/
+		// DIC compatibility
 		else if(size >= offsetof(Sector, mode1.intermediate) && lba != nullptr)
 		{
 			uint32_t size_to_check = std::min(size - offsetof(Sector, mode1.intermediate), sizeof(s->mode1.intermediate));
 
+			bool zeroed = is_zeroed(s->mode1.intermediate, size_to_check);
+
 			// MSF matches and intermediate data is zeroed
 			if(BCDMSF_to_LBA(s->header.address) == *lba)
-			{
-				unscrambled = is_zeroed(s->mode1.intermediate, size_to_check);
-			}
+				unscrambled = !zeroed;
 			// MSF doesn't match and intermediate data is not zeroed
 			else
-			{
-				unscrambled = !is_zeroed(s->mode1.intermediate, size_to_check);
-			}
+				unscrambled = zeroed;
 		}
-*/
 	}
 
 	// scramble sector

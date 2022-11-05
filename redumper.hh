@@ -18,7 +18,6 @@
 namespace gpsxre
 {
 
-static constexpr uint32_t SECTOR_STATE_SIZE = CD_DATA_SIZE / CD_SAMPLE_SIZE;
 static constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
 #if 1
 static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START); // -45150

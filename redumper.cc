@@ -315,7 +315,7 @@ bool redumper_dump(const Options &options, bool refine)
 	// buffers
 	std::vector<uint8_t> sector_data(CD_DATA_SIZE);
 	std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
-	std::vector<State> sector_state(SECTOR_STATE_SIZE);
+	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
 
 	int32_t subcode_shift = 0;
 
@@ -341,7 +341,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 			bool scsi_exists = false;
 			bool c2_exists = false;
-			read_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
+			read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 			for(auto const &ss : sector_state)
 			{
 				if(ss == State::ERROR_SKIP)
@@ -486,7 +486,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 			bool c2_exists = false;
 			bool skip_exists = false;
-			read_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
+			read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 			for(auto const &ss : sector_state)
 			{
 				if(ss == State::ERROR_C2)
@@ -642,9 +642,9 @@ bool redumper_dump(const Options &options, bool refine)
 
 			if(refine)
 			{
-				std::vector<State> sector_state_file(SECTOR_STATE_SIZE);
+				std::vector<State> sector_state_file(CD_DATA_SIZE_SAMPLES);
 				std::vector<uint8_t> sector_data_file(CD_DATA_SIZE);
-				read_entry(fs_state, (uint8_t *)sector_state_file.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
+				read_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 				read_entry(fs_scm, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE, 0);
 
 				bool update = false;
@@ -652,7 +652,7 @@ bool redumper_dump(const Options &options, bool refine)
 				bool c2_exists_file = false;
 				bool scsi_exists = false;
 				bool c2_exists = false;
-				for(uint32_t i = 0; i < SECTOR_STATE_SIZE; ++i)
+				for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
 				{
 					if(sector_state_file[i] == State::ERROR_SKIP)
 						scsi_exists_file = true;
@@ -679,7 +679,7 @@ bool redumper_dump(const Options &options, bool refine)
 				if(update)
 				{
 					write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
-					write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset);
+					write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset);
 
 					if(inside_range(lba, error_ranges) == nullptr && lba < lba_end)
 					{
@@ -742,7 +742,7 @@ bool redumper_dump(const Options &options, bool refine)
 					}
 				}
 
-				write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, drive_config.read_offset);
+				write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset);
 			}
 
 			// grow lead-out overread if we still can read
@@ -1203,7 +1203,7 @@ uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data)
 
 	// group 4 C2 consecutive errors into 1 state, this way it aligns to the drive offset
 	// and covers the case where for 1 C2 bit there are 2 damaged sector bytes (scrambled data bytes, usually)
-	for(uint32_t i = 0; i < SECTOR_STATE_SIZE; ++i)
+	for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
 	{
 		uint8_t c2_quad = c2_data[i / 2];
 		if(i % 2)
@@ -1327,8 +1327,8 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 			else
 			{
 				// data
-				std::vector<State> sector_state(SECTOR_STATE_SIZE);
-				read_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, di.read_offset, (uint8_t)State::ERROR_SKIP);
+				std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
+				read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, di.read_offset, (uint8_t)State::ERROR_SKIP);
 				for(auto const &s : sector_state)
 				{
 					// new data is improved
@@ -1338,7 +1338,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 						std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
 
 						write_entry(fs_scm, sector_data, CD_DATA_SIZE, lba_index, 1, di.read_offset * CD_SAMPLE_SIZE);
-						write_entry(fs_state, (uint8_t *)sector_state.data(), SECTOR_STATE_SIZE, lba_index, 1, di.read_offset);
+						write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, di.read_offset);
 
 						break;
 					}
@@ -1364,7 +1364,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int32_t lba_start, int32_t drive_read_offset)
 {
 	uint32_t scm_offset = lba_index * CD_DATA_SIZE - drive_read_offset * CD_SAMPLE_SIZE;
-	uint32_t state_offset = lba_index * SECTOR_STATE_SIZE - drive_read_offset;
+	uint32_t state_offset = lba_index * CD_DATA_SIZE_SAMPLES - drive_read_offset;
 
 	std::string offset_str;
 	for(uint32_t i = 0; i < CD_DATA_SIZE; ++i)

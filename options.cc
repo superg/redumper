@@ -24,7 +24,7 @@ Options::Options(int argc, const char *argv[])
     , iso9660_trim(false)
     , plextor_skip_leadin(false)
     , asus_skip_leadout(false)
-    , cdi_correct_offset(false)
+    , correct_offset_shift(false)
     , cdi_ready_normalize(false)
     , perfect_audio_offset(false)
     , audio_silence_threshold(32)
@@ -36,7 +36,7 @@ Options::Options(int argc, const char *argv[])
         bool quoted = false;
         if(argument.find(' ') != std::string::npos)
             quoted = true;
-        
+
         command += fmt::vformat("{}{}{}{}", fmt::make_format_args(quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " "));
     }
 
@@ -147,8 +147,8 @@ Options::Options(int argc, const char *argv[])
                     plextor_skip_leadin = true;
                 else if(key == "--asus-skip-leadout")
                     asus_skip_leadout = true;
-                else if(key == "--cdi-correct-offset")
-                    cdi_correct_offset = true;
+                else if(key == "--correct-offset-shift")
+                    correct_offset_shift = true;
                 else if(key == "--cdi-ready-normalize")
                     cdi_ready_normalize = true;
                 else if(key == "--force-offset")
@@ -169,7 +169,7 @@ Options::Options(int argc, const char *argv[])
             else
                 throw_line(fmt::format("option value expected ({})", argv[i - 1]));
         }
-        
+
         if(!o.empty())
         {
             if(s_value != nullptr)
@@ -239,7 +239,7 @@ void Options::PrintUsage()
     LOG("\t--iso9660-trim\ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
     LOG("\t--plextor-skip-leadin\tskip dumping lead-in using negative range");
     LOG("\t--asus-skip-leadout\tskip extracting lead-out from drive cache");
-    LOG("\t--cdi-correct-offset\tcorrect mid-track CDI/VCD offset change");
+    LOG("\t--correct-offset-shift\tcorrect disc write offset shift");
     LOG("\t--cdi-ready-normalize\tseparate CDi-Ready track 1 index 0 to track 0");
     LOG("\t--force-offset=VALUE\toverride offset autodetection and use supplied value");
     LOG("\t--perfect-audio-offset\tintelligent silence based audio offset detection");

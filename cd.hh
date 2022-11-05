@@ -105,6 +105,7 @@ inline constexpr uint32_t CD_C2_SIZE = 294;
 inline constexpr uint32_t CD_SUBCODE_SIZE = 96;
 inline constexpr uint32_t CD_RAW_DATA_SIZE = CD_DATA_SIZE + CD_C2_SIZE + CD_SUBCODE_SIZE;
 inline constexpr int32_t CD_SAMPLE_SIZE = sizeof(int16_t) * 2; // 16-bit signed sample, stereo
+inline constexpr uint32_t CD_DATA_SIZE_SAMPLES = CD_DATA_SIZE / CD_SAMPLE_SIZE;
 
 inline constexpr uint32_t CD_TRACKS_COUNT = 100;
 inline constexpr uint32_t CD_INDEX_COUNT = 100;

@@ -16,7 +16,7 @@ struct Options
     std::string command;
 
     std::list<std::string> positional;
-    
+
     bool help;
     bool verbose;
 
@@ -47,7 +47,7 @@ struct Options
     bool iso9660_trim;
     bool plextor_skip_leadin;
     bool asus_skip_leadout;
-    bool cdi_correct_offset;
+    bool correct_offset_shift;
     bool cdi_ready_normalize;
     std::unique_ptr<int> force_offset;
     bool perfect_audio_offset;

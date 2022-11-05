@@ -577,11 +577,6 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 							}
 						}
 
-						if(lba == 235399)
-						{
-							LOG("");
-						}
-
 						if(scrambler.Descramble(sector.data(), &lba))
 						{
 							if(!data_mode_set)
@@ -593,9 +588,6 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 						else
 						{
 							LOG("warning: descramble failed (LBA: {:6})", lba);
-
-							//DEBUG
-							;
 						}
 					}
 				}

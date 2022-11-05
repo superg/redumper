@@ -51,18 +51,13 @@ bool Scrambler::Descramble(uint8_t *sector, int32_t *lba, uint32_t size) const
 		}
 */
 		// DIC compatibility
-		else if(size >= offsetof(Sector, mode1.intermediate) && lba != nullptr)
+		else if(size >= offsetof(Sector, mode1.intermediate))
 		{
 			uint32_t size_to_check = std::min(size - offsetof(Sector, mode1.intermediate), sizeof(s->mode1.intermediate));
 
-			bool zeroed = is_zeroed(s->mode1.intermediate, size_to_check);
-
-			// MSF matches and intermediate data is zeroed
-			if(BCDMSF_to_LBA(s->header.address) == *lba)
-				unscrambled = !zeroed;
-			// MSF doesn't match and intermediate data is not zeroed
-			else
-				unscrambled = zeroed;
+			// intermediate data is zeroed
+			if(is_zeroed(s->mode1.intermediate, size_to_check))
+				unscrambled = true;
 		}
 	}
 

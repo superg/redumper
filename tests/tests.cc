@@ -75,6 +75,16 @@ bool test_unscramble()
 
 	Scrambler scrambler;
 
+	//DEBUG
+	if(0)
+	{
+		std::vector<uint8_t> sector = read_vector("unscramble/invalid_mode_filled_intermediate.uns.000000.fail");
+		auto s = (Sector *)sector.data();
+		scrambler.Process(sector.data(), sector.data(), sector.size());
+		std::ofstream ofs("unscramble/invalid_mode_filled_intermediate.scr.000000.fail", std::fstream::binary);
+		ofs.write((char *)sector.data(), sector.size());
+	}
+
 	for(auto const &f : std::filesystem::directory_iterator("unscramble"))
 	{
     	if(f.is_regular_file())
@@ -82,25 +92,6 @@ bool test_unscramble()
         	std::cout << fmt::format("descramble: {}... ", f.path().filename().string()) << std::flush;
 
 			std::vector<uint8_t> sector = read_vector(f.path());
-
-			//DEBUG
-			// scramble
-			if(0)
-			{
-				if(f.path().extension() == ".fail")
-				{
-					auto output_path(f.path());
-					output_path.replace_extension();
-					output_path += ".pass";
-					if(!std::filesystem::exists(output_path))
-					{
-						std::vector<uint8_t> sector_scrambled(sector);
-						scrambler.Process(sector_scrambled.data(), sector_scrambled.data(), sector_scrambled.size());
-						std::ofstream ofs(output_path, std::fstream::binary);
-						ofs.write((char *)sector_scrambled.data(), sector_scrambled.size());
-					}
-				}
-			}
 
 			auto tokens = tokenize(f.path().filename().string(), ".", nullptr);
 			if(tokens.size() == 4)

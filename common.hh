@@ -197,6 +197,17 @@ T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
 	throw_line(fmt::format("string_to_enum failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
 }
 
+template<typename T>
+T diff_bytes_count(const uint8_t *data1, const uint8_t *data2, T size)
+{
+	T diff = 0;
+
+	for(T i = 0; i < size; ++i)
+		if(data1[i] != data2[i])
+			++diff;
+
+	return diff;
+}
 
 std::string normalize_string(const std::string &s);
 std::vector<std::string> tokenize(const std::string &str, const char *delimiters, const char *quotes);

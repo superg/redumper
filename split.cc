@@ -18,9 +18,6 @@
 namespace gpsxre
 {
 
-constexpr uint32_t OFFSET_SHIFT_MAX = 4;
-
-
 void correct_program_subq(ChannelQ *subq, uint32_t sectors_count)
 {
 	uint32_t mcn = sectors_count;
@@ -484,6 +481,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 			int32_t write_offset = data_track ? write_offset_data : write_offset_audio;
 			bool data_mode_set = false;
+			bool force_descramble = false;
 
 			std::string track_name = fmt::format("{}{}.bin", options.image_name, toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 ? "" : fmt::vformat(track_format, fmt::make_format_args(t.track_number)));
 			LOG("writing \"{}\"", track_name);
@@ -565,33 +563,48 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 
 								if(options.correct_offset_shift)
 								{
-									// extract garbage portion to file
-									if(offset_shift > 0)
+									// offset shifting discs usually have some level of corruption in a couple of transitional sectors
+									// preventing normal descramble detection, as everything is scrambled in this case, force descrambling
+									force_descramble = true;
+
+									// also, due to possible sync damage, make sure not to shift too early
+									auto sync_diff = diff_bytes_count(sector.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
+									if(sync_diff > OFFSET_SHIFT_SYNC_TOLERANCE)
 									{
-										uint32_t garbage_count = offset_shift / CD_DATA_SIZE_SAMPLES + (offset_shift % CD_DATA_SIZE_SAMPLES ? 1 : 0);
-										std::vector<uint8_t> garbage(garbage_count * CD_DATA_SIZE);
-										read_entry(scm_fs, garbage.data(), CD_DATA_SIZE, lba_index, garbage_count, -write_offset * CD_SAMPLE_SIZE, 0);
+										// extract garbage portion to file
+										if(offset_shift > 0)
+										{
+											uint32_t garbage_count = offset_shift / CD_DATA_SIZE_SAMPLES + (offset_shift % CD_DATA_SIZE_SAMPLES ? 1 : 0);
+											std::vector<uint8_t> garbage(garbage_count * CD_DATA_SIZE);
+											read_entry(scm_fs, garbage.data(), CD_DATA_SIZE, lba_index, garbage_count, -write_offset * CD_SAMPLE_SIZE, 0);
 
-										std::filesystem::path track_garbage_path(std::filesystem::path(options.image_path) / fmt::format("{}.{:06}", track_name, lba));
-										std::fstream fs(track_garbage_path, std::fstream::out | std::fstream::binary);
-										if(!fs.is_open())
-											throw_line(fmt::format("unable to create file ({})", track_garbage_path.filename().string()));
-										fs.write((char *)garbage.data(), offset_shift * CD_SAMPLE_SIZE);
+											std::filesystem::path track_garbage_path(std::filesystem::path(options.image_path) / fmt::format("{}.{:06}", track_name, lba));
+											std::fstream fs(track_garbage_path, std::fstream::out | std::fstream::binary);
+											if(!fs.is_open())
+												throw_line(fmt::format("unable to create file ({})", track_garbage_path.filename().string()));
+											fs.write((char *)garbage.data(), offset_shift * CD_SAMPLE_SIZE);
+										}
+
+										write_offset += offset_shift;
+										write_offset_data += offset_shift;
+										write_offset_audio += offset_shift;
+
+										read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * CD_SAMPLE_SIZE, 0);
+
+										LOG("offset shift correction applied (new offset: {})", write_offset);
+										offset_shift_warning = true;
 									}
-
-									write_offset += offset_shift;
-									write_offset_data += offset_shift;
-									write_offset_audio += offset_shift;
-
-									read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba_index, 1, -write_offset * CD_SAMPLE_SIZE, 0);
-
-									LOG("offset shift correction applied (new offset: {})", write_offset);
-									offset_shift_warning = true;
 								}
 							}
 						}
 
-						if(scrambler.Descramble(sector.data(), &lba))
+						bool success = true;
+						if(force_descramble)
+							scrambler.Process(sector.data(), sector.data(), sector.size());
+						else
+							success = scrambler.Descramble(sector.data(), &lba);
+
+						if(success)
 						{
 							if(!data_mode_set)
 							{
@@ -606,9 +619,9 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 					}
 				}
 
-				crc = crc32(sector.data(), sizeof(Sector), crc);
-				bh_md5.Update(sector.data(), sizeof(Sector));
-				bh_sha1.Update(sector.data(), sizeof(Sector));
+				crc = crc32(sector.data(), sector.size(), crc);
+				bh_md5.Update(sector.data(), sector.size());
+				bh_sha1.Update(sector.data(), sector.size());
 				if(data_track)
 				{
 					Sector s = *(Sector *)sector.data();

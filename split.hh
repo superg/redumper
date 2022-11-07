@@ -9,6 +9,9 @@
 namespace gpsxre
 {
 
+constexpr uint32_t OFFSET_SHIFT_MAX = 4;
+constexpr uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
+
 struct TrackEntry
 {
 	std::string filename;

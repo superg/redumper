@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fmt/format.h>
 #include <iostream>
+#include <set>
 #include <vector>
 
 #include "cd.hh"
@@ -78,39 +79,91 @@ bool test_unscramble()
 	//DEBUG
 	if(0)
 	{
-		std::vector<uint8_t> sector = read_vector("unscramble/invalid_mode_filled_intermediate.uns.000000.fail");
+		std::vector<uint8_t> sector = read_vector("unscramble/11_invalid_mode_non_zeroed_intermediate_last_byte.uns.0.fail");
 		auto s = (Sector *)sector.data();
 		scrambler.Process(sector.data(), sector.data(), sector.size());
-		std::ofstream ofs("unscramble/invalid_mode_filled_intermediate.scr.000000.fail", std::fstream::binary);
+		std::ofstream ofs("unscramble/11_invalid_mode_non_zeroed_intermediate_last_byte.0.fail", std::fstream::binary);
 		ofs.write((char *)sector.data(), sector.size());
 	}
 
+	std::set<std::filesystem::path> test_files;
 	for(auto const &f : std::filesystem::directory_iterator("unscramble"))
-	{
     	if(f.is_regular_file())
+			test_files.insert(f.path());
+
+	for(auto const &f : test_files)
+	{
+		std::cout << fmt::format("descramble: {}... ", f.filename().string()) << std::flush;
+
+		std::vector<uint8_t> sector = read_vector(f);
+
+		auto tokens = tokenize(f.filename().string(), ".", nullptr);
+		if(tokens.size() == 3)
 		{
-        	std::cout << fmt::format("descramble: {}... ", f.path().filename().string()) << std::flush;
+			int32_t lba = 0;
+			int32_t *lba_ptr = &lba;
+			if(tokens[1] == "null")
+				lba_ptr = nullptr;
+			else
+				*lba_ptr = std::stol(tokens[1]);
+			bool scrambled = tokens[2] == "pass";
+			bool unscrambled = scrambler.Descramble(sector.data(), lba_ptr, sector.size());
 
-			std::vector<uint8_t> sector = read_vector(f.path());
-
-			auto tokens = tokenize(f.path().filename().string(), ".", nullptr);
-			if(tokens.size() == 4)
+			if(unscrambled == scrambled)
+				std::cout << "success";
+			else
 			{
-				int32_t lba = std::stol(tokens[2]);
-				bool scrambled = tokens[3] == "pass";
-				bool unscrambled = scrambler.Descramble(sector.data(), &lba, sector.size());
-
-				if(unscrambled == scrambled)
-					std::cout << "success";
-				else
-				{
-					std::cout << "failure";
-					success = false;
-				}
+				std::cout << "failure";
+				success = false;
 			}
+		}
 
-			std::cout << std::endl;
-    	}
+		std::cout << std::endl;
+	}
+
+	return success;
+}
+
+
+bool test_unscramble_dic()
+{
+	bool success = true;
+
+	Scrambler scrambler;
+
+	std::set<std::filesystem::path> test_files;
+	for(auto const &f : std::filesystem::directory_iterator("unscramble/dic"))
+    	if(f.is_regular_file())
+			test_files.insert(f.path());
+
+	for(auto const &f : test_files)
+	{
+		std::cout << fmt::format("descramble DIC: {}... ", f.filename().string()) << std::flush;
+
+		std::vector<uint8_t> sector = read_vector(f);
+
+		auto tokens = tokenize(f.filename().string(), ".", nullptr);
+		if(tokens.size() == 3)
+		{
+			int32_t lba = 0;
+			int32_t *lba_ptr = &lba;
+			if(tokens[1] == "null")
+				lba_ptr = nullptr;
+			else
+				*lba_ptr = std::stol(tokens[1]);
+			bool scrambled = tokens[2] == "pass";
+			bool unscrambled = scrambler.DescrambleDIC(sector.data(), lba_ptr, sector.size());
+
+			if(unscrambled == scrambled)
+				std::cout << "success";
+			else
+			{
+				std::cout << "failure";
+				success = false;
+			}
+		}
+
+		std::cout << std::endl;
 	}
 
 	return success;
@@ -123,7 +176,11 @@ int main(int argc, char *argv[])
 	int success = 0;
 
 	success |= (int)!test_cd();
+	std::cout << std::endl;
 	success |= (int)!test_unscramble();
+	std::cout << std::endl;
+	success |= (int)!test_unscramble_dic();
+	std::cout << std::endl;
 
 	return success;
 }

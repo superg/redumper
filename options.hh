@@ -38,7 +38,6 @@ struct Options
     bool refine_subchannel;
     std::unique_ptr<int> lba_start;
     std::unique_ptr<int> lba_end;
-    bool force_toc;
     bool force_qtoc;
     std::string skip;
     int skip_fill;

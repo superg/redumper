@@ -472,7 +472,7 @@ bool redumper_dump(const Options &options, bool refine)
 							uint32_t c2_crc = crc32(sector_c2, CD_C2_SIZE);
 
 							LOG_R();
-							LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X})", lba, c2_count, data_crc, c2_crc);
+							LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}, retry: {})", lba, c2_count, data_crc, c2_crc, refine_counter + 1);
 						}
 
 						//DEBUG
@@ -590,7 +590,7 @@ bool redumper_dump(const Options &options, bool refine)
 					if(options.verbose)
 					{
 						LOG_R();
-						LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+						LOG("[LBA: {:6}] SCSI error ({}, retry: {})", lba, SPTD::StatusMessage(status), refine_counter + 1);
 					}
 				}
 			}
@@ -613,7 +613,7 @@ bool redumper_dump(const Options &options, bool refine)
 						uint32_t c2_crc = crc32(sector_c2, CD_C2_SIZE);
 
 						LOG_R();
-						LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X})", lba, c2_count, data_crc, c2_crc);
+						LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}, retry: {})", lba, c2_count, data_crc, c2_crc, refine_counter + 1);
 					}
 
 					//DEBUG

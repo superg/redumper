@@ -142,24 +142,6 @@ void TOC::DeriveINDEX(const TOC &toc)
 }
 
 
-void TOC::MergeControl(const TOC &toc)
-{
-	for(auto &s : sessions)
-	{
-		for(auto &t : s.tracks)
-		{
-			for(auto const &toc_s : toc.sessions)
-				for(auto const &toc_t : toc_s.tracks)
-					if(t.track_number == toc_t.track_number)
-					{
-						t.control |= toc_t.control;
-						break;
-					}
-		}
-	}
-}
-
-
 void TOC::UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 {
 	// update session pre-gaps

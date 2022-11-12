@@ -16,7 +16,6 @@ Options::Options(int argc, const char *argv[])
     , leave_unchanged(false)
     , retries(0)
     , refine_subchannel(false)
-    , force_toc(false)
     , force_qtoc(false)
     , skip_fill(0x55)
     , skip_size(1 << 12)
@@ -129,8 +128,6 @@ Options::Options(int argc, const char *argv[])
                     lba_end = std::make_unique<int>();
                     i_value = lba_end.get();
                 }
-                else if(key == "--force-toc")
-                    force_toc = true;
                 else if(key == "--force-qtoc")
                     force_qtoc = true;
                 else if(key == "--skip")
@@ -230,7 +227,6 @@ void Options::PrintUsage()
     LOG("\t--refine-subchannel\tIn addition to SCSI/C2, refine subchannel");
     LOG("\t--lba-start=VALUE\tLBA to start dumping from");
     LOG("\t--lba-end=VALUE\tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
-    LOG("\t--force-toc\tForce TOC based track split");
     LOG("\t--force-qtoc\tForce QTOC based track split");
     LOG("\t--skip=VALUE\tLBA ranges of sectors to skip");
     LOG("\t--skip-fill=VALUE\tfill byte value for skipped sectors (default: 0x{:02X})", skip_fill);

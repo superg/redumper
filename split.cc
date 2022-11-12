@@ -646,9 +646,9 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 }
 
 
-int compare_toc(const TOC &toc, const TOC &qtoc)
+bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 {
-	int diff = 0;
+	bool mismatch = false;
 
 	std::set<uint8_t> tracks;
 
@@ -677,13 +677,13 @@ int compare_toc(const TOC &toc, const TOC &qtoc)
 		{
 			if(tt->second->control != qt->second->control)
 			{
-				diff = 1;
+				mismatch = true;
 				LOG("warning: TOC / QTOC control mismatch (track: {}, control: {:04b} / {:04b})", t, tt->second->control, qt->second->control);
 			}
 
 			if(tt->second->lba_start != qt->second->lba_start)
 			{
-				diff = 1;
+				mismatch = true;
 				LOG("warning: TOC / QTOC track index 00 mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_start, qt->second->lba_start);
 			}
 
@@ -693,19 +693,19 @@ int compare_toc(const TOC &toc, const TOC &qtoc)
 			{
 				if(tt_size && qt_size && tt->second->indices.front() != qt->second->indices.front())
 				{
-					diff = 1;
+					mismatch = true;
 					LOG("warning: TOC / QTOC track index 01 mismatch (track: {}, LBA: {} / {})", t, tt->second->indices.front(), qt->second->indices.front());
 				}
 			}
 			else
 			{
-				diff = 1;
+				mismatch = true;
 				LOG("warning: TOC / QTOC track index size mismatch (track: {})", t);
 			}
 
 			if(tt->second->lba_end != qt->second->lba_end)
 			{
-				diff = 1;
+				mismatch = true;
 				LOG("warning: TOC / QTOC track length mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_end, qt->second->lba_end);
 			}
 		}
@@ -713,21 +713,19 @@ int compare_toc(const TOC &toc, const TOC &qtoc)
 		{
 			if(tt == toc_tracks.end())
 			{
-				diff = 1;
+				mismatch = true;
 				LOG("warning: nonexistent track in TOC (track: {})", t);
 			}
 
 			if(qt == qtoc_tracks.end())
 			{
-				diff = 1;
+				mismatch = true;
 				LOG("warning: nonexistent track in QTOC (track: {})", t);
 			}
 		}
 	}
 
-	if(diff && qtoc_tracks.size() > toc_tracks.size())
-		diff = -1;
-	return diff;
+	return mismatch;
 }
 
 
@@ -1194,7 +1192,7 @@ void redumper_split(const Options &options)
 	bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
 	auto scra_path(scrap ? scp_path : scm_path);
 
-	//TODO: rework
+	//TODO: rework?
 	uint32_t sectors_count = check_file(state_path, CD_DATA_SIZE_SAMPLES);
 
 	std::fstream scm_fs(scra_path, std::fstream::in | std::fstream::binary);
@@ -1262,8 +1260,7 @@ void redumper_split(const Options &options)
 		TOC qtoc(subq.data(), sectors_count, LBA_START);
 
 		// compare TOC and QTOC
-		int toc_diff = compare_toc(toc, qtoc);
-		if(toc_diff)
+		if(toc_mismatch(toc, qtoc))
 		{
 			LOG("");
 			LOG("final QTOC:");
@@ -1271,16 +1268,11 @@ void redumper_split(const Options &options)
 			LOG("");
 		}
 
-		if(!options.force_toc && (options.force_qtoc || toc_diff < 0))
+		if(options.force_qtoc)
 		{
-			qtoc.MergeControl(toc);
 			toc = qtoc;
 			LOG("warning: split is performed by QTOC");
 			LOG("");
-		}
-		else
-		{
-			toc.MergeControl(qtoc);
 		}
 
 		toc.UpdateMCN(subq.data(), sectors_count);

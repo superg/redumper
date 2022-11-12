@@ -98,9 +98,6 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"PLEXTOR", "DVDR PX-712A"  , "1.09", "03/31/06 10:00",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
 	{"PLEXTOR", "DVDR PX-714A"  , ""    , ""              ,  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
 	{"PLEXTOR", "DVDR PX-716A"  , "1.11", "03/23/07 15:10",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
-	{"PLEXTOR", "DVDR PX-716A"  , "1.58", "03/23/07 15:10",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
-	{"PLEXTOR", "DVDR PX-716A"  , "1.59", "12/15/05 09:20",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
-	{"PLEXTOR", "DVDR PX-716A"  , "1.5A", "10/19/06 15:00",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
 	{"PLEXTOR", "DVDR PX-716AL" , ""    , ""              ,  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
 	{"PLEXTOR", "DVDR PX-755A"  , "1.08", "08/18/07 15:10",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
 	{"PLEXTOR", "DVDR PX-760A"  , "1.07", "08/18/07 15:10",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED

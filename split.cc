@@ -1466,7 +1466,6 @@ void redumper_split(const Options &options)
 					auto pvd = browser.GetPVD();
 
 					if(!memcmp(pvd.standard_identifier, iso9660::CDI_STANDARD_INDENTIFIER, sizeof(pvd.standard_identifier)))
-					// || !memcmp(pvd.primary.system_identifier, iso9660::CDI_PRIMARY_SYSTEM_INDENTIFIER, sizeof(pvd.primary.system_identifier)))
 						t.cdi = true;
 				}
 				catch(...)

@@ -543,6 +543,10 @@ void TOC::Print() const
 
 		for(auto const &t : s.tracks)
 		{
+			// skip dummy tracks
+			if(!t.track_suffix.empty())
+				continue;
+
 			std::string flags(t.control & (uint8_t)ChannelQ::Control::DATA ? " data" : "audio");
 			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
 				flags += ", four-channel";
@@ -633,6 +637,10 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 
 		for(auto const &t : s.tracks)
 		{
+			// skip dummy tracks
+			if(!t.track_suffix.empty())
+				continue;
+
 			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : fmt::vformat(track_format, fmt::make_format_args(t.track_number)), t.track_number) << std::endl;
 
 			std::string track_type;

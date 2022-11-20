@@ -53,6 +53,7 @@ struct TOC
 			// supplemental
 			uint8_t data_mode;
 			bool cdi;
+			std::string track_suffix;
 		};
 		std::vector<Track> tracks;
 	};

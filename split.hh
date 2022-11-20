@@ -9,7 +9,8 @@
 namespace gpsxre
 {
 
-constexpr uint32_t OFFSET_SHIFT_MAX = 4;
+constexpr uint32_t OFFSET_DEVIATION_MAX = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
+constexpr uint32_t OFFSET_SHIFT_MAX_SECTORS = 4;
 constexpr uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
 
 struct TrackEntry

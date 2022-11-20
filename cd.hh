@@ -25,6 +25,7 @@ struct MSF
 
 constexpr uint32_t FORM1_DATA_SIZE = 2048;
 constexpr uint32_t FORM2_DATA_SIZE = 2324;
+constexpr uint32_t MODE0_DATA_SIZE = 2336;
 
 enum class CDXAMode : uint8_t
 {
@@ -67,7 +68,7 @@ struct Sector
 		{
 			union
 			{
-				uint8_t user_data[2336];
+				uint8_t user_data[MODE0_DATA_SIZE];
 
 				struct
 				{
@@ -116,13 +117,18 @@ inline constexpr uint8_t CD_DATA_SYNC[] =
 };
 
 inline constexpr uint32_t MSF_MINUTES_WRAP = 90;
-inline constexpr MSF MSF_LIMIT = {100, 60, 75};
 inline constexpr MSF MSF_ZERO = {0, 0, 0};
+inline constexpr MSF MSF_LIMIT = {100, 60, 75};
 inline constexpr MSF MSF_MAX = {MSF_MINUTES_WRAP - 1, MSF_LIMIT.s, MSF_LIMIT.f};
-inline constexpr int32_t MSF_LBA_SHIFT = -150;
+
 inline constexpr MSF MSF_LEADIN_START = {MSF_MINUTES_WRAP, 0, 0};
 
 inline constexpr uint32_t LBA_LIMIT = MSF_LIMIT.m * MSF_LIMIT.s * MSF_LIMIT.f;
+
+inline constexpr uint32_t CD_PREGAP_SIZE = 2 * MSF_LIMIT.f; // 2 seconds
+inline constexpr uint32_t CD_LEADOUT_MIN_SIZE = 90 * MSF_LIMIT.f; // 90 seconds
+
+inline constexpr int32_t MSF_LBA_SHIFT = -1 * CD_PREGAP_SIZE;
 
 template<typename T>
 constexpr T bcd_decode(T value)

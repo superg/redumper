@@ -26,7 +26,7 @@ Options::Options(int argc, const char *argv[])
     , correct_offset_shift(false)
     , cdi_ready_normalize(false)
     , perfect_audio_offset(false)
-    , audio_silence_threshold(32)
+    , audio_silence_threshold(48)
 {
     for(int i = 0; i < argc; ++i)
     {

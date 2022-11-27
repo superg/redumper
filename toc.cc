@@ -26,8 +26,6 @@ const char TOC::_ISRC_TABLE[] =
 TOC::TOC(const std::vector<uint8_t> &toc_buffer, bool full_toc)
 	: disc_type(DiscType::UNKNOWN)
 {
-	memset(&_q_empty, 0, sizeof(_q_empty));
-
 	if(full_toc)
 		InitFullTOC(toc_buffer);
 	else
@@ -45,66 +43,66 @@ TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 
 		auto &Q = subq[lba_index];
 
-		if(!memcmp(&Q, &_q_empty, sizeof(_q_empty)) || !Q.Valid())
-			continue;
-
-		uint8_t adr = Q.control_adr & 0x0F;
-		if(adr == 1)
+		if(Q.Valid())
 		{
-			if(Q.mode1.tno)
+			uint8_t adr = Q.control_adr & 0x0F;
+			if(adr == 1)
 			{
-				uint8_t tno = Q.mode1.tno == 0xAA ? Q.mode1.tno : bcd_decode(Q.mode1.tno);
-
-				// new session
-				if(sessions.empty() || !sessions.back().tracks.empty() && sessions.back().tracks.back().track_number == 0xAA && tno != 0xAA)
+				if(Q.mode1.tno)
 				{
-					uint8_t session_number = sessions.empty() ? 1 : sessions.back().session_number + 1;
-					sessions.emplace_back().session_number = session_number;
+					uint8_t tno = bcd_decode(Q.mode1.tno);
+
+					// new session
+					if(sessions.empty() || !sessions.back().tracks.empty() && sessions.back().tracks.back().track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER) && tno != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+					{
+						uint8_t session_number = sessions.empty() ? 1 : sessions.back().session_number + 1;
+						sessions.emplace_back().session_number = session_number;
+					}
+
+					Session &s = sessions.back();
+
+					// new track
+					if(s.tracks.empty() || s.tracks.back().track_number != tno && (s.tracks.back().track_number + 1 == tno || tno == bcd_decode(CD_LEADOUT_TRACK_NUMBER)))
+					{
+						if(!s.tracks.empty())
+							s.tracks.back().lba_end = lba;
+
+						auto &t = s.tracks.emplace_back();
+
+						t.track_number = tno;
+						t.control = Q.control_adr >> 4;
+						t.lba_start = lba;
+						t.lba_end = lba;
+						t.data_mode = 0;
+						t.cdi = false;
+					}
+
+					Session::Track &t = s.tracks.back();
+
+					uint8_t index = bcd_decode(Q.mode1.index);
+					if(index == t.indices.size() + 1)
+						t.indices.push_back(lba);
+
+					track_active = true;
 				}
-
-				Session &s = sessions.back();
-
-				// new track
-				if(s.tracks.empty() || s.tracks.back().track_number != tno && (s.tracks.back().track_number + 1 == tno || tno == 0xAA))
-				{
-					if(!s.tracks.empty())
-						s.tracks.back().lba_end = lba;
-
-					auto &t = s.tracks.emplace_back();
-
-					t.track_number = tno;
-					t.control = Q.control_adr >> 4;
-					t.lba_start = lba;
-					t.lba_end = lba;
-					t.data_mode = 0;
-					t.cdi = false;
-				}
-
-				Session::Track &t = s.tracks.back();
-
-				uint8_t index = bcd_decode(Q.mode1.index);
-				if(index == t.indices.size() + 1)
-					t.indices.push_back(lba);
-
-				track_active = true;
+				// lead-in
+				else
+					track_active = false;
 			}
-			// lead-in
-			else
+			// MCN & ISRC
+			else if(adr == 2 || adr == 3)
+			{
+				;
+			}
+			// CD-R / CD-RW
+			else if(adr == 5)
+			{
 				track_active = false;
-		}
-		// MCN & ISRC
-		else if(adr == 2 || adr == 3)
-		{
-			;
-		}
-		// CD-R / CD-RW
-		else if(adr == 5)
-		{
-			track_active = false;
-		}
-		else
-		{
-			track_active = false;
+			}
+			else
+			{
+				track_active = false;
+			}
 		}
 
 		if(track_active)
@@ -116,11 +114,6 @@ TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 	uint32_t pregap_count = sessions.front().tracks.front().lba_start - MSF_LBA_SHIFT;
 	for(auto &s : sessions)
 		s.tracks.front().lba_start -= pregap_count;
-
-	// remove lead-out entries
-	for(auto &s : sessions)
-		if(s.tracks.back().track_number == 0xAA)
-			s.tracks.pop_back();
 }
 
 
@@ -144,7 +137,7 @@ void TOC::DeriveINDEX(const TOC &toc)
 
 void TOC::UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 {
-	// update session pre-gaps
+	// pre-gap
 	for(uint32_t i = 0; i < sessions.size(); ++i)
 	{
 		Session &s = sessions[i];
@@ -157,8 +150,7 @@ void TOC::UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_star
 				break;
 
 			auto &Q = subq[lba_index];
-
-			if(!memcmp(&Q, &_q_empty, sizeof(_q_empty)) || !Q.Valid())
+			if(!Q.Valid())
 				continue;
 
 			uint8_t adr = Q.control_adr & 0x0F;
@@ -180,41 +172,73 @@ void TOC::UpdateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_star
 	for(auto &s : sessions)
 		s.tracks.front().lba_start -= pregap_count;
 
+	// lead-out
+	for(uint32_t i = 0; i < sessions.size(); ++i)
+	{
+		Session &s = sessions[i];
+		Session::Track &t = s.tracks.back();
+
+		int32_t lba_end = lba_start + (int32_t)sectors_count;
+		if(i + 1 < sessions.size() && lba_end > sessions[i + 1].tracks.front().lba_start)
+			lba_end = sessions[i + 1].tracks.front().lba_start;
+
+		int32_t lba = t.lba_start;
+		for(; lba < lba_end; ++lba)
+		{
+			uint32_t lba_index = lba - lba_start;
+
+			auto &Q = subq[lba_index];
+			if(!Q.Valid())
+				continue;
+
+			uint8_t adr = Q.control_adr & 0x0F;
+			if(adr == 1)
+			{
+				uint8_t tno = bcd_decode(Q.mode1.tno);
+
+				// next session lead-in
+				if(!tno)
+					break;
+			}
+		}
+
+		t.lba_end = lba;
+	}
+
+	// track boundaries
 	for(auto &s : sessions)
 	{
-		for(uint32_t i = 0, n = (uint32_t)(s.tracks.size() - 1); i < n; ++i)
+		for(uint32_t i = 1; i < (uint32_t)s.tracks.size(); ++i)
 		{
-			int32_t lba = s.tracks[i].indices.front();
-			for(; lba < s.tracks[i + 1].indices.front(); ++lba)
+			int32_t lba = s.tracks[i - 1].indices.front();
+			int32_t lba_end = std::min(s.tracks[i].indices.front(), lba_start + (int32_t)sectors_count);
+			for(; lba < lba_end; ++lba)
 			{
 				uint32_t lba_index = lba - lba_start;
-				if(lba_index >= sectors_count)
-					break;
 
 				auto &Q = subq[lba_index];
-
-				if(!memcmp(&Q, &_q_empty, sizeof(_q_empty)) || !Q.Valid())
+				if(!Q.Valid())
 					continue;
 
 				uint8_t adr = Q.control_adr & 0x0F;
 				if(adr == 1)
 				{
 					uint8_t tno = bcd_decode(Q.mode1.tno);
-					if(tno == s.tracks[i + 1].track_number)
+					if(tno == s.tracks[i].track_number)
 					{
 						uint8_t index = bcd_decode(Q.mode1.index);
 
 						// no gap, preserve TOC configuration
 						if(index)
-							lba = s.tracks[i + 1].lba_start;
+							lba = s.tracks[i].lba_start;
 
 						break;
 					}
 				}
 			}
 
-			s.tracks[i].lba_end = lba;
-			s.tracks[i + 1].lba_start = lba;
+			s.tracks[i - 1].lba_end = lba;
+			s.tracks[i].lba_start = lba;
 		}
 	}
 
@@ -235,7 +259,7 @@ void TOC::UpdateMCN(const ChannelQ *subq, uint32_t sectors_count)
 	{
 		auto &Q = subq[lba_index];
 
-		if(!memcmp(&Q, &_q_empty, sizeof(_q_empty)) || !Q.Valid())
+		if(!Q.Valid())
 			continue;
 
 		uint8_t adr = Q.control_adr & 0x0F;
@@ -243,10 +267,10 @@ void TOC::UpdateMCN(const ChannelQ *subq, uint32_t sectors_count)
 		{
 		case 1:
 			// tracks
-			if(Q.mode1.tno != 0 || Q.mode1.tno == 0xAA)
+			if(Q.mode1.tno != 0)
 			{
 				uint8_t tno = bcd_decode(Q.mode1.tno);
-				if(tno < CD_TRACKS_COUNT && track_index + 1 < (int32_t)tracks.size() && tracks[track_index + 1]->track_number == tno)
+				if(track_index + 1 < (int32_t)tracks.size() && tracks[track_index + 1]->track_number == tno)
 					++track_index;
 			}
 			break;
@@ -519,8 +543,6 @@ void TOC::GenerateIndex0()
 
 void TOC::Print() const
 {
-	std::string track_format = fmt::format("{{:0{}}}", (uint32_t)log10(sessions.back().tracks.back().track_number) + 1);
-
 	bool multisession = sessions.size() > 1;
 
 	// disc type
@@ -543,10 +565,6 @@ void TOC::Print() const
 
 		for(auto const &t : s.tracks)
 		{
-			// skip dummy tracks
-			if(!t.track_suffix.empty())
-				continue;
-
 			std::string flags(t.control & (uint8_t)ChannelQ::Control::DATA ? " data" : "audio");
 			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
 				flags += ", four-channel";
@@ -555,22 +573,21 @@ void TOC::Print() const
 			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
 				flags += ", pre-emphasis";
 
-			LOG("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '),
-						   fmt::vformat(track_format, fmt::make_format_args(t.track_number)), flags);
+			LOG("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), TrackString(t.track_number), flags);
 
 			auto indices = t.indices;
 			indices.insert(indices.begin(), t.lba_start);
 			indices.push_back(t.lba_end);
 
-			for(uint32_t i = 0; i < (uint32_t)(indices.size() - 1); ++i)
+			for(uint32_t i = 1; i < (uint32_t)indices.size(); ++i)
 			{
-				int32_t index_start = indices[i];
-				int32_t index_end = indices[i + 1];
+				int32_t index_start = indices[i - 1];
+				int32_t index_end = indices[i];
 
 				int32_t index_length = index_end - index_start;
 
 				// skip index 0
-				if(!i && index_length <= 0)
+				if(i == 1 && index_length <= 0)
 					continue;
 
 				std::string index_properties;
@@ -586,7 +603,7 @@ void TOC::Print() const
 				else
 					index_properties = fmt::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
 
-				LOG("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i, index_properties);
+				LOG("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i - 1, index_properties);
 			}
 		}
 	}
@@ -595,8 +612,6 @@ void TOC::Print() const
 
 std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const
 {
-	std::string track_format = fmt::format(" (Track {{:0{}}})", (uint32_t)log10(sessions.back().tracks.back().track_number) + 1);
-
 	bool multisession = sessions.size() > 1;
 
 	std::string mcn_print(mcn);
@@ -611,37 +626,33 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 	{
 		auto &s = sessions[j];
 
+		// always output standard sizes here
+		// can be calculated precisely if whole lead-out/toc/pre-gap range is dumped
 		if(multisession)
 		{
-			// this is bullshit and impossible to calculate without extracting the whole range between sessions
-			// but redump.org requires these values to exist in a CUE-sheet
-			constexpr int32_t leadout_size = 6750;
-			constexpr int32_t leadin_size = 4500;
-			constexpr int32_t pregap_size = 150;
-
 			MSF msf;
 			if(j)
 			{
-				msf = LBA_to_MSF(leadout_size + MSF_LBA_SHIFT);
+				msf = LBA_to_MSF(CD_LEADOUT_MIN_SIZE + MSF_LBA_SHIFT);
 				os << fmt::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 			}
 			os << fmt::format("REM SESSION {:02}", s.session_number) << std::endl;
 			if(j)
 			{
-				msf = LBA_to_MSF(leadin_size + MSF_LBA_SHIFT);
+				msf = LBA_to_MSF(CD_LEADIN_MIN_SIZE + MSF_LBA_SHIFT);
 				os << fmt::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-				msf = LBA_to_MSF(pregap_size + MSF_LBA_SHIFT);
+				msf = LBA_to_MSF(CD_PREGAP_SIZE + MSF_LBA_SHIFT);
 				os << fmt::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 			}
 		}
 
 		for(auto const &t : s.tracks)
 		{
-			// skip dummy tracks
-			if(!t.track_suffix.empty())
+			// skip lead-in and lead-out tracks
+			if(t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 				continue;
 
-			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : fmt::vformat(track_format, fmt::make_format_args(t.track_number)), t.track_number) << std::endl;
+			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : fmt::format(" (Track {})", t.track_number)) << std::endl;
 
 			std::string track_type;
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)
@@ -705,13 +716,15 @@ void TOC::InitTOC(const std::vector<uint8_t> &toc_buffer)
 	{
 		auto &d = descriptors[i];
 
-		if(d.track_number < CD_TRACKS_COUNT || d.track_number == 0xAA)
+		if(d.track_number < CD_TRACKS_COUNT || d.track_number == CD_LEADOUT_TRACK_NUMBER)
 		{
+			// renumerate lead-out track to align it with subchannel
+			uint8_t track_number = d.track_number == CD_LEADOUT_TRACK_NUMBER ? bcd_decode(CD_LEADOUT_TRACK_NUMBER) : d.track_number;
+
 			int32_t lba = endian_swap(d.track_start_address);
 
-			auto &t = tracks[d.track_number];
-
-			t.track_number = d.track_number;
+			auto &t = tracks[track_number];
+			t.track_number = track_number;
 
 			// [CDI] Op Jacht naar Vernuft (Netherlands)
 			// make sure there are no duplicate entries, always use the latest one
@@ -731,18 +744,6 @@ void TOC::InitTOC(const std::vector<uint8_t> &toc_buffer)
 	s.tracks.reserve(tracks.size());
 	for(auto const &t : tracks)
 		s.tracks.push_back(t.second);
-
-	// remove lead-out entries
-	for(auto &s : sessions)
-	{
-		if(s.tracks.back().track_number == 0xAA)
-		{
-			int32_t lba_end = s.tracks.back().indices.front();
-			s.tracks.pop_back();
-			if(!s.tracks.empty())
-				s.tracks.back().lba_end = lba_end;
-		}
-	}
 }
 
 
@@ -775,9 +776,13 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 			default:
 				if(d.point < CD_TRACKS_COUNT || d.point == 0xA2)
 				{
+					// renumerate lead-out track to align it with subchannel
+					uint8_t track_number = d.point == 0xA2 ? bcd_decode(CD_LEADOUT_TRACK_NUMBER) : d.point;
+
 					int32_t lba = MSF_to_LBA(*(MSF *)d.p_msf);
 
-					auto &t = tracks[d.session_number][d.point];
+					auto &t = tracks[d.session_number][track_number];
+					t.track_number = track_number;
 
 					// make sure there are no duplicate entries, always use the latest one
 					t.indices.clear();
@@ -804,25 +809,9 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 		s.session_number = t.first;
 		s.tracks.reserve(t.second.size());
 		for(auto const &tt : t.second)
-		{
-			Session::Track t = tt.second;
-			t.track_number = tt.first;
-			s.tracks.push_back(t);
-		}
+			s.tracks.push_back(tt.second);
 
 		sessions.push_back(s);
-	}
-
-	// remove lead-out entries
-	for(auto &s : sessions)
-	{
-		if(s.tracks.back().track_number == 0xA2)
-		{
-			int32_t lba_end = s.tracks.back().indices.front();
-			s.tracks.pop_back();
-			if(!s.tracks.empty())
-				s.tracks.back().lba_end = lba_end;
-		}
 	}
 }
 
@@ -841,7 +830,7 @@ void TOC::UpdateINDEX(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_
 
 				auto &Q = subq[lba_index];
 
-				if(!memcmp(&Q, &_q_empty, sizeof(_q_empty)) || !Q.Valid())
+				if(!Q.Valid())
 					continue;
 
 				uint8_t adr = Q.control_adr & 0x0F;
@@ -900,6 +889,32 @@ TOC::CDText *TOC::GetCDText(uint8_t index, uint8_t track_number)
 		cdt = &cd_text[index];
 
 	return cdt;
+}
+
+
+std::string TOC::TrackString(uint8_t track_number) const
+{
+	std::string track_string;
+
+	auto width = TrackNumberWidth();
+	if(track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+		track_string = std::string(width, 'A');
+	else
+		track_string = fmt::vformat(fmt::format("{{:0{}}}", width), fmt::make_format_args(track_number));
+
+	return track_string;
+}
+
+
+uint32_t TOC::TrackNumberWidth() const
+{
+	uint8_t track_number = 0;
+	for(auto &s : sessions)
+		for(auto &t : s.tracks)
+			if(t.track_number != bcd_decode(CD_LEADOUT_TRACK_NUMBER) && track_number < t.track_number)
+				track_number = t.track_number;
+
+	return (track_number ? log10(track_number) : 0) + 1;
 }
 
 }

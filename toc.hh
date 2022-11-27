@@ -53,7 +53,6 @@ struct TOC
 			// supplemental
 			uint8_t data_mode;
 			bool cdi;
-			std::string track_suffix;
 		};
 		std::vector<Track> tracks;
 	};
@@ -77,6 +76,7 @@ struct TOC
 
 	void Print() const;
 	std::ostream &PrintCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index = 0) const;
+	std::string TrackString(uint8_t track_number) const;
 
 private:
 	enum class PackType : uint8_t
@@ -119,14 +119,13 @@ private:
 
 	static const char _ISRC_TABLE[];
 
-	ChannelQ _q_empty;
-
 	void InitTOC(const std::vector<uint8_t> &toc_buffer);
 	void InitFullTOC(const std::vector<uint8_t> &toc_buffer);
 	void UpdateINDEX(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start);
 	static std::ostream &PrintCDTextCUE(std::ostream &os, const CDText &cd_text, uint32_t indent_level);
 	static bool IsTextPack(PackType pack_type);
 	CDText *GetCDText(uint8_t index, uint8_t track_number);
+	uint32_t TrackNumberWidth() const;
 };
 
 }

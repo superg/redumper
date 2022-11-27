@@ -265,8 +265,8 @@ bool redumper_dump(const Options &options, bool refine)
 		lba_end = toc.sessions.back().tracks.back().lba_end;
 
 	// multisession gaps
-	for(uint32_t i = 0; i < toc.sessions.size() - 1; ++i)
-		error_ranges.emplace_back(toc.sessions[i].tracks.back().lba_end, toc.sessions[i + 1].tracks.front().indices.front() + drive_config.pregap_start);
+	for(uint32_t i = 1; i < toc.sessions.size(); ++i)
+		error_ranges.emplace_back(toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start);
 
 	// CD-TEXT
 	std::vector<uint8_t> cd_text_buffer;

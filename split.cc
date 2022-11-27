@@ -387,8 +387,6 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 {
 	bool no_errors = true;
 
-	std::string track_format = fmt::format("{{:0{}}}{{}}", (uint32_t)log10(toc.sessions.back().tracks.back().track_number) + 1);
-
 	std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
 	LOG("checking tracks");
@@ -401,7 +399,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 			int32_t write_offset = data_track ? write_offset_data : write_offset_audio;
 
-			LOG_F("track {}... ", fmt::vformat(track_format, fmt::make_format_args(t.track_number, t.track_suffix)));
+			LOG_F("track {}... ", toc.TrackString(t.track_number));
 
 			uint32_t skip_samples = 0;
 			uint32_t c2_samples = 0;
@@ -463,8 +461,6 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, int32_t write_offset_data, int32_t write_offset_audio,
                   const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, int32_t lba_start, bool scrap, const Options &options)
 {
-	std::string track_format = fmt::format(" (Track {{:0{}}}{{}})", (uint32_t)log10(toc.sessions.back().tracks.back().track_number) + 1);
-
 	Scrambler scrambler;
 	std::vector<uint8_t> sector(CD_DATA_SIZE);
 	std::vector<State> state(CD_DATA_SIZE_SAMPLES);
@@ -478,12 +474,24 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 	{
 		for(auto &t : s.tracks)
 		{
+			// skip empty tracks
+			if(t.lba_end == t.lba_start)
+				continue;
+
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 			int32_t write_offset = data_track ? write_offset_data : write_offset_audio;
 			bool data_mode_set = false;
 			bool force_descramble = false;
 
-			std::string track_name = fmt::format("{}{}.bin", options.image_name, toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 ? "" : fmt::vformat(track_format, fmt::make_format_args(t.track_number, t.track_suffix)));
+			std::string track_string = toc.TrackString(t.track_number);
+			bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
+
+			// add session number to lead-in/lead-out track string to make filename unique
+			if(lilo && toc.sessions.size() > 1)
+				track_string = fmt::format("{}.{}", s.session_number, track_string);
+
+			std::string track_name = fmt::format("{}{}.bin", options.image_name,
+				toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 && !lilo ? "" : fmt::format(" (Track {})", track_string));
 			LOG("writing \"{}\"", track_name);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / track_name) && !options.overwrite)
@@ -656,10 +664,6 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 	for(auto const &s : toc.sessions)
 		for(auto const &t : s.tracks)
 		{
-			// skip dummy tracks
-			if(!t.track_suffix.empty())
-				continue;
-
 			toc_tracks[t.track_number] = &t;
 			tracks.insert(t.track_number);
 		}
@@ -668,10 +672,6 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 	for(auto const &s : qtoc.sessions)
 		for(auto const &t : s.tracks)
 		{
-			// skip dummy tracks
-			if(!t.track_suffix.empty())
-				continue;
-
 			qtoc_tracks[t.track_number] = &t;
 			tracks.insert(t.track_number);
 		}
@@ -1619,7 +1619,7 @@ void redumper_split(const Options &options)
 				}
 			}
 
-	// check session pre-gaps for non-zero data
+	// check session pre-gap for non-zero data
 	for(auto &s : toc.sessions)
 	{
 		TOC::Session::Track &t = s.tracks.front();
@@ -1636,10 +1636,10 @@ void redumper_split(const Options &options)
 
 				auto t_00 = t;
 
+				t_00.track_number = 0;
 				t_00.lba_start = pregap_start;
 				t_00.lba_end = pregap_end;
 				t_00.indices.clear();
-				t_00.track_suffix = "#00";
 
 				s.tracks.insert(s.tracks.begin(), t_00);
 			}
@@ -1651,52 +1651,16 @@ void redumper_split(const Options &options)
 			t.lba_start = pregap_end;
 	}
 
-	// check session lead-outs for non-zero data
+	// check session lead-out for non-zero data
 	for(auto &s : toc.sessions)
 	{
 		auto &t = s.tracks.back();
 
-		int32_t leadout_start = t.lba_end;
-		int32_t leadout_end = std::min(leadout_start + CD_LEADOUT_MIN_SIZE, sectors_count + LBA_START);
-
-		// find available lead-out sectors based on Q
-		if(subcode)
-		{
-			ChannelQ q_empty;
-			memset(&q_empty, 0, sizeof(q_empty));
-
-			leadout_end = leadout_start;
-			for(; leadout_end < (int32_t)sectors_count + LBA_START; ++leadout_end)
-			{
-				uint32_t lba_index = leadout_end - LBA_START;
-
-				auto &Q = subq[lba_index];
-				if(!memcmp(&Q, &q_empty, sizeof(q_empty)))
-					break;
-
-				if(Q.Valid())
-				{
-					uint8_t adr = Q.control_adr & 0x0F;
-					if((adr != 1 || Q.mode1.tno != 0xAA) && adr != 2 && adr != 5)
-						break;
-				}
-			}
-		}
-
-		auto leadout_range = find_non_zero_range(scm_fs, state_fs, leadout_start, leadout_end, write_offset, t.control & (uint8_t)ChannelQ::Control::DATA, true);
+		auto leadout_range = find_non_zero_range(scm_fs, state_fs, t.lba_start, t.lba_end, write_offset, t.control & (uint8_t)ChannelQ::Control::DATA, true);
 		if(leadout_range.second > leadout_range.first)
-		{
-			auto t_aa = t;
+			LOG("warning: lead-out contains non-zero data (session: {}, sectors: {}/{})", s.session_number, leadout_range.second - leadout_range.first, t.lba_end - t.lba_start);
 
-			t_aa.lba_start = leadout_range.first;
-			t_aa.lba_end = leadout_range.second;
-			t_aa.indices.clear();
-			t_aa.track_suffix = "@AA";
-
-			s.tracks.push_back(t_aa);
-
-			LOG("warning: lead-out contains non-zero data (session: {}, sectors: {}/{})", s.session_number, leadout_range.second - leadout_range.first, leadout_end - leadout_start);
-		}
+		t.lba_end = leadout_range.second;
 	}
 
 	auto time_stop = std::chrono::high_resolution_clock::now();

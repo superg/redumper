@@ -110,6 +110,7 @@ inline constexpr uint32_t CD_DATA_SIZE_SAMPLES = CD_DATA_SIZE / CD_SAMPLE_SIZE;
 
 inline constexpr uint32_t CD_TRACKS_COUNT = 100;
 inline constexpr uint32_t CD_INDEX_COUNT = 100;
+inline constexpr uint32_t CD_LEADOUT_TRACK_NUMBER = 0xAA;
 
 inline constexpr uint8_t CD_DATA_SYNC[] =
 {
@@ -126,6 +127,7 @@ inline constexpr MSF MSF_LEADIN_START = {MSF_MINUTES_WRAP, 0, 0};
 inline constexpr uint32_t LBA_LIMIT = MSF_LIMIT.m * MSF_LIMIT.s * MSF_LIMIT.f;
 
 inline constexpr uint32_t CD_PREGAP_SIZE = 2 * MSF_LIMIT.f; // 2 seconds
+inline constexpr uint32_t CD_LEADIN_MIN_SIZE = 60 * MSF_LIMIT.f; // 60 seconds
 inline constexpr uint32_t CD_LEADOUT_MIN_SIZE = 90 * MSF_LIMIT.f; // 90 seconds
 
 inline constexpr int32_t MSF_LBA_SHIFT = -1 * CD_PREGAP_SIZE;

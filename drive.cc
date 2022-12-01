@@ -405,6 +405,7 @@ std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32
 	{
 		data.reserve(entries_count * CD_RAW_DATA_SIZE);
 
+		bool last_valid = true;
 		for(uint32_t i = 0; i < entries_count; ++i)
 		{
 			uint32_t index = (index_start + i) % cache_entries_count;
@@ -422,9 +423,20 @@ std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32
 				if(adr == 1 && Q.mode1.tno)
 				{
 					if(lba_start + i != BCDMSF_to_LBA(Q.mode1.a_msf))
+					{
+						// pop back last cache entry as it's likely incomplete if Q is invalid
+						// confirmed by analyzing cache dump where Q was partially overwritten with newer data
+						if(!last_valid)
+							data.resize(data.size() - CD_RAW_DATA_SIZE);
+
 						break;
+					}
 				}
+
+				last_valid = true;
 			}
+			else
+				last_valid = false;
 
 			data.insert(data.end(), main_data, main_data + CD_DATA_SIZE);
 			data.insert(data.end(), c2_data, c2_data + CD_C2_SIZE);

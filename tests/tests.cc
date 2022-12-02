@@ -15,6 +15,49 @@ using namespace gpsxre;
 
 
 
+bool test_scale()
+{
+	bool success = true;
+
+	std::vector<std::pair<std::pair<int32_t, uint32_t>, int32_t>> cases =
+	{
+		{{ 0, 16}, 0},
+		{{ 1, 16}, 1},
+		{{15, 16}, 1},
+		{{16, 16}, 1},
+		{{17, 16}, 2},
+		{{20, 16}, 2},
+		{{32, 16}, 2},
+		{{33, 16}, 3},
+
+		{{ -1, 16}, -1},
+		{{-15, 16}, -1},
+		{{-16, 16}, -1},
+		{{-17, 16}, -2},
+		{{-20, 16}, -2},
+		{{-32, 16}, -2},
+		{{-33, 16}, -3}
+	};
+
+	for(size_t i = 0; i < cases.size(); ++i)
+	{
+		std::cout << fmt::format("scale_up({}, {}) -> {}... ", cases[i].first.first, cases[i].first.second, cases[i].second) << std::flush;
+		auto s = scale(cases[i].first.first, cases[i].first.second);
+		if(s == cases[i].second)
+			std::cout << "success";
+		else
+		{
+			std::cout << fmt::format("failure, result: {}", s);
+			success = false;
+		}
+
+		std::cout << std::endl;
+	}
+
+	return success;
+}
+
+
 bool test_cd()
 {
 	bool success = true;
@@ -175,6 +218,8 @@ int main(int argc, char *argv[])
 {
 	int success = 0;
 
+	success |= (int)!test_scale();
+	std::cout << std::endl;
 	success |= (int)!test_cd();
 	std::cout << std::endl;
 	success |= (int)!test_unscramble();

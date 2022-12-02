@@ -2,6 +2,7 @@
 
 
 
+#include <cassert>
 #include <cstddef>
 #include <fmt/format.h>
 #include <map>
@@ -32,18 +33,37 @@
 namespace gpsxre
 {
 
-// count of static array elements
-template <typename T, int N>
-constexpr size_t dim(T(&)[N])
+template <typename T, size_t N>
+constexpr size_t countof(T(&)[N])
 {
     return N;
 }
 
-template <typename T, typename U>
-T round_up(T value, U base)
+template <typename T, class = typename std::enable_if<std::is_unsigned<T>::value>::type>
+constexpr T round_up_pow2(T value, T multiple)
 {
-	base -= 1;
-	return (value + (T)base) & ~base;
+	multiple -= 1;
+	return (value + multiple) & ~multiple;
+}
+
+template <typename T, typename U, class = typename std::enable_if<std::is_unsigned<U>::value>::type>
+constexpr T scale(T value, U multiple)
+{
+    assert(multiple);
+	T sign = value > 0 ? +1 : (value < 0 ? -1 : 0);
+    return (value - sign) / (T)multiple + sign;
+}
+
+template <typename T, typename U, class = typename std::enable_if<std::is_unsigned<U>::value>::type>
+constexpr T round_up(T value, U multiple)
+{
+    return scale(value, multiple) * (T)multiple;
+}
+
+template <typename T, typename U, class = typename std::enable_if<std::is_unsigned<U>::value>::type>
+constexpr T round_down(T value, U multiple)
+{
+    return value / (T)multiple * (T)multiple;
 }
 
 template<typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>

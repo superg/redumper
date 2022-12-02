@@ -1030,6 +1030,7 @@ void redumper_subchannel(const Options &options)
 
 void redumper_debug(const Options &options)
 {
+/*
 	{
 		SPTD sptd(options.drive);
 		drive_init(sptd, options);
@@ -1043,7 +1044,7 @@ void redumper_debug(const Options &options)
 
 		auto cache = asus_cache_read(sptd, drive_config.type);
 	}
-
+*/
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path cache_path(image_prefix + ".asus");
@@ -1052,11 +1053,12 @@ void redumper_debug(const Options &options)
 	{
 		std::vector<uint8_t> cache = read_vector(cache_path);
 
-		asus_cache_print_subq(cache, DriveConfig::Type::LG_ASU8);
+		asus_cache_print_subq(cache, DriveConfig::Type::LG_ASU3);
 
 //		auto asd = asus_cache_unroll(cache);
 //		auto asd = asus_cache_extract(cache, 128224, 0);
-//		auto asd = asus_cache_extract(cache, 156097, 100);
+		auto asus_leadout_buffer = asus_cache_extract(cache, 55745, 100, DriveConfig::Type::LG_ASU3);
+		uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 
 		LOG("");
 	}

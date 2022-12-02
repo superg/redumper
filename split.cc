@@ -382,6 +382,12 @@ uint32_t iso9660_volume_size(std::fstream &scm_fs, uint64_t scm_offset, bool scr
 }
 
 
+bool optional_track(uint32_t track_number)
+{
+	return track_number == 0x00 || track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
+}
+
+
 bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, int32_t write_offset_data, int32_t write_offset_audio,
                   const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, int32_t lba_start, bool scrap, const Options &options)
 {
@@ -440,7 +446,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 				}
 			}
 
-			if(skip_sectors || c2_sectors)
+			if((skip_sectors && !optional_track(t.track_number)) || c2_sectors)
 			{
 				LOG("failed, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", skip_sectors, c2_sectors, skip_samples, c2_samples);
 				no_errors = false;
@@ -545,11 +551,11 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 						memcpy(s.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
 						s.header.address = LBA_to_BCDMSF(lba);
 						s.header.mode = t.data_mode;
-						memset(s.mode2.user_data, options.skip_fill, sizeof(s.mode2.user_data));
+						memset(s.mode2.user_data, optional_track(t.track_number) ? 0x00 : options.skip_fill, sizeof(s.mode2.user_data));
 					}
 					// audio
 					else
-						memset(sector.data(), options.skip_fill, sector.size());
+						memset(sector.data(), optional_track(t.track_number) ? 0x00 : options.skip_fill, sector.size());
 				}
 				else
 				{
@@ -755,15 +761,23 @@ std::vector<std::pair<int32_t, int32_t>> audio_get_toc_index0_ranges(const TOC &
 }
 
 
-std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(std::fstream &scm_fs, uint32_t sectors_count, uint16_t silence_threshold, uint32_t min_count)
+std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(std::fstream &scm_fs, uint32_t sectors_count, uint16_t silence_threshold, const std::vector<std::pair<int32_t, int32_t>> &index0_ranges)
 {
-	std::vector<std::vector<std::pair<int32_t, int32_t>>> silence_ranges(silence_threshold + 1);
+	uint32_t silence_samples_min = std::numeric_limits<uint32_t>::max();
+	for(auto const &r : index0_ranges)
+	{
+		uint32_t length = r.second - r.first;
+		if(silence_samples_min > length)
+			silence_samples_min = length;
+	}
+
+	std::vector<std::vector<std::pair<int32_t, int32_t>>> silence_ranges(silence_threshold);
 
 	uint32_t samples[CD_DATA_SIZE_SAMPLES];
 
 	// don't use std::vector here because it's too slow
-	auto silence_start = std::make_unique<int32_t[]>(silence_threshold + 1);
-	std::fill_n(silence_start.get(), silence_threshold + 1, std::numeric_limits<int32_t>::min());
+	auto silence_start = std::make_unique<int32_t[]>(silence_threshold);
+	std::fill_n(silence_start.get(), silence_threshold, std::numeric_limits<int32_t>::min());
 
 	for(uint32_t i = 0; i < sectors_count; ++i)
 	{
@@ -775,7 +789,7 @@ std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(s
 
 			auto sample = (int16_t *)&samples[j];
 
-			for(uint16_t k = 0; k <= silence_threshold; ++k)
+			for(uint16_t k = 0; k < silence_threshold; ++k)
 			{
 				// silence
 				if(std::abs(sample[0]) <= (int)k && std::abs(sample[1]) <= (int)k)
@@ -788,7 +802,7 @@ std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(s
 				{
 					if(silence_start[k] != std::numeric_limits<int32_t>::max())
 					{
-						if(silence_start[k] == std::numeric_limits<int32_t>::min() || position - silence_start[k] >= (int32_t)min_count)
+						if(silence_start[k] == std::numeric_limits<int32_t>::min() || position - silence_start[k] >= (int32_t)silence_samples_min)
 							silence_ranges[k].emplace_back(silence_start[k], position);
 
 						silence_start[k] = std::numeric_limits<int32_t>::max();
@@ -799,7 +813,7 @@ std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(s
 	}
 
 	// tail
-	for(uint16_t k = 0; k <= silence_threshold; ++k)
+	for(uint16_t k = 0; k < silence_threshold; ++k)
 		silence_ranges[k].emplace_back(silence_start[k] == std::numeric_limits<int32_t>::max() ? sectors_count * CD_DATA_SIZE_SAMPLES + (LBA_START * (int32_t)CD_DATA_SIZE_SAMPLES) : silence_start[k], std::numeric_limits<int32_t>::max());
 
 	return silence_ranges;
@@ -866,34 +880,13 @@ std::pair<int32_t, int32_t> audio_get_sample_range(std::fstream &scm_fs, uint32_
 }
 
 
-int32_t disc_offset_by_silence(const TOC &toc, std::fstream &scm_fs, uint32_t sectors_count, const Options &options)
+uint16_t disc_offset_by_silence(std::vector<std::pair<int32_t, int32_t>> &offset_ranges, const TOC &toc, std::fstream &scm_fs, uint32_t sectors_count,
+		const std::vector<std::pair<int32_t, int32_t>> &index0_ranges, const std::vector<std::vector<std::pair<int32_t, int32_t>>> &silence_ranges, uint16_t silence_threshold)
 {
-	int32_t write_offset = std::numeric_limits<int32_t>::max();
-
-	auto index0_ranges = audio_get_toc_index0_ranges(toc);
-	uint32_t silence_samples_min = std::numeric_limits<uint32_t>::max();
-	for(auto const &r : index0_ranges)
-	{
-		uint32_t length = r.second - r.first;
-		if(silence_samples_min > length)
-			silence_samples_min = length;
-	}
-
-	LOG_F("audio silence detection... ");
-	auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, options.audio_silence_threshold, silence_samples_min);
-	LOG("done");
-
-	std::pair<int32_t, int32_t> toc_sample_range(toc.sessions.front().tracks.front().lba_start * (int32_t)CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_end * (int32_t)CD_DATA_SIZE_SAMPLES);
-	std::pair<int32_t, int32_t> data_sample_range(silence_ranges[0].front().second, silence_ranges[0].back().first);
-	int32_t toc_sample_size = toc_sample_range.second - toc_sample_range.first;
-	int32_t data_sample_size = data_sample_range.second - data_sample_range.first;
-	int32_t pregap_sample_size = 150 * CD_DATA_SIZE_SAMPLES;
-
-	for(uint16_t t = 0; t <= options.audio_silence_threshold; ++t)
+	for(uint16_t t = 0; t < silence_threshold; ++t)
 	{
 		auto &silence_range = silence_ranges[t];
 
-		std::vector<std::pair<int32_t, int32_t>> offset_ranges;
 		for(int32_t sample_offset = -OFFSET_DEVIATION_MAX; sample_offset <= (int32_t)OFFSET_DEVIATION_MAX; ++sample_offset)
 		{
 			bool match = true;
@@ -945,72 +938,10 @@ int32_t disc_offset_by_silence(const TOC &toc, std::fstream &scm_fs, uint32_t se
 		}
 
 		if(!offset_ranges.empty())
-		{
-			LOG_F("Perfect Audio Offset (silence level: {}): ", t);
-			for(uint32_t i = 0; i < offset_ranges.size(); ++i)
-			{
-				auto const &r = offset_ranges[i];
-
-				if(r.first == r.second)
-					LOG_F("{:+}{}", r.first, i + 1 == offset_ranges.size() ? "" : ", ");
-				else
-					LOG_F("[{:+} .. {:+}]{}", r.first, r.second, i + 1 == offset_ranges.size() ? "" : ", ");
-			}
-			LOG("");
-
-			// only one perfect offset exists
-			if(offset_ranges.size() == 1 && offset_ranges.front().first == offset_ranges.front().second)
-				write_offset = offset_ranges.front().first;
-
-			// try to move out data from pre-gap if it's still in perfect range
-			if(write_offset == std::numeric_limits<int32_t>::max())
-			{
-				if(data_sample_range.first < toc_sample_range.first + pregap_sample_size && data_sample_size + pregap_sample_size <= toc_sample_size)
-				{
-					int32_t wo = data_sample_range.first - (toc_sample_range.first + pregap_sample_size);
-
-					for(auto const r : offset_ranges)
-					{
-						if(wo >= r.first && wo <= r.second)
-						{
-							write_offset = wo;
-							break;
-						}
-					}
-				}
-			}
-
-			// favor offset 0 if it belongs to perfect range
-			if(write_offset == std::numeric_limits<int32_t>::max())
-			{
-				for(auto const r : offset_ranges)
-				{
-					if(0 >= r.first && 0 <= r.second)
-					{
-						write_offset = 0;
-						break;
-					}
-				}
-			}
-
-			// choose the closest offset to 0
-			if(write_offset == std::numeric_limits<int32_t>::max())
-			{
-				for(auto const r : offset_ranges)
-				{
-					if(std::abs(r.first) < std::abs(write_offset))
-						write_offset = r.first;
-
-					if(std::abs(r.second) < std::abs(write_offset))
-						write_offset = r.second;
-				}
-			}
-
-			break;
-		}
+			return t;
 	}
 
-	return write_offset;
+	return silence_threshold;
 }
 
 
@@ -1065,7 +996,7 @@ int32_t disc_offset_by_overlap(const TOC &toc, std::fstream &scm_fs, int32_t wri
 }
 
 
-std::pair<int32_t, int32_t> find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32_t lba_start, int32_t lba_end, int32_t write_offset, bool data_track, bool reverse)
+uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32_t lba_start, int32_t lba_end, int32_t write_offset, bool data_track, bool reverse)
 {
 	int32_t step = 1;
 	if(reverse)
@@ -1135,7 +1066,7 @@ std::pair<int32_t, int32_t> find_non_zero_range(std::fstream &scm_fs, std::fstre
 			break;
 	}
 
-	return std::pair<int32_t, int32_t>(reverse ? lba_end + 1 : lba, reverse ? lba + 1 : lba_end);
+	return reverse ? lba - lba_end : lba_end - lba;
 }
 
 
@@ -1440,6 +1371,12 @@ void redumper_split(const Options &options)
 		toc.sessions.front().tracks.insert(toc.sessions.front().tracks.begin(), t0);
 	}
 
+	std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_end * CD_DATA_SIZE_SAMPLES);
+	auto nonzero_data_range = audio_get_sample_range(scm_fs, sectors_count);
+	LOG("non-zero  TOC sample range: [{:9} .. {:9}]", nonzero_toc_range.first, nonzero_toc_range.second);
+	LOG("non-zero data sample range: [{:9} .. {:9}]", nonzero_data_range.first, nonzero_data_range.second);
+	LOG("");
+
 	LOG("detecting offset");
 	auto time_start = std::chrono::high_resolution_clock::now();
 
@@ -1531,42 +1468,56 @@ void redumper_split(const Options &options)
 	// perfect audio offset
 	if(write_offset == std::numeric_limits<int32_t>::max() && !scrap)
 	{
-		int32_t perfect_audio_offset = disc_offset_by_silence(toc, scm_fs, sectors_count, options);
-		if(perfect_audio_offset != std::numeric_limits<int32_t>::max() && options.perfect_audio_offset)
+		auto index0_ranges = audio_get_toc_index0_ranges(toc);
+
+		LOG_F("audio silence detection... ");
+		auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, options.audio_silence_threshold, index0_ranges);
+		LOG("done");
+
+		std::vector<std::pair<int32_t, int32_t>> offset_ranges;
+		uint16_t silence_level = disc_offset_by_silence(offset_ranges, toc, scm_fs, sectors_count, index0_ranges, silence_ranges, options.audio_silence_threshold);
+		if(silence_level < options.audio_silence_threshold)
 		{
-			write_offset = perfect_audio_offset;
-			LOG("Perfect Audio Offset applied");
-		}
-	}
-
-	if(write_offset == std::numeric_limits<int32_t>::max())
-	{
-		std::pair<int32_t, int32_t> toc_sample_range(toc.sessions.front().tracks.front().lba_start * (int32_t)CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_end * (int32_t)CD_DATA_SIZE_SAMPLES);
-		std::pair<int32_t, int32_t> data_sample_range(audio_get_sample_range(scm_fs, sectors_count));
-		int32_t toc_sample_size = toc_sample_range.second - toc_sample_range.first;
-		int32_t data_sample_size = data_sample_range.second - data_sample_range.first;
-		int32_t pregap_sample_size = 150 * CD_DATA_SIZE_SAMPLES;
-		LOG(" TOC sample range (size: {}): [{:+} .. {:+})", toc_sample_size, toc_sample_range.first, toc_sample_range.second);
-		LOG("data sample range (size: {}): [{:+} .. {:+})", data_sample_size, data_sample_range.first, data_sample_range.second);
-
-		//DEBUG
-//		std::cout << fmt::format("offset start: {:08X}, offset end: {:08X}",
-//				data_sample_range.first * CD_SAMPLE_SIZE - LBA_START * CD_DATA_SIZE,
-//				data_sample_range.second * CD_SAMPLE_SIZE - LBA_START * CD_DATA_SIZE) << std::endl;
-
-		if(data_sample_size <= toc_sample_size)
-		{
-			// move data out of lead-out
-			if(data_sample_range.second > toc_sample_range.second)
+			LOG_F("Perfect Audio Offset (silence level: {}): ", silence_level);
+			for(uint32_t i = 0; i < offset_ranges.size(); ++i)
 			{
-				write_offset = data_sample_range.second - toc_sample_range.second;
-				LOG("moving data out of lead-out (difference: {:+})", write_offset);
+				auto const &r = offset_ranges[i];
+
+				if(r.first == r.second)
+					LOG_F("{:+}{}", r.first, i + 1 == offset_ranges.size() ? "" : ", ");
+				else
+					LOG_F("[{:+} .. {:+}]{}", r.first, r.second, i + 1 == offset_ranges.size() ? "" : ", ");
 			}
-			// move data out of pre-gap only if we can get rid of it whole
-			else if(data_sample_range.first < toc_sample_range.first + pregap_sample_size && data_sample_size + pregap_sample_size <= toc_sample_size)
+			LOG("");
+
+			// only one perfect offset exists
+			if(offset_ranges.size() == 1 && offset_ranges.front().first == offset_ranges.front().second && !silence_level)
 			{
-				write_offset = data_sample_range.first - (toc_sample_range.first + pregap_sample_size);
-				LOG("moving data out of pre-gap (difference: {:+})", write_offset);
+				write_offset = offset_ranges.front().first;
+				LOG("Perfect Audio Offset applied");
+			}
+		}
+
+		if(write_offset == std::numeric_limits<int32_t>::max())
+		{
+			int32_t toc_sample_size = nonzero_toc_range.second - nonzero_toc_range.first;
+			int32_t nonzero_sample_size = nonzero_data_range.second - nonzero_data_range.first;
+			int32_t pregap_sample_size = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
+
+			if(nonzero_sample_size <= toc_sample_size)
+			{
+				// move data out of lead-out
+				if(nonzero_data_range.second > nonzero_toc_range.second)
+				{
+					write_offset = nonzero_data_range.second - nonzero_toc_range.second;
+					LOG("moving data out of lead-out (difference: {:+})", write_offset);
+				}
+				// move data out of pre-gap only if we can get rid of it whole
+				else if(nonzero_data_range.first < nonzero_toc_range.first + pregap_sample_size && nonzero_sample_size + pregap_sample_size <= toc_sample_size)
+				{
+					write_offset = nonzero_data_range.first - (nonzero_toc_range.first + pregap_sample_size);
+					LOG("moving data out of pre-gap (difference: {:+})", write_offset);
+				}
 			}
 		}
 	}
@@ -1619,36 +1570,60 @@ void redumper_split(const Options &options)
 				}
 			}
 
-	// check session pre-gap for non-zero data
-	for(auto &s : toc.sessions)
+	// check if pre-gap is complete
+	for(uint32_t i = 0; i < toc.sessions.size(); ++i)
 	{
-		TOC::Session::Track &t = s.tracks.front();
+		auto &t = toc.sessions[i].tracks.front();
 
-		int32_t pregap_start = t.lba_start;
-		int32_t pregap_end = pregap_start < 0 ? 0 : t.indices.front();
+		int32_t pregap_end = i ? t.indices.front() : 0;
+		int32_t pregap_start = pregap_end - CD_PREGAP_SIZE;
 
-		auto pregap_range = find_non_zero_range(scm_fs, state_fs, pregap_start, pregap_end, write_offset, t.control & (uint8_t)ChannelQ::Control::DATA, false);
-		if(pregap_range.second > pregap_range.first)
+		uint32_t unavailable = 0;
+		for(int32_t lba = pregap_start; lba != pregap_end; ++lba)
 		{
-			if(t.control & (uint8_t)ChannelQ::Control::DATA || cdi_ready)
-			{
-				t.lba_start = pregap_end;
+			std::vector<State> state(CD_DATA_SIZE_SAMPLES);
+			read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 
-				auto t_00 = t;
-
-				t_00.track_number = 0;
-				t_00.lba_start = pregap_start;
-				t_00.lba_end = pregap_end;
-				t_00.indices.clear();
-
-				s.tracks.insert(s.tracks.begin(), t_00);
-			}
-
-			LOG("warning: pre-gap contains non-zero data (session: {}, sectors: {}/{})", s.session_number, pregap_range.second - pregap_range.first, pregap_end - pregap_start);
+			bool skip = false;
+			for(auto const &s : state)
+				if(s == State::ERROR_SKIP)
+				{
+					++unavailable;
+					break;
+				}
 		}
-		// pre-gap zeroed
-		else
-			t.lba_start = pregap_end;
+
+		if(unavailable)
+			LOG("warning: incomplete pre-gap (session: {}, unavailable: {}/{})", toc.sessions[i].session_number, unavailable, pregap_end - pregap_start);
+	}
+
+	// check session pre-gap for non-zero data
+	for(uint32_t i = 0; i < toc.sessions.size(); ++i)
+	{
+		auto &s = toc.sessions[i];
+		auto &t = s.tracks.front();
+
+		int32_t leadin_start = i ? toc.sessions[i - 1].tracks.back().lba_end : scale(nonzero_data_range.first, CD_DATA_SIZE_SAMPLES);
+		int32_t leadin_end = i ? t.indices.front() : 0;
+
+		// do this before new track insertion
+		t.lba_start = leadin_end;
+
+		// if it's not empty, construct 00 track with non-zero data
+		auto nonzero_count = find_non_zero_range(scm_fs, state_fs, leadin_start, leadin_end, write_offset, t.control & (uint8_t)ChannelQ::Control::DATA, false);
+		if(nonzero_count)
+		{
+			auto t_00 = t;
+
+			t_00.track_number = 0;
+			t_00.lba_start = leadin_start;
+			t_00.lba_end = leadin_end;
+			t_00.indices.clear();
+
+			s.tracks.insert(s.tracks.begin(), t_00);
+
+			LOG("warning: pre-gap contains non-zero data (session: {}, sectors: {}/{})", s.session_number, nonzero_count, leadin_end - leadin_start);
+		}
 	}
 
 	// check session lead-out for non-zero data
@@ -1656,11 +1631,27 @@ void redumper_split(const Options &options)
 	{
 		auto &t = s.tracks.back();
 
-		auto leadout_range = find_non_zero_range(scm_fs, state_fs, t.lba_start, t.lba_end, write_offset, t.control & (uint8_t)ChannelQ::Control::DATA, true);
-		if(leadout_range.second > leadout_range.first)
-			LOG("warning: lead-out contains non-zero data (session: {}, sectors: {}/{})", s.session_number, leadout_range.second - leadout_range.first, t.lba_end - t.lba_start);
+		auto nonzero_count = find_non_zero_range(scm_fs, state_fs, t.lba_start, t.lba_end, write_offset, t.control & (uint8_t)ChannelQ::Control::DATA, true);
+		if(nonzero_count)
+			LOG("warning: lead-out contains non-zero data (session: {}, sectors: {}/{})", s.session_number, nonzero_count, t.lba_end - t.lba_start);
 
-		t.lba_end = leadout_range.second;
+		t.lba_end = t.lba_start + nonzero_count;
+	}
+
+	// check if session lead-out is isolated by one good sector
+	for(uint32_t i = 0; i < toc.sessions.size(); ++i)
+	{
+		auto &t = toc.sessions[i].tracks.back();
+
+		std::vector<State> state(CD_DATA_SIZE_SAMPLES);
+		read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, t.lba_end - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
+
+		for(auto const &s : state)
+			if(s == State::ERROR_SKIP)
+			{
+				LOG("warning: lead-out ends with unavailable sector (session: {})", toc.sessions[i].session_number);
+				break;
+			}
 	}
 
 	auto time_stop = std::chrono::high_resolution_clock::now();

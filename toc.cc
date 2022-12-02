@@ -626,7 +626,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 	{
 		auto &s = sessions[j];
 
-		// always output standard sizes here
+		// output standard sizes here for now
 		// can be calculated precisely if whole lead-out/toc/pre-gap range is dumped
 		if(multisession)
 		{
@@ -652,7 +652,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 				continue;
 
-			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : fmt::format(" (Track {})", t.track_number)) << std::endl;
+			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : fmt::format(" (Track {})", TrackString(t.track_number))) << std::endl;
 
 			std::string track_type;
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)

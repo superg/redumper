@@ -93,7 +93,7 @@ std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 	if(!status.status_code)
 	{
 		uint16_t toc_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
-		toc.resize(round_up(toc_buffer_size, sizeof(uint32_t)));
+		toc.resize(round_up_pow2<uint16_t>(toc_buffer_size, sizeof(uint32_t)));
 
 		*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(toc_buffer_size);
 		status = sptd.SendCommand(&cdb, sizeof(cdb), toc.data(), (uint32_t)toc.size());
@@ -123,7 +123,7 @@ std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 	if(!status.status_code)
 	{
 		uint16_t toc_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
-		full_toc.resize(round_up(toc_buffer_size, sizeof(uint32_t)));
+		full_toc.resize(round_up_pow2<uint16_t>(toc_buffer_size, sizeof(uint32_t)));
 
 		*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(toc_buffer_size);
 		status = sptd.SendCommand(&cdb, sizeof(cdb), full_toc.data(), (uint32_t)full_toc.size());
@@ -154,7 +154,7 @@ SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 		uint16_t cd_text_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
 		if(cd_text_buffer_size > sizeof(toc_response))
 		{
-			cd_text.resize(round_up(cd_text_buffer_size, sizeof(uint32_t)));
+			cd_text.resize(round_up_pow2<uint16_t>(cd_text_buffer_size, sizeof(uint32_t)));
 
 			*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(cd_text_buffer_size);
 

@@ -6,20 +6,15 @@
 
 
 
-//DEBUG
-#include <iostream>
-
-
-
 namespace gpsxre
 {
 
 static const uint32_t READ_CD_C2_SIZES[] =
 {
-    0,
-    CD_C2_SIZE,
-    2 + CD_C2_SIZE,
-    0
+	0,
+	CD_C2_SIZE,
+	2 + CD_C2_SIZE,
+	0
 };
 
 static const uint32_t READ_CD_SUB_SIZES[] =
@@ -278,7 +273,7 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
 		(uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) <= fds_end &&
 		(uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length <= fds_end; fds = (GET_CONFIGURATION_FeatureDescriptor *)((uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length))
 	{
-		std::cout << endian_swap(fds->feature_code) << std::endl;
+//		std::cout << endian_swap(fds->feature_code) << std::endl;
 	}
 
 	return status;

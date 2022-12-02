@@ -394,7 +394,7 @@ bool redumper_dump(const Options &options, bool refine)
 	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&signal_dummy, [](int *)
 	{
 		Signal::GetInstance().Disengage();
-    });
+	});
 
 	int32_t lba_next = 0;
 	int32_t lba_overread = lba_end;
@@ -1161,15 +1161,15 @@ SPTD::Status read_sector(uint8_t *sector, SPTD &sptd, const DriveConfig &drive_c
 	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
 	{
 		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
-		                       drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
+				drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
 	}
 	// BE
 	else
 	{
 		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
-		                     drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
-		                     layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
-		                     layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
+				drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
+				layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
+				layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
 	}
 
 	if(!status.status_code)

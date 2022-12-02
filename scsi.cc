@@ -334,7 +334,7 @@ SPTD::Status SPTD::SendCommand(const void *cdb, uint8_t cdb_length, void *buffer
 	hdr.timeout = timeout;
 
 	int result = ioctl(_handle, SG_IO, &hdr);
-    if(result < 0)
+	if(result < 0)
 		throw_line(fmt::format("SYSTEM ({})", GetLastError()));
 
 	if(hdr.status)
@@ -356,7 +356,7 @@ std::string SPTD::GetLastError()
 
 #ifdef _WIN32
 	LPSTR buffer = nullptr;
-        FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
 				  nullptr, ::GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buffer, 0, nullptr);
 
 	message = std::string(buffer);

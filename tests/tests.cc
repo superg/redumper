@@ -130,7 +130,7 @@ bool test_unscramble()
 
 	std::set<std::filesystem::path> test_files;
 	for(auto const &f : std::filesystem::directory_iterator("unscramble"))
-    	if(f.is_regular_file())
+		if(f.is_regular_file())
 			test_files.insert(f.path());
 
 	for(auto const &f : test_files)
@@ -175,7 +175,7 @@ bool test_unscramble_dic()
 
 	std::set<std::filesystem::path> test_files;
 	for(auto const &f : std::filesystem::directory_iterator("unscramble/dic"))
-    	if(f.is_regular_file())
+		if(f.is_regular_file())
 			test_files.insert(f.path());
 
 	for(auto const &f : test_files)

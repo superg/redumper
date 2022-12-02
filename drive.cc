@@ -243,16 +243,16 @@ int32_t drive_get_generic_read_offset(const std::string &vendor, const std::stri
 std::string drive_info_string(const DriveConfig &drive_config)
 {
 	return fmt::format("{} - {} (revision level: {}, vendor specific: {})", drive_config.vendor_id, drive_config.product_id,
-	                   drive_config.product_revision_level.empty() ? "<empty>" : drive_config.product_revision_level,
-					   drive_config.vendor_specific.empty() ? "<empty>" : drive_config.vendor_specific);
+			drive_config.product_revision_level.empty() ? "<empty>" : drive_config.product_revision_level,
+			drive_config.vendor_specific.empty() ? "<empty>" : drive_config.vendor_specific);
 }
 
 
 std::string drive_config_string(const DriveConfig &drive_config)
 {
 	return fmt::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})",
-	                   enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset, drive_config.c2_shift,
-					   drive_config.pregap_start, enum_to_string(drive_config.read_method, READ_METHOD_STRING), enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
+			enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset, drive_config.c2_shift,
+			drive_config.pregap_start, enum_to_string(drive_config.read_method, READ_METHOD_STRING), enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
 }
 
 

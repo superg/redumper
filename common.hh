@@ -36,7 +36,7 @@ namespace gpsxre
 template <typename T, size_t N>
 constexpr size_t countof(T(&)[N])
 {
-    return N;
+	return N;
 }
 
 template <typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
@@ -49,21 +49,21 @@ constexpr T round_up_pow2(T value, T multiple)
 template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale(T value, U multiple)
 {
-    assert(multiple);
+	assert(multiple);
 	T sign = value > 0 ? +1 : (value < 0 ? -1 : 0);
-    return (value - sign) / (T)multiple + sign;
+	return (value - sign) / (T)multiple + sign;
 }
 
 template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_up(T value, U multiple)
 {
-    return scale(value, multiple) * (T)multiple;
+	return scale(value, multiple) * (T)multiple;
 }
 
 template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_down(T value, U multiple)
 {
-    return value / (T)multiple * (T)multiple;
+	return value / (T)multiple * (T)multiple;
 }
 
 template<typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>

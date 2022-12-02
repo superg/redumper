@@ -16,36 +16,36 @@ namespace gpsxre
 
 struct DriveConfig
 {
-    std::string vendor_id;
-    std::string product_id;
-    std::string product_revision_level;
-    std::string vendor_specific;
-    int32_t read_offset;
-    uint32_t c2_shift;
-    int32_t pregap_start;
+	std::string vendor_id;
+	std::string product_id;
+	std::string product_revision_level;
+	std::string vendor_specific;
+	int32_t read_offset;
+	uint32_t c2_shift;
+	int32_t pregap_start;
 
-    enum class ReadMethod
-    {
-        BE,
-        D8,
-        BE_CDDA
-    } read_method;
+	enum class ReadMethod
+	{
+		BE,
+		D8,
+		BE_CDDA
+	} read_method;
 
-    enum class SectorOrder
-    {
-        DATA_C2_SUB,
-        DATA_SUB_C2,
+	enum class SectorOrder
+	{
+		DATA_C2_SUB,
+		DATA_SUB_C2,
 		DATA_SUB,
 		DATA_C2
-    } sector_order;
+	} sector_order;
 
-    enum class Type
-    {
-        GENERIC,
-        PLEXTOR,
-        LG_ASU8,
-        LG_ASU3
-    } type;
+	enum class Type
+	{
+		GENERIC,
+		PLEXTOR,
+		LG_ASU8,
+		LG_ASU3
+	} type;
 };
 
 struct SectorLayout

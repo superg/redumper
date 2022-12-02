@@ -62,7 +62,7 @@ public:
 
 	std::shared_ptr<Entry> RootDirectory();
 
-    const iso9660::VolumeDescriptor &GetPVD() const;
+	const iso9660::VolumeDescriptor &GetPVD() const;
 
 	template<typename F>
 	bool Iterate(F f)

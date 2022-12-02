@@ -1035,29 +1035,29 @@ uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32
 			scrambler.Descramble(sector.data(), &lba);
 
 			auto s = (Sector *)sector.data();
-            if(s->header.mode == 0)
-            {
-                data = (uint32_t *)s->mode2.user_data;
-                data_size = MODE0_DATA_SIZE;
-            }
-            else if(s->header.mode == 1)
-            {
-                data = (uint32_t *)s->mode1.user_data;
-                data_size = FORM1_DATA_SIZE;
-            }
-            else if(s->header.mode == 2)
-            {
-                if(s->mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
-                {
-                    data = (uint32_t *)s->mode2.xa.form2.user_data;
-                    data_size = FORM2_DATA_SIZE;
-                }
-                else
-                {
-                    data = (uint32_t *)s->mode2.xa.form1.user_data;
-                    data_size = FORM1_DATA_SIZE;
-                }
-            }
+			if(s->header.mode == 0)
+			{
+				data = (uint32_t *)s->mode2.user_data;
+				data_size = MODE0_DATA_SIZE;
+			}
+			else if(s->header.mode == 1)
+			{
+				data = (uint32_t *)s->mode1.user_data;
+				data_size = FORM1_DATA_SIZE;
+			}
+			else if(s->header.mode == 2)
+			{
+				if(s->mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
+				{
+					data = (uint32_t *)s->mode2.xa.form2.user_data;
+					data_size = FORM2_DATA_SIZE;
+				}
+				else
+				{
+					data = (uint32_t *)s->mode2.xa.form1.user_data;
+					data_size = FORM1_DATA_SIZE;
+				}
+			}
 		}
 		data_size /= sizeof(uint32_t);
 

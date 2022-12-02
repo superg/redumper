@@ -496,8 +496,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 			if(lilo && toc.sessions.size() > 1)
 				track_string = fmt::format("{}.{}", s.session_number, track_string);
 
-			std::string track_name = fmt::format("{}{}.bin", options.image_name,
-				toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1 && !lilo ? "" : fmt::format(" (Track {})", track_string));
+			std::string track_name = fmt::format("{}{}.bin", options.image_name, toc.TracksCount() > 1 || lilo ? fmt::format(" (Track {})", track_string) : "");
 			LOG("writing \"{}\"", track_name);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / track_name) && !options.overwrite)
@@ -880,7 +879,7 @@ std::pair<int32_t, int32_t> audio_get_sample_range(std::fstream &scm_fs, uint32_
 }
 
 
-uint16_t disc_offset_by_silence(std::vector<std::pair<int32_t, int32_t>> &offset_ranges, const TOC &toc, std::fstream &scm_fs, uint32_t sectors_count,
+uint16_t disc_offset_by_silence(std::vector<std::pair<int32_t, int32_t>> &offset_ranges,
 		const std::vector<std::pair<int32_t, int32_t>> &index0_ranges, const std::vector<std::vector<std::pair<int32_t, int32_t>>> &silence_ranges, uint16_t silence_threshold)
 {
 	for(uint16_t t = 0; t < silence_threshold; ++t)
@@ -1157,7 +1156,6 @@ void redumper_protection(Options &options)
 					if(lba_check >= t.indices.front() && lba_check < t.lba_end)
 					{
 						read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba_check - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
-						bool error = false;
 						for(auto const &s : state)
 							if(s == State::ERROR_C2)
 							{
@@ -1475,7 +1473,7 @@ void redumper_split(const Options &options)
 		LOG("done");
 
 		std::vector<std::pair<int32_t, int32_t>> offset_ranges;
-		uint16_t silence_level = disc_offset_by_silence(offset_ranges, toc, scm_fs, sectors_count, index0_ranges, silence_ranges, options.audio_silence_threshold);
+		uint16_t silence_level = disc_offset_by_silence(offset_ranges, index0_ranges, silence_ranges, options.audio_silence_threshold);
 		if(silence_level < options.audio_silence_threshold)
 		{
 			LOG_F("Perfect Audio Offset (silence level: {}): ", silence_level);
@@ -1533,21 +1531,6 @@ void redumper_split(const Options &options)
 
 	LOG("disc write offset: {:+}", write_offset);
 
-	//TODO: find another way without passing cdi_ready?
-	// CD-i Ready
-	bool cdi_ready = false;
-	if(toc.sessions.size() == 1)
-	{
-		auto &t = toc.sessions.front().tracks.front();
-		if(!(t.control & (uint8_t)ChannelQ::Control::DATA))
-		{
-			uint32_t index0_count = (t.indices.empty() ? t.lba_end : t.indices.front()) - t.lba_start;
-
-			if(track_sync_count(t.lba_start, t.lba_start + index0_count, write_offset_data, scm_fs) > index0_count / 2)
-				cdi_ready = true;
-		}
-	}
-
 	// identify CD-I tracks, needed for CUE-sheet generation
 	for(auto &s : toc.sessions)
 		for(auto &t : s.tracks)
@@ -1584,7 +1567,6 @@ void redumper_split(const Options &options)
 			std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 			read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 
-			bool skip = false;
 			for(auto const &s : state)
 				if(s == State::ERROR_SKIP)
 				{

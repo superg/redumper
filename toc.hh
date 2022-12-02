@@ -77,6 +77,7 @@ struct TOC
 	void Print() const;
 	std::ostream &PrintCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index = 0) const;
 	std::string TrackString(uint8_t track_number) const;
+	uint32_t TracksCount() const;
 
 private:
 	enum class PackType : uint8_t

@@ -123,7 +123,6 @@ bool test_unscramble()
 	if(0)
 	{
 		std::vector<uint8_t> sector = read_vector("unscramble/11_invalid_mode_non_zeroed_intermediate_last_byte.uns.0.fail");
-		auto s = (Sector *)sector.data();
 		scrambler.Process(sector.data(), sector.data(), sector.size());
 		std::ofstream ofs("unscramble/11_invalid_mode_non_zeroed_intermediate_last_byte.0.fail", std::fstream::binary);
 		ofs.write((char *)sector.data(), sector.size());

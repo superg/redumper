@@ -1060,7 +1060,7 @@ void redumper_debug(const Options &options)
 		auto asus_leadout_buffer = asus_cache_extract(cache, 55745, 100, DriveConfig::Type::LG_ASU3);
 		uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 
-		LOG("");
+		LOG("entries count: {}", entries_count);
 	}
 
 

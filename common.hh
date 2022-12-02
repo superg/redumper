@@ -39,14 +39,14 @@ constexpr size_t countof(T(&)[N])
     return N;
 }
 
-template <typename T, class = typename std::enable_if<std::is_unsigned<T>::value>::type>
+template <typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
 constexpr T round_up_pow2(T value, T multiple)
 {
 	multiple -= 1;
 	return (value + multiple) & ~multiple;
 }
 
-template <typename T, typename U, class = typename std::enable_if<std::is_unsigned<U>::value>::type>
+template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale(T value, U multiple)
 {
     assert(multiple);
@@ -54,13 +54,13 @@ constexpr T scale(T value, U multiple)
     return (value - sign) / (T)multiple + sign;
 }
 
-template <typename T, typename U, class = typename std::enable_if<std::is_unsigned<U>::value>::type>
+template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_up(T value, U multiple)
 {
     return scale(value, multiple) * (T)multiple;
 }
 
-template <typename T, typename U, class = typename std::enable_if<std::is_unsigned<U>::value>::type>
+template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_down(T value, U multiple)
 {
     return value / (T)multiple * (T)multiple;

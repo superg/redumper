@@ -652,7 +652,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 				continue;
 
-			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, sessions.size() == 1 && sessions.front().tracks.size() == 1 ? "" : fmt::format(" (Track {})", TrackString(t.track_number))) << std::endl;
+			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, TracksCount() > 1 ? fmt::format(" (Track {})", TrackString(t.track_number)) : "") << std::endl;
 
 			std::string track_type;
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)
@@ -903,6 +903,19 @@ std::string TOC::TrackString(uint8_t track_number) const
 		track_string = fmt::vformat(fmt::format("{{:0{}}}", width), fmt::make_format_args(track_number));
 
 	return track_string;
+}
+
+
+uint32_t TOC::TracksCount() const
+{
+	uint32_t tracks_count = 0;
+
+	for(auto &s : sessions)
+		for(auto &t : s.tracks)
+			if(t.track_number != 00 && t.track_number != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+				++tracks_count;
+
+	return tracks_count;
 }
 
 

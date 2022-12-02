@@ -68,7 +68,7 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -DNOMINMAX -D_NTSCSI_USER_MODE_)
-	
+
 	set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 	# flatten the sources lists
 	file(GLOB_RECURSE files LIST_DIRECTORIES false RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *)
@@ -78,6 +78,10 @@ if(MSVC)
 		source_group("${source_path}" FILES ${i})
 	endforeach()
 endif()
+
+#if(CMAKE_COMPILER_IS_GNUCC)
+#	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+#endif()
 
 # generated source file
 set(DRIVEOFFSETS_FN "${CMAKE_CURRENT_BINARY_DIR}/driveoffsets.inc")

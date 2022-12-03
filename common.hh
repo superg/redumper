@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstddef>
 #include <fmt/format.h>
+#include <functional>
 #include <map>
 #include <ostream>
 #include <stdexcept>

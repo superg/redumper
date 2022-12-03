@@ -1624,7 +1624,7 @@ void redumper_split(const Options &options)
 
 			s.tracks.insert(s.tracks.begin(), t_00);
 
-			LOG("warning: pre-gap contains non-zero data (session: {}, sectors: {}/{})", s.session_number, nonzero_count, leadin_end - leadin_start);
+			LOG("warning: lead-in contains non-zero data (session: {}, sectors: {}/{})", s.session_number, nonzero_count, leadin_end - leadin_start);
 		}
 	}
 

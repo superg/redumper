@@ -1784,9 +1784,6 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 }
 
 
-constexpr uint32_t SECTORS_AT_ONCE = 10000;
-
-
 void redumper_info(const Options &options)
 {
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();

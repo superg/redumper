@@ -446,7 +446,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 				}
 			}
 
-			if((skip_sectors && !optional_track(t.track_number)) || c2_sectors)
+			if(skip_sectors && !optional_track(t.track_number) || c2_sectors)
 			{
 				LOG("failed, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", skip_sectors, c2_sectors, skip_samples, c2_samples);
 				no_errors = false;
@@ -1069,6 +1069,23 @@ uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32
 }
 
 
+std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, int32_t> nonzero_data_range)
+{
+	SHA1 bh_sha1;
+
+	std::vector<uint32_t> samples(10 * 1024 * 1024); // 10Mb chunk
+	batch_process_range<int32_t>(nonzero_data_range, samples.size(), [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size) -> bool
+	{
+		read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset - LBA_START * CD_DATA_SIZE_SAMPLES, size, 0, 0);
+		bh_sha1.Update((uint8_t *)samples.data(), size * sizeof(uint32_t));
+
+		return false;
+	});
+
+	return bh_sha1.Final();
+}
+
+
 void redumper_protection(Options &options)
 {
 	if(options.image_name.empty())
@@ -1373,6 +1390,7 @@ void redumper_split(const Options &options)
 	auto nonzero_data_range = audio_get_sample_range(scm_fs, sectors_count);
 	LOG("non-zero  TOC sample range: [{:9} .. {:9}]", nonzero_toc_range.first, nonzero_toc_range.second);
 	LOG("non-zero data sample range: [{:9} .. {:9}]", nonzero_data_range.first, nonzero_data_range.second);
+	LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
 	LOG("");
 
 	LOG("detecting offset");
@@ -1585,7 +1603,7 @@ void redumper_split(const Options &options)
 		auto &s = toc.sessions[i];
 		auto &t = s.tracks.front();
 
-		int32_t leadin_start = i ? toc.sessions[i - 1].tracks.back().lba_end : scale(nonzero_data_range.first, CD_DATA_SIZE_SAMPLES);
+		int32_t leadin_start = i ? toc.sessions[i - 1].tracks.back().lba_end : scale_left(nonzero_data_range.first, CD_DATA_SIZE_SAMPLES);
 		int32_t leadin_end = i ? t.indices.front() : 0;
 
 		// do this before new track insertion

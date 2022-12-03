@@ -42,7 +42,7 @@ bool test_scale()
 	for(size_t i = 0; i < cases.size(); ++i)
 	{
 		std::cout << fmt::format("scale_up({}, {}) -> {}... ", cases[i].first.first, cases[i].first.second, cases[i].second) << std::flush;
-		auto s = scale(cases[i].first.first, cases[i].first.second);
+		auto s = scale_up(cases[i].first.first, cases[i].first.second);
 		if(s == cases[i].second)
 			std::cout << "success";
 		else

@@ -47,7 +47,7 @@ constexpr T round_up_pow2(T value, T multiple)
 }
 
 template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
-constexpr T scale(T value, U multiple)
+constexpr T scale_up(T value, U multiple)
 {
 	assert(multiple);
 	T sign = value > 0 ? +1 : (value < 0 ? -1 : 0);
@@ -55,15 +55,34 @@ constexpr T scale(T value, U multiple)
 }
 
 template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+constexpr T scale_down(T value, U multiple)
+{
+	assert(multiple);
+	return value / (T)multiple;
+}
+
+template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+constexpr T scale_left(T value, U multiple)
+{
+	return value < 0 ? scale_up(value, multiple) : scale_down(value, multiple);
+}
+
+template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+constexpr T scale_right(T value, U multiple)
+{
+	return value < 0 ? scale_down(value, multiple) : scale_up(value, multiple);
+}
+
+template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_up(T value, U multiple)
 {
-	return scale(value, multiple) * (T)multiple;
+	return scale_up(value, multiple) * (T)multiple;
 }
 
 template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_down(T value, U multiple)
 {
-	return value / (T)multiple * (T)multiple;
+	return scale_down(value, multiple) * (T)multiple;
 }
 
 template<typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
@@ -227,6 +246,27 @@ T diff_bytes_count(const uint8_t *data1, const uint8_t *data2, T size)
 			++diff;
 
 	return diff;
+}
+
+template<typename T>
+bool batch_process_range(const std::pair<T, T> &range, T batch_size, const std::function<bool(T, T)> &func)
+{
+	bool interrupted = false;
+
+	for(T offset = range.first; offset != range.second;)
+	{
+		T size = std::min(range.second - offset, batch_size);
+
+		if(func(offset, size))
+		{
+			interrupted = true;
+			break;
+		}
+
+		offset += size;
+	}
+
+	return interrupted;
 }
 
 std::string normalize_string(const std::string &s);

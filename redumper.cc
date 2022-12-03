@@ -1322,7 +1322,6 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 	}
 
 	// store
-	LOG_F("storing lead-ins... ");
 	for(uint32_t s = 0; s < leadin_buffers.size(); ++s)
 	{
 		auto &leadin_buffer = leadin_buffers[s];
@@ -1376,7 +1375,6 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 			}
 		}
 	}
-	LOG("done");
 }
 
 

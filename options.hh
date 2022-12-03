@@ -41,20 +41,16 @@ struct Options
 	bool force_qtoc;
 	std::string skip;
 	int skip_fill;
-	int skip_size;
-	int ring_size;
 	bool iso9660_trim;
 	bool plextor_skip_leadin;
 	bool asus_skip_leadout;
 	bool correct_offset_shift;
 	bool cdi_ready_normalize;
 	std::unique_ptr<int> force_offset;
-	bool perfect_audio_offset;
 	int audio_silence_threshold;
 
 	Options(int argc, const char *argv[]);
 
-	static std::string HelpKeys();
 	void PrintUsage();
 };
 

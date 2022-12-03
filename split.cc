@@ -1592,7 +1592,9 @@ void redumper_split(const Options &options)
 		t.lba_start = leadin_end;
 
 		// if it's not empty, construct 00 track with non-zero data
-		auto nonzero_count = find_non_zero_range(scm_fs, state_fs, leadin_start, leadin_end, write_offset, t.control & (uint8_t)ChannelQ::Control::DATA, false);
+		uint32_t nonzero_count = 0;
+		if(leadin_end > leadin_start)
+			nonzero_count = find_non_zero_range(scm_fs, state_fs, leadin_start, leadin_end, write_offset, t.control & (uint8_t)ChannelQ::Control::DATA, false);
 		if(nonzero_count)
 		{
 			auto t_00 = t;

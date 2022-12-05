@@ -268,14 +268,6 @@ bool redumper_dump(const Options &options, bool refine)
 	for(uint32_t i = 1; i < toc.sessions.size(); ++i)
 		error_ranges.emplace_back(toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start);
 
-	// CD-TEXT
-	std::vector<uint8_t> cd_text_buffer;
-	{
-		auto status = cmd_read_cd_text(sptd, cd_text_buffer);
-		if(status.status_code)
-			LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
-	}
-
 	// compare disc / file TOC to make sure it's the same disc
 	if(refine)
 	{
@@ -289,6 +281,15 @@ bool redumper_dump(const Options &options, bool refine)
 		write_vector(toc_path, toc_buffer);
 		if(!full_toc_buffer.empty())
 			write_vector(fulltoc_path, full_toc_buffer);
+
+		// CD-TEXT
+		std::vector<uint8_t> cd_text_buffer;
+		{
+			auto status = cmd_read_cd_text(sptd, cd_text_buffer);
+			if(status.status_code)
+				LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
+		}
+
 		if(!cd_text_buffer.empty())
 			write_vector(cdtext_path, cd_text_buffer);
 	}

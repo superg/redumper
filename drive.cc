@@ -105,6 +105,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	// LG/ASUS (8Mb/3Mb cache)
 	{"ATAPI"   , "iHBS112 2"      , "PL06", "2012/09/17 10:50"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // CHECKED: LITE-ON
 	{"ASUS"    , "BW-16D1HT"      , "3.02", "W000800KL8J9NJ3134" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3}, // CHECKED
+	{"HL-DT-ST", "BD-RE BP50NB40" , "1.00", "N005505MD8F8BD0700" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3}, // olofolleola4
 
 	// OTHER
 	{"ASUS"    , "SDRW-08D2S-U"    , "B901", "2015/03/03 15:29"   ,    +6, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // internal model: DU-8A6NH11B

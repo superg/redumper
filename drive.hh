@@ -44,7 +44,8 @@ struct DriveConfig
 		GENERIC,
 		PLEXTOR,
 		LG_ASU8,
-		LG_ASU3
+		LG_ASU3,
+		LG_ASU2
 	} type;
 };
 
@@ -54,6 +55,12 @@ struct SectorLayout
 	uint32_t c2_offset;
 	uint32_t subcode_offset;
 	uint32_t size;
+};
+
+struct AsusConfig
+{
+	uint32_t size_mb;
+	uint32_t entries_count;
 };
 
 inline constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;

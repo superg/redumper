@@ -30,7 +30,8 @@ static const std::map<DriveConfig::Type, std::string> TYPE_STRING =
 	{DriveConfig::Type::GENERIC, "GENERIC"},
 	{DriveConfig::Type::PLEXTOR, "PLEXTOR"},
 	{DriveConfig::Type::LG_ASU8, "LG_ASU8"},
-	{DriveConfig::Type::LG_ASU3, "LG_ASU3"}
+	{DriveConfig::Type::LG_ASU3, "LG_ASU3"},
+	{DriveConfig::Type::LG_ASU2, "LG_ASU2"}
 };
 
 
@@ -106,6 +107,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"ATAPI"   , "iHBS112 2"      , "PL06", "2012/09/17 10:50"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // CHECKED: LITE-ON
 	{"ASUS"    , "BW-16D1HT"      , "3.02", "W000800KL8J9NJ3134" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3}, // CHECKED
 	{"HL-DT-ST", "BD-RE BP50NB40" , "1.00", "N005505MD8F8BD0700" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3}, // olofolleola4
+	{"Slimtype", "BD E DS4E1S"    , "EA2B", "2009/11/13 15:21"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU2}, // olofolleola4
 
 	// OTHER
 	{"ASUS"    , "SDRW-08D2S-U"    , "B901", "2015/03/03 15:29"   ,    +6, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // internal model: DU-8A6NH11B
@@ -156,10 +158,13 @@ static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = {-20150, -1150};
 //	0x0ACA unknown
 //	0x0B00 end
 constexpr uint32_t ASUS_CACHE_ENTRY_SIZE = 0xB00;
-constexpr uint32_t ASU8_CACHE_SIZE_MB = 8;
-constexpr uint32_t ASU3_CACHE_SIZE_MB = 3;
-constexpr uint32_t ASU8_CACHE_ENTRIES_COUNT = 2806;
-constexpr uint32_t ASU3_CACHE_ENTRIES_COUNT = 1070;
+
+static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG =
+{
+	{DriveConfig::Type::LG_ASU8, {8, 2806}},
+	{DriveConfig::Type::LG_ASU3, {3, 1070}},
+	{DriveConfig::Type::LG_ASU2, {2,  586}}
+};
 
 
 DriveConfig drive_get_config(const DriveQuery &drive_query)
@@ -188,6 +193,18 @@ DriveConfig drive_get_config(const DriveQuery &drive_query)
 		drive_config.read_offset = drive_get_generic_read_offset(drive_config.vendor_id, drive_config.product_id);
 
 	return drive_config;
+}
+
+
+AsusConfig asus_get_config(DriveConfig::Type type)
+{
+	AsusConfig asus_config = {0, 0};
+
+	auto it = ASUS_CACHE_CONFIG.find(type);
+	if(it != ASUS_CACHE_CONFIG.end())
+		asus_config = it->second;
+
+	return asus_config;
 }
 
 
@@ -326,7 +343,7 @@ std::vector<uint8_t> asus_cache_read(SPTD &sptd, DriveConfig::Type drive_type)
 {
 	constexpr uint32_t read_size = 1024 * 64; // 64Kb
 
-	std::vector<uint8_t> cache(1024 * 1024 * (drive_type == DriveConfig::Type::LG_ASU8 ? ASU8_CACHE_SIZE_MB : ASU3_CACHE_SIZE_MB));
+	std::vector<uint8_t> cache(1024 * 1024 * asus_get_config(drive_type).size_mb);
 
 	for(uint32_t offset = 0, n = (uint32_t)cache.size(); offset < n; offset += read_size)
 	{
@@ -341,7 +358,7 @@ std::vector<uint8_t> asus_cache_read(SPTD &sptd, DriveConfig::Type drive_type)
 
 std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32_t lba_start, uint32_t entries_count, DriveConfig::Type drive_type)
 {
-	uint32_t cache_entries_count = drive_type == DriveConfig::Type::LG_ASU8 ? ASU8_CACHE_ENTRIES_COUNT : ASU3_CACHE_ENTRIES_COUNT;
+	uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 
 	int32_t index_start = cache_entries_count;
 	std::pair<int32_t, int32_t> index_range = {cache_entries_count, cache_entries_count};
@@ -451,7 +468,7 @@ std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32
 
 void asus_cache_print_subq(const std::vector<uint8_t> &cache, DriveConfig::Type drive_type)
 {
-	uint32_t cache_entries_count = drive_type == DriveConfig::Type::LG_ASU8 ? ASU8_CACHE_ENTRIES_COUNT : ASU3_CACHE_ENTRIES_COUNT;
+	uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 
 	for(uint32_t i = 0; i < cache_entries_count; ++i)
 	{

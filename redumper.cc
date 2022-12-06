@@ -1054,11 +1054,11 @@ void redumper_debug(const Options &options)
 	{
 		std::vector<uint8_t> cache = read_vector(cache_path);
 
-		asus_cache_print_subq(cache, DriveConfig::Type::LG_ASU3);
+		asus_cache_print_subq(cache, DriveConfig::Type::LG_ASU2);
 
 //		auto asd = asus_cache_unroll(cache);
 //		auto asd = asus_cache_extract(cache, 128224, 0);
-		auto asus_leadout_buffer = asus_cache_extract(cache, 55745, 100, DriveConfig::Type::LG_ASU3);
+		auto asus_leadout_buffer = asus_cache_extract(cache, 55745, 100, DriveConfig::Type::LG_ASU2);
 		uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 
 		LOG("entries count: {}", entries_count);

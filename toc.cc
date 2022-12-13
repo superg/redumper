@@ -1,12 +1,12 @@
 #include <fmt/format.h>
 #include <map>
 #include <set>
+#include <cctype>
 #include "cd.hh"
 #include "common.hh"
 #include "crc16_gsm.hh"
 #include "endian.hh"
 #include "logger.hh"
-#include "mmc.hh"
 #include "toc.hh"
 
 
@@ -336,10 +336,9 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 		auto &pack_data = descriptors[i];
 
 		//DEBUG
-//		LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}{}{}{}{}{}{}{}{}{}{}{}",
-//								 pack_data.PackType, pack_data.TrackNumber, pack_data.ExtensionFlag, pack_data.SequenceNumber, pack_data.CharacterPosition, pack_data.BlockNumber, pack_data.Unicode,
-//								 (char)pack_data.Text[0], (char)pack_data.Text[1], (char)pack_data.Text[2], (char)pack_data.Text[3], (char)pack_data.Text[4], (char)pack_data.Text[5],
-//								 (char)pack_data.Text[6], (char)pack_data.Text[7], (char)pack_data.Text[8], (char)pack_data.Text[9], (char)pack_data.Text[10], (char)pack_data.Text[11]);
+		LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}",
+								 pack_data.pack_type, pack_data.track_number, pack_data.extension_flag, pack_data.sequence_number, pack_data.character_position, pack_data.block_number, pack_data.unicode,
+								 DescriptorText(pack_data));
 
 		auto crc = crc16_gsm((uint8_t *)&pack_data, sizeof(pack_data) - sizeof(uint16_t));
 		// PLEXTOR PX-W5224TA: crc of last pack is always zeroed
@@ -406,9 +405,8 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 		if(IsTextPack(pack_type))
 		{
 			std::vector<char> text;
-			for(; i < descriptors_count; ++i)
+			for(; i < descriptors_count && (PackType)descriptors[i].pack_type == pack_type; ++i)
 				text.insert(text.end(), descriptors[i].text, descriptors[i].text + sizeof(descriptors[i].text));
-
 			std::vector<char *> track_texts;
 
 			if(pack_data.unicode)
@@ -929,5 +927,22 @@ uint32_t TOC::TrackNumberWidth() const
 
 	return (track_number ? log10(track_number) : 0) + 1;
 }
+
+
+std::string TOC::DescriptorText(const CD_TEXT_Descriptor &descriptor)
+{
+	std::string text;
+
+	for(uint32_t i = 0; i < sizeof(descriptor.text); ++i)
+	{
+		if(isprint(descriptor.text[i]))
+			text += (char)descriptor.text[i];
+		else
+			text += descriptor.text[i] ? fmt::format("\\x{:02X}", descriptor.text[i]) : "|";
+	}
+
+	return text;
+}
+
 
 }

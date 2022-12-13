@@ -1031,26 +1031,42 @@ void redumper_subchannel(const Options &options)
 
 void redumper_debug(const Options &options)
 {
-/*
+	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	std::filesystem::path state_path(image_prefix + ".state");
+	std::filesystem::path cache_path(image_prefix + ".asus");
+	std::filesystem::path toc_path(image_prefix + ".toc");
+	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
+
+	// CD-TEXT debug
+	if(1)
+	{
+		std::vector<uint8_t> toc_buffer = read_vector(toc_path);
+		TOC toc(toc_buffer, false);
+
+		std::vector<uint8_t> cdtext_buffer = read_vector(cdtext_path);
+		toc.UpdateCDTEXT(cdtext_buffer);
+
+		LOG("");
+	}
+
+	// LG/ASUS cache read
+	if(0)
 	{
 		SPTD sptd(options.drive);
 		drive_init(sptd, options);
 
 		DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
-		drive_override_config(drive_config, options.drive_type.get(),
-							options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
+		drive_override_config(drive_config, options.drive_type.get(), options.drive_read_offset.get(),
+				options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
 		LOG("drive path: {}", options.drive);
 		LOG("drive: {}", drive_info_string(drive_config));
 		LOG("drive configuration: {}", drive_config_string(drive_config));
 
 		auto cache = asus_cache_read(sptd, drive_config.type);
 	}
-*/
-	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-	std::filesystem::path state_path(image_prefix + ".state");
-	std::filesystem::path cache_path(image_prefix + ".asus");
 
-	//DEBUG: LG/ASUS cache dump read
+	// LG/ASUS cache dump extract
+	if(0)
 	{
 		std::vector<uint8_t> cache = read_vector(cache_path);
 
@@ -1065,7 +1081,7 @@ void redumper_debug(const Options &options)
 	}
 
 
-	//DEBUG: convert old state file to new state file
+	// convert old state file to new state file
 	if(0)
 	{
 		std::fstream fs_state(state_path, std::fstream::out | std::fstream::in | std::fstream::binary);

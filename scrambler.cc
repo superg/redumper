@@ -18,8 +18,8 @@ bool Scrambler::Descramble(uint8_t *sector, int32_t *lba, uint32_t size) const
 {
 	bool unscrambled = false;
 
-	// not enough data to analyze
-	if(size < sizeof(Sector::sync) + sizeof(Sector::header))
+	// zeroed or not enough data to analyze
+	if(is_zeroed(sector, size) || size < sizeof(Sector::sync) + sizeof(Sector::header))
 		return unscrambled;
 
 	// unscramble sector

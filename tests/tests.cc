@@ -167,51 +167,6 @@ bool test_unscramble()
 }
 
 
-bool test_unscramble_dic()
-{
-	bool success = true;
-
-	Scrambler scrambler;
-
-	std::set<std::filesystem::path> test_files;
-	for(auto const &f : std::filesystem::directory_iterator("unscramble/dic"))
-		if(f.is_regular_file())
-			test_files.insert(f.path());
-
-	for(auto const &f : test_files)
-	{
-		std::cout << fmt::format("descramble DIC: {}... ", f.filename().string()) << std::flush;
-
-		std::vector<uint8_t> sector = read_vector(f);
-
-		auto tokens = tokenize(f.filename().string(), ".", nullptr);
-		if(tokens.size() == 3)
-		{
-			int32_t lba = 0;
-			int32_t *lba_ptr = &lba;
-			if(tokens[1] == "null")
-				lba_ptr = nullptr;
-			else
-				*lba_ptr = std::stol(tokens[1]);
-			bool scrambled = tokens[2] == "pass";
-			bool unscrambled = scrambler.DescrambleDIC(sector.data(), lba_ptr, sector.size());
-
-			if(unscrambled == scrambled)
-				std::cout << "success";
-			else
-			{
-				std::cout << "failure";
-				success = false;
-			}
-		}
-
-		std::cout << std::endl;
-	}
-
-	return success;
-}
-
-
 
 int main(int argc, char *argv[])
 {
@@ -222,8 +177,6 @@ int main(int argc, char *argv[])
 	success |= (int)!test_cd();
 	std::cout << std::endl;
 	success |= (int)!test_unscramble();
-	std::cout << std::endl;
-	success |= (int)!test_unscramble_dic();
 	std::cout << std::endl;
 
 	return success;

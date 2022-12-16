@@ -119,19 +119,28 @@ TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
 
 void TOC::DeriveINDEX(const TOC &toc)
 {
-	for(auto &s : sessions)
+	for(uint32_t i = 0; i < sessions.size(); ++i)
 	{
+		auto &s = sessions[i];
 		for(auto &t : s.tracks)
 		{
+			// don't update intermediate lead-in
+			if(t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER) && i + 1 < sessions.size())
+				continue;
+
 			for(auto const &toc_s : toc.sessions)
 				for(auto const &toc_t : toc_s.tracks)
+				{
 					if(t.track_number == toc_t.track_number)
 					{
 						t.indices = toc_t.indices;
 						break;
 					}
+				}
 		}
 	}
+
+
 }
 
 

@@ -5,6 +5,7 @@
 #include <iostream>
 #include "cmd.hh"
 #include "common.hh"
+#include "crc16_gsm.hh"
 #include "crc32.hh"
 #include "file_io.hh"
 #include "logger.hh"
@@ -25,7 +26,8 @@ static const std::string PROGRESS_FORMAT("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI:
 
 std::string redumper_version()
 {
-	return fmt::format("redumper v{}.{}.{} [{}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR), XSTRINGIFY(REDUMPER_VERSION_PATCH), version::build());
+	return fmt::format("redumper v{}.{}.{} build_{} [{}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR),
+			XSTRINGIFY(REDUMPER_VERSION_PATCH), XSTRINGIFY(REDUMPER_VERSION_BUILD), version::build());
 }
 
 
@@ -1045,6 +1047,52 @@ void redumper_debug(const Options &options)
 
 		std::vector<uint8_t> cdtext_buffer = read_vector(cdtext_path);
 		toc.UpdateCDTEXT(cdtext_buffer);
+
+		LOG("");
+	}
+
+	// SBI stats
+	{
+		std::vector<std::filesystem::path> sbi_files;
+	    for(auto const &f : std::filesystem::directory_iterator("sbi"))
+			sbi_files.push_back(f);
+		std::sort(sbi_files.begin(), sbi_files.end());
+
+		std::map<uint32_t, uint32_t> sbi_stats;
+	    for(auto const &f : sbi_files)
+		{
+			LOG("{}", f.string());
+
+			auto buffer = read_vector(f);
+
+			ChannelQ Q;
+			constexpr uint32_t sbi_magic_size = 4;
+			constexpr uint32_t sbi_entry_size = 14;
+
+			uint32_t sectors_count = (buffer.size() - sbi_magic_size) / sbi_entry_size;
+			for(uint32_t i = 0; i < sectors_count; ++i)
+			{
+				auto *b = &buffer[sbi_magic_size + i * sbi_entry_size];
+
+				MSF msf = *(MSF *)b;
+				auto lba = BCDMSF_to_LBA(msf);
+				++sbi_stats[lba];
+				std::cout << fmt::format("{} ", lba + 150);
+				Q = *(ChannelQ *)(b + 4);
+				Q.crc = 0;
+//				for(uint32_t j = 0; j < 14; ++j)
+//					std::cout << fmt::format("{:02X} ", b[j]);
+				std::cout << fmt::format("{}", Q.Decode()) << std::endl;
+			}
+
+			LOG("");
+		}
+
+		for(auto const &ss : sbi_stats)
+		{
+			std::cout << fmt::format("{}, ", ss.first);
+		}
+		std::cout << std::endl;
 
 		LOG("");
 	}

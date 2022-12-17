@@ -2,6 +2,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include "systems/system.hh"
 #include "common.hh"
 #include "crc32.hh"
 #include "ecc_edc.hh"
@@ -1789,7 +1790,21 @@ void redumper_info(const Options &options)
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	auto tracks = cue_get_entries(image_prefix + ".cue");
+/*
+	//DEBUG
+	for(auto const &t : tracks)
+	{
+		auto systems = System::getSystems(std::filesystem::path(options.image_path) / t.first);
+		for(auto s : systems)
+		{
+			LOG("{} [{}]:", s->getName(), t.first);
 
+			std::stringstream ss;
+			s->print(ss);
+			LOG("{}", ss.str());
+		}
+	}
+*/
 	for(auto const &t : tracks)
 	{
 		if(!t.second)

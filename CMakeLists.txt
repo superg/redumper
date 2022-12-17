@@ -49,7 +49,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-                -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH})
+                -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+                -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
 # fmt
 # remove this after gcc/clang gets full std::format support
@@ -95,6 +96,10 @@ add_custom_command(
 )
 
 set(sources
+	"systems/system.cc"
+	"systems/system.hh"
+	"systems/iso.cc"
+	"systems/iso.hh"
 	"block_hasher.hh"
 	"cd.cc"
 	"cd.hh"

@@ -97,6 +97,9 @@ void redumper(Options &options)
 {
 	validate_options(options);
 
+	LOG("{}\n", redumper_version());
+	LOG("command: {}\n", options.command);
+
 	bool skip_refine = false;
 	for(auto const &p : options.positional)
 	{

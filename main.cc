@@ -23,6 +23,9 @@ int main(int argc, char *argv[])
 	try
 	{
 		Options options(argc, const_cast<const char **>(argv));
+		
+		if(!options.image_name.empty())
+			Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
 		if(options.help)
 			options.PrintUsage();

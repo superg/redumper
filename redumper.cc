@@ -87,8 +87,6 @@ void validate_options(Options &options)
 		drive.erase(remove(drive.begin(), drive.end(), ':'), drive.end());
 		drive.erase(remove(drive.begin(), drive.end(), '/'), drive.end());
 		options.image_name = fmt::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
-
-		Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 	}
 }
 
@@ -96,6 +94,8 @@ void validate_options(Options &options)
 void redumper(Options &options)
 {
 	validate_options(options);
+
+	Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
 	LOG("{}\n", redumper_version());
 	LOG("command: {}\n", options.command);
@@ -159,7 +159,7 @@ bool redumper_dump(const Options &options, bool refine)
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
-	std::filesystem::path asus_path(image_prefix + ".asus"); //DEBUG
+	std::filesystem::path asus_path(image_prefix + ".asus");
 
 	if(!refine && !options.overwrite && std::filesystem::exists(state_path))
 		throw_line(fmt::format("dump already exists (name: {})", options.image_name));
@@ -438,8 +438,6 @@ bool redumper_dump(const Options &options, bool refine)
 				LOG("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
 				{
 					auto cache = asus_cache_read(sptd, drive_config.type);
-
-					//DEBUG
 					write_vector(asus_path, cache);
 
 					asus_leadout_buffer = asus_cache_extract(cache, lba, 100, drive_config.type);

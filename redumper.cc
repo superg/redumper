@@ -1461,4 +1461,11 @@ void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int3
 	LOG("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: {}", (int32_t)lba_index + lba_start, scm_offset, state_offset, offset_str);
 }
 
+
+uint32_t debug_get_scram_offset(int32_t lba, int32_t write_offset)
+{
+	return (lba - LBA_START) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE;
+}
+
+
 }

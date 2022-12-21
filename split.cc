@@ -495,7 +495,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 
 			// add session number to lead-in/lead-out track string to make filename unique
 			if(lilo && toc.sessions.size() > 1)
-				track_string = fmt::format("{}.{}", s.session_number, track_string);
+				track_string = fmt::format("{}.{}", track_string, s.session_number);
 
 			std::string track_name = fmt::format("{}{}.bin", options.image_name, toc.TracksCount() > 1 || lilo ? fmt::format(" (Track {})", track_string) : "");
 			LOG("writing \"{}\"", track_name);
@@ -518,6 +518,8 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 			uint32_t crc = crc32_seed();
 			MD5 bh_md5;
 			SHA1 bh_sha1;
+
+			std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
 			int32_t lba_end = t.lba_end;
 			if(options.iso9660_trim && data_track && !t.indices.empty())
@@ -628,7 +630,10 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 						}
 						else
 						{
-							LOG("warning: descramble failed (LBA: {:6})", lba);
+							if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
+								descramble_errors.emplace_back(lba, lba);
+							else
+								descramble_errors.back().second = lba;
 						}
 					}
 				}
@@ -645,6 +650,14 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 				fs_bin.write((char *)sector.data(), sector.size());
 				if(fs_bin.fail())
 					throw_line(fmt::format("write failed ({})", track_name));
+			}
+
+			for(auto const &d : descramble_errors)
+			{
+				LOG("warning: descramble failed (LBA: {} .. {})", d.first, d.second);
+
+				//DEBUG
+//				LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
 			}
 
 			track_entry.crc = crc32_final(crc);
@@ -692,13 +705,13 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 			if(tt->second->control != qt->second->control)
 			{
 				mismatch = true;
-				LOG("warning: TOC / QTOC control mismatch (track: {}, control: {:04b} / {:04b})", t, tt->second->control, qt->second->control);
+				LOG("warning: TOC / QTOC mismatch, control (track: {}, control: {:04b} / {:04b})", t, tt->second->control, qt->second->control);
 			}
 
 			if(tt->second->lba_start != qt->second->lba_start)
 			{
 				mismatch = true;
-				LOG("warning: TOC / QTOC track index 00 mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_start, qt->second->lba_start);
+				LOG("warning: TOC / QTOC mismatch, track index 00 (track: {}, LBA: {} / {})", t, tt->second->lba_start, qt->second->lba_start);
 			}
 
 			auto tt_size = tt->second->indices.size();
@@ -708,19 +721,19 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 				if(tt_size && qt_size && tt->second->indices.front() != qt->second->indices.front())
 				{
 					mismatch = true;
-					LOG("warning: TOC / QTOC track index 01 mismatch (track: {}, LBA: {} / {})", t, tt->second->indices.front(), qt->second->indices.front());
+					LOG("warning: TOC / QTOC mismatch, track index 01 (track: {}, LBA: {} / {})", t, tt->second->indices.front(), qt->second->indices.front());
 				}
 			}
 			else
 			{
 				mismatch = true;
-				LOG("warning: TOC / QTOC track index size mismatch (track: {})", t);
+				LOG("warning: TOC / QTOC mismatch, track index size (track: {})", t);
 			}
 
 			if(tt->second->lba_end != qt->second->lba_end)
 			{
 				mismatch = true;
-				LOG("warning: TOC / QTOC track length mismatch (track: {}, LBA: {} / {})", t, tt->second->lba_end, qt->second->lba_end);
+				LOG("warning: TOC / QTOC mismatch, track length (track: {}, LBA: {} / {})", t, tt->second->lba_end, qt->second->lba_end);
 			}
 		}
 		else
@@ -728,13 +741,13 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 			if(tt == toc_tracks.end())
 			{
 				mismatch = true;
-				LOG("warning: nonexistent track in TOC (track: {})", t);
+				LOG("warning: TOC / QTOC mismatch, nonexistent track in TOC (track: {})", t);
 			}
 
 			if(qt == qtoc_tracks.end())
 			{
 				mismatch = true;
-				LOG("warning: nonexistent track in QTOC (track: {})", t);
+				LOG("warning: TOC / QTOC mismatch, nonexistent track in QTOC (track: {})", t);
 			}
 		}
 	}
@@ -1641,14 +1654,23 @@ void redumper_split(const Options &options)
 		t.lba_end = t.lba_start + nonzero_count;
 	}
 
-	// check if session lead-out is isolated by one good sector
+	// check if session lead-in/lead-out is isolated by one good sector
 	for(uint32_t i = 0; i < toc.sessions.size(); ++i)
 	{
-		auto &t = toc.sessions[i].tracks.back();
+		auto &t_s = toc.sessions[i].tracks.front();
+		auto &t_e = toc.sessions[i].tracks.back();
 
 		std::vector<State> state(CD_DATA_SIZE_SAMPLES);
-		read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, t.lba_end - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 
+		read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, t_s.lba_start - 1 - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
+		for(auto const &s : state)
+			if(s == State::ERROR_SKIP)
+			{
+				LOG("warning: lead-in starts with unavailable sector (session: {})", toc.sessions[i].session_number);
+				break;
+			}
+
+		read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, t_e.lba_end - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 		for(auto const &s : state)
 			if(s == State::ERROR_SKIP)
 			{

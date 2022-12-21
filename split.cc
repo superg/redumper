@@ -403,6 +403,10 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 	{
 		for(auto const &t : se.tracks)
 		{
+			// skip empty tracks
+			if(t.lba_end == t.lba_start)
+				continue;
+
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 			int32_t write_offset = data_track ? write_offset_data : write_offset_audio;
 

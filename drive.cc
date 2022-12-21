@@ -190,7 +190,13 @@ DriveConfig drive_get_config(const DriveQuery &drive_query)
 	drive_config.vendor_specific = drive_query.vendor_specific;
 
 	if(!found)
-		drive_config.read_offset = drive_get_generic_read_offset(drive_config.vendor_id, drive_config.product_id);
+	{
+		int32_t database_read_offset = drive_get_generic_read_offset(drive_config.vendor_id, drive_config.product_id);
+		if(database_read_offset == std::numeric_limits<int32_t>::max())
+			LOG("warning: drive read offset not found in the database");
+		else
+			drive_config.read_offset = database_read_offset;
+	}
 
 	return drive_config;
 }
@@ -235,7 +241,7 @@ void drive_override_config(DriveConfig &drive_config, const std::string *type, c
 // (positive offset means that data has to be shifted left, negative - right)
 int32_t drive_get_generic_read_offset(const std::string &vendor, const std::string &product)
 {
-	int32_t offset = 0;
+	int32_t offset = std::numeric_limits<int32_t>::max();
 
 	//FIXME: clean up this AccurateRip mess later
 	std::string v(vendor);
@@ -251,8 +257,6 @@ int32_t drive_get_generic_read_offset(const std::string &vendor, const std::stri
 	std::string vendor_product(fmt::format("{} - {}", v, product));
 	if(auto it = DRIVE_READ_OFFSETS.find(vendor_product); it != DRIVE_READ_OFFSETS.end())
 		offset = it->second;
-	else
-		throw_line(fmt::format("drive read offset not found ({})", vendor_product));
 
 	return offset;
 }

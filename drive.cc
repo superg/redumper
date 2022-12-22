@@ -103,11 +103,26 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"PLEXTOR", "DVDR PX-755A"  , "1.08", "08/18/07 15:10",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
 	{"PLEXTOR", "DVDR PX-760A"  , "1.07", "08/18/07 15:10",  +30, 295, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
 
-	// LG/ASUS (8Mb/3Mb cache)
+	// LG/ASUS (8Mb/3Mb/2Mb cache)
 	{"ATAPI"   , "iHBS112 2"      , "PL06", "2012/09/17 10:50"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // CHECKED: LITE-ON
 	{"ASUS"    , "BW-16D1HT"      , "3.02", "W000800KL8J9NJ3134" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3}, // CHECKED
 	{"HL-DT-ST", "BD-RE BP50NB40" , "1.00", "N005505MD8F8BD0700" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3}, // olofolleola4
 	{"Slimtype", "BD E DS4E1S"    , "EA2B", "2009/11/13 15:21"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU2}, // olofolleola4
+	{"Optiarc", "BD RW BD-5300S"  , "2.03", "2012/02/07 11:25"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"TEAC"   , "BD-W512GSA"      , "PT11", "2012/12/05 19:08"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"ASUS"   , "BW-12B1ST"       , "1.03", "2011/04/18 21:48"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"SONY"   , "BD RW BWU-500S"  , "2.63", "2012/02/07 11:48"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"PLDS"   , "BD-RE DH-8B2SH"  , "SD11", "2011/01/11 17:17"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"hp"     , "BD B DH8B2SHB"   , "SHDQ", "2012/05/09 11:33"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"PLEXTOR", "BD-R PX-B950SA"  , "1.04", "2012/10/30 10:10"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"PLEXTOR", "BD-R PX-B950UE"  , "1.05", "2012/10/30 10:10"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"PLEXTOR", "BD-R PX-LB950SA" , "1.04", "2012/10/30 10:10"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"PLEXTOR", "BD-R PX-LB950UE" , "1.05", "2012/10/30 10:10"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"HP"     , "BD Writer bd335e", "YH23", "2011/09/09 13:10"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"HP"     , "BD Writer bd335i", "QH21", "2011/05/26 13:49"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"ATAPI"  , "eHBU212 2"       , "ZL06", "2012/11/05 16:10"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"ATAPI"  , "iHBS212 2"       , "HL05", "2012/09/17 10:50"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
+	{"ATAPI"  , "iHBS312 2"       , "PL17", "2012/10/31 13:50"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
 
 	// OTHER
 	{"ASUS"    , "SDRW-08D2S-U"    , "B901", "2015/03/03 15:29"   ,    +6, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // internal model: DU-8A6NH11B

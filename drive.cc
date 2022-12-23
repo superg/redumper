@@ -134,7 +134,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"HL-DT-ST", "BD-RE WH16NS40"  , "1.05", "N000900KLZL4TG5625" ,    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
 	{"HL-DT-ST", "DVD+-RW GH50N"   , "B103", "000819093O9CQ82239" ,  +667, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC},
 	{"CREATIVE", "CD5233E-N"       , "0.20", "BTC"                ,   +12, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
-	{"PLEXTOR" , "DVDR PX-740A"    , "1.02", "12/19/05"           , +618,  0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // doesn't stop on lead-out but always returns same sector
+	{"PLEXTOR" , "DVDR PX-740A"    , "1.02", "12/19/05"           ,  +618, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // doesn't stop on lead-out but always returns same sector
 	{"PLEXTOR" , "DVDR PX-L890SA"  , "1.07", "2011/11/15 10:15"   ,    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC},
 	{"HL-DT-ST", "DVDRAM GH24NSC0" , "LY00", "C010101 KMIJ8O50256",    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC},
 	{"LITE-ON" , "DVD SOHD-167T"   , "9S1B", "2005/03/31 16:41"   ,   +12, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
@@ -295,7 +295,7 @@ std::string drive_config_string(const DriveConfig &drive_config)
 
 bool drive_is_asus(const DriveConfig &drive_config)
 {
-	return drive_config.type == DriveConfig::Type::LG_ASU8 || drive_config.type == DriveConfig::Type::LG_ASU3;
+	return ASUS_CACHE_CONFIG.find(drive_config.type) != ASUS_CACHE_CONFIG.end();
 }
 
 

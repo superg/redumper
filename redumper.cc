@@ -1041,7 +1041,7 @@ void redumper_debug(const Options &options)
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
 
 	// CD-TEXT debug
-	if(1)
+	if(0)
 	{
 		std::vector<uint8_t> toc_buffer = read_vector(toc_path);
 		TOC toc(toc_buffer, false);
@@ -1053,6 +1053,7 @@ void redumper_debug(const Options &options)
 	}
 
 	// SBI stats
+	if(0)
 	{
 		std::vector<std::filesystem::path> sbi_files;
 	    for(auto const &f : std::filesystem::directory_iterator("sbi"))
@@ -1115,18 +1116,31 @@ void redumper_debug(const Options &options)
 	}
 
 	// LG/ASUS cache dump extract
-	if(0)
+	if(1)
 	{
+		auto drive_type = DriveConfig::Type::LG_ASU3;
 		std::vector<uint8_t> cache = read_vector(cache_path);
 
-		asus_cache_print_subq(cache, DriveConfig::Type::LG_ASU2);
+		asus_cache_print_subq(cache, drive_type);
 
 //		auto asd = asus_cache_unroll(cache);
 //		auto asd = asus_cache_extract(cache, 128224, 0);
-		auto asus_leadout_buffer = asus_cache_extract(cache, 55745, 100, DriveConfig::Type::LG_ASU2);
+		auto asus_leadout_buffer = asus_cache_extract(cache, 292353, 100, drive_type);
 		uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 
 		LOG("entries count: {}", entries_count);
+
+		std::ofstream ofs_data(image_prefix + ".asus.data", std::ofstream::binary);
+		std::ofstream ofs_c2(image_prefix + ".asus.c2", std::ofstream::binary);
+		std::ofstream ofs_sub(image_prefix + ".asus.sub", std::ofstream::binary);
+		for(uint32_t i = 0; i < entries_count; ++i)
+		{
+			uint8_t *entry = &asus_leadout_buffer[CD_RAW_DATA_SIZE * i];
+
+			ofs_data.write((char *)entry, CD_DATA_SIZE);
+			ofs_c2.write((char *)entry + CD_DATA_SIZE, CD_C2_SIZE);
+			ofs_sub.write((char *)entry + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
+		}
 	}
 
 

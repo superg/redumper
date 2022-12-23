@@ -457,18 +457,8 @@ std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32
 			if(Q.Valid())
 			{
 				uint8_t adr = Q.control_adr & 0x0F;
-				if(adr == 1 && Q.mode1.tno)
-				{
-					if(lba_start + i != BCDMSF_to_LBA(Q.mode1.a_msf))
-					{
-						// pop back last cache entry as it's likely incomplete if Q is invalid
-						// confirmed by analyzing cache dump where Q was partially overwritten with newer data
-						if(!last_valid)
-							data.resize(data.size() - CD_RAW_DATA_SIZE);
-
-						break;
-					}
-				}
+				if(adr == 1 && Q.mode1.tno && lba_start + i != BCDMSF_to_LBA(Q.mode1.a_msf))
+					break;
 
 				last_valid = true;
 			}
@@ -478,6 +468,15 @@ std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32
 			data.insert(data.end(), main_data, main_data + CD_DATA_SIZE);
 			data.insert(data.end(), c2_data, c2_data + CD_C2_SIZE);
 			data.insert(data.end(), sub_data, sub_data + CD_SUBCODE_SIZE);
+		}
+
+		// pop back last cache entry as it's likely incomplete if Q is invalid
+		// confirmed by analyzing cache dump where Q was partially overwritten with newer data
+		if(!last_valid)
+		{
+			constexpr uint32_t trim_size = 1 * CD_RAW_DATA_SIZE;
+			uint32_t new_size = data.size() < trim_size ? 0 : data.size() - trim_size;
+			data.resize(new_size);
 		}
 	}
 

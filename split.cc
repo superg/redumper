@@ -2,6 +2,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <sstream>
 #include "systems/system.hh"
 #include "common.hh"
 #include "crc32.hh"

@@ -1,3 +1,6 @@
+#include <fmt/format.h>
+#include "image_browser.hh"
+#include "hex_bin.hh"
 #include "iso.hh"
 
 
@@ -5,33 +8,25 @@
 namespace gpsxre
 {
 
-
-SystemISO::SystemISO(const std::filesystem::path &file_path)
-{
-}
-
-
-SystemISO::~SystemISO()
+SystemISO::SystemISO(const std::filesystem::path &track_path)
+	: _trackPath(track_path)
 {
 	;
 }
 
 
-std::string SystemISO::getName() const
+void SystemISO::operator()(std::ostream &os) const
 {
-	return "ISO9660";
-}
+	if(ImageBrowser::IsDataTrack(_trackPath))
+	{
+		ImageBrowser browser(_trackPath, 0, false);
 
+		os << fmt::format("ISO9660 [{}]:", _trackPath.filename().string()) << std::endl;
 
-bool SystemISO::isValid() const
-{
-	return true;
-}
-
-
-void SystemISO::print(std::ostream &os) const
-{
-	os << "AAAAAAAAAAA" << std::endl;
+		auto pvd = browser.GetPVD();
+		os << "  PVD:" << std::endl;
+		os << fmt::format("{}", hexdump((uint8_t *)&pvd, 0x320, 96));
+	}
 }
 
 }

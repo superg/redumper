@@ -1816,35 +1816,17 @@ void redumper_info(const Options &options)
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	auto tracks = cue_get_entries(image_prefix + ".cue");
-/*
-	//DEBUG
+
 	for(auto const &t : tracks)
 	{
-		auto systems = System::getSystems(std::filesystem::path(options.image_path) / t.first);
-		for(auto s : systems)
-		{
-			LOG("{} [{}]:", s->getName(), t.first);
+		auto track_path = std::filesystem::path(options.image_path) / t.first;
+		auto systems = System::get().getSystems(track_path);
 
+		for(auto const &s : systems)
+		{
 			std::stringstream ss;
-			s->print(ss);
+			s(ss);
 			LOG("{}", ss.str());
-		}
-	}
-*/
-	for(auto const &t : tracks)
-	{
-		if(!t.second)
-			continue;
-
-		if(ImageBrowser::IsDataTrack(std::filesystem::path(options.image_path) / t.first))
-		{
-			ImageBrowser browser(std::filesystem::path(options.image_path) / t.first, 0, false);
-
-			LOG("ISO9660 [{}]:", t.first);
-
-			auto pvd = browser.GetPVD();
-			LOG("  PVD:");
-			LOG("{}", hexdump((uint8_t *)&pvd, 0x320, 96));
 		}
 	}
 }

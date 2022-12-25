@@ -2,22 +2,23 @@
 
 
 
-#include "system.hh"
+#include <filesystem>
+#include <ostream>
 
 
 
 namespace gpsxre
 {
 
-class SystemISO : public System
+class SystemISO
 {
 public:
-	SystemISO(const std::filesystem::path &file_path);
-	virtual ~SystemISO();
+	SystemISO(const std::filesystem::path &track_path);
 
-	virtual std::string getName() const override;
-	virtual bool isValid() const override;
-	virtual void print(std::ostream &os) const override;
+	void operator()(std::ostream &os) const;
+
+private:
+	std::filesystem::path _trackPath;
 };
 
 }

@@ -1,29 +1,25 @@
 #include "iso.hh"
+#include "system.hh"
 
 
 
 namespace gpsxre
 {
 
-std::list<System::Static::Creator> System::Static::_creators;
-System::Static System::_static;
+System System::_system;
 
-System::Static::Static()
+
+System &System::get()
 {
-	_creators.push_back([](const std::filesystem::path &file_path) -> std::shared_ptr<System> { return std::make_shared<SystemISO>(file_path); });
+	return _system;
 }
 
 
-std::list<std::shared_ptr<System>> System::getSystems(const std::filesystem::path &file_path)
+std::list<std::function<void(std::ostream &os)>> System::getSystems(const std::filesystem::path &track_path) const
 {
-	std::list<std::shared_ptr<System>> systems;
+	std::list<std::function<void(std::ostream &os)>> systems;
 
-	for(auto c : _static._creators)
-	{
-		auto system = c(file_path);
-		if(system->isValid())
-			systems.push_back(system);
-	}
+	systems.emplace_back(SystemISO(track_path));
 
 	return systems;
 }

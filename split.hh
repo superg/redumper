@@ -16,12 +16,6 @@ constexpr uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
 struct TrackEntry
 {
 	std::string filename;
-	bool data;
-
-	uint32_t ecc_errors;
-	uint32_t edc_errors;
-	uint32_t subheader_errors;
-	uint32_t redump_errors;
 
 	uint32_t crc;
 	std::string md5;

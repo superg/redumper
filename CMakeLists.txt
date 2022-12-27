@@ -98,6 +98,8 @@ add_custom_command(
 set(sources
 	"systems/system.cc"
 	"systems/system.hh"
+	"systems/cdrom.cc"
+	"systems/cdrom.hh"
 	"systems/iso.cc"
 	"systems/iso.hh"
 	"block_hasher.hh"

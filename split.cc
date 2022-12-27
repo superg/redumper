@@ -280,102 +280,6 @@ uint32_t track_sync_count(int32_t lba_start, int32_t lba_end, int32_t write_offs
 }
 
 
-void edc_ecc_check(TrackEntry &track_entry, Sector &sector)
-{
-	switch(sector.header.mode)
-	{
-	case 1:
-	{
-		bool error_detected = false;
-
-		Sector::ECC ecc(ECC().Generate((uint8_t *)&sector.header));
-		if(memcmp(ecc.p_parity, sector.mode1.ecc.p_parity, sizeof(ecc.p_parity)) || memcmp(ecc.q_parity, sector.mode1.ecc.q_parity, sizeof(ecc.q_parity)))
-		{
-			++track_entry.ecc_errors;
-			error_detected = true;
-		}
-
-		uint32_t edc = EDC().ComputeBlock(0, (uint8_t *)&sector, offsetof(Sector, mode1.edc));
-		if(edc != sector.mode1.edc)
-		{
-			++track_entry.edc_errors;
-			error_detected = true;
-		}
-
-		// log dual ECC/EDC mismatch as one error
-		if(error_detected)
-			++track_entry.redump_errors;
-
-		break;
-	}
-
-	// XA Mode2 EDC covers subheader, subheader copy and user data, user data size depends on Form1 / Form2 flag
-	case 2:
-	{
-		// subheader mismatch, just a warning
-		if(memcmp(&sector.mode2.xa.sub_header, &sector.mode2.xa.sub_header_copy, sizeof(sector.mode2.xa.sub_header)))
-		{
-			++track_entry.subheader_errors;
-			++track_entry.redump_errors;
-		}
-
-		// Form2
-		if(sector.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
-		{
-			// Form2 EDC can be zero depending on mastering utility
-			if(sector.mode2.xa.form2.edc)
-			{
-				uint32_t edc = EDC().ComputeBlock(0, (uint8_t *)&sector.mode2.xa.sub_header,
-												  offsetof(Sector, mode2.xa.form2.edc) - offsetof(Sector, mode2.xa.sub_header));
-				if(edc != sector.mode2.xa.form2.edc)
-				{
-					++track_entry.edc_errors;
-					++track_entry.redump_errors;
-				}
-			}
-		}
-		// Form1
-		else
-		{
-			bool error_detected = false;
-
-			// EDC
-			uint32_t edc = EDC().ComputeBlock(0, (uint8_t *)&sector.mode2.xa.sub_header,
-											  offsetof(Sector, mode2.xa.form1.edc) - offsetof(Sector, mode2.xa.sub_header));
-			if(edc != sector.mode2.xa.form1.edc)
-			{
-				++track_entry.edc_errors;
-				error_detected = true;
-			}
-
-			// ECC
-			// modifies sector, make sure sector data is not used after ECC calculation, otherwise header has to be restored
-			Sector::Header header = sector.header;
-			std::fill_n((uint8_t *)&sector.header, sizeof(sector.header), 0);
-
-			Sector::ECC ecc(ECC().Generate((uint8_t *)&sector.header));
-			if(memcmp(ecc.p_parity, sector.mode2.xa.form1.ecc.p_parity, sizeof(ecc.p_parity)) || memcmp(ecc.q_parity, sector.mode2.xa.form1.ecc.q_parity, sizeof(ecc.q_parity)))
-			{
-				++track_entry.ecc_errors;
-				error_detected = true;
-			}
-
-			// restore modified sector header
-			sector.header = header;
-
-			// log dual ECC/EDC mismatch as one error
-			if(error_detected)
-				++track_entry.redump_errors;
-		}
-		break;
-	}
-
-	default:
-		;
-	}
-}
-
-
 uint32_t iso9660_volume_size(std::fstream &scm_fs, uint64_t scm_offset, bool scrap)
 {
 	ImageBrowser browser(scm_fs, scm_offset, !scrap);
@@ -514,11 +418,6 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 
 			TrackEntry track_entry;
 			track_entry.filename = track_name;
-			track_entry.data = data_track;
-			track_entry.ecc_errors = 0;
-			track_entry.edc_errors = 0;
-			track_entry.subheader_errors = 0;
-			track_entry.redump_errors = 0;
 
 			uint32_t crc = crc32_seed();
 			MD5 bh_md5;
@@ -646,11 +545,6 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 				crc = crc32(sector.data(), sector.size(), crc);
 				bh_md5.Update(sector.data(), sector.size());
 				bh_sha1.Update(sector.data(), sector.size());
-				if(data_track)
-				{
-					Sector s = *(Sector *)sector.data();
-					edc_ecc_check(track_entry, s);
-				}
 
 				fs_bin.write((char *)sector.data(), sector.size());
 				if(fs_bin.fail())
@@ -1735,20 +1629,6 @@ void redumper_split(const Options &options)
 		LOG("");
 	}
 
-	for(auto const &t : track_entries)
-	{
-		if(!t.data)
-			continue;
-
-		LOG("data errors [{}]:", t.filename);
-		LOG("  ECC: {}", t.ecc_errors);
-		LOG("  EDC: {}", t.edc_errors);
-		if(t.subheader_errors)
-			LOG("  CD-XA SubHeader mismatch: {}", t.subheader_errors);
-		LOG("  redump: {}", t.redump_errors);
-		LOG("");
-	}
-
 	if(toc.sessions.size() > 1)
 	{
 		LOG("multisession: ");
@@ -1827,7 +1707,8 @@ void redumper_info(const Options &options)
 		{
 			std::stringstream ss;
 			s(ss);
-			LOG("{}", ss.str());
+			if(ss.rdbuf()->in_avail())
+				LOG("{}", ss.str());
 		}
 	}
 }

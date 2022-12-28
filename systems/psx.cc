@@ -1,6 +1,7 @@
 #include <fmt/format.h>
 #include <regex>
 #include <set>
+#include <sstream>
 #include "common.hh"
 #include "endian.hh"
 #include "file_io.hh"

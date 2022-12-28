@@ -282,7 +282,7 @@ uint32_t track_sync_count(int32_t lba_start, int32_t lba_end, int32_t write_offs
 
 uint32_t iso9660_volume_size(std::fstream &scm_fs, uint64_t scm_offset, bool scrap)
 {
-	ImageBrowser browser(scm_fs, scm_offset, !scrap);
+	ImageBrowser browser(scm_fs, scm_offset, 0, !scrap);
 	auto volume_size = browser.GetPVD().primary.volume_space_size.lsb;
 	return volume_size;
 }
@@ -1099,7 +1099,7 @@ void redumper_protection(Options &options)
 				{
 					std::string protected_filename;
 					{
-						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, !scrap);
+						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, 0, !scrap);
 						auto root_dir = browser.RootDirectory();
 
 						// protection file exists
@@ -1470,7 +1470,7 @@ void redumper_split(const Options &options)
 				// CDI
 				try
 				{
-					ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset_data * CD_SAMPLE_SIZE, !scrap);
+					ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset_data * CD_SAMPLE_SIZE, 0, !scrap);
 
 					auto pvd = browser.GetPVD();
 

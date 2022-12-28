@@ -28,6 +28,7 @@ private:
 	static const std::set<uint32_t> _LIBCRYPT_SECTORS_COUNT;
 
 	std::filesystem::path _trackPath;
+	uint64_t _trackSize;
 
 	std::string findEXE(ImageBrowser &browser) const;
 	std::pair<std::string, std::string> deduceSerial(std::string exe_path) const;

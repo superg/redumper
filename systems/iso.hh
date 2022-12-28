@@ -19,6 +19,7 @@ public:
 
 private:
 	std::filesystem::path _trackPath;
+	uint64_t _trackSize;
 };
 
 }

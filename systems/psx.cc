@@ -24,15 +24,19 @@ const std::vector<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_BASE =
 	41895, 42016, 42282, 42430, 42521, 42663, 42862, 43027,
 	43139, 43204, 43258, 43484, 43813, 43904, 44009, 44162
 };
+
 const uint32_t SystemPSX::_LIBCRYPT_SECTORS_SHIFT = 5;
+
 const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_COUNT =
 {
 	16,
 	32
 };
 
+
 SystemPSX::SystemPSX(const std::filesystem::path &track_path)
 	: _trackPath(track_path)
+	, _trackSize(std::filesystem::file_size(track_path))
 {
 	;
 }
@@ -42,7 +46,7 @@ void SystemPSX::operator()(std::ostream &os) const
 {
 	if(ImageBrowser::IsDataTrack(_trackPath))
 	{
-		ImageBrowser browser(_trackPath, 0, false);
+		ImageBrowser browser(_trackPath, 0, _trackSize, false);
 
 		auto exe_path = findEXE(browser);
 		if(!exe_path.empty())
@@ -240,9 +244,8 @@ bool SystemPSX::detectEdcFast() const
 	std::fstream fs(_trackPath, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
 		throw_line(fmt::format("unable to open file ({})", _trackPath.filename().string()));
-	auto track_size = std::filesystem::file_size(_trackPath);
 
-	uint32_t sectors_count = track_size / CD_DATA_SIZE;
+	uint32_t sectors_count = _trackSize / CD_DATA_SIZE;
 	if(sectors_count >= iso9660::SYSTEM_AREA_SIZE)
 	{
 		Sector sector;
@@ -263,25 +266,31 @@ bool SystemPSX::detectLibCrypt(std::ostream &os, std::filesystem::path sub_path)
 	std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
 		throw_line(fmt::format("unable to open file ({})", sub_path.filename().string()));
-	auto track_size = std::filesystem::file_size(_trackPath);
 
 	std::vector<int32_t> candidates;
 
 	std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
+	int32_t lba_end = _trackSize / CD_DATA_SIZE;
 	for(uint32_t i = 0; i < _LIBCRYPT_SECTORS_BASE.size(); ++i)
 	{
+		int32_t lba1 = _LIBCRYPT_SECTORS_BASE[i];
+		int32_t lba2 = _LIBCRYPT_SECTORS_BASE[i] + _LIBCRYPT_SECTORS_SHIFT;
+
+		if(lba1 >= lba_end || lba2 >= lba_end)
+			continue;
+
 		ChannelQ Q1;
-		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), _LIBCRYPT_SECTORS_BASE[i] - LBA_START, 1, 0, 0);
+		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba1 - LBA_START, 1, 0, 0);
 		subcode_extract_channel((uint8_t *)&Q1, sub_buffer.data(), Subchannel::Q);
 
 		ChannelQ Q2;
-		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), _LIBCRYPT_SECTORS_BASE[i] + _LIBCRYPT_SECTORS_SHIFT - LBA_START, 1, 0, 0);
+		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba2 - LBA_START, 1, 0, 0);
 		subcode_extract_channel((uint8_t *)&Q2, sub_buffer.data(), Subchannel::Q);
 
 		if(!Q1.Valid() && !Q2.Valid())
 		{
-			candidates.push_back(_LIBCRYPT_SECTORS_BASE[i]);
-			candidates.push_back(_LIBCRYPT_SECTORS_BASE[i] + _LIBCRYPT_SECTORS_SHIFT);
+			candidates.push_back(lba1);
+			candidates.push_back(lba2);
 		}
 	}
 

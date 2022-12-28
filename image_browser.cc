@@ -81,19 +81,21 @@ bool ImageBrowser::IsDataTrack(const std::filesystem::path &track)
 }
 
 
-ImageBrowser::ImageBrowser(const std::filesystem::path &data_track, uint64_t file_offset, bool scrambled)
+ImageBrowser::ImageBrowser(const std::filesystem::path &data_track, uint64_t file_start_offset, uint64_t file_end_offset, bool scrambled)
 	: _fsProxy(data_track, std::fstream::in | std::fstream::binary)
 	, _fs(_fsProxy)
-	, _fileOffset(file_offset)
+	, _fileStartOffset(file_start_offset)
+	, _fileEndOffset(file_end_offset)
 	, _scrambled(scrambled)
 {
 	Init();
 }
 
 
-ImageBrowser::ImageBrowser(std::fstream &fs, uint64_t file_offset, bool scrambled)
+ImageBrowser::ImageBrowser(std::fstream &fs, uint64_t file_start_offset, uint64_t file_end_offset, bool scrambled)
 	: _fs(fs)
-	, _fileOffset(file_offset)
+	, _fileStartOffset(file_start_offset)
+	, _fileEndOffset(file_end_offset)
 	, _scrambled(scrambled)
 {
 	Init();
@@ -109,7 +111,7 @@ void ImageBrowser::Init()
 	Scrambler scrambler;
 
 	// calculate data track sector offset
-	_fs.seekg(_fileOffset);
+	_fs.seekg(_fileStartOffset);
 	if(_fs.fail())
 		throw_line("seek failure");
 
@@ -122,7 +124,7 @@ void ImageBrowser::Init()
 	_trackLBA = BCDMSF_to_LBA(sector.header.address);
 
 	// skip system area
-	_fs.seekg(_fileOffset + iso9660::SYSTEM_AREA_SIZE * sizeof(Sector));
+	_fs.seekg(_fileStartOffset + iso9660::SYSTEM_AREA_SIZE * sizeof(Sector));
 	if(_fs.fail())
 		throw_line("seek failure");
 
@@ -173,7 +175,12 @@ void ImageBrowser::Init()
 		throw_line("primary volume descriptor not found");
 
 	_pvd = *pvd;
-	_trackSize = _pvd.primary.volume_space_size.lsb;
+
+	// can't use _pvd.primary.volume_space_size.lsb here
+	// for some PSX discs where dummy files are present
+	// this value includes all following audio tracks
+	if(!_fileEndOffset)
+		_fileEndOffset = _fileStartOffset + _pvd.primary.volume_space_size.lsb * sizeof(Sector);
 }
 
 
@@ -318,7 +325,7 @@ time_t ImageBrowser::Entry::DateTime() const
 bool ImageBrowser::Entry::IsDummy() const
 {
 	uint32_t offset = _directory_record.offset.lsb - _browser._trackLBA;
-	return offset + SectorSize() >= _browser._trackSize || offset >= _browser._trackSize;
+	return _browser._fileStartOffset + (offset + SectorSize()) * sizeof(Sector) >= _browser._fileEndOffset;
 }
 
 
@@ -331,7 +338,7 @@ bool ImageBrowser::Entry::IsInterleaved() const
 	static const uint32_t SECTORS_TO_ANALYZE = 8 * 4;
 
 	uint32_t offset = _directory_record.offset.lsb - _browser._trackLBA;
-	_browser._fs.seekg(_browser._fileOffset + offset * sizeof(Sector));
+	_browser._fs.seekg(_browser._fileStartOffset + offset * sizeof(Sector));
 
 	if(_browser._fs.fail())
 	{
@@ -388,7 +395,7 @@ std::vector<uint8_t> ImageBrowser::Entry::Read(bool form2, bool throw_on_error)
 	data.reserve(size);
 
 	uint32_t offset = _directory_record.offset.lsb - _browser._trackLBA;
-	_browser._fs.seekg(_browser._fileOffset + offset * sizeof(Sector));
+	_browser._fs.seekg(_browser._fileStartOffset + offset * sizeof(Sector));
 
 	if(_browser._fs.fail())
 	{
@@ -465,7 +472,7 @@ std::vector<uint8_t> ImageBrowser::Entry::Peek()
 
 	Scrambler scrambler;
 
-	_browser._fs.seekg(_browser._fileOffset + _directory_record.offset.lsb * sizeof(Sector));
+	_browser._fs.seekg(_browser._fileStartOffset + _directory_record.offset.lsb * sizeof(Sector));
 	if(_browser._fs.fail())
 	{
 		_browser._fs.clear();

@@ -10,6 +10,7 @@ namespace gpsxre
 
 SystemISO::SystemISO(const std::filesystem::path &track_path)
 	: _trackPath(track_path)
+	, _trackSize(std::filesystem::file_size(track_path))
 {
 	;
 }
@@ -19,7 +20,7 @@ void SystemISO::operator()(std::ostream &os) const
 {
 	if(ImageBrowser::IsDataTrack(_trackPath))
 	{
-		ImageBrowser browser(_trackPath, 0, false);
+		ImageBrowser browser(_trackPath, 0, _trackSize, false);
 
 		os << fmt::format("ISO9660 [{}]:", _trackPath.filename().string()) << std::endl;
 

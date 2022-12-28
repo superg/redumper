@@ -102,6 +102,8 @@ set(sources
 	"systems/cdrom.hh"
 	"systems/iso.cc"
 	"systems/iso.hh"
+	"systems/psx.cc"
+	"systems/psx.hh"
 	"block_hasher.hh"
 	"cd.cc"
 	"cd.hh"

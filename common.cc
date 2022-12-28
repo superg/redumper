@@ -153,4 +153,27 @@ std::string system_date_time(std::string fmt)
 	return ss.str();
 }
 
+
+//FIXME: just do regexp
+std::string track_extract_basename(std::string str)
+{
+	std::string basename = str;
+
+	// strip extension
+	{
+		auto pos = basename.find_last_of('.');
+		if(pos != std::string::npos)
+			basename = std::string(basename, 0, pos);
+	}
+
+	// strip (Track X)
+	{
+		auto pos = str.find(" (Track ");
+		if(pos != std::string::npos)
+			basename = std::string(basename, 0, pos);
+	}
+
+	return basename;
+}
+
 }

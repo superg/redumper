@@ -1,5 +1,6 @@
 #include "cdrom.hh"
 #include "iso.hh"
+#include "psx.hh"
 #include "system.hh"
 
 
@@ -22,6 +23,7 @@ std::list<std::function<void(std::ostream &os)>> System::getSystems(const std::f
 
 	systems.emplace_back(SystemCDROM(track_path));
 	systems.emplace_back(SystemISO(track_path));
+	systems.emplace_back(SystemPSX(track_path));
 
 	return systems;
 }

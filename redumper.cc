@@ -1401,6 +1401,32 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 		}
 	}
 
+	// PX-760A: strip invalid entries from lead-in start
+	for(uint32_t s = 0; s < leadin_buffers.size(); ++s)
+	{
+		auto &leadin_buffer = leadin_buffers[s];
+		uint32_t n = (uint32_t)leadin_buffer.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
+		for(uint32_t i = 0; i < n; ++i)
+		{
+			uint8_t *entry = &leadin_buffer[i * PLEXTOR_LEADIN_ENTRY_SIZE];
+
+			uint8_t *sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
+
+			ChannelQ Q;
+			subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
+
+			if(Q.Valid())
+			{
+				if(i)
+				{
+					leadin_buffer.erase(leadin_buffer.begin(), leadin_buffer.begin() + i * PLEXTOR_LEADIN_ENTRY_SIZE);
+					LOG("PLEXTOR: lead-in trimmed (session index: {}, sectors: {})", s, i);
+				}
+				break;
+			}
+		}
+	}
+
 	// store
 	for(uint32_t s = 0; s < leadin_buffers.size(); ++s)
 	{

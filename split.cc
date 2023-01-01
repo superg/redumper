@@ -553,7 +553,10 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 
 			for(auto const &d : descramble_errors)
 			{
-				LOG("warning: descramble failed (LBA: {} .. {})", d.first, d.second);
+				if(d.first == d.second)
+					LOG("warning: descramble failed (LBA: {})", d.first);
+				else
+					LOG("warning: descramble failed (LBA: {} .. {})", d.first, d.second);
 
 				//DEBUG
 //				LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
@@ -604,13 +607,13 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 			if(tt->second->control != qt->second->control)
 			{
 				mismatch = true;
-				LOG("warning: TOC / QTOC mismatch, control (track: {}, control: {:04b} / {:04b})", t, tt->second->control, qt->second->control);
+				LOG("warning: TOC / QTOC mismatch, control (track: {}, control: {:04b} <=> {:04b})", t, tt->second->control, qt->second->control);
 			}
 
 			if(tt->second->lba_start != qt->second->lba_start)
 			{
 				mismatch = true;
-				LOG("warning: TOC / QTOC mismatch, track index 00 (track: {}, LBA: {} / {})", t, tt->second->lba_start, qt->second->lba_start);
+				LOG("warning: TOC / QTOC mismatch, track index 00 (track: {}, LBA: {} <=> {})", t, tt->second->lba_start, qt->second->lba_start);
 			}
 
 			auto tt_size = tt->second->indices.size();
@@ -620,7 +623,7 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 				if(tt_size && qt_size && tt->second->indices.front() != qt->second->indices.front())
 				{
 					mismatch = true;
-					LOG("warning: TOC / QTOC mismatch, track index 01 (track: {}, LBA: {} / {})", t, tt->second->indices.front(), qt->second->indices.front());
+					LOG("warning: TOC / QTOC mismatch, track index 01 (track: {}, LBA: {} <=> {})", t, tt->second->indices.front(), qt->second->indices.front());
 				}
 			}
 			else
@@ -632,7 +635,7 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 			if(tt->second->lba_end != qt->second->lba_end)
 			{
 				mismatch = true;
-				LOG("warning: TOC / QTOC mismatch, track length (track: {}, LBA: {} / {})", t, tt->second->lba_end, qt->second->lba_end);
+				LOG("warning: TOC / QTOC mismatch, track length (track: {}, LBA: {} <=> {})", t, tt->second->lba_end, qt->second->lba_end);
 			}
 		}
 		else

@@ -80,7 +80,8 @@ void SystemPSX::operator()(std::ostream &os) const
 					std::stringstream ss;
 					bool antimod = findAntiModchipStrings(ss, browser);
 					os << fmt::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
-					os << ss.str() << std::endl;
+					if(antimod)
+						os << ss.str() << std::endl;
 				}
 
 				std::filesystem::path sub_path = track_extract_basename(_trackPath.string()) + ".subcode";
@@ -89,7 +90,8 @@ void SystemPSX::operator()(std::ostream &os) const
 					std::stringstream ss;
 					bool libcrypt = detectLibCrypt(ss, sub_path);
 					os << fmt::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
-					os << ss.str() << std::endl;
+					if(libcrypt)
+						os << ss.str() << std::endl;
 				}
 			}
 		}

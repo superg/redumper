@@ -124,7 +124,7 @@ void correct_program_subq(ChannelQ *subq, uint32_t sectors_count)
 			{
 				uint32_t c = 0;
 				for(uint32_t j = 0; j < (uint32_t)candidates.size(); ++j)
-					if(bit_diff((uint8_t *)&subq[lba_index], (uint8_t *)&candidates[j], sizeof(ChannelQ)) < bit_diff((uint8_t *)&subq[lba_index], (uint8_t *)&candidates[c], sizeof(ChannelQ)))
+					if(bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[j], sizeof(ChannelQ) / sizeof(uint32_t)) < bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[c], sizeof(ChannelQ) / sizeof(uint32_t)))
 						c = j;
 
 				subq[lba_index] = candidates[c];

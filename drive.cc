@@ -19,7 +19,7 @@
 namespace gpsxre
 {
 
-std::unordered_map<std::string, int32_t> DRIVE_READ_OFFSETS =
+static const std::unordered_map<std::string, int32_t> DRIVE_READ_OFFSETS =
 {
 #include "driveoffsets.inc"
 };
@@ -508,6 +508,7 @@ SectorLayout sector_order_layout(const DriveConfig::SectorOrder &sector_order)
 
 	switch(sector_order)
 	{
+	default:
 	case DriveConfig::SectorOrder::DATA_C2_SUB:
 		sector_layout.data_offset = 0;
 		sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;

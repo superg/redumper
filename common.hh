@@ -11,10 +11,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#ifdef _MSC_VER
-#include <intrin.h>
-#define __builtin_popcount __popcnt
-#endif
 
 
 
@@ -190,14 +186,25 @@ void bit_copy(T *dst, size_t dst_offset, const T *src, size_t src_offset, size_t
 }
 
 template<typename T>
+uint32_t bits_count(T value)
+{
+	uint32_t count = 0;
+
+	for(; value; ++count)
+		value &= value - 1;
+
+	return count;
+}
+
+template<typename T>
 uint64_t bit_diff(const T *data1, const T *data2, uint64_t count)
 {
-	uint64_t bits_count = 0;
+	uint64_t diff = 0;
 
 	for(uint64_t i = 0; i < count; ++i)
-		bits_count += __builtin_popcount(data1[i] ^ data2[i]);
+		diff += bits_count(data1[i] ^ data2[i]);
 
-	return bits_count;
+	return diff;
 }
 
 template<typename T>

@@ -1040,6 +1040,20 @@ void redumper_debug(const Options &options)
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
 
+/*
+	// popcnt test
+	if(1)
+	{
+		for(uint32_t i = 0; i < 0xffffffff; ++i)
+		{
+			uint32_t test = __popcnt(i);
+			uint32_t test2 = bits_count(i);
+
+			if(test != test2)
+				LOG("{} <=> {}", test, test2);
+		}
+	}
+*/
 	// CD-TEXT debug
 	if(0)
 	{
@@ -1313,7 +1327,7 @@ uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data)
 		if(c2_quad)
 		{
 			state[i] = State::ERROR_C2;
-			c2_count += __builtin_popcount(c2_quad);
+			c2_count += bits_count(c2_quad);
 		}
 	}
 

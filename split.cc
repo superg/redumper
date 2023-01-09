@@ -1299,10 +1299,10 @@ void redumper_split(const Options &options)
 		toc.sessions.front().tracks.insert(toc.sessions.front().tracks.begin(), t0);
 	}
 
-	std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_end * CD_DATA_SIZE_SAMPLES);
+	std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_start * CD_DATA_SIZE_SAMPLES);
 	auto nonzero_data_range = audio_get_sample_range(scm_fs, sectors_count);
-	LOG("non-zero  TOC sample range: [{:9} .. {:9}]", nonzero_toc_range.first, nonzero_toc_range.second);
-	LOG("non-zero data sample range: [{:9} .. {:9}]", nonzero_data_range.first, nonzero_data_range.second);
+	LOG("non-zero  TOC sample range: [{:+9} .. {:+9}]", nonzero_toc_range.first, nonzero_toc_range.second);
+	LOG("non-zero data sample range: [{:+9} .. {:+9}]", nonzero_data_range.first, nonzero_data_range.second);
 	LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
 	LOG("");
 
@@ -1430,10 +1430,10 @@ void redumper_split(const Options &options)
 		if(write_offset == std::numeric_limits<int32_t>::max())
 		{
 			int32_t toc_sample_size = nonzero_toc_range.second - nonzero_toc_range.first;
-			int32_t nonzero_sample_size = nonzero_data_range.second - nonzero_data_range.first;
-			int32_t pregap_sample_size = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
+			int32_t data_sample_size = nonzero_data_range.second - nonzero_data_range.first;
 
-			if(nonzero_sample_size <= toc_sample_size)
+			// attempt to move data only if sample data range fits into TOC calculated range
+			if(data_sample_size <= toc_sample_size)
 			{
 				// move data out of lead-out
 				if(nonzero_data_range.second > nonzero_toc_range.second)
@@ -1441,11 +1441,17 @@ void redumper_split(const Options &options)
 					write_offset = nonzero_data_range.second - nonzero_toc_range.second;
 					LOG("moving data out of lead-out (difference: {:+})", write_offset);
 				}
-				// move data out of pre-gap only if we can get rid of it whole
-				else if(nonzero_data_range.first < nonzero_toc_range.first + pregap_sample_size && nonzero_sample_size + pregap_sample_size <= toc_sample_size)
+				// move data out of lead-in only if we can get rid of it whole
+				else if(nonzero_data_range.first < 0 && data_sample_size <= nonzero_toc_range.second)
 				{
-					write_offset = nonzero_data_range.first - (nonzero_toc_range.first + pregap_sample_size);
-					LOG("moving data out of pre-gap (difference: {:+})", write_offset);
+					write_offset = nonzero_data_range.first;
+					LOG("moving data out of lead-in (difference: {:+})", write_offset);
+				}
+				// move data out of TOC
+				else if(nonzero_data_range.first < nonzero_toc_range.first && data_sample_size <= toc_sample_size)
+				{
+					write_offset = nonzero_data_range.first - nonzero_toc_range.first;
+					LOG("moving data out of TOC (difference: {:+})", write_offset);
 				}
 			}
 		}

@@ -21,6 +21,7 @@ Options::Options(int argc, const char *argv[])
 	, iso9660_trim(false)
 	, plextor_skip_leadin(false)
 	, asus_skip_leadout(false)
+	, disable_cdtext(false)
 	, correct_offset_shift(false)
 	, cdi_ready_normalize(false)
 	, audio_silence_threshold(48)
@@ -137,6 +138,8 @@ Options::Options(int argc, const char *argv[])
 					plextor_skip_leadin = true;
 				else if(key == "--asus-skip-leadout")
 					asus_skip_leadout = true;
+				else if(key == "--disable-cdtext")
+					disable_cdtext = true;
 				else if(key == "--correct-offset-shift")
 					correct_offset_shift = true;
 				else if(key == "--cdi-ready-normalize")
@@ -214,6 +217,7 @@ void Options::PrintUsage()
 	LOG("\t(drive specific)");
 	LOG("\t--plextor-skip-leadin          \tskip dumping lead-in using negative range");
 	LOG("\t--asus-skip-leadout            \tskip extracting lead-out from drive cache");
+	LOG("\t--disable-cdtext               \tdisable CD-TEXT reading");
 	LOG("");
 	LOG("\t(offset)");
 	LOG("\t--force-offset=VALUE           \toverride offset autodetection and use supplied value");

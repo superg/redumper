@@ -44,6 +44,7 @@ struct Options
 	bool iso9660_trim;
 	bool plextor_skip_leadin;
 	bool asus_skip_leadout;
+	bool disable_cdtext;
 	bool correct_offset_shift;
 	bool cdi_ready_normalize;
 	std::unique_ptr<int> force_offset;

@@ -289,6 +289,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 		// CD-TEXT
 		std::vector<uint8_t> cd_text_buffer;
+		if(!options.disable_cdtext)
 		{
 			auto status = cmd_read_cd_text(sptd, cd_text_buffer);
 			if(status.status_code)

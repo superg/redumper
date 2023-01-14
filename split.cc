@@ -20,21 +20,21 @@
 namespace gpsxre
 {
 
-void correct_program_subq(ChannelQ *subq, uint32_t sectors_count)
+bool correct_program_subq(ChannelQ *subq, uint32_t sectors_count)
 {
 	uint32_t mcn = sectors_count;
 	std::map<uint8_t, uint32_t> isrc;
 	ChannelQ q_empty;
 	memset(&q_empty, 0, sizeof(q_empty));
 
+	bool invalid_subq = true;
 	uint8_t tno = 0;
 	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
 	{
-		if(!memcmp(&subq[lba_index], &q_empty, sizeof(q_empty)))
-			continue;
-
 		if(!subq[lba_index].Valid())
 			continue;
+
+		invalid_subq = false;
 
 		uint8_t adr = subq[lba_index].control_adr & 0x0F;
 		if(adr == 1)
@@ -44,6 +44,9 @@ void correct_program_subq(ChannelQ *subq, uint32_t sectors_count)
 		else if(adr == 3 && tno && isrc.find(tno) == isrc.end())
 			isrc[tno] = lba_index;
 	}
+
+	if(invalid_subq)
+		return false;
 
 	uint32_t q_prev = sectors_count;
 	uint32_t q_next = 0;
@@ -131,6 +134,8 @@ void correct_program_subq(ChannelQ *subq, uint32_t sectors_count)
 			}
 		}
 	}
+
+	return true;
 }
 
 
@@ -1187,7 +1192,6 @@ void redumper_split(const Options &options)
 	std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
 
-	bool subcode = std::filesystem::exists(sub_path);
 	bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
 	auto scra_path(scrap ? scp_path : scm_path);
 
@@ -1222,13 +1226,14 @@ void redumper_split(const Options &options)
 	}
 
 	// preload subchannel Q
-	std::vector<ChannelQ> subq(sectors_count);
-	if(subcode)
+	std::vector<ChannelQ> subq;
+	if(std::filesystem::exists(sub_path))
 	{
 		std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
 		if(!fs.is_open())
 			throw_line(fmt::format("unable to open file ({})", sub_path.filename().string()));
 
+		subq.resize(sectors_count);
 		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
 		for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
 		{
@@ -1238,23 +1243,26 @@ void redumper_split(const Options &options)
 
 		// correct Q
 		LOG_F("correcting Q... ");
-		correct_program_subq(subq.data(), sectors_count);
+		if(!correct_program_subq(subq.data(), sectors_count))
+			subq.clear();
 		LOG("done");
 		LOG("");
 
-		toc.UpdateQ(subq.data(), sectors_count, LBA_START);
 	}
-	else
+
+	if(subq.empty())
 	{
 		LOG("warning: subchannel data is not available, generating TOC index 0 entries");
 		toc.GenerateIndex0();
 	}
+	else
+		toc.UpdateQ(subq.data(), sectors_count, LBA_START);
 
 	LOG("final TOC:");
 	toc.Print();
 	LOG("");
 
-	if(subcode)
+	if(!subq.empty())
 	{
 		TOC qtoc(subq.data(), sectors_count, LBA_START);
 

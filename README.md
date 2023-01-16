@@ -1,5 +1,18 @@
 # redumper
-Copyright 2021-2022 Hennadiy Brych
+Copyright 2021-2023 Hennadiy Brych
+
+## Ukraine
+![alt text](https://github.com/superg/redumper/blob/main/ukraine.jpg)
+
+Support Ukrainian Army in fighting back russian aggression. 
+
+https://bank.gov.ua/en/news/all/natsionalniy-bank-vidkriv-spetsrahunok-dlya-zboru-koshtiv-na-potrebi-armiyi
+
+https://savelife.in.ua/en
+
+https://prytulafoundation.org/en
+
+Preservation is not important if people are denied their right to exist. Слава Україні!
 
 ## Intro
 A fresh take on a CD dumper utility. The main goals are to develop a portable, byte perfect CD dumper which supports incremental dumps, advanced SCSI/C2 repair and is future proof. Everything is written from scratch in C++. Available for both Windows and Linux, MacOSX version is planned.

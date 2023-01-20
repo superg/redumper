@@ -287,14 +287,21 @@ bool redumper_dump(const Options &options, bool refine)
 		if(!full_toc_buffer.empty())
 			write_vector(fulltoc_path, full_toc_buffer);
 
+		bool read_cdtext = !options.disable_cdtext;
+		// disable multisession CD-TEXT for certain drives that hang indefinitely
+		if(toc.sessions.size() > 1 && drive_config.vendor_id == "PLEXTOR" && drive_config.product_id == "CD-R PX-W4824A")
+			read_cdtext = false;
+
 		// CD-TEXT
 		std::vector<uint8_t> cd_text_buffer;
-		if(!options.disable_cdtext)
+		if(read_cdtext)
 		{
 			auto status = cmd_read_cd_text(sptd, cd_text_buffer);
 			if(status.status_code)
 				LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
 		}
+		else
+			LOG("warning: CD-TEXT disabled");
 
 		if(!cd_text_buffer.empty())
 			write_vector(cdtext_path, cd_text_buffer);

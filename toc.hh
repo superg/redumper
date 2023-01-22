@@ -128,7 +128,8 @@ private:
 	static bool IsTextPack(PackType pack_type);
 	CDText *GetCDText(uint8_t index, uint8_t track_number);
 	uint32_t TrackNumberWidth() const;
-	std::string DescriptorText(const CD_TEXT_Descriptor &descriptor);
+	std::string DecodeText(const char* text, bool unicode, uint8_t language_code, CharacterCode character_code) const;
+	std::string DescriptorText(const CD_TEXT_Descriptor &descriptor) const;
 };
 
 }

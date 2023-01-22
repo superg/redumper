@@ -2,6 +2,7 @@
 #include <map>
 #include <set>
 #include <cctype>
+#include <codecvt>
 #include "cd.hh"
 #include "common.hh"
 #include "crc16_gsm.hh"
@@ -385,10 +386,12 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 	}
 
 	uint8_t first_track, tracks_count = 0;
+	CharacterCode character_code = CharacterCode::ISO_8859_1;
 	if(bsi_found)
 	{
 		first_track = block_size_info.first_track;
 		tracks_count = block_size_info.last_track - block_size_info.first_track + 1;
+		character_code = (CharacterCode)block_size_info.character_code;
 	}
 	// PLEXTOR PX-W5224TA: no block size info for multisession cd-text
 	else
@@ -455,43 +458,24 @@ bool TOC::UpdateCDTEXT(const std::vector<uint8_t> &cdtext_buffer)
 				if(!cdt)
 					continue;
 
-				switch(pack_type)
-				{
-				case PackType::TITLE:
-					cdt->title = track_texts[j];
-					break;
+				auto decoded_text = DecodeText(track_texts[j], pack_data.unicode, cd_text_lang[blocks_map[pack_data.block_number]], character_code);
 
-				case PackType::PERFORMER:
-					cdt->performer = track_texts[j];
-					break;
-
-				case PackType::SONGWRITER:
-					cdt->songwriter = track_texts[j];
-					break;
-
-				case PackType::COMPOSER:
-					cdt->composer = track_texts[j];
-					break;
-
-				case PackType::ARRANGER:
-					cdt->arranger = track_texts[j];
-					break;
-
-				case PackType::MESSAGE:
-					cdt->message = track_texts[j];
-					break;
-
-				case PackType::CLOSED_INFO:
-					cdt->closed_info = track_texts[j];
-					break;
-
-				case PackType::MCN_ISRC:
-					cdt->mcn_isrc = track_texts[j];
-					break;
-
-				default:
-					;
-				}
+				if(pack_type == PackType::TITLE)
+					cdt->title = decoded_text;
+				else if(pack_type == PackType::PERFORMER)
+					cdt->performer = decoded_text;
+				else if(pack_type == PackType::SONGWRITER)
+					cdt->songwriter = decoded_text;
+				else if(pack_type == PackType::COMPOSER)
+					cdt->composer = decoded_text;
+				else if(pack_type == PackType::ARRANGER)
+					cdt->arranger = decoded_text;
+				else if(pack_type == PackType::MESSAGE)
+					cdt->message = decoded_text;
+				else if(pack_type == PackType::CLOSED_INFO)
+					cdt->closed_info = decoded_text;
+				else if(pack_type == PackType::MCN_ISRC)
+					cdt->mcn_isrc = decoded_text;
 			}
 		}
 		else
@@ -938,20 +922,38 @@ uint32_t TOC::TrackNumberWidth() const
 }
 
 
-std::string TOC::DescriptorText(const CD_TEXT_Descriptor &descriptor)
+std::string TOC::DecodeText(const char *text, bool unicode, uint8_t language_code, CharacterCode character_code) const
+{
+	//FIXME: codecvt is deprecated
+
+	return unicode ? std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(std::u16string((char16_t*)text)) : std::string(text);
+}
+
+
+std::string TOC::DescriptorText(const CD_TEXT_Descriptor &descriptor) const
 {
 	std::string text;
 
-	for(uint32_t i = 0; i < sizeof(descriptor.text); ++i)
+	if(descriptor.unicode)
 	{
-		if(isprint(descriptor.text[i]))
-			text += (char)descriptor.text[i];
-		else
-			text += descriptor.text[i] ? fmt::format("\\x{:02X}", descriptor.text[i]) : "|";
+		uint16_t *text_unicode = (uint16_t *)descriptor.text;
+		for(uint32_t i = 0; i < sizeof(descriptor.text) / sizeof(uint16_t); ++i)
+		{
+			text += text_unicode[i] ? fmt::format("\\U{:04X}", text_unicode[i]) : "|";
+		}
+	}
+	else
+	{
+		for(uint32_t i = 0; i < sizeof(descriptor.text); ++i)
+		{
+			if(isprint(descriptor.text[i]))
+				text += (char)descriptor.text[i];
+			else
+				text += descriptor.text[i] ? fmt::format("\\x{:02X}", descriptor.text[i]) : "|";
+		}
 	}
 
 	return text;
 }
-
 
 }

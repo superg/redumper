@@ -1047,6 +1047,7 @@ void redumper_debug(const Options &options)
 	std::filesystem::path cache_path(image_prefix + ".asus");
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
+	std::filesystem::path cue_path(image_prefix + ".cue");
 
 /*
 	// popcnt test
@@ -1070,6 +1071,11 @@ void redumper_debug(const Options &options)
 
 		std::vector<uint8_t> cdtext_buffer = read_vector(cdtext_path);
 		toc.UpdateCDTEXT(cdtext_buffer);
+
+		std::fstream fs(cue_path, std::fstream::out);
+		if(!fs.is_open())
+			throw_line(fmt::format("unable to create file ({})", cue_path.string()));
+		toc.PrintCUE(fs, options.image_name, 0);
 
 		LOG("");
 	}

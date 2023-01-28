@@ -139,6 +139,20 @@ Refine a previous dump from my_dump_directory with base name my_dump_name on a d
 
 Force generation of track split with track errors, just because you really want to see and experiment with unscrambled tracks.
 
+## Building from Source
+
+Some users may wish to build the software from source, particularly Linux users who may not have the same system configuration as was used to generate the Release versions. This process is fairly simple.
+
+1. Ensure you have the `cmake` and `build-essentials` packages on your system.
+2. Clone this repository. Because this repository includes `fmt` as a submodule, you will need to include this in your clone command. Therefore it should look like: `git clone --recurse-submodules git@github.com:superg/redumper.git`
+3. `cd redumper`
+4. This is optional, but it is preferred to created a dedicated `build` directory separate from the source code. Therefore, `mkdir build` followed by `cd build`.
+5. `cmake ..`
+6. `cmake --build . --target redumper`
+
+This should create the `redumper` executable within your `build` directory. You can then move the executable anywhere you please.
+
+
 ## Contacts
 E-mail: gennadiy.brich@gmail.com
 

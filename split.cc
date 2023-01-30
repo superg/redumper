@@ -1038,8 +1038,6 @@ void redumper_protection(Options &options)
 		TOC toc_full(fulltoc_buffer, true);
 		if(toc_full.sessions.size() > 1)
 			toc = toc_full;
-		else
-			toc.disc_type = toc_full.disc_type;
 	}
 
 	{
@@ -1219,10 +1217,9 @@ void redumper_split(const Options &options)
 		// PX-W5224TA: incorrect FULL TOC data in some cases
 		toc_full.DeriveINDEX(toc);
 
+		// prefer multisession TOC
 		if(toc_full.sessions.size() > 1)
 			toc = toc_full;
-		else
-			toc.disc_type = toc_full.disc_type;
 	}
 
 	// preload subchannel Q
@@ -1293,6 +1290,7 @@ void redumper_split(const Options &options)
 		toc.UpdateCDTEXT(cdtext_buffer);
 	}
 
+	//FIXME: rework descrambling inplace
 	// CD-i Ready / AudioVision
 	if(options.cdi_ready_normalize)
 	{

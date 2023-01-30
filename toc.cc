@@ -25,7 +25,6 @@ const char TOC::_ISRC_TABLE[] =
 
 
 TOC::TOC(const std::vector<uint8_t> &toc_buffer, bool full_toc)
-	: disc_type(DiscType::UNKNOWN)
 {
 	if(full_toc)
 		InitFullTOC(toc_buffer);
@@ -35,7 +34,6 @@ TOC::TOC(const std::vector<uint8_t> &toc_buffer, bool full_toc)
 
 
 TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
-	: disc_type(DiscType::UNKNOWN)
 {
 	bool track_active = false;
 	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
@@ -536,19 +534,6 @@ void TOC::Print() const
 {
 	bool multisession = sessions.size() > 1;
 
-	// disc type
-	if(disc_type != DiscType::UNKNOWN)
-	{
-		std::string disc_type_string("UNKNOWN");
-		if(disc_type == DiscType::CD_DA)
-			disc_type_string = "CD-DA / CD-DATA";
-		else if(disc_type == DiscType::CD_I)
-			disc_type_string = "CD-I";
-		else if(disc_type == DiscType::CD_XA)
-			disc_type_string = "CD-XA";
-		LOG("{}disc type: {}", std::string(2, ' '), disc_type_string);
-	}
-
 	for(auto const &s : sessions)
 	{
 		if(multisession)
@@ -757,9 +742,6 @@ void TOC::InitFullTOC(const std::vector<uint8_t> &toc_buffer)
 			{
 			// first track
 			case 0xA0:
-				disc_type = (DiscType)d.p_msf[1];
-				break;
-
 			// last track
 			case 0xA1:
 				break;

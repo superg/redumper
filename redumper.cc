@@ -188,8 +188,6 @@ bool redumper_dump(const Options &options, bool refine)
 		// prefer TOC for single session discs and FULL TOC for multisession discs
 		if(toc_full.sessions.size() > 1)
 			toc = toc_full;
-		else
-			toc.disc_type = toc_full.disc_type;
 	}
 
 	if(!refine)

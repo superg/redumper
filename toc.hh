@@ -16,15 +16,6 @@ namespace gpsxre
 
 struct TOC
 {
-	enum class DiscType : uint8_t
-	{
-		CD_DA = 0x00,
-		CD_I  = 0x10,
-		CD_XA = 0x20,
-
-		UNKNOWN = 0xFF
-	};
-
 	struct CDText
 	{
 		std::string title;
@@ -58,7 +49,6 @@ struct TOC
 		std::vector<Track> tracks;
 	};
 
-	DiscType disc_type;
 	std::vector<Session> sessions;
 
 	// supplemental

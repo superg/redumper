@@ -250,7 +250,7 @@ int32_t track_find_offset_shift(int32_t write_offset, int32_t lba, uint32_t coun
 		{
 			auto s = (Sector *)&data[i];
 			// don't use .Descramble() here as sectors in-between will be randomly damaged preventing detection
-			scrambler.Process((uint8_t *)s, (uint8_t *)s, std::min(CD_DATA_SIZE, (uint32_t)(data.size() - i)));
+			scrambler.Process((uint8_t *)s, (uint8_t *)s, 0, std::min(CD_DATA_SIZE, (uint32_t)(data.size() - i)));
 
 			// expected sector
 			int32_t sector_lba = BCDMSF_to_LBA(s->header.address);
@@ -525,7 +525,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 
 						bool success = true;
 						if(force_descramble)
-							scrambler.Process(sector.data(), sector.data(), sector.size());
+							scrambler.Process(sector.data(), sector.data(), 0, sector.size());
 						else
 							success = scrambler.Descramble(sector.data(), &lba);
 
@@ -740,6 +740,82 @@ std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(s
 }
 
 
+std::vector<std::pair<int32_t, int32_t>> data_search_sync(std::fstream &scm_fs, uint32_t sectors_count)
+{
+	std::vector<std::pair<int32_t, int32_t>> offsets;
+
+	//FIXME: switch to mmap
+	std::vector<uint32_t> samples(sectors_count * CD_DATA_SIZE_SAMPLES);
+	scm_fs.seekg(0);
+	scm_fs.read((char *)samples.data(), samples.size() * sizeof(uint32_t));
+	if(scm_fs.fail())
+		throw_line("fail");
+
+	Scrambler scrambler;
+
+	constexpr uint32_t sync_size_samples = sizeof(CD_DATA_SYNC) / CD_SAMPLE_SIZE;
+
+	uint32_t sync_search = 0;
+	for(uint32_t i = 0; i < samples.size();)
+	{
+		if(sync_search < sync_size_samples)
+		{
+			if(samples[i++] == ((uint32_t*)CD_DATA_SYNC)[sync_search])
+			{
+				++sync_search;
+
+				// backtrack to sector start
+				if(sync_search == sync_size_samples)
+					i -= sync_size_samples;
+			}
+			else
+				sync_search = 0;
+		}
+		else
+		{
+			if((uint32_t)samples.size() - i < sync_size_samples + 1)
+				break;
+
+			if(memcmp(&samples[i], CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
+			{
+				sync_search = 0;
+
+				// backtrack to search for the next sync
+				i -= CD_DATA_SIZE_SAMPLES - sync_size_samples;
+			}
+			else
+			{
+				MSF msf;
+				scrambler.Process((uint8_t *)&msf, (uint8_t*)&samples[i], sizeof(CD_DATA_SYNC), sizeof(CD_DATA_SYNC) + sizeof(msf));
+
+				int32_t lba = BCDMSF_to_LBA(msf);
+				int32_t offset = i - (lba - LBA_START) * CD_DATA_SIZE_SAMPLES;
+				if(offsets.empty())
+					offsets.emplace_back(lba, offset);
+				else
+				{
+					if(offset != offsets.back().second)
+						offsets.emplace_back(lba, offset);
+				}
+
+				LOG("MSF: {:02X}:{:02X}:{:02X}, LBA: {:6}", msf.m, msf.s, msf.f, lba);
+
+				i += CD_DATA_SIZE_SAMPLES;
+			}
+
+		}
+	}
+
+	for(auto const &o : offsets)
+	{
+		LOG("LBA: {:6}, offset: {}", o.first, o.second);
+
+	}
+
+	return offsets;
+}
+
+
 std::pair<int32_t, int32_t> audio_get_sample_range(std::fstream &scm_fs, uint32_t sectors_count)
 {
 	std::pair<int32_t, int32_t> range(0, 0);
@@ -892,7 +968,7 @@ int32_t disc_offset_by_overlap(const TOC &toc, std::fstream &scm_fs, int32_t wri
 				for(uint32_t i = 0; i < sectors_to_check; ++i)
 				{
 					uint8_t *s = (uint8_t *)t1_samples.data() + i * CD_DATA_SIZE;
-					scrambler.Process(s, s);
+					scrambler.Process(s, s, 0, CD_DATA_SIZE);
 				}
 
 				for(auto it = t1_samples.begin(); it != t1_samples.end(); ++it)
@@ -1217,7 +1293,6 @@ void redumper_split(const Options &options)
 		// PX-W5224TA: incorrect FULL TOC data in some cases
 		toc_full.DeriveINDEX(toc);
 
-		// prefer multisession TOC
 		if(toc_full.sessions.size() > 1)
 			toc = toc_full;
 	}
@@ -1308,8 +1383,11 @@ void redumper_split(const Options &options)
 		toc.sessions.front().tracks.insert(toc.sessions.front().tracks.begin(), t0);
 	}
 
-	std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_start * CD_DATA_SIZE_SAMPLES);
+//	auto sync = data_search_sync(scm_fs, sectors_count);
+
 	auto nonzero_data_range = audio_get_sample_range(scm_fs, sectors_count);
+
+	std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_start * CD_DATA_SIZE_SAMPLES);
 	LOG("non-zero  TOC sample range: [{:+9} .. {:+9}]", nonzero_toc_range.first, nonzero_toc_range.second);
 	LOG("non-zero data sample range: [{:+9} .. {:+9}]", nonzero_data_range.first, nonzero_data_range.second);
 	LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));

@@ -23,7 +23,7 @@ bool Scrambler::Descramble(uint8_t *sector, int32_t *lba, uint32_t size) const
 		return unscrambled;
 
 	// unscramble sector
-	Process(sector, sector, size);
+	Process(sector, sector, 0, size);
 
 	auto s = (Sector *)sector;
 
@@ -50,51 +50,7 @@ bool Scrambler::Descramble(uint8_t *sector, int32_t *lba, uint32_t size) const
 
 	// if unsuccessful, scramble sector back (unlikely)
 	if(!unscrambled)
-		Process(sector, sector, size);
-
-	return unscrambled;
-}
-
-
-// legacy DIC-style descrambling, matches DIC dumps 1:1
-bool Scrambler::DescrambleDIC(uint8_t *sector, int32_t *lba, uint32_t size) const
-{
-	bool unscrambled = false;
-
-	// not enough data to analyze
-	if(size < sizeof(Sector::sync) + sizeof(Sector::header))
-		return unscrambled;
-
-	// sync doesn't match
-	if(memcmp(sector, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
-		return unscrambled;
-
-	// unscramble sector
-	Process(sector, sector, size);
-
-	auto s = (Sector *)sector;
-
-	if(s->header.mode == 0)
-	{
-		uint32_t size_to_check = std::min(size - offsetof(Sector, mode2.user_data), sizeof(s->mode2.user_data));
-
-		// whole sector data is expected to be zeroed
-		unscrambled = is_zeroed(s->mode2.user_data, size_to_check);
-	}
-	else if(s->header.mode == 1 || s->header.mode == 2)
-	{
-		unscrambled = true;
-	}
-	else if(size > offsetof(Sector, mode1.intermediate))
-	{
-		// intermediate data is zeroed
-		if(is_zeroed(s->mode1.intermediate, std::min(size - offsetof(Sector, mode1.intermediate), sizeof(s->mode1.intermediate))))
-			unscrambled = true;
-	}
-
-	// if unsuccessful, scramble sector back (unlikely)
-	if(!unscrambled)
-		Process(sector, sector, size);
+		Process(sector, sector, 0, size);
 
 	return unscrambled;
 }
@@ -125,10 +81,10 @@ void Scrambler::GenerateTable()
 }
 
 
-void Scrambler::Process(uint8_t *sector_out, const uint8_t *sector_in, uint32_t size) const
+void Scrambler::Process(uint8_t *output, const uint8_t *sector, uint32_t start, uint32_t end) const
 {
-	for(uint32_t i = 0; i < size; ++i)
-		sector_out[i] = sector_in[i] ^ _table[i];
+	for(uint32_t i = start; i < end; ++i)
+		output[i - start] = sector[i] ^ _table[i];
 }
 
 }

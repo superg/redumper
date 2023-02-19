@@ -129,7 +129,7 @@ Will dump a disc in drive F: with 100 retries count in case of errors (refine). 
 
 **3. You know what you do:**
 
-`redumper refine --verbose --drive=G: --speed=1 --retries=500 --image-name=my_dump_name --image-path=my_dump_directory`
+`redumper refine --verbose --drive=G: --speed=8 --retries=500 --image-name=my_dump_name --image-path=my_dump_directory`
 
 Refine a previous dump from my_dump_directory with base name my_dump_name on a different drive using lowest speed with different retries count.
 

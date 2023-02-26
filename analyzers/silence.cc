@@ -1,3 +1,4 @@
+#include <limits>
 #include "silence.hh"
 
 

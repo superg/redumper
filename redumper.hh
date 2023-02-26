@@ -39,11 +39,11 @@ static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START); // -45150
 
 enum class State : uint8_t
 {
-	ERROR_SKIP       = 0, // must be 0 to support random offset file writes
-	ERROR_C2         = 1,
-	SUCCESS_C2_OFF   = 2,
-	SUCCESS_SCSI_OFF = 3,
-	SUCCESS          = 4
+	ERROR_SKIP, // must be first to support random offset file writes
+	ERROR_C2,
+	SUCCESS_C2_OFF,
+	SUCCESS_SCSI_OFF,
+	SUCCESS
 };
 
 

@@ -93,6 +93,11 @@ add_custom_command(
 )
 
 set(sources
+	"analyzers/analyzer.hh"
+	"analyzers/silence.hh"
+	"analyzers/silence.cc"
+	"analyzers/sync.hh"
+	"analyzers/sync.cc"
 	"systems/system.cc"
 	"systems/system.hh"
 	"systems/cdrom.cc"

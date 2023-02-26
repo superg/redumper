@@ -3,6 +3,8 @@
 #include <limits>
 #include <map>
 #include <sstream>
+#include "analyzers/silence.hh"
+#include "analyzers/sync.hh"
 #include "systems/system.hh"
 #include "common.hh"
 #include "crc32.hh"
@@ -561,7 +563,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 				if(d.first == d.second)
 					LOG("warning: descramble failed (LBA: {})", d.first);
 				else
-					LOG("warning: descramble failed (LBA: {} .. {})", d.first, d.second);
+					LOG("warning: descramble failed (LBA: [{} .. {}])", d.first, d.second);
 
 				//DEBUG
 //				LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
@@ -740,146 +742,28 @@ std::vector<std::vector<std::pair<int32_t, int32_t>>> audio_get_silence_ranges(s
 }
 
 
-std::vector<std::pair<int32_t, int32_t>> data_search_sync(std::fstream &scm_fs, uint32_t sectors_count)
+void analyze_scram_samples(std::fstream &scm_fs, std::fstream &state_fs, uint32_t samples_count, uint32_t batch_size, const std::list<std::shared_ptr<Analyzer>> &analyzers)
 {
-	std::vector<std::pair<int32_t, int32_t>> offsets;
+	std::vector<uint32_t> samples(batch_size);
+	std::vector<State> state(batch_size);
 
-	//FIXME: switch to mmap
-	std::vector<uint32_t> samples(sectors_count * CD_DATA_SIZE_SAMPLES);
-	scm_fs.seekg(0);
-	scm_fs.read((char *)samples.data(), samples.size() * sizeof(uint32_t));
-	if(scm_fs.fail())
-		throw_line("fail");
-
-	Scrambler scrambler;
-
-	constexpr uint32_t sync_size_samples = sizeof(CD_DATA_SYNC) / CD_SAMPLE_SIZE;
-
-	uint32_t sync_search = 0;
-	for(uint32_t i = 0; i < samples.size();)
+	batch_process_range<uint32_t>(std::pair(0, samples_count), batch_size, [&scm_fs, &state_fs, &samples, &state, &analyzers](int32_t offset, int32_t size, bool last) -> bool
 	{
-		if(sync_search < sync_size_samples)
-		{
-			if(samples[i++] == ((uint32_t*)CD_DATA_SYNC)[sync_search])
-			{
-				++sync_search;
+		read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset, size, 0, 0);
+		read_entry(state_fs, (uint8_t *)state.data(), 1, offset, size, 0, (uint8_t)State::ERROR_SKIP);
 
-				// backtrack to sector start
-				if(sync_search == sync_size_samples)
-					i -= sync_size_samples;
-			}
-			else
-				sync_search = 0;
-		}
-		else
-		{
-			if((uint32_t)samples.size() - i < sync_size_samples + 1)
-				break;
+		for(auto const &a : analyzers)
+			a->process(samples.data(), state.data(), size, offset, last);
 
-			if(memcmp(&samples[i], CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
-			{
-				sync_search = 0;
-
-				// backtrack to search for the next sync
-				i -= CD_DATA_SIZE_SAMPLES - sync_size_samples;
-			}
-			else
-			{
-				MSF msf;
-				scrambler.Process((uint8_t *)&msf, (uint8_t*)&samples[i], sizeof(CD_DATA_SYNC), sizeof(CD_DATA_SYNC) + sizeof(msf));
-
-				int32_t lba = BCDMSF_to_LBA(msf);
-				int32_t offset = i - (lba - LBA_START) * CD_DATA_SIZE_SAMPLES;
-				if(offsets.empty())
-					offsets.emplace_back(lba, offset);
-				else
-				{
-					if(offset != offsets.back().second)
-						offsets.emplace_back(lba, offset);
-				}
-
-				LOG("MSF: {:02X}:{:02X}:{:02X}, LBA: {:6}", msf.m, msf.s, msf.f, lba);
-
-				i += CD_DATA_SIZE_SAMPLES;
-			}
-
-		}
-	}
-
-	for(auto const &o : offsets)
-	{
-		LOG("LBA: {:6}, offset: {}", o.first, o.second);
-
-	}
-
-	return offsets;
-}
-
-
-std::pair<int32_t, int32_t> audio_get_sample_range(std::fstream &scm_fs, uint32_t sectors_count)
-{
-	std::pair<int32_t, int32_t> range(0, 0);
-
-	uint32_t samples[CD_DATA_SIZE_SAMPLES];
-
-	// head
-	for(uint32_t i = 0; i < sectors_count; ++i)
-	{
-		bool to_break = false;
-
-		read_entry(scm_fs, (uint8_t *)samples, CD_DATA_SIZE, i, 1, 0, 0);
-
-		for(uint32_t j = 0; j < CD_DATA_SIZE_SAMPLES; ++j)
-		{
-			auto sample = (int16_t *)&samples[j];
-
-			if(sample[0] || sample[1])
-			{
-				range.first = (LBA_START + i) * CD_DATA_SIZE_SAMPLES + j;
-				to_break = true;
-				break;
-			}
-		}
-
-		if(to_break)
-			break;
-	}
-
-	// tail
-	for(uint32_t ii = sectors_count; ii > 0; --ii)
-	{
-		bool to_break = false;
-
-		uint32_t i = ii - 1;
-
-		read_entry(scm_fs, (uint8_t *)samples, CD_DATA_SIZE, i, 1, 0, 0);
-
-		for(uint32_t jj = CD_DATA_SIZE_SAMPLES; jj > 0; --jj)
-		{
-			uint32_t j = jj - 1;
-
-			auto sample = (int16_t *)&samples[j];
-
-			if(sample[0] || sample[1])
-			{
-				range.second = (LBA_START + i) * CD_DATA_SIZE_SAMPLES + jj;
-				to_break = true;
-				break;
-			}
-		}
-
-		if(to_break)
-			break;
-	}
-
-	return range;
+		return false;
+	});
 }
 
 
 uint16_t disc_offset_by_silence(std::vector<std::pair<int32_t, int32_t>> &offset_ranges,
-		const std::vector<std::pair<int32_t, int32_t>> &index0_ranges, const std::vector<std::vector<std::pair<int32_t, int32_t>>> &silence_ranges, uint16_t silence_threshold)
+		const std::vector<std::pair<int32_t, int32_t>> &index0_ranges, const std::vector<std::vector<std::pair<int32_t, int32_t>>> &silence_ranges)
 {
-	for(uint16_t t = 0; t < silence_threshold; ++t)
+	for(uint16_t t = 0; t < silence_ranges.size(); ++t)
 	{
 		auto &silence_range = silence_ranges[t];
 
@@ -937,7 +821,7 @@ uint16_t disc_offset_by_silence(std::vector<std::pair<int32_t, int32_t>> &offset
 			return t;
 	}
 
-	return silence_threshold;
+	return silence_ranges.size();
 }
 
 
@@ -1071,7 +955,7 @@ std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, in
 	SHA1 bh_sha1;
 
 	std::vector<uint32_t> samples(10 * 1024 * 1024); // 10Mb chunk
-	batch_process_range<int32_t>(nonzero_data_range, samples.size(), [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size) -> bool
+	batch_process_range<int32_t>(nonzero_data_range, samples.size(), [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size, bool) -> bool
 	{
 		read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset - LBA_START * CD_DATA_SIZE_SAMPLES, size, 0, 0);
 		bh_sha1.Update((uint8_t *)samples.data(), size * sizeof(uint32_t));
@@ -1365,27 +1249,34 @@ void redumper_split(const Options &options)
 		toc.UpdateCDTEXT(cdtext_buffer);
 	}
 
-	//FIXME: rework descrambling inplace
-	// CD-i Ready / AudioVision
-	if(options.cdi_ready_normalize)
+	std::list<std::shared_ptr<Analyzer>> analyzers;
+
+	auto sync_analyzer = std::make_shared<SyncAnalyzer>(scrap);
+	analyzers.emplace_back(sync_analyzer);
+
+	auto index0_ranges = audio_get_toc_index0_ranges(toc);
+	auto silence_analyzer = std::make_shared<SilenceAnalyzer>(options.audio_silence_threshold, index0_ranges);
+	analyzers.emplace_back(silence_analyzer);
+
+	LOG_F("analyzing image... ");
+	analyze_scram_samples(scm_fs, state_fs, std::filesystem::file_size(scra_path), CD_DATA_SIZE_SAMPLES, analyzers);
+	LOG("done");
+	LOG("");
+
+	auto offsets = sync_analyzer->getOffsets();
+
+	if(!offsets.empty())
 	{
-		auto t0 = toc.sessions.front().tracks.front();
-		auto &t1 = toc.sessions.front().tracks.front();
-
-		t0.track_number = 0;
-		t0.lba_end = t1.indices.front();
-		t0.control = (uint8_t)ChannelQ::Control::DATA;
-		t0.indices.clear();
-		t0.indices.push_back(t1.lba_start - MSF_LBA_SHIFT);
-
-		t1.lba_start = t1.indices.front();
-
-		toc.sessions.front().tracks.insert(toc.sessions.front().tracks.begin(), t0);
+		LOG("sync statistics:");
+		for(uint32_t i = 0; i + 1 < offsets.size(); ++i)
+		{
+			uint32_t count = offsets[i + 1].first - offsets[i].first;
+			LOG("  LBA: [{:6} .. {:6}], offset: {:+}, count: {}", offsets[i].first, offsets[i].first + (int32_t)count - 1, offsets[i].second, count);
+		}
 	}
 
-//	auto sync = data_search_sync(scm_fs, sectors_count);
-
-	auto nonzero_data_range = audio_get_sample_range(scm_fs, sectors_count);
+	auto silence_ranges = silence_analyzer->ranges();
+	auto nonzero_data_range = std::pair(silence_ranges.front().front().second, silence_ranges.front().back().first);
 
 	std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_start * CD_DATA_SIZE_SAMPLES);
 	LOG("non-zero  TOC sample range: [{:+9} .. {:+9}]", nonzero_toc_range.first, nonzero_toc_range.second);
@@ -1484,15 +1375,9 @@ void redumper_split(const Options &options)
 	// perfect audio offset
 	if(write_offset == std::numeric_limits<int32_t>::max() && !scrap)
 	{
-		auto index0_ranges = audio_get_toc_index0_ranges(toc);
-
-		LOG_F("audio silence detection... ");
-		auto silence_ranges = audio_get_silence_ranges(scm_fs, sectors_count, options.audio_silence_threshold, index0_ranges);
-		LOG("done");
-
 		std::vector<std::pair<int32_t, int32_t>> offset_ranges;
-		uint16_t silence_level = disc_offset_by_silence(offset_ranges, index0_ranges, silence_ranges, options.audio_silence_threshold);
-		if(silence_level < options.audio_silence_threshold)
+		uint16_t silence_level = disc_offset_by_silence(offset_ranges, index0_ranges, silence_ranges);
+		if(silence_level < silence_ranges.size())
 		{
 			LOG_F("Perfect Audio Offset (silence level: {}): ", silence_level);
 			for(uint32_t i = 0; i < offset_ranges.size(); ++i)

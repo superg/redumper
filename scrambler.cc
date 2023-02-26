@@ -81,10 +81,10 @@ void Scrambler::GenerateTable()
 }
 
 
-void Scrambler::Process(uint8_t *output, const uint8_t *sector, uint32_t start, uint32_t end) const
+void Scrambler::Process(uint8_t *output, const uint8_t *data, uint32_t offset, uint32_t size) const
 {
-	for(uint32_t i = start; i < end; ++i)
-		output[i - start] = sector[i] ^ _table[i];
+	for(uint32_t i = 0; i < size; ++i)
+		output[i] = data[i] ^ _table[offset + i];
 }
 
 }

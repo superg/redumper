@@ -23,7 +23,6 @@ Options::Options(int argc, const char *argv[])
 	, asus_skip_leadout(false)
 	, disable_cdtext(false)
 	, correct_offset_shift(false)
-	, cdi_ready_normalize(false)
 	, audio_silence_threshold(48)
 {
 	for(int i = 0; i < argc; ++i)
@@ -142,8 +141,6 @@ Options::Options(int argc, const char *argv[])
 					disable_cdtext = true;
 				else if(key == "--correct-offset-shift")
 					correct_offset_shift = true;
-				else if(key == "--cdi-ready-normalize")
-					cdi_ready_normalize = true;
 				else if(key == "--force-offset")
 				{
 					force_offset = std::make_unique<int>();
@@ -230,7 +227,6 @@ void Options::PrintUsage()
 	LOG("\t--force-qtoc                   \tForce QTOC based track split");
 	LOG("\t--skip-fill=VALUE              \tfill byte value for skipped sectors (default: 0x{:02X})", skip_fill);
 	LOG("\t--iso9660-trim                 \ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
-	LOG("\t--cdi-ready-normalize          \tseparate CDi-Ready track 1 index 0 to track 0");
 	LOG("");
 	LOG("\t(miscellaneous)");
 	LOG("\t--lba-start=VALUE              \tLBA to start dumping from");

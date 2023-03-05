@@ -54,7 +54,11 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
 
 # fmt
 # remove this after gcc/clang gets full std::format support
-set(FMT_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/fmt/include")
+if (NOT USE_SYSTEM_FMT)
+	set(FMT_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/fmt/include")
+else()
+	find_package(fmt)
+endif()
 add_definitions(-DFMT_HEADER_ONLY)
 
 # Visual Studio settings

@@ -18,6 +18,9 @@ std::vector<std::pair<int32_t, int32_t>> SyncAnalyzer::getOffsets() const
 {
 	std::vector<std::pair<int32_t, int32_t>> offsets;
 
+	if(_records.empty())
+		return offsets;
+
 	//DEBUG
 //	for(auto const &r : _records)
 //		LOG("LBA: {:6}, MSF: {:02X}:{:02X}:{:02X}, offset: {:9}", BCDMSF_to_LBA(r.first), r.first.m, r.first.s, r.first.f, r.second);
@@ -27,37 +30,55 @@ std::vector<std::pair<int32_t, int32_t>> SyncAnalyzer::getOffsets() const
 	for(auto const &r : _records)
 		offsets.emplace_back(BCDMSF_to_LBA(r.first), r.second);
 
-	if(!offsets.empty())
+	// correct lead-in lba
+	for(uint32_t i = 0; i < offsets.size(); ++i)
 	{
-		// correct lead-in lba
-		for(uint32_t i = 0; i < offsets.size(); ++i)
+		if(offsets[i].first >= MSF_LBA_SHIFT && offsets[i].first <= 0)
 		{
-			if(offsets[i].first >= MSF_LBA_SHIFT && offsets[i].first <= 0)
+			for(uint32_t j = i; j; --j)
 			{
-				for(uint32_t j = i; j; --j)
-				{
-					uint32_t count = scale_up(offsets[j].second - offsets[j - 1].second, CD_DATA_SIZE_SAMPLES);
-					offsets[j - 1].first = offsets[j].first - count;
-				}
+				uint32_t count = scale_up(offsets[j].second - offsets[j - 1].second, CD_DATA_SIZE_SAMPLES);
+				offsets[j - 1].first = offsets[j].first - count;
+			}
+
+			break;
+		}
+	}
+
+	// erase false sync groups
+	for(uint32_t i = 0; i < offsets.size(); ++i)
+	{
+		uint32_t count = 0;
+		for(uint32_t j = i + 1; j < offsets.size(); ++j)
+		{
+			uint32_t o = offsets[j].second - offsets[i].second;
+			uint32_t d = offsets[j].first - offsets[i].first;
+			if(d * CD_DATA_SIZE_SAMPLES == o)
+			{
+				if(count < CD_DATA_SIZE_SAMPLES)
+					offsets.erase(offsets.begin() + i + 1, offsets.begin() + j);
 
 				break;
 			}
+
+			if(j + 1 < offsets.size())
+				count += offsets[j + 1].second - offsets[j].second;
 		}
-
-		// calculate lba relative offsets
-		for(uint32_t i = 0; i < offsets.size(); ++i)
-			offsets[i].second = offsets[i].second - (offsets[i].first - LBA_START) * CD_DATA_SIZE_SAMPLES;
-
-		// merge offset groups
-		uint32_t c = 0;
-		for(uint32_t i = 0; i < offsets.size(); ++i)
-			if(offsets[c].second != offsets[i].second)
-				offsets[++c] = offsets[i];
-		offsets.resize(c + 1);
-
-		// add last entry as a size marker
-		offsets.emplace_back(BCDMSF_to_LBA(_currentRecord.first) + 1, offsets.back().second);
 	}
+
+	// calculate lba relative offsets
+	for(uint32_t i = 0; i < offsets.size(); ++i)
+		offsets[i].second -= (offsets[i].first - LBA_START) * CD_DATA_SIZE_SAMPLES;
+
+	// merge offset groups
+	uint32_t c = 0;
+	for(uint32_t i = 0; i < offsets.size(); ++i)
+		if(offsets[c].second != offsets[i].second)
+			offsets[++c] = offsets[i];
+	offsets.resize(c + 1);
+
+	// add last entry as a size marker
+	offsets.emplace_back(BCDMSF_to_LBA(_currentRecord.first) + 1, offsets.back().second);
 
 	return offsets;
 }

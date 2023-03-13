@@ -1267,7 +1267,7 @@ void redumper_split(const Options &options)
 
 	if(!offsets.empty())
 	{
-		LOG("sync statistics:");
+		LOG("data track offset statistics:");
 		for(uint32_t i = 0; i + 1 < offsets.size(); ++i)
 		{
 			uint32_t count = offsets[i + 1].first - offsets[i].first;

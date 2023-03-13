@@ -1,6 +1,6 @@
 #include <fmt/format.h>
 #include <fstream>
-#include <map>
+#include <vector>
 #include "common.hh"
 #include "cd.hh"
 #include "ecc_edc.hh"
@@ -36,7 +36,8 @@ void SystemCDROM::operator()(std::ostream &os) const
 	uint32_t subheader_mismatches = 0;
 	uint32_t redump_errors = 0;
 
-	std::map<uint8_t, uint32_t> modes;
+	std::vector<uint32_t> modes(3);
+	uint32_t invalid_modes = 0;
 
 	Sector sector;
 	for(int32_t i = 0; i < sectors_count; ++i)
@@ -52,8 +53,11 @@ void SystemCDROM::operator()(std::ostream &os) const
 			++invalid_sync;
 			continue;
 		}
-
-		++modes[sector.header.mode];
+		
+		if(sector.header.mode < modes.size())
+			++modes[sector.header.mode];
+		else
+			++invalid_modes;
 
 		if(sector.header.mode == 0)
 		{
@@ -150,8 +154,9 @@ void SystemCDROM::operator()(std::ostream &os) const
 
 	os << fmt::format("CD-ROM [{}]:", _trackPath.filename().string()) << std::endl;
 	os << fmt::format("  sectors count: {}", sectors_count) << std::endl;
-	for(auto const &m : modes)
-		os << fmt::format("  mode{} sectors: {}", m.first, m.second) << std::endl;
+	for(uint32_t i = 0; i < modes.size(); ++i)
+		os << fmt::format("  mode{} sectors: {}", i, modes[i]) << std::endl;
+
 	if(mode2_form1)
 		os << fmt::format("  mode2 (form 1) sectors: {}", mode2_form1) << std::endl;
 	if(mode2_form2)
@@ -161,6 +166,8 @@ void SystemCDROM::operator()(std::ostream &os) const
 	}
 	if(invalid_sync)
 		os << fmt::format("  invalid sync sectors: {}", invalid_sync) << std::endl;
+	if(invalid_modes)
+		os << fmt::format("  invalid mode sectors: {}", invalid_modes) << std::endl;
 	if(ecc_errors)
 		os << fmt::format("  ECC errors: {}", ecc_errors) << std::endl;
 	if(edc_errors)

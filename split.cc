@@ -967,6 +967,24 @@ std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, in
 }
 
 
+void offset_shift_shrink_gaps(std::vector<SyncAnalyzer::Record> &offsets, std::fstream &scm_fs, std::fstream &state_fs)
+{
+	std::vector<uint8_t> data(CD_DATA_SIZE);
+
+	for(uint32_t i = 0; i + 1 < offsets.size(); ++i)
+	{
+		for(int32_t lba = offsets[i + 1].range.first - 1; lba > offsets[i].range.second; --lba)
+		{
+			read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offsets[i + 1].offset * CD_SAMPLE_SIZE, 0);
+			auto sync_diff = diff_bytes_count(data.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
+			if(sync_diff <= OFFSET_SHIFT_SYNC_TOLERANCE)
+				offsets[i + 1].range.first = lba;
+			else
+				break;
+		}
+	}
+}
+
 void redumper_protection(Options &options)
 {
 	if(options.image_name.empty())
@@ -1268,11 +1286,17 @@ void redumper_split(const Options &options)
 	if(!offsets.empty())
 	{
 		LOG("data track offset statistics:");
-		for(uint32_t i = 0; i + 1 < offsets.size(); ++i)
-		{
-			uint32_t count = offsets[i + 1].first - offsets[i].first;
-			LOG("  LBA: [{:6} .. {:6}], offset: {:+}, count: {}", offsets[i].first, offsets[i].first + (int32_t)count - 1, offsets[i].second, count);
-		}
+		for(auto const &o : offsets)
+			LOG("  LBA: [{:6} .. {:6}], offset: {:+}, count: {}", o.range.first, o.range.second, o.offset, o.count);
+	}
+
+	offset_shift_shrink_gaps(offsets, scm_fs, state_fs);
+
+	if(!offsets.empty())
+	{
+		LOG("data track offset statistics:");
+		for(auto const &o : offsets)
+			LOG("  LBA: [{:6} .. {:6}], offset: {:+}, count: {}", o.range.first, o.range.second, o.offset, o.count);
 	}
 
 	auto silence_ranges = silence_analyzer->ranges();

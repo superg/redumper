@@ -2,7 +2,7 @@
 
 
 
-#include <tuple>
+#include <utility>
 #include <vector>
 #include "scrambler.hh"
 #include "analyzer.hh"
@@ -15,9 +15,16 @@ namespace gpsxre
 class SyncAnalyzer : public Analyzer
 {
 public:
+	struct Record
+	{
+		std::pair<int32_t, int32_t> range;
+		int32_t offset;
+		uint32_t count;
+	};
+
 	SyncAnalyzer(bool scrap);
 
-	std::vector<std::pair<int32_t, int32_t>> getOffsets() const;
+	std::vector<Record> getOffsets() const;
 
 	void process(uint32_t *samples, State *state, uint32_t count, uint32_t offset, bool last) override;
 
@@ -29,8 +36,6 @@ private:
 
 	Scrambler _scrambler;
 
-	typedef std::pair<MSF, uint32_t> Record;
-	Record _currentRecord;
 	std::vector<Record> _records;
 };
 

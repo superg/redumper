@@ -132,7 +132,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"TSSTcorp", "DVD-ROM TS-H352C", "DE02", ""                   ,    +6, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // supports C2 only on data
 	{"PIONEER" , "BD-RW BDR-209D"  , "1.10", "13/09/10 PIONEER"   ,  +667, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // BE_CDDA unscrambles data sectors
 	{"HL-DT-ST", "BD-RE WH16NS40"  , "1.05", "N000900KLZL4TG5625" ,    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
-	{"HL-DT-ST", "BD-RE WH16NS60"  , "1.02", "NM00100SIK9PH7MJ032",    +6, 0, -138, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
+	{"HL-DT-ST", "BD-RE WH16NS60"  , "1.02", "NM00100SIK9PH7MJ032",    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
 	{"HL-DT-ST", "DVD+-RW GH50N"   , "B103", "000819093O9CQ82239" ,  +667, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC},
 	{"CREATIVE", "CD5233E-N"       , "0.20", "BTC"                ,   +12, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
 	{"PLEXTOR" , "DVDR PX-740A"    , "1.02", "12/19/05"           ,  +618, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // doesn't stop on lead-out but always returns same sector

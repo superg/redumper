@@ -586,22 +586,22 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 {
 	bool mismatch = false;
 
-	std::set<uint8_t> tracks;
+	std::set<std::string> tracks;
 
-	std::map<uint8_t, const TOC::Session::Track *> toc_tracks;
+	std::map<std::string, const TOC::Session::Track *> toc_tracks;
 	for(auto const &s : toc.sessions)
 		for(auto const &t : s.tracks)
 		{
-			toc_tracks[t.track_number] = &t;
-			tracks.insert(t.track_number);
+			toc_tracks[toc.TrackString(t.track_number)] = &t;
+			tracks.insert(toc.TrackString(t.track_number));
 		}
 
-	std::map<uint8_t, const TOC::Session::Track *> qtoc_tracks;
+	std::map<std::string, const TOC::Session::Track *> qtoc_tracks;
 	for(auto const &s : qtoc.sessions)
 		for(auto const &t : s.tracks)
 		{
-			qtoc_tracks[t.track_number] = &t;
-			tracks.insert(t.track_number);
+			qtoc_tracks[toc.TrackString(t.track_number)] = &t;
+			tracks.insert(toc.TrackString(t.track_number));
 		}
 
 	for(auto const &t : tracks)

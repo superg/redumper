@@ -147,7 +147,7 @@ bool test_unscramble()
 			if(tokens[1] == "null")
 				lba_ptr = nullptr;
 			else
-				*lba_ptr = std::stol(tokens[1]);
+				*lba_ptr = stoll_strict(tokens[1]);
 			bool scrambled = tokens[2] == "pass";
 			bool unscrambled = scrambler.Descramble(sector.data(), lba_ptr, sector.size());
 

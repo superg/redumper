@@ -51,6 +51,8 @@ struct TOC
 
 	std::vector<Session> sessions;
 
+	bool _qtoc;
+
 	// supplemental
 	std::string mcn;
 	std::vector<CDText> cd_text;
@@ -117,6 +119,7 @@ private:
 	static std::ostream &PrintCDTextCUE(std::ostream &os, const CDText &cd_text, uint32_t indent_level);
 	static bool IsTextPack(PackType pack_type);
 	CDText *GetCDText(uint8_t index, uint8_t track_number);
+	std::string GetMCN(const std::string &qtoc_mcn, const std::vector<CDText> &toc_cd_text, uint32_t cd_text_index) const;
 	uint32_t TrackNumberWidth() const;
 	std::string DecodeText(const char* text, bool unicode, uint8_t language_code, CharacterCode character_code) const;
 	std::string DescriptorText(const CD_TEXT_Descriptor &descriptor) const;

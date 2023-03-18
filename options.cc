@@ -167,7 +167,7 @@ Options::Options(int argc, const char *argv[])
 			}
 			else if(i_value != nullptr)
 			{
-				*i_value = std::stoi(o, nullptr, 0);
+				*i_value = stoll_strict(o);
 				i_value = nullptr;
 			}
 			else

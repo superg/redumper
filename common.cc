@@ -110,9 +110,9 @@ std::vector<std::pair<int32_t, int32_t>> string_to_ranges(const std::string &str
 
 		std::string s;
 		std::getline(range_ss, s, '-');
-		r.first = stoi(s);
+		r.first = stoll_strict(s);
 		std::getline(range_ss, s, '-');
-		r.second = stoi(s) + 1;
+		r.second = stoll_strict(s) + 1;
 
 		ranges.push_back(r);
 	}
@@ -174,6 +174,36 @@ std::string track_extract_basename(std::string str)
 	}
 
 	return basename;
+}
+
+
+long long stoll_strict(const std::string &str)
+{
+	size_t idx = 0;
+	long long number = std::stoll(str, &idx);
+
+	// suboptimal but at least something
+	if(idx != str.length())
+		throw std::invalid_argument("invalid stol argument");
+
+	return number;
+}
+
+
+bool stoll_try(long long &value, const std::string &str)
+{
+	bool success = true;
+	
+	try
+	{
+		value = stoll_strict(str);
+	}
+	catch(...)
+	{
+		success = false;
+	}
+	
+	return success;
 }
 
 }

@@ -288,5 +288,7 @@ std::string ranges_to_string(const std::vector<std::pair<int32_t, int32_t>> &ran
 const std::pair<int32_t, int32_t> *inside_range(int32_t lba, const std::vector<std::pair<int32_t, int32_t>> &ranges);
 std::string system_date_time(std::string fmt);
 std::string track_extract_basename(std::string str);
+long long stoll_strict(const std::string &str);
+bool stoll_try(long long &value, const std::string &str);
 
 }

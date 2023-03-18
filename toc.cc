@@ -25,6 +25,7 @@ const char TOC::_ISRC_TABLE[] =
 
 
 TOC::TOC(const std::vector<uint8_t> &toc_buffer, bool full_toc)
+	: _qtoc(false)
 {
 	if(full_toc)
 		InitFullTOC(toc_buffer);
@@ -34,6 +35,7 @@ TOC::TOC(const std::vector<uint8_t> &toc_buffer, bool full_toc)
 
 
 TOC::TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
+	: _qtoc(true)
 {
 	bool track_active = false;
 	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
@@ -289,6 +291,8 @@ void TOC::UpdateMCN(const ChannelQ *subq, uint32_t sectors_count)
 			{
 				for(uint32_t i = 0; i < sizeof(Q.mode2.mcn); ++i)
 					mcn += fmt::format("{:02}", bcd_decode(Q.mode2.mcn[i]));
+
+				// remove trailing zero
 				mcn.pop_back();
 			}
 			break;
@@ -590,11 +594,18 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 {
 	bool multisession = sessions.size() > 1;
 
-	std::string mcn_print(mcn);
-	if(mcn_print.empty() && cd_text_index < cd_text.size() && !cd_text[cd_text_index].mcn_isrc.empty())
-		mcn_print = "0" + cd_text[cd_text_index].mcn_isrc;
+	std::string mcn_print(GetMCN(mcn, cd_text, cd_text_index));
+
+	// make sure to prepend 0 to 12-digit MCN, total length should always be 13 digits
+	{
+		long long mcn_value;
+		if(mcn_print.length() == 12 && stoll_try(mcn_value, mcn_print))
+			mcn_print = fmt::format("{:013}", mcn_value);
+	}
+
 	if(!mcn_print.empty())
 		os << fmt::format("CATALOG {}", mcn_print) << std::endl;
+
 	if(cd_text_index < cd_text.size())
 		PrintCDTextCUE(os, cd_text[cd_text_index], 0);
 
@@ -647,9 +658,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(cd_text_index < t.cd_text.size())
 				PrintCDTextCUE(os, t.cd_text[cd_text_index], 4);
 
-			std::string isrc_print(t.isrc);
-			if(isrc_print.empty() && cd_text_index < t.cd_text.size() && !t.cd_text[cd_text_index].mcn_isrc.empty())
-				isrc_print = t.cd_text[cd_text_index].mcn_isrc;
+			std::string isrc_print(GetMCN(t.isrc, t.cd_text, cd_text_index));
 			if(!isrc_print.empty())
 				os << fmt::format("    ISRC {}", isrc_print) << std::endl;
 
@@ -862,6 +871,19 @@ TOC::CDText *TOC::GetCDText(uint8_t index, uint8_t track_number)
 		cdt = &cd_text[index];
 
 	return cdt;
+}
+
+
+std::string TOC::GetMCN(const std::string &qtoc_mcn, const std::vector<CDText> &toc_cd_text, uint32_t cd_text_index) const
+{
+	std::string toc_mcn(cd_text_index < toc_cd_text.size() ? toc_cd_text[cd_text_index].mcn_isrc : "");
+	
+	if(qtoc_mcn.empty())
+		return toc_mcn;
+	else if(toc_mcn.empty())
+		return qtoc_mcn;
+	else
+		return _qtoc ? qtoc_mcn : toc_mcn;
 }
 
 

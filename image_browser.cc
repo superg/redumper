@@ -254,7 +254,7 @@ std::list<std::shared_ptr<ImageBrowser::Entry>> ImageBrowser::Entry::Entries()
 					auto s = identifier.find((char)iso9660::Characters::SEPARATOR2);
 					std::string name(s == std::string::npos ? identifier : identifier.substr(0, s));
 
-					uint32_t version(s == std::string::npos ? 1 : std::stoi(identifier.substr(s + 1)));
+					uint32_t version(s == std::string::npos ? 1 : stoll_strict(identifier.substr(s + 1)));
 
 //					entries.push_back(std::make_shared<Entry>(name, version, dr, _ifs));
 					entries.push_back(std::shared_ptr<Entry>(new Entry(_browser, name, version, dr)));

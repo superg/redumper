@@ -23,7 +23,7 @@ Options::Options(int argc, const char *argv[])
 	, asus_skip_leadout(false)
 	, disable_cdtext(false)
 	, correct_offset_shift(false)
-	, audio_silence_threshold(48)
+	, audio_silence_threshold(32)
 {
 	for(int i = 0; i < argc; ++i)
 	{

@@ -137,6 +137,8 @@ set(sources
 	"md5.cc"
 	"md5.hh"
 	"mmc.hh"
+	"offset_manager.cc"
+	"offset_manager.hh"
 	"options.cc"
 	"options.hh"
 	"redumper.cc"

@@ -318,7 +318,8 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 	std::vector<uint8_t> sector(CD_DATA_SIZE);
 	std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
-//	bool offset_shift_warning = true;
+	// discs with offset shift usually have some corruption in a couple of transitional sectors preventing normal descramble detection,
+	// as everything is scrambled in this case, force descrambling
 	bool force_descramble = offset_manager->isVariable();
 
 	LOG("splitting tracks");
@@ -404,55 +405,6 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 					// data: needs unscramble
 					if(data_track)
 					{
-/*
-						if(memcmp(sector.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
-						{
-							int32_t offset_shift = track_find_offset_shift(write_offset, lba, std::min(OFFSET_SHIFT_MAX_SECTORS, (uint32_t)(lba_end - lba)), state_fs, scm_fs);
-							if(offset_shift)
-							{
-								if(offset_shift_warning)
-								{
-									LOG("warning: offset shift detected, to apply please use an option (LBA: {:6}, offset: {}, difference: {:+})", lba, write_offset, offset_shift);
-									offset_shift_warning = false;
-								}
-
-								if(options.correct_offset_shift)
-								{
-									// offset shifting discs usually have some level of corruption in a couple of transitional sectors
-									// preventing normal descramble detection, as everything is scrambled in this case, force descrambling
-									force_descramble = true;
-
-									// also, due to possible sync damage, make sure not to shift too early
-									auto sync_diff = diff_bytes_count(sector.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
-									if(sync_diff > OFFSET_SHIFT_SYNC_TOLERANCE)
-									{
-										// extract garbage portion to file
-										if(offset_shift > 0)
-										{
-											uint32_t garbage_count = offset_shift / CD_DATA_SIZE_SAMPLES + (offset_shift % CD_DATA_SIZE_SAMPLES ? 1 : 0);
-											std::vector<uint8_t> garbage(garbage_count * CD_DATA_SIZE);
-											read_entry(scm_fs, garbage.data(), CD_DATA_SIZE, lba - LBA_START, garbage_count, -write_offset * CD_SAMPLE_SIZE, 0);
-
-											std::filesystem::path track_garbage_path(std::filesystem::path(options.image_path) / fmt::format("{}.{:06}", track_name, lba));
-											std::fstream fs(track_garbage_path, std::fstream::out | std::fstream::binary);
-											if(!fs.is_open())
-												throw_line(fmt::format("unable to create file ({})", track_garbage_path.filename().string()));
-											fs.write((char *)garbage.data(), offset_shift * CD_SAMPLE_SIZE);
-										}
-
-										write_offset += offset_shift;
-										write_offset_data += offset_shift;
-										write_offset_audio += offset_shift;
-
-										read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba - LBA_START, 1, -write_offset * CD_SAMPLE_SIZE, 0);
-
-										LOG("offset shift correction applied (new offset: {})", write_offset);
-										offset_shift_warning = true;
-									}
-								}
-							}
-						}
-*/
 						bool success = true;
 						if(force_descramble)
 							scrambler.Process(sector.data(), sector.data(), 0, sector.size());
@@ -461,9 +413,10 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 
 						if(success)
 						{
-							if(!data_mode_set)
+							auto data_mode = ((Sector *)sector.data())->header.mode;
+							if(!data_mode_set && data_mode < 3)
 							{
-								t.data_mode = ((Sector *)sector.data())->header.mode;
+								t.data_mode = data_mode;
 								data_mode_set = true;
 							}
 						}
@@ -1307,6 +1260,12 @@ void redumper_split(const Options &options)
 		offsets.emplace_back(0, 0);
 		LOG("warning: fallback offset 0 applied");
 	}
+
+//	if(data_offsets.size() > 1)
+//	{
+//		LOG("warning: offset shift detected, to apply correction please use an option");
+//		LOG("offset shift correction applied");
+//	}
 
 	auto offset_manager = std::make_shared<const OffsetManager>(offsets);
 	LOG("");

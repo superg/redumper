@@ -23,6 +23,7 @@ Options::Options(int argc, const char *argv[])
 	, asus_skip_leadout(false)
 	, disable_cdtext(false)
 	, correct_offset_shift(false)
+	, offset_shift_relocate(false)
 	, audio_silence_threshold(32)
 {
 	for(int i = 0; i < argc; ++i)
@@ -141,6 +142,8 @@ Options::Options(int argc, const char *argv[])
 					disable_cdtext = true;
 				else if(key == "--correct-offset-shift")
 					correct_offset_shift = true;
+				else if(key == "--offset-shift-relocate")
+					offset_shift_relocate = true;
 				else if(key == "--force-offset")
 				{
 					force_offset = std::make_unique<int>();
@@ -220,6 +223,7 @@ void Options::PrintUsage()
 	LOG("\t--force-offset=VALUE           \toverride offset autodetection and use supplied value");
 	LOG("\t--audio-silence-threshold=VALUE\tmaximum absolute sample value to treat it as silence (default: {})", audio_silence_threshold);
 	LOG("\t--correct-offset-shift         \tcorrect disc write offset shift");
+	LOG("\t--offset-shift-relocate        \tdon't merge offset groups with non-matching LBA");
 	LOG("");
 	LOG("\t(split)");
 	LOG("\t--force-split                  \tforce track split with errors");

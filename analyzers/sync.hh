@@ -18,13 +18,13 @@ public:
 	struct Record
 	{
 		std::pair<int32_t, int32_t> range;
-		int32_t offset;
+		uint32_t offset;
 		uint32_t count;
 	};
 
 	SyncAnalyzer(bool scrap);
 
-	std::vector<Record> getOffsets() const;
+	std::vector<Record> getRecords() const;
 
 	void process(uint32_t *samples, State *state, uint32_t count, uint32_t offset, bool last) override;
 

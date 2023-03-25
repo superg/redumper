@@ -46,6 +46,7 @@ struct Options
 	bool asus_skip_leadout;
 	bool disable_cdtext;
 	bool correct_offset_shift;
+	bool offset_shift_relocate;
 	std::unique_ptr<int> force_offset;
 	int audio_silence_threshold;
 

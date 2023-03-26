@@ -155,7 +155,8 @@ void SystemCDROM::operator()(std::ostream &os) const
 	os << fmt::format("CD-ROM [{}]:", _trackPath.filename().string()) << std::endl;
 	os << fmt::format("  sectors count: {}", sectors_count) << std::endl;
 	for(uint32_t i = 0; i < modes.size(); ++i)
-		os << fmt::format("  mode{} sectors: {}", i, modes[i]) << std::endl;
+		if(modes[i])
+			os << fmt::format("  mode{} sectors: {}", i, modes[i]) << std::endl;
 
 	if(mode2_form1)
 		os << fmt::format("  mode2 (form 1) sectors: {}", mode2_form1) << std::endl;

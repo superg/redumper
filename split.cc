@@ -798,11 +798,11 @@ int32_t scram_sample_offset_to_write_offset(uint32_t scram_sample_offset, int32_
 std::vector<std::pair<int32_t, int32_t>> disc_offset_process_records(std::vector<SyncAnalyzer::Record> records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
 {
 	// correct lead-in lba
+	uint32_t lba0_offset = -LBA_START * CD_DATA_SIZE_SAMPLES;
 	for(uint32_t i = 0; i < records.size(); ++i)
 	{
-		uint32_t lba0_offset = -LBA_START * CD_DATA_SIZE_SAMPLES;
 //		if(offsets[i].range.first >= MSF_LBA_SHIFT && offsets[i].range.first <= 0)
-		if(lba0_offset >= records[i].offset && lba0_offset < records[i].offset + records[i].count)
+		if(lba0_offset >= records[i].offset && lba0_offset < records[i].offset + records[i].count * CD_DATA_SIZE_SAMPLES)
 		{
 			for(uint32_t j = i; j; --j)
 			{
@@ -1204,8 +1204,7 @@ void redumper_split(const Options &options)
 		{
 			LOG("data disc detected, track offset statistics:");
 			for(auto const &o : sync_records)
-				LOG("  LBA: [{:6} .. {:6}], count: {:6}, offset: {:+}",
-					o.range.first, o.range.second, o.count, scram_sample_offset_to_write_offset(o.offset, o.range.first));
+				LOG("  LBA: [{:6} .. {:6}], count: {:6}, scram offset: {:9}", o.range.first, o.range.second, o.count, o.offset);
 			LOG("");
 
 			offsets = disc_offset_process_records(sync_records, scm_fs, state_fs, options);
@@ -1344,10 +1343,9 @@ void redumper_split(const Options &options)
 	auto offset_manager = std::make_shared<const OffsetManager>(offsets);
 
 	//FIXME: rework non-zero area detection
-	if(!scrap && !options.correct_offset_shift)
+	if(!options.correct_offset_shift && !scrap && offsets.size() > 1)
 	{
-		if(!scrap && offsets.size() > 1)
-			LOG("warning: offset shift detected, to apply correction please use an option");
+		LOG("warning: offset shift detected, to apply correction please use an option");
 
 		offsets.clear();
 		offsets.emplace_back(0, offset_manager->getOffset(0));
@@ -1370,6 +1368,7 @@ void redumper_split(const Options &options)
 			disc_write_offset = offset_manager->getOffset(0);
 
 		LOG("disc write offset: {:+}", disc_write_offset);
+		LOG("");
 	}
 
 	if(!scrap && offsets.size() > 1)

@@ -24,7 +24,8 @@ public:
 private:
 	static const std::string _EXE_MAGIC;
 	static const std::vector<uint32_t> _LIBCRYPT_SECTORS_BASE;
-	static const uint32_t _LIBCRYPT_SECTORS_SHIFT;
+	static const uint32_t _LIBCRYPT_SECTORS_PAIR_SHIFT;
+	static const std::set<uint32_t> _LIBCRYPT_SECTORS_MEDIEVIL;
 	static const std::set<uint32_t> _LIBCRYPT_SECTORS_COUNT;
 
 	std::filesystem::path _trackPath;

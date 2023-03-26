@@ -1,6 +1,5 @@
 #include <fmt/format.h>
 #include <regex>
-#include <set>
 #include <sstream>
 #include "common.hh"
 #include "endian.hh"
@@ -14,7 +13,6 @@
 namespace gpsxre
 {
 
-
 const std::string SystemPSX::_EXE_MAGIC("PS-X EXE");
 
 const std::vector<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_BASE =
@@ -25,7 +23,13 @@ const std::vector<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_BASE =
 	43139, 43204, 43258, 43484, 43813, 43904, 44009, 44162
 };
 
-const uint32_t SystemPSX::_LIBCRYPT_SECTORS_SHIFT = 5;
+const uint32_t SystemPSX::_LIBCRYPT_SECTORS_PAIR_SHIFT = 5;
+
+const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_MEDIEVIL =
+{
+	13955, 14749, 14906, 14980, 15092, 15228, 15769, 15951,
+	41895, 42663, 42862, 43027, 43139, 43258, 43813, 44009
+};
 
 const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_COUNT =
 {
@@ -270,35 +274,41 @@ bool SystemPSX::detectLibCrypt(std::ostream &os, std::filesystem::path sub_path)
 		throw_line(fmt::format("unable to open file ({})", sub_path.filename().string()));
 
 	std::vector<int32_t> candidates;
+	std::vector<int32_t> candidates_medievil;
 
 	std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
 	int32_t lba_end = _trackSize / CD_DATA_SIZE;
-	for(uint32_t i = 0; i < _LIBCRYPT_SECTORS_BASE.size(); ++i)
+	for(auto lba : _LIBCRYPT_SECTORS_BASE)
 	{
-		int32_t lba1 = _LIBCRYPT_SECTORS_BASE[i];
-		int32_t lba2 = _LIBCRYPT_SECTORS_BASE[i] + _LIBCRYPT_SECTORS_SHIFT;
+		int32_t lba_pair = lba + _LIBCRYPT_SECTORS_PAIR_SHIFT;
 
-		if(lba1 >= lba_end || lba2 >= lba_end)
+		if(lba >= lba_end || lba_pair >= lba_end)
 			continue;
 
-		ChannelQ Q1;
-		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba1 - LBA_START, 1, 0, 0);
-		subcode_extract_channel((uint8_t *)&Q1, sub_buffer.data(), Subchannel::Q);
+		ChannelQ Q;
+		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba - LBA_START, 1, 0, 0);
+		subcode_extract_channel((uint8_t *)&Q, sub_buffer.data(), Subchannel::Q);
 
-		ChannelQ Q2;
-		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba2 - LBA_START, 1, 0, 0);
-		subcode_extract_channel((uint8_t *)&Q2, sub_buffer.data(), Subchannel::Q);
+		ChannelQ Q_pair;
+		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba_pair - LBA_START, 1, 0, 0);
+		subcode_extract_channel((uint8_t *)&Q_pair, sub_buffer.data(), Subchannel::Q);
 
-		if(!Q1.Valid() && !Q2.Valid())
+		if(!Q.Valid() && !Q_pair.Valid())
 		{
-			candidates.push_back(lba1);
-			candidates.push_back(lba2);
+			candidates.push_back(lba);
+			candidates.push_back(lba_pair);
 		}
+
+		if(_LIBCRYPT_SECTORS_MEDIEVIL.find(lba) != _LIBCRYPT_SECTORS_MEDIEVIL.end() && !Q.Valid())
+			candidates_medievil.push_back(lba);
 	}
+
+	if(_LIBCRYPT_SECTORS_COUNT.find(candidates.size()) == _LIBCRYPT_SECTORS_COUNT.end())
+		candidates.swap(candidates_medievil);
 
 	if(_LIBCRYPT_SECTORS_COUNT.find(candidates.size()) != _LIBCRYPT_SECTORS_COUNT.end())
 	{
-		for(auto const &c : candidates)
+		for(auto c : candidates)
 		{
 			ChannelQ Q;
 			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), c - LBA_START, 1, 0, 0);

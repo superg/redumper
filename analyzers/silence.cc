@@ -36,11 +36,13 @@ void SilenceAnalyzer::process(uint32_t *samples, State *state, uint32_t count, u
 		int32_t position = LBA_START * CD_DATA_SIZE_SAMPLES + offset + j;
 
 		auto sample = (int16_t *)&samples[j];
+		int sample_l = std::abs(sample[0]);
+		int sample_r = std::abs(sample[1]);
 
 		for(uint16_t k = 0; k < _silenceLimit; ++k)
 		{
 			// silence
-			if(std::abs(sample[0]) <= (int)k && std::abs(sample[1]) <= (int)k)
+			if(sample_l <= (int)k && sample_r <= (int)k)
 			{
 				if(_silenceStart[k] == std::numeric_limits<int32_t>::max())
 					_silenceStart[k] = position;

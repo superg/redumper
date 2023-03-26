@@ -801,7 +801,6 @@ std::vector<std::pair<int32_t, int32_t>> disc_offset_process_records(std::vector
 	uint32_t lba0_offset = -LBA_START * CD_DATA_SIZE_SAMPLES;
 	for(uint32_t i = 0; i < records.size(); ++i)
 	{
-//		if(offsets[i].range.first >= MSF_LBA_SHIFT && offsets[i].range.first <= 0)
 		if(lba0_offset >= records[i].offset && lba0_offset < records[i].offset + records[i].count * CD_DATA_SIZE_SAMPLES)
 		{
 			for(uint32_t j = i; j; --j)
@@ -862,19 +861,30 @@ std::vector<std::pair<int32_t, int32_t>> disc_offset_process_records(std::vector
 	std::vector<uint8_t> data(CD_DATA_SIZE);
 	for(uint32_t i = 0; i + 1 < records.size(); ++i)
 	{
+		auto &l = records[i];
+		auto &r = records[i + 1];
+
 		// skip aligned sectors
-		uint32_t offset_diff = records[i + 1].offset - records[i].offset;
+		uint32_t offset_diff = r.offset - l.offset;
 		if(!(offset_diff % CD_DATA_SIZE_SAMPLES))
 			continue;
 
-		for(int32_t lba = records[i + 1].range.first - 1; lba > records[i].range.second; --lba)
+		int32_t offset = scram_sample_offset_to_write_offset(r.offset, r.range.first);
+		uint32_t count = 0;
+		for(int32_t lba = r.range.first - 1; lba > l.range.second; --lba)
 		{
-			read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba - LBA_START, 1, -scram_sample_offset_to_write_offset(records[i].offset, records[i].range.first) * CD_SAMPLE_SIZE, 0);
+			read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offset * CD_SAMPLE_SIZE, 0);
 			auto sync_diff = diff_bytes_count(data.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
 			if(sync_diff <= OFFSET_SHIFT_SYNC_TOLERANCE)
-				records[i + 1].range.first = lba;
+				++count;
 			else
 				break;
+		}
+
+		if(count)
+		{
+			r.range.first -= count;
+			r.offset -= count * CD_DATA_SIZE_SAMPLES;
 		}
 	}
 
@@ -884,6 +894,7 @@ std::vector<std::pair<int32_t, int32_t>> disc_offset_process_records(std::vector
 
 	return offsets;
 }
+
 
 void redumper_protection(Options &options)
 {

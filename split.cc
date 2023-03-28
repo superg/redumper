@@ -569,13 +569,13 @@ void analyze_scram_samples(std::fstream &scm_fs, std::fstream &state_fs, uint32_
 	std::vector<uint32_t> samples(batch_size);
 	std::vector<State> state(batch_size);
 
-	batch_process_range<uint32_t>(std::pair(0, samples_count), batch_size, [&scm_fs, &state_fs, &samples, &state, &analyzers](int32_t offset, int32_t size, bool last) -> bool
+	batch_process_range<uint32_t>(std::pair(0, samples_count), batch_size, [&scm_fs, &state_fs, &samples, &state, &analyzers](int32_t offset, int32_t size) -> bool
 	{
 		read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset, size, 0, 0);
 		read_entry(state_fs, (uint8_t *)state.data(), 1, offset, size, 0, (uint8_t)State::ERROR_SKIP);
 
 		for(auto const &a : analyzers)
-			a->process(samples.data(), state.data(), size, offset, last);
+			a->process(samples.data(), state.data(), size, offset);
 
 		return false;
 	});
@@ -777,7 +777,7 @@ std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, in
 	SHA1 bh_sha1;
 
 	std::vector<uint32_t> samples(10 * 1024 * 1024); // 10Mb chunk
-	batch_process_range<int32_t>(nonzero_data_range, samples.size(), [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size, bool) -> bool
+	batch_process_range<int32_t>(nonzero_data_range, samples.size(), [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size) -> bool
 	{
 		read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset - LBA_START * CD_DATA_SIZE_SAMPLES, size, 0, 0);
 		bh_sha1.Update((uint8_t *)samples.data(), size * sizeof(uint32_t));
@@ -1186,9 +1186,11 @@ void redumper_split(const Options &options)
 	auto sync_analyzer = std::make_shared<SyncAnalyzer>(scrap);
 	analyzers.emplace_back(sync_analyzer);
 
-	LOG_F("analyzing image... ");
+	LOG("analysis started");
+	auto analysis_time_start = std::chrono::high_resolution_clock::now();
 	analyze_scram_samples(scm_fs, state_fs, std::filesystem::file_size(scra_path), CD_DATA_SIZE_SAMPLES, analyzers);
-	LOG("done");
+	auto analysis_time_stop = std::chrono::high_resolution_clock::now();
+	LOG("analysis complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(analysis_time_stop - analysis_time_start).count());
 	LOG("");
 
 	auto silence_ranges = silence_analyzer->ranges();

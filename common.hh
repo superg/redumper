@@ -257,7 +257,7 @@ T diff_bytes_count(const uint8_t *data1, const uint8_t *data2, T size)
 }
 
 template<typename T>
-bool batch_process_range(const std::pair<T, T> &range, T batch_size, const std::function<bool(T, T, bool)> &func)
+bool batch_process_range(const std::pair<T, T> &range, T batch_size, const std::function<bool(T, T)> &func)
 {
 	bool interrupted = false;
 
@@ -267,7 +267,7 @@ bool batch_process_range(const std::pair<T, T> &range, T batch_size, const std::
 
 		T offset_next = offset + size;
 
-		if(func(offset, size, offset_next == range.second))
+		if(func(offset, size))
 		{
 			interrupted = true;
 			break;

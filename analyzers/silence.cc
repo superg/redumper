@@ -7,61 +7,113 @@ namespace gpsxre
 {
 
 SilenceAnalyzer::SilenceAnalyzer(uint16_t silence_threshold, const std::vector<std::pair<int32_t, int32_t>> &index0_ranges)
-	: _silenceLimit(silence_threshold + 1)
-	, _silenceSamplesMin(std::numeric_limits<uint32_t>::max())
-	, _silenceStart(std::make_unique<int32_t[]>(_silenceLimit))
-	, _silenceRanges(_silenceLimit)
+	: _limit(silence_threshold + 1)
+	, _samplesMin(std::numeric_limits<uint32_t>::max())
+	, _count(0)
+	, _state(std::make_unique<std::pair<int32_t, bool>[]>(_limit))
+	, _ranges(_limit)
 {
 	for(auto const &r : index0_ranges)
 	{
 		uint32_t length = r.second - r.first;
-		if(_silenceSamplesMin > length)
-			_silenceSamplesMin = length;
+		if(_samplesMin > length)
+			_samplesMin = length;
 	}
 
-	std::fill_n(_silenceStart.get(), _silenceLimit, std::numeric_limits<int32_t>::min());
+	std::fill_n(_state.get(), _limit, std::pair(-_samplesMin, true));
 }
 
 
-const std::vector<std::vector<std::pair<int32_t, int32_t>>> &SilenceAnalyzer::ranges() const
+std::vector<std::vector<std::pair<int32_t, int32_t>>> SilenceAnalyzer::ranges() const
 {
-	return _silenceRanges;
-}
+	std::vector<std::vector<std::pair<int32_t, int32_t>>> silence_ranges;
 
-
-void SilenceAnalyzer::process(uint32_t *samples, State *state, uint32_t count, uint32_t offset, bool last)
-{
-	for(uint32_t j = 0; j < count; ++j)
+	for(int i = 0; i < _limit; ++i)
 	{
-		int32_t position = LBA_START * CD_DATA_SIZE_SAMPLES + offset + j;
+		std::vector<std::pair<int32_t, int32_t>> silence_range(_ranges[i]);
+		silence_range.emplace_back(_state[i].second ? _state[i].first : _count, 0);
 
-		auto sample = (int16_t *)&samples[j];
+		int32_t base = LBA_START * CD_DATA_SIZE_SAMPLES;
+		for(auto &r : silence_range)
+		{
+			r.first += base;
+			r.second += base;
+		}
+		silence_range.front().first = std::numeric_limits<int32_t>::min();
+		silence_range.back().second = std::numeric_limits<int32_t>::max();
+
+		silence_ranges.push_back(silence_range);
+	}
+
+	return silence_ranges;
+}
+
+
+void SilenceAnalyzer::process(uint32_t *samples, State *state, uint32_t count, uint32_t offset)
+{
+	_count = offset;
+	for(uint32_t n = offset + count; _count < n; ++_count)
+	{
+		auto sample = (int16_t *)&samples[_count - offset];
 		int sample_l = std::abs(sample[0]);
 		int sample_r = std::abs(sample[1]);
 
-		for(uint16_t k = 0; k < _silenceLimit; ++k)
-		{
-			// silence
-			if(sample_l <= (int)k && sample_r <= (int)k)
-			{
-				if(_silenceStart[k] == std::numeric_limits<int32_t>::max())
-					_silenceStart[k] = position;
-			}
-			// not silence
-			else if(_silenceStart[k] != std::numeric_limits<int32_t>::max())
-			{
-				if(_silenceStart[k] == std::numeric_limits<int32_t>::min() || position - _silenceStart[k] >= (int32_t)_silenceSamplesMin)
-					_silenceRanges[k].emplace_back(_silenceStart[k], position);
+// bound optimization
+#if 1
+		int bound = std::min(std::max(sample_l, sample_r), _limit);
 
-				_silenceStart[k] = std::numeric_limits<int32_t>::max();
+		for(int k = 0; k < bound; ++k)
+		{
+			int32_t &start = _state[k].first;
+			bool &silence = _state[k].second;
+
+			if(silence)
+			{
+				if(_count - start >= (int32_t)_samplesMin)
+					_ranges[k].emplace_back(start, _count);
+				silence = false;
 			}
 		}
-	}
 
-	// tail
-	if(last)
-		for(uint16_t k = 0; k < _silenceLimit; ++k)
-			_silenceRanges[k].emplace_back(_silenceStart[k] == std::numeric_limits<int32_t>::max() ? LBA_START * CD_DATA_SIZE_SAMPLES + offset + count : _silenceStart[k], std::numeric_limits<int32_t>::max());
+		for(int k = bound; k < _limit; ++k)
+		{
+			int32_t &start = _state[k].first;
+			bool &silence = _state[k].second;
+
+			if(!silence)
+			{
+				start = _count;
+				silence = true;
+			}
+		}
+#else
+		for(int k = 0; k < _limit; ++k)
+		{
+			int32_t &start = _state[k].first;
+			bool &silence = _state[k].second;
+
+			// silence
+			if(sample_l <= k && sample_r <= k)
+			{
+				if(!silence)
+				{
+					start = _count;
+					silence = true;
+				}
+			}
+			// not silence
+			else
+			{
+				if(silence)
+				{
+					if(_count - start >= (int32_t)_samplesMin)
+						_ranges[k].emplace_back(start, _count);
+					silence = false;
+				}
+			}
+		}
+#endif
+	}
 }
 
 }

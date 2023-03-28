@@ -20,7 +20,7 @@ std::vector<SyncAnalyzer::Record> SyncAnalyzer::getRecords() const
 }
 
 
-void SyncAnalyzer::process(uint32_t *samples, State *state, uint32_t count, uint32_t offset, bool)
+void SyncAnalyzer::process(uint32_t *samples, State *state, uint32_t count, uint32_t offset)
 {
 	for(uint32_t i = 0; i < count; ++i)
 	{

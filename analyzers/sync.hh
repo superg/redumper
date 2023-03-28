@@ -26,7 +26,7 @@ public:
 
 	std::vector<Record> getRecords() const;
 
-	void process(uint32_t *samples, State *state, uint32_t count, uint32_t offset, bool last) override;
+	void process(uint32_t *samples, State *state, uint32_t count, uint32_t offset) override;
 
 private:
 	static constexpr uint32_t SYNC_SIZE_SAMPLES = sizeof(CD_DATA_SYNC) / CD_SAMPLE_SIZE;

@@ -38,7 +38,7 @@ std::string ChannelQ::Decode() const
 }
 
 
-void subcode_extract_channel(uint8_t *subchannel, uint8_t *subcode, Subchannel name)
+void subcode_extract_channel(uint8_t *subchannel, const uint8_t *subcode, Subchannel name)
 {
 	for(uint32_t i = 0; i < CD_SUBCODE_SIZE; ++i)
 	{

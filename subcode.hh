@@ -92,7 +92,7 @@ struct ChannelQ
 	std::string Decode() const;
 };
 
-void subcode_extract_channel(uint8_t *subchannel, uint8_t *subcode, Subchannel name);
+void subcode_extract_channel(uint8_t *subchannel, const uint8_t *subcode, Subchannel name);
 ChannelQ subchannel_q_generate_mode1(const ChannelQ &base, int32_t shift);
 ChannelQ subchannel_q_generate_mode2(const ChannelQ &base, const ChannelQ &mode1, int32_t shift);
 ChannelQ subchannel_q_generate_mode3(const ChannelQ &base, const ChannelQ &mode1, int32_t shift);

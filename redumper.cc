@@ -306,7 +306,7 @@ bool redumper_dump(const Options &options, bool refine)
 	}
 
 	// read lead-in early as it improves the chance of extracting both sessions at once
-	if(drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_skip_leadin)
+	if(drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_leadin_skip)
 	{
 		std::vector<int32_t> session_lba_start;
 		for(uint32_t i = 0; i < toc.sessions.size(); ++i)
@@ -1347,120 +1347,148 @@ uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data)
 }
 
 
-void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveConfig &di, const Options &options)
+struct LeadInEntry
 {
-	std::vector<std::vector<uint8_t>> leadin_buffers(session_lba_start.size());
+	std::vector<uint8_t> data;
+	int32_t lba_start;
+	bool verified;
+};
 
-	// multisession disc:
-	// there is no direct control over which session lead-in is returned
-	// employ a number of tricks to maximize the chance of getting everything
-	for(uint32_t i = 0; i < session_lba_start.size(); ++i)
+
+uint32_t plextor_leadin_compare(const std::vector<uint8_t> &leadin1, const std::vector<uint8_t> &leadin2)
+{
+	uint32_t count = 0;
+
+	uint32_t leadin1_count = (uint32_t)leadin1.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
+	uint32_t leadin2_count = (uint32_t)leadin2.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
+	
+	uint32_t shared_count = std::min(leadin1_count, leadin2_count);
+	for(; count < shared_count; ++count)
 	{
-		LOG_R();
-		LOG("PLEXTOR: reading lead-in");
+		auto sector1 = &leadin1[(leadin1_count - 1 - count) * PLEXTOR_LEADIN_ENTRY_SIZE];
+		auto sector2 = &leadin2[(leadin2_count - 1 - count) * PLEXTOR_LEADIN_ENTRY_SIZE];
+		
+		if(memcmp(sector1 + sizeof(SPTD::Status), sector2 + sizeof(SPTD::Status), CD_DATA_SIZE))
+			break;
+	}
 
-		// helps with "choosing" the first session
-		if(i == session_lba_start.size() - 1)
-			cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
+	return count * PLEXTOR_LEADIN_ENTRY_SIZE;
+}
 
-		auto leadin_buffer = plextor_read_leadin(sptd, di.pregap_start - MSF_LBA_SHIFT);
-		uint32_t entries_count = (uint32_t)leadin_buffer.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
 
-		if(entries_count < (uint32_t)(di.pregap_start - MSF_LBA_SHIFT))
+bool plextor_assign_leadin_session(std::vector<LeadInEntry> &entries, std::vector<uint8_t> leadin, int32_t drive_pregap_start)
+{
+	bool session_found = false;
+
+	uint32_t entries_count = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
+	for(uint32_t j = entries_count; j > 0; --j)
+	{
+		auto entry = &leadin[(j - 1) * PLEXTOR_LEADIN_ENTRY_SIZE];
+		auto status = *(SPTD::Status *)entry;
+
+		if(status.status_code)
 			continue;
 
-		// find which session lead-in belongs to
-		for(uint32_t j = entries_count; j > 0; --j)
+		auto sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
+
+		ChannelQ Q;
+		subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
+
+		if(Q.Valid())
 		{
-			uint8_t *entry = &leadin_buffer[(j - 1) * PLEXTOR_LEADIN_ENTRY_SIZE];
-			auto status = *(SPTD::Status *)entry;
-
-			if(status.status_code)
-				continue;
-
-			uint8_t *sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
-
-			ChannelQ Q;
-			subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
-
-			if(Q.Valid())
+			uint8_t adr = Q.control_adr & 0x0F;
+			if(adr == 1 && Q.mode1.tno)
 			{
-				uint8_t adr = Q.control_adr & 0x0F;
-				if(adr == 1 && Q.mode1.tno)
+				int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
+				for(uint32_t s = 0; s < (uint32_t)entries.size(); ++s)
 				{
-					bool session_found = false;
-
-					int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
-					for(uint32_t s = 0; s < (uint32_t)session_lba_start.size(); ++s)
+					int32_t pregap_end = entries[s].lba_start + (drive_pregap_start - MSF_LBA_SHIFT);
+					if(lba >= entries[s].lba_start && lba < pregap_end)
 					{
-						int32_t pregap_end = session_lba_start[s] + (di.pregap_start - MSF_LBA_SHIFT);
-						if(lba >= session_lba_start[s] && lba < pregap_end)
-						{
-							uint32_t trim_count = j - 1 + pregap_end - lba;
+						uint32_t trim_count = j - 1 + pregap_end - lba;
 
-							if(trim_count > entries_count)
-							{
-								LOG_R();
-								LOG("PLEXTOR: incomplete pre-gap, skipping (session index: {})", s);
-							}
+						if(trim_count > entries_count)
+						{
+							LOG("PLEXTOR: lead-in incomplete (session: {})", s + 1);
+						}
+						else
+						{
+							LOG("PLEXTOR: lead-in found (session: {}, sectors: {})", s + 1, trim_count);
+
+							if(trim_count < entries_count)
+								leadin.resize(trim_count * PLEXTOR_LEADIN_ENTRY_SIZE);
+
+							// initial add
+							if(entries[s].data.empty())
+								entries[s].data = leadin;
 							else
 							{
-								LOG_R();
-								LOG("PLEXTOR: lead-in found (session index: {}, sectors: {})", s, trim_count);
+								auto size = plextor_leadin_compare(entries[s].data, leadin);
 
-								if(trim_count < entries_count)
-									leadin_buffer.resize(trim_count * PLEXTOR_LEADIN_ENTRY_SIZE);
+								// match
+								if(size == std::min(entries[s].data.size(), leadin.size()))
+								{
+									// prefer smaller size
+									if(leadin.size() < entries[s].data.size())
+										entries[s].data.swap(leadin);
 
-								if(leadin_buffers[s].size() < leadin_buffer.size())
-									leadin_buffers[s].swap(leadin_buffer);
+									entries[s].verified = true;
+								}
+								// mismatch, prefer newest for the next comparison
+								else
+									entries[s].data.swap(leadin);
 							}
-
-							session_found = true;
-							break;
 						}
-					}
 
-					if(session_found)
+						session_found = true;
 						break;
+					}
 				}
+
+				if(session_found)
+					break;
 			}
 		}
 	}
 
-	// PX-760A: strip invalid entries from lead-in start
-	for(uint32_t s = 0; s < leadin_buffers.size(); ++s)
+	return session_found;
+}
+
+
+void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveConfig &drive_config, const Options &options)
+{
+	std::vector<LeadInEntry> entries;
+	for(auto s : session_lba_start)
+		entries.push_back({std::vector<uint8_t>(), s, false});
+
+	bool verified = false;
+	for(uint32_t i = 0; i < (uint32_t)options.plextor_leadin_retries && !verified; ++i)
 	{
-		auto &leadin_buffer = leadin_buffers[s];
-		uint32_t n = (uint32_t)leadin_buffer.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
-		for(uint32_t i = 0; i < n; ++i)
+		for(uint32_t s = 0; s < entries.size(); ++s)
 		{
-			uint8_t *entry = &leadin_buffer[i * PLEXTOR_LEADIN_ENTRY_SIZE];
+			LOG("PLEXTOR: reading lead-in (session: {}, retry: {})", s + 1, i + 1);
 
-			uint8_t *sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
+			// there is no direct control over which session lead-in is returned
+			// this helps drive to choose right session more often than not
+			if(s + 1 == entries.size())
+				cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
 
-			ChannelQ Q;
-			subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
-
-			if(Q.Valid())
-			{
-				if(i)
-				{
-					leadin_buffer.erase(leadin_buffer.begin(), leadin_buffer.begin() + i * PLEXTOR_LEADIN_ENTRY_SIZE);
-					LOG("PLEXTOR: lead-in trimmed (session index: {}, sectors: {})", s, i);
-				}
-				break;
-			}
+			auto leadin = plextor_read_leadin(sptd, drive_config.pregap_start - MSF_LBA_SHIFT);
+			if(plextor_assign_leadin_session(entries, leadin, drive_config.pregap_start))
+				verified = std::all_of(entries.begin(), entries.end(), [&](const LeadInEntry &entry){ return entry.verified; });
+			else
+				LOG("PLEXTOR: lead-in session not identified");
 		}
 	}
 
 	// store
-	for(uint32_t s = 0; s < leadin_buffers.size(); ++s)
+	for(uint32_t s = 0; s < entries.size(); ++s)
 	{
-		auto &leadin_buffer = leadin_buffers[s];
+		auto &leadin_buffer = entries[s].data;
 		uint32_t n = (uint32_t)leadin_buffer.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
 		for(uint32_t i = 0; i < n; ++i)
 		{
-			int32_t lba = session_lba_start[s] + (di.pregap_start - MSF_LBA_SHIFT) - (n - i);
+			int32_t lba = entries[s].lba_start + (drive_config.pregap_start - MSF_LBA_SHIFT) - (n - i);
 			int32_t lba_index = lba - LBA_START;
 
 			uint8_t *entry = &leadin_buffer[i * PLEXTOR_LEADIN_ENTRY_SIZE];
@@ -1478,7 +1506,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 			{
 				// data
 				std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
-				read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, di.read_offset, (uint8_t)State::ERROR_SKIP);
+				read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 				for(auto const &s : sector_state)
 				{
 					// new data is improved
@@ -1487,8 +1515,8 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 						uint8_t *sector_data = entry + sizeof(SPTD::Status);
 						std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
 
-						write_entry(fs_scm, sector_data, CD_DATA_SIZE, lba_index, 1, di.read_offset * CD_SAMPLE_SIZE);
-						write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, di.read_offset);
+						write_entry(fs_scm, sector_data, CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
+						write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset);
 
 						break;
 					}

@@ -42,7 +42,8 @@ struct Options
 	std::string skip;
 	int skip_fill;
 	bool iso9660_trim;
-	bool plextor_skip_leadin;
+	bool plextor_leadin_skip;
+	int plextor_leadin_retries;
 	bool asus_skip_leadout;
 	bool disable_cdtext;
 	bool correct_offset_shift;

@@ -355,6 +355,8 @@ std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 		}
 	}
 
+	LOG_R();
+
 	return buffer;
 }
 

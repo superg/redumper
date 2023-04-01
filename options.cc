@@ -19,7 +19,8 @@ Options::Options(int argc, const char *argv[])
 	, force_qtoc(false)
 	, skip_fill(0x55)
 	, iso9660_trim(false)
-	, plextor_skip_leadin(false)
+	, plextor_leadin_skip(false)
+	, plextor_leadin_retries(4)
 	, asus_skip_leadout(false)
 	, disable_cdtext(false)
 	, correct_offset_shift(false)
@@ -134,8 +135,10 @@ Options::Options(int argc, const char *argv[])
 					i_value = &skip_fill;
 				else if(key == "--iso9660-trim")
 					iso9660_trim = true;
-				else if(key == "--plextor-skip-leadin")
-					plextor_skip_leadin = true;
+				else if(key == "--plextor-leadin-skip")
+					plextor_leadin_skip = true;
+				else if(key == "--plextor-leadin-retries")
+					i_value = &plextor_leadin_retries;
 				else if(key == "--asus-skip-leadout")
 					asus_skip_leadout = true;
 				else if(key == "--disable-cdtext")
@@ -215,7 +218,8 @@ void Options::PrintUsage()
 	LOG("\t--drive-sector-order=VALUE     \toverride drive sector order, possible values: DATA_C2_SUB, DATA_SUB_C2");
 	LOG("");
 	LOG("\t(drive specific)");
-	LOG("\t--plextor-skip-leadin          \tskip dumping lead-in using negative range");
+	LOG("\t--plextor-leadin-skip          \tskip dumping lead-in using negative range");
+	LOG("\t--plextor-leadin-retries=VALUE \tmaximum number of lead-in retries per session (default: {})", plextor_leadin_retries);
 	LOG("\t--asus-skip-leadout            \tskip extracting lead-out from drive cache");
 	LOG("\t--disable-cdtext               \tdisable CD-TEXT reading");
 	LOG("");

@@ -306,7 +306,7 @@ bool redumper_dump(const Options &options, bool refine)
 	}
 
 	// read lead-in early as it improves the chance of extracting both sessions at once
-	if(drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_leadin_skip)
+	if(drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_leadin_skip && (!refine || refine_needed(fs_state, MSF_LBA_SHIFT, drive_config.pregap_start, drive_config.read_offset)))
 	{
 		std::vector<int32_t> session_lba_start;
 		for(uint32_t i = 0; i < toc.sessions.size(); ++i)
@@ -1484,14 +1484,14 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 	// store
 	for(uint32_t s = 0; s < entries.size(); ++s)
 	{
-		auto &leadin_buffer = entries[s].data;
-		uint32_t n = (uint32_t)leadin_buffer.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
+		auto &leadin = entries[s].data;
+		uint32_t n = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
 		for(uint32_t i = 0; i < n; ++i)
 		{
 			int32_t lba = entries[s].lba_start + (drive_config.pregap_start - MSF_LBA_SHIFT) - (n - i);
 			int32_t lba_index = lba - LBA_START;
 
-			uint8_t *entry = &leadin_buffer[i * PLEXTOR_LEADIN_ENTRY_SIZE];
+			uint8_t *entry = &leadin[i * PLEXTOR_LEADIN_ENTRY_SIZE];
 			auto status = *(SPTD::Status *)entry;
 
 			if(status.status_code)
@@ -1534,7 +1534,26 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 				}
 			}
 		}
+
+		if(n)
+			LOG("PLEXTOR: lead-in stored (session: {}, verified: {})", s + 1, entries[s].verified ? "yes" : "no");
 	}
+}
+
+
+bool refine_needed(std::fstream &fs_state, int32_t lba_start, int32_t lba_end, int32_t read_offset)
+{
+	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
+
+	for(int32_t lba = lba_start; lba < lba_end; ++lba)
+	{
+		read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, read_offset, (uint8_t)State::ERROR_SKIP);
+		for(auto const &ss : sector_state)
+			if(ss == State::ERROR_SKIP || ss == State::ERROR_C2)
+				return true;
+	}
+
+	return false;
 }
 
 

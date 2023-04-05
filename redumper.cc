@@ -1474,6 +1474,9 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 				cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
 
 			auto leadin = plextor_read_leadin(sptd, drive_config.pregap_start - MSF_LBA_SHIFT);
+			if(options.debug && !leadin.empty())
+				write_vector(fmt::format("leadin_{}.bin", i), leadin);
+
 			if(plextor_assign_leadin_session(entries, leadin, drive_config.pregap_start))
 				verified = std::all_of(entries.begin(), entries.end(), [&](const LeadInEntry &entry){ return entry.verified; });
 			else

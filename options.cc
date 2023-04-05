@@ -11,6 +11,7 @@ namespace gpsxre
 Options::Options(int argc, const char *argv[])
 	: help(false)
 	, verbose(false)
+	, debug(false)
 	, overwrite(false)
 	, force_split(false)
 	, leave_unchanged(false)
@@ -66,6 +67,8 @@ Options::Options(int argc, const char *argv[])
 					help = true;
 				else if(key == "--verbose")
 					verbose = true;
+				else if(key == "--debug")
+					debug = true;
 				else if(key == "--image-path")
 					s_value = &image_path;
 				else if(key == "--image-name")

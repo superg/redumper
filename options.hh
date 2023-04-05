@@ -19,6 +19,7 @@ struct Options
 
 	bool help;
 	bool verbose;
+	bool debug;
 
 	std::string image_path;
 	std::string image_name;

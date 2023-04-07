@@ -306,13 +306,22 @@ bool redumper_dump(const Options &options, bool refine)
 	}
 
 	// read lead-in early as it improves the chance of extracting both sessions at once
-	if(drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_leadin_skip && (!refine || refine_needed(fs_state, MSF_LBA_SHIFT, drive_config.pregap_start, drive_config.read_offset)))
+	if(drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_leadin_skip)
 	{
+		bool read = !refine;
+
 		std::vector<int32_t> session_lba_start;
 		for(uint32_t i = 0; i < toc.sessions.size(); ++i)
-			session_lba_start.push_back((i ? toc.sessions[i].tracks.front().indices.front() : 0) + MSF_LBA_SHIFT);
+		{
+			int32_t lba_start = i ? toc.sessions[i].tracks.front().indices.front() : 0;
+			session_lba_start.push_back(lba_start + MSF_LBA_SHIFT);
 
-		plextor_store_sessions_leadin(fs_scm, fs_sub, fs_state, sptd, session_lba_start, drive_config, options);
+			// check gaps in all sessions
+			read = read || refine_needed(fs_state, lba_start + MSF_LBA_SHIFT, lba_start + drive_config.pregap_start, drive_config.read_offset);
+		}
+
+		if(read)
+			plextor_store_sessions_leadin(fs_scm, fs_sub, fs_state, sptd, session_lba_start, drive_config, options);
 	}
 
 	// override using options

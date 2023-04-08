@@ -6,20 +6,13 @@
 namespace gpsxre
 {
 
-SilenceAnalyzer::SilenceAnalyzer(uint16_t silence_threshold, const std::vector<std::pair<int32_t, int32_t>> &index0_ranges)
+SilenceAnalyzer::SilenceAnalyzer(uint16_t silence_threshold, uint32_t samples_min)
 	: _limit(silence_threshold + 1)
-	, _samplesMin(std::numeric_limits<uint32_t>::max())
+	, _samplesMin(samples_min)
 	, _count(0)
 	, _state(std::make_unique<std::pair<int32_t, bool>[]>(_limit))
 	, _ranges(_limit)
 {
-	for(auto const &r : index0_ranges)
-	{
-		uint32_t length = r.second - r.first;
-		if(_samplesMin > length)
-			_samplesMin = length;
-	}
-
 	std::fill_n(_state.get(), _limit, std::pair(-_samplesMin, true));
 }
 

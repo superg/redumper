@@ -1180,7 +1180,10 @@ void redumper_split(const Options &options)
 	std::list<std::shared_ptr<Analyzer>> analyzers;
 
 	auto index0_ranges = audio_get_toc_index0_ranges(toc);
-	auto silence_analyzer = std::make_shared<SilenceAnalyzer>(options.audio_silence_threshold, index0_ranges);
+
+	uint32_t samples_min = std::numeric_limits<uint32_t>::max();
+	std::for_each(index0_ranges.begin(), index0_ranges.end(), [&samples_min](const std::pair<int32_t, int32_t> &r){ samples_min = std::min(samples_min, (uint32_t)(r.second - r.first)); });
+	auto silence_analyzer = std::make_shared<SilenceAnalyzer>(options.audio_silence_threshold, samples_min);
 	analyzers.emplace_back(silence_analyzer);
 
 	auto sync_analyzer = std::make_shared<SyncAnalyzer>(scrap);
@@ -1194,9 +1197,9 @@ void redumper_split(const Options &options)
 	LOG("");
 
 	auto silence_ranges = silence_analyzer->ranges();
-	auto nonzero_data_range = std::pair(silence_ranges.front().front().second, silence_ranges.front().back().first);
 
 	std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_start * CD_DATA_SIZE_SAMPLES);
+	auto nonzero_data_range = std::pair(silence_ranges.front().front().second, silence_ranges.front().back().first);
 	LOG("non-zero  TOC sample range: [{:+9} .. {:+9}]", nonzero_toc_range.first, nonzero_toc_range.second);
 	LOG("non-zero data sample range: [{:+9} .. {:+9}]", nonzero_data_range.first, nonzero_data_range.second);
 	LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
@@ -1208,7 +1211,7 @@ void redumper_split(const Options &options)
 	if(offsets.empty())
 	{
 		auto sync_records = sync_analyzer->getRecords();
-
+		  
 		uint32_t count = 0;
 		for(auto const &o : sync_records)
 			count += o.count;

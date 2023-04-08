@@ -14,7 +14,7 @@ namespace gpsxre
 class SilenceAnalyzer : public Analyzer
 {
 public:
-	SilenceAnalyzer(uint16_t silence_threshold, const std::vector<std::pair<int32_t, int32_t>> &index0_ranges);
+	SilenceAnalyzer(uint16_t silence_threshold, uint32_t samples_min);
 
 	std::vector<std::vector<std::pair<int32_t, int32_t>>> ranges() const;
 

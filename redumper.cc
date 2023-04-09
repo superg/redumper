@@ -1483,8 +1483,20 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 	for(uint32_t s = 0; s < entries.size(); ++s)
 	{
 		auto &leadin = entries[s].data;
-		uint32_t n = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
-		for(uint32_t i = 0; i < n; ++i)
+
+		if(!leadin.empty())
+		{
+			// don't store unverified lead-in for the first session, it's always wrong
+			if(s == 0 && !entries[s].verified)
+			{
+				leadin.clear();
+				LOG("PLEXTOR: lead-in discarded as unverified (session: {})", s + 1);
+			}
+			else
+				LOG("PLEXTOR: storing lead-in (session: {}, verified: {})", s + 1, entries[s].verified ? "yes" : "no");
+		}
+
+		for(uint32_t i = 0, n = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE; i < n; ++i)
 		{
 			int32_t lba = entries[s].lba_start + (drive_config.pregap_start - MSF_LBA_SHIFT) - (n - i);
 			int32_t lba_index = lba - LBA_START;
@@ -1532,9 +1544,6 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 				}
 			}
 		}
-
-		if(n)
-			LOG("PLEXTOR: lead-in stored (session: {}, verified: {})", s + 1, entries[s].verified ? "yes" : "no");
 	}
 }
 

@@ -64,8 +64,8 @@ bool ImageBrowser::IsDataTrack(const std::filesystem::path &track)
 			continue;
 		}
 
-		if(memcmp(vd->standard_identifier, iso9660::STANDARD_INDENTIFIER, sizeof(vd->standard_identifier)) &&
-		   memcmp(vd->standard_identifier, iso9660::CDI_STANDARD_INDENTIFIER, sizeof(vd->standard_identifier)))
+		if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)) &&
+		   memcmp(vd->standard_identifier, iso9660::CDI_STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
 			break;
 
 		if(vd->type == iso9660::VolumeDescriptor::Type::PRIMARY)
@@ -158,8 +158,8 @@ void ImageBrowser::Init()
 			continue;
 		}
 
-		if(memcmp(vd->standard_identifier, iso9660::STANDARD_INDENTIFIER, sizeof(vd->standard_identifier)) &&
-		   memcmp(vd->standard_identifier, iso9660::CDI_STANDARD_INDENTIFIER, sizeof(vd->standard_identifier)))
+		if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)) &&
+		   memcmp(vd->standard_identifier, iso9660::CDI_STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
 			break;
 
 		if(vd->type == iso9660::VolumeDescriptor::Type::PRIMARY)

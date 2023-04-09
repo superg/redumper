@@ -144,8 +144,8 @@ enum class Characters : char
 };
 
 constexpr uint32_t SYSTEM_AREA_SIZE = 16;
-constexpr uint8_t STANDARD_INDENTIFIER[] = "CD001";
-constexpr uint8_t CDI_STANDARD_INDENTIFIER[] = "CD-I ";
+constexpr uint8_t STANDARD_IDENTIFIER[] = "CD001";
+constexpr uint8_t CDI_STANDARD_IDENTIFIER[] = "CD-I ";
 
 time_t convert_time(const DateTime &date_time);
 time_t convert_time(const RecordingDateTime &date_time);

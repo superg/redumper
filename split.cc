@@ -1474,6 +1474,7 @@ void redumper_split(const Options &options)
 		offset_manager = std::make_shared<const OffsetManager>(offsets);
 	}
 
+	// output disc write offset
 	{
 		int32_t disc_write_offset = 0;
 		if(scrap)
@@ -1513,7 +1514,7 @@ void redumper_split(const Options &options)
 
 					auto pvd = browser.GetPVD();
 
-					if(!memcmp(pvd.standard_identifier, iso9660::CDI_STANDARD_INDENTIFIER, sizeof(pvd.standard_identifier)))
+					if(!memcmp(pvd.standard_identifier, iso9660::CDI_STANDARD_IDENTIFIER, sizeof(pvd.standard_identifier)))
 						t.cdi = true;
 				}
 				catch(...)

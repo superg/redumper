@@ -843,6 +843,21 @@ uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32
 }
 
 
+bool state_errors_in_range(std::fstream &state_fs, std::pair<int32_t, int32_t> nonzero_data_range)
+{
+	std::vector<State> state(CD_DATA_SIZE_SAMPLES * 1024);
+
+	bool interrupted = batch_process_range<int32_t>(nonzero_data_range, state.size(), [&state_fs, &state](int32_t offset, int32_t size) -> bool
+	{
+		read_entry(state_fs, (uint8_t *)state.data(), sizeof(State), sample_offset_r2a(offset), size, 0, (uint8_t)State::ERROR_SKIP);
+		
+		return std::any_of(state.begin(), state.begin() + size, [](State s){ return s == State::ERROR_SKIP || s == State::ERROR_C2; });
+	});
+
+	return interrupted;
+}
+
+
 std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, int32_t> nonzero_data_range)
 {
 	SHA1 bh_sha1;
@@ -1309,8 +1324,13 @@ void redumper_split(const Options &options)
 	LOG("non-zero  TOC sample range: [{:+9} .. {:+9}]", nonzero_toc_range.first, nonzero_toc_range.second);
 	LOG("non-zero data sample range: [{:+9} .. {:+9}]", nonzero_data_range.first, nonzero_data_range.second);
 
-	if(!scrap && toc.sessions.size() == 1)
-		LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
+	if(!scrap)
+	{
+		if(state_errors_in_range(state_fs, nonzero_data_range))
+			LOG("warning: non-zero data range is not continuous, skipping Universal Hash calculation");
+		else
+			LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
+	}
 	LOG("");
 
 	if(scrap)

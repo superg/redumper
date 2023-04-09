@@ -1355,14 +1355,6 @@ uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data)
 }
 
 
-struct LeadInEntry
-{
-	std::vector<uint8_t> data;
-	int32_t lba_start;
-	bool verified;
-};
-
-
 uint32_t plextor_leadin_compare(const std::vector<uint8_t> &leadin1, const std::vector<uint8_t> &leadin2)
 {
 	uint32_t count = 0;
@@ -1469,27 +1461,22 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 	for(auto s : session_lba_start)
 		entries.push_back({std::vector<uint8_t>(), s, false});
 
-	bool verified = false;
-	for(uint32_t i = 0; i < (uint32_t)options.plextor_leadin_retries && !verified; ++i)
+	if(entries.empty())
+		return;
+
+	uint32_t retries = options.plextor_leadin_retries + entries.size();
+	for(uint32_t i = 0; i < retries && !entries.front().verified; ++i)
 	{
-		for(uint32_t s = 0; s < entries.size(); ++s)
-		{
-			LOG("PLEXTOR: reading lead-in (session: {}, retry: {})", s + 1, i + 1);
+		LOG("PLEXTOR: reading lead-in (retry: {})", i + 1);
 
-			// there is no direct control over which session lead-in is returned
-			// this helps drive to choose right session more often than not
-			if(s + 1 == entries.size())
-				cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
+		// this helps with getting more consistent sectors count for the first session
+		if(i == entries.size() - 1)
+			cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
 
-			auto leadin = plextor_read_leadin(sptd, drive_config.pregap_start - MSF_LBA_SHIFT);
-			if(options.debug && !leadin.empty())
-				write_vector(fmt::format("leadin_{}.bin", i), leadin);
+		auto leadin = plextor_read_leadin(sptd, drive_config.pregap_start - MSF_LBA_SHIFT);
 
-			if(plextor_assign_leadin_session(entries, leadin, drive_config.pregap_start))
-				verified = std::all_of(entries.begin(), entries.end(), [&](const LeadInEntry &entry){ return entry.verified; });
-			else
-				LOG("PLEXTOR: lead-in session not identified");
-		}
+		if(!plextor_assign_leadin_session(entries, leadin, drive_config.pregap_start))
+			LOG("PLEXTOR: lead-in session not identified");
 	}
 
 	// store

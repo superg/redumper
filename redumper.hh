@@ -19,6 +19,13 @@
 namespace gpsxre
 {
 
+struct LeadInEntry
+{
+	std::vector<uint8_t> data;
+	int32_t lba_start;
+	bool verified;
+};
+
 std::string redumper_version();
 void redumper(Options &options);
 

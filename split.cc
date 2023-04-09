@@ -698,6 +698,77 @@ int32_t disc_offset_by_overlap(const TOC &toc, std::fstream &scm_fs, int32_t wri
 }
 
 
+int32_t find_non_zero_data_offset(std::fstream &scm_fs, std::fstream &state_fs, int32_t sample_offset_start, int32_t sample_offset_end, bool scrap)
+{
+	bool reverse = sample_offset_end < sample_offset_start;
+
+	Scrambler scrambler;
+
+	std::vector<State> state(CD_DATA_SIZE_SAMPLES);
+
+	int32_t step = (reverse ? -1 : 1) * CD_DATA_SIZE_SAMPLES;
+	if(reverse)
+	{
+		sample_offset_start += step;
+		sample_offset_end += step;
+	}
+
+	int32_t sample_offset = sample_offset_start;
+	for(; sample_offset != sample_offset_end; sample_offset += step)
+	{
+		read_entry(state_fs, (uint8_t *)state.data(), sizeof(State), sample_offset_r2a(sample_offset), CD_DATA_SIZE_SAMPLES, 0, (uint8_t)State::ERROR_SKIP);
+
+		// skip all incomplete / erroneous sectors
+		bool skip = false;
+		for(auto const &s : state)
+			if(s == State::ERROR_SKIP || s == State::ERROR_C2)
+			{
+				skip = true;
+				break;
+			}
+		if(skip)
+			continue;
+
+		Sector sector;
+		auto data = (uint8_t *)&sector;
+		uint32_t data_size = sizeof(sector);
+
+		read_entry(scm_fs, data, CD_SAMPLE_SIZE, sample_offset_r2a(sample_offset), CD_DATA_SIZE_SAMPLES, 0, 0);
+		if(!scrap)
+			scrambler.Process(data, data, 0, data_size);
+
+		if(sector.header.mode == 0)
+		{
+			data = sector.mode2.user_data;
+			data_size = MODE0_DATA_SIZE;
+		}
+		else if(sector.header.mode == 1)
+		{
+			data = sector.mode1.user_data;
+			data_size = FORM1_DATA_SIZE;
+		}
+		else if(sector.header.mode == 2)
+		{
+			if(sector.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
+			{
+				data = sector.mode2.xa.form2.user_data;
+				data_size = FORM2_DATA_SIZE;
+			}
+			else
+			{
+				data = sector.mode2.xa.form1.user_data;
+				data_size = FORM1_DATA_SIZE;
+			}
+		}
+
+		if(!is_zeroed(data, data_size))
+			break;
+	}
+
+	return sample_offset - (reverse ? step : 0);
+}
+
+
 uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32_t lba_start, int32_t lba_end, std::shared_ptr<const OffsetManager> offset_manager, bool data_track, bool reverse)
 {
 	int32_t step = 1;
@@ -789,25 +860,25 @@ std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, in
 }
 
 
-int32_t scram_sample_offset_to_write_offset(uint32_t scram_sample_offset, int32_t lba)
+int32_t sample_offset_to_write_offset(int32_t scram_sample_offset, int32_t lba)
 {
-	return scram_sample_offset - (lba - LBA_START) * CD_DATA_SIZE_SAMPLES;
+	return scram_sample_offset - lba * CD_DATA_SIZE_SAMPLES;
 }
 
 
-std::vector<std::pair<int32_t, int32_t>> disc_offset_process_records(std::vector<SyncAnalyzer::Record> records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
+void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
 {
 	// correct lead-in lba
 	uint32_t lba0_offset = -LBA_START * CD_DATA_SIZE_SAMPLES;
 	for(uint32_t i = 0; i < records.size(); ++i)
 	{
-		if(lba0_offset >= records[i].offset && lba0_offset < records[i].offset + records[i].count * CD_DATA_SIZE_SAMPLES)
+		if(records[i].sample_offset <= 0 && (int32_t)(records[i].sample_offset + records[i].count * CD_DATA_SIZE_SAMPLES) > 0)
 		{
 			for(uint32_t j = i; j; --j)
 			{
 				auto &p = records[j - 1];
 
-				uint32_t count = scale_up(records[j].offset - p.offset, CD_DATA_SIZE_SAMPLES);
+				uint32_t count = scale_up(records[j].sample_offset - p.sample_offset, CD_DATA_SIZE_SAMPLES);
 				uint32_t length = p.range.second - p.range.first;
 				p.range.first = records[j].range.first - count;
 				p.range.second = p.range.first + length;
@@ -832,7 +903,7 @@ std::vector<std::pair<int32_t, int32_t>> disc_offset_process_records(std::vector
 		merge = false;
 		for(uint32_t i = 0; i + 1 < records.size(); ++i)
 		{
-			uint32_t offset_diff = records[i + 1].offset - records[i].offset;
+			uint32_t offset_diff = records[i + 1].sample_offset - records[i].sample_offset;
 
 			bool m = false;
 			if(options.offset_shift_relocate)
@@ -865,11 +936,11 @@ std::vector<std::pair<int32_t, int32_t>> disc_offset_process_records(std::vector
 		auto &r = records[i + 1];
 
 		// skip aligned sectors
-		uint32_t offset_diff = r.offset - l.offset;
+		uint32_t offset_diff = r.sample_offset - l.sample_offset;
 		if(!(offset_diff % CD_DATA_SIZE_SAMPLES))
 			continue;
 
-		int32_t offset = scram_sample_offset_to_write_offset(r.offset, r.range.first);
+		int32_t offset = sample_offset_to_write_offset(r.sample_offset, r.range.first);
 		uint32_t count = 0;
 		for(int32_t lba = r.range.first - 1; lba > l.range.second; --lba)
 		{
@@ -884,15 +955,9 @@ std::vector<std::pair<int32_t, int32_t>> disc_offset_process_records(std::vector
 		if(count)
 		{
 			r.range.first -= count;
-			r.offset -= count * CD_DATA_SIZE_SAMPLES;
+			r.sample_offset -= count * CD_DATA_SIZE_SAMPLES;
 		}
 	}
-
-	std::vector<std::pair<int32_t, int32_t>> offsets;
-	for(auto const &r : records)
-		offsets.emplace_back(r.range.first, scram_sample_offset_to_write_offset(r.offset, r.range.first));
-
-	return offsets;
 }
 
 
@@ -1200,10 +1265,6 @@ void redumper_split(const Options &options)
 
 	std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_start * CD_DATA_SIZE_SAMPLES);
 	auto nonzero_data_range = std::pair(silence_ranges.front().front().second, silence_ranges.front().back().first);
-	LOG("non-zero  TOC sample range: [{:+9} .. {:+9}]", nonzero_toc_range.first, nonzero_toc_range.second);
-	LOG("non-zero data sample range: [{:+9} .. {:+9}]", nonzero_data_range.first, nonzero_data_range.second);
-	LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
-	LOG("");
 
 	std::vector<std::pair<int32_t, int32_t>> offsets;
 
@@ -1218,14 +1279,39 @@ void redumper_split(const Options &options)
 
 		if(count >= CD_PREGAP_SIZE)
 		{
-			LOG("data disc detected, track offset statistics:");
+			LOG("data disc detected, track offset statistics: ");
 			for(auto const &o : sync_records)
-				LOG("  LBA: [{:6} .. {:6}], count: {:6}, scram offset: {:9}", o.range.first, o.range.second, o.count, o.offset);
+				LOG("  LBA: [{:6} .. {:6}], count: {:6}, sample offset: {:+9}", o.range.first, o.range.second, o.count, o.sample_offset);
 			LOG("");
 
-			offsets = disc_offset_process_records(sync_records, scm_fs, state_fs, options);
+			disc_offset_filter_records(sync_records, scm_fs, state_fs, options);
+
+			// align non-zero data range to data sector boundary and truncate leading / trailing empty sectors
+			{
+				auto const &f = sync_records.front();
+				if(f.sample_offset - nonzero_data_range.first < CD_DATA_SIZE_SAMPLES)
+				{
+					int32_t sample_offset_end = f.sample_offset + (f.range.second - f.range.first) * CD_DATA_SIZE_SAMPLES;
+					nonzero_data_range.first = find_non_zero_data_offset(scm_fs, state_fs, f.sample_offset, sample_offset_end, scrap);
+				}
+
+				auto const &b = sync_records.back();
+				int32_t sample_offset_start = b.sample_offset + (b.range.second - b.range.first) * CD_DATA_SIZE_SAMPLES;
+				if(nonzero_data_range.second - sample_offset_start < CD_DATA_SIZE_SAMPLES)
+					nonzero_data_range.second = find_non_zero_data_offset(scm_fs, state_fs, sample_offset_start, b.sample_offset, scrap);
+			}
+
+			for(auto const &r : sync_records)
+				offsets.emplace_back(r.range.first, sample_offset_to_write_offset(r.sample_offset, r.range.first));
 		}
 	}
+
+	LOG("non-zero  TOC sample range: [{:+9} .. {:+9}]", nonzero_toc_range.first, nonzero_toc_range.second);
+	LOG("non-zero data sample range: [{:+9} .. {:+9}]", nonzero_data_range.first, nonzero_data_range.second);
+
+	if(!scrap && toc.sessions.size() == 1)
+		LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
+	LOG("");
 
 	if(scrap)
 	{

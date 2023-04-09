@@ -206,4 +206,16 @@ bool stoll_try(long long &value, const std::string &str)
 	return success;
 }
 
+
+int32_t sample_offset_a2r(uint32_t absolute)
+{
+	return absolute + (LBA_START * CD_DATA_SIZE_SAMPLES);
+}
+
+
+uint32_t sample_offset_r2a(int32_t relative)
+{
+	return relative - (LBA_START * CD_DATA_SIZE_SAMPLES);
+}
+
 }

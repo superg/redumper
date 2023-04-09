@@ -4,7 +4,6 @@
 #include <functional>
 #include <iostream>
 #include "cmd.hh"
-#include "common.hh"
 #include "crc16_gsm.hh"
 #include "crc32.hh"
 #include "file_io.hh"

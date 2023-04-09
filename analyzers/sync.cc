@@ -45,7 +45,7 @@ void SyncAnalyzer::process(uint32_t *samples, State *state, uint32_t count, uint
 			else
 				_scrambler.Process((uint8_t *)&msf, (uint8_t *)&samples[i], sizeof(CD_DATA_SYNC), sizeof(msf));
 
-			Record record{{BCDMSF_to_LBA(msf), BCDMSF_to_LBA(msf)}, offset + i - SYNC_SIZE_SAMPLES, 1};
+			Record record{{BCDMSF_to_LBA(msf), BCDMSF_to_LBA(msf)}, sample_offset_a2r(offset + i - SYNC_SIZE_SAMPLES), 1};
 
 			if(_records.empty())
 				_records.push_back(record);
@@ -53,7 +53,7 @@ void SyncAnalyzer::process(uint32_t *samples, State *state, uint32_t count, uint
 			{
 				auto &b = _records.back();
 
-				uint32_t offset_diff = record.offset - b.offset;
+				uint32_t offset_diff = record.sample_offset - b.sample_offset;
 				int32_t range_diff = record.range.first - b.range.first;
 				if(range_diff * CD_DATA_SIZE_SAMPLES == offset_diff)
 				{

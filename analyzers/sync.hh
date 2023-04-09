@@ -18,7 +18,7 @@ public:
 	struct Record
 	{
 		std::pair<int32_t, int32_t> range;
-		uint32_t offset;
+		int32_t sample_offset;
 		uint32_t count;
 	};
 

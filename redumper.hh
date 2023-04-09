@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include "cd.hh"
+#include "common.hh"
 #include "drive.hh"
 #include "options.hh"
 #include "scsi.hh"
@@ -17,35 +18,6 @@
 
 namespace gpsxre
 {
-
-static constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
-#if 1
-static int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START); // -45150
-#else
-// easier debugging, LBA starts with 0, plextor lead-in and asus cache are disabled
- static constexpr int32_t LBA_START = 0;
-											// GS2v3   13922 .. 17080-17090
-											// GS2_1.1 12762 .. 17075
-											// GS2_5.5 12859 .. 17130-17140
-											// GS2_1.2 12739 .. 16930-16940
-											// SC DISC  8546 .. 17100-17125
-											// SC BOX  10547 .. 16940-16950
-											// CB4 6407-7114 ..  9200- 9220
-											// GS GCD   9162 .. 17000-17010  // F05 0004
-											// XPLO FM  7770 .. 10700-10704
-//static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
-#endif
-
-
-enum class State : uint8_t
-{
-	ERROR_SKIP, // must be first to support random offset file writes
-	ERROR_C2,
-	SUCCESS_C2_OFF,
-	SUCCESS_SCSI_OFF,
-	SUCCESS
-};
-
 
 std::string redumper_version();
 void redumper(Options &options);

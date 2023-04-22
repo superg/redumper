@@ -33,7 +33,7 @@ public:
 
 	void NL(bool file = true);
 	void Flush(bool file);
-	void ClearLine();
+	void ReturnLine(bool erase);
 
 private:
 	static Logger _logger;
@@ -83,7 +83,11 @@ void LOGC_F(std::string fmt, const Args &... args)
 }
 
 
-// erase line (console only)
+// return line (console only)
 void LOG_R();
+
+
+// erase line / return line (console only)
+void LOG_ER();
 
 }

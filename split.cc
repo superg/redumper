@@ -8,6 +8,7 @@
 #include "systems/system.hh"
 #include "common.hh"
 #include "crc32.hh"
+#include "dump.hh"
 #include "ecc_edc.hh"
 #include "file_io.hh"
 #include "image_browser.hh"
@@ -978,10 +979,7 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 
 void redumper_protection(Options &options)
 {
-	if(options.image_name.empty())
-		throw_line("no image name provided");
-
-	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	auto image_prefix = image_init(options);
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
 	std::filesystem::path scp_path(image_prefix + ".scrap");
@@ -1146,10 +1144,7 @@ void redumper_protection(Options &options)
 
 void redumper_split(const Options &options)
 {
-	if(options.image_name.empty())
-		throw_line("no image name provided");
-
-	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	auto image_prefix = image_init(options);
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
 	std::filesystem::path scp_path(image_prefix + ".scrap");
@@ -1730,7 +1725,7 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 
 void redumper_info(const Options &options)
 {
-	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	auto image_prefix = image_init(options);
 
 	auto tracks = cue_get_entries(image_prefix + ".cue");
 

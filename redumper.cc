@@ -6,6 +6,8 @@
 #include "cmd.hh"
 #include "crc16_gsm.hh"
 #include "crc32.hh"
+#include "dump.hh"
+#include "dump_dvd.hh"
 #include "file_io.hh"
 #include "logger.hh"
 #include "scrambler.hh"
@@ -30,8 +32,24 @@ std::string redumper_version()
 }
 
 
-void validate_options(Options &options)
+GET_CONFIGURATION_FeatureCode_ProfileList query_disc_type(std::string drive)
 {
+	GET_CONFIGURATION_FeatureCode_ProfileList current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
+
+	SPTD sptd(drive);
+	auto status = cmd_get_configuration_current_profile(sptd, current_profile);
+	if(status.status_code)
+		throw_line(fmt::format("failed to query disc type, SCSI ({})", SPTD::StatusMessage(status)));
+
+	return current_profile;
+}
+
+
+GET_CONFIGURATION_FeatureCode_ProfileList validate_options(Options &options)
+{
+	//FIXME
+	GET_CONFIGURATION_FeatureCode_ProfileList disc_type = GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM;
+
 	if(options.positional.empty())
 		options.positional.push_back("cd");
 
@@ -66,8 +84,12 @@ void validate_options(Options &options)
 	if(drive_required && options.drive.empty())
 	{
 		options.drive = first_ready_drive();
+
 		if(options.drive.empty())
 			throw_line("no ready drives detected on the system");
+
+		//GGG
+		disc_type = query_disc_type(options.drive);
 	}
 
 	// add drive colon if unspecified
@@ -87,18 +109,13 @@ void validate_options(Options &options)
 		drive.erase(remove(drive.begin(), drive.end(), '/'), drive.end());
 		options.image_name = fmt::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
 	}
+
+	return disc_type;
 }
 
 
-void redumper(Options &options)
+void redumper_cd(Options &options)
 {
-	validate_options(options);
-
-	Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
-
-	LOG("{}\n", redumper_version());
-	LOG("command: {}\n", options.command);
-
 	bool skip_refine = false;
 	for(auto const &p : options.positional)
 	{
@@ -130,25 +147,57 @@ void redumper(Options &options)
 }
 
 
+void redumper_dvd(Options &options)
+{
+	for(auto const &p : options.positional)
+	{
+		LOG("*** MODE: {}", p);
+
+		if(p == "dump")
+			dump_dvd(options, false);
+		else
+			LOG("warning: unknown mode, skipping ({})", p);
+	}
+}
+
+
+void redumper(Options &options)
+{
+	auto disc_type = validate_options(options);
+
+	Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
+
+	LOG("{}\n", redumper_version());
+	LOG("command: {}\n", options.command);
+
+	switch(disc_type)
+	{
+	case GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::CD_R:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW:
+		redumper_cd(options);
+		break;
+
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW:
+		redumper_dvd(options);
+		break;
+
+	default:
+		throw_line(fmt::format("unsupported disc (type: {})", (uint16_t)disc_type));
+	}
+}
+
+
 bool redumper_dump(const Options &options, bool refine)
 {
 	SPTD sptd(options.drive);
-	drive_init(sptd, options);
-
-	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
-	drive_override_config(drive_config, options.drive_type.get(),
-						  options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
-	LOG("drive path: {}", options.drive);
-	LOG("drive: {}", drive_info_string(drive_config));
-	LOG("drive configuration: {}", drive_config_string(drive_config));
-
-	if(options.image_name.empty())
-		throw_line("image name is not provided");
-
-	LOG("image path: {}", options.image_path.empty() ? "." : options.image_path);
-	LOG("image name: {}", options.image_name);
-
-	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	auto drive_config = drive_init(sptd, options);
+	auto image_prefix = image_init(options);
 
 	// don't use .replace_extension() as it messes up paths with dot
 	std::filesystem::path scm_path(image_prefix + ".scram");
@@ -160,8 +209,8 @@ bool redumper_dump(const Options &options, bool refine)
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
 	std::filesystem::path asus_path(image_prefix + ".asus");
 
-	if(!refine && !options.overwrite && std::filesystem::exists(state_path))
-		throw_line(fmt::format("dump already exists (name: {})", options.image_name));
+	if(!refine)
+		image_check_overwrite(state_path, options);
 
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); //FIXME: transition to samples?
 	std::vector<std::pair<int32_t, int32_t>> error_ranges;
@@ -448,7 +497,7 @@ bool redumper_dump(const Options &options, bool refine)
 					read_sector(sector_buffer.data(), sptd, drive_config, lba - 1);
 				}
 
-				LOG_R();
+				LOG_ER();
 				LOG("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
 				{
 					auto cache = asus_cache_read(sptd, drive_config.type);
@@ -459,7 +508,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 				uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 
-				LOG_R();
+				LOG_ER();
 				if(entries_count)
 					LOG("LG/ASUS: lead-out found (LBA: {:6}, sectors: {})", lba, entries_count);
 				else
@@ -489,7 +538,7 @@ bool redumper_dump(const Options &options, bool refine)
 							uint32_t data_crc = crc32(sector_data.data(), CD_DATA_SIZE);
 							uint32_t c2_crc = crc32(sector_c2, CD_C2_SIZE);
 
-							LOG_R();
+							LOG_ER();
 							std::string status_retries;
 							if(refine)
 								status_retries = fmt::format(", retry: {}", refine_counter + 1);
@@ -552,7 +601,7 @@ bool redumper_dump(const Options &options, bool refine)
 					{
 						if(options.verbose)
 						{
-							LOG_R();
+							LOG_ER();
 							LOG("[LBA: {:6}] correction failure", lba);
 						}
 						read = false;
@@ -572,7 +621,7 @@ bool redumper_dump(const Options &options, bool refine)
 			{
 				if(options.verbose)
 				{
-					LOG_R();
+					LOG_ER();
 					LOG("[LBA: {:6}] correction success", lba);
 				}
 				++refine_processed;
@@ -610,7 +659,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 					if(options.verbose)
 					{
-						LOG_R();
+						LOG_ER();
 						std::string status_retries;
 						if(refine)
 							status_retries = fmt::format(", retry: {}", refine_counter + 1);
@@ -636,7 +685,7 @@ bool redumper_dump(const Options &options, bool refine)
 						uint32_t data_crc = crc32(sector_data.data(), CD_DATA_SIZE);
 						uint32_t c2_crc = crc32(sector_c2, CD_C2_SIZE);
 
-						LOG_R();
+						LOG_ER();
 						std::string status_retries;
 						if(refine)
 							status_retries = fmt::format(", retry: {}", refine_counter + 1);
@@ -669,7 +718,7 @@ bool redumper_dump(const Options &options, bool refine)
 						if(subcode_shift != shift)
 						{
 							subcode_shift = shift;
-							LOG_R();
+							LOG_ER();
 							LOG("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
 						}
 					}
@@ -796,7 +845,7 @@ bool redumper_dump(const Options &options, bool refine)
 
 		if(Signal::GetInstance().Interrupt())
 		{
-			LOG_R();
+			LOG_ER();
 			LOG("[LBA: {:6}] forced stop ", lba);
 			lba_overread = lba;
 		}
@@ -805,13 +854,13 @@ bool redumper_dump(const Options &options, bool refine)
 		{
 			if(lba == lba_refine)
 			{
-				LOG_R();
+				LOG_ER();
 				LOGC_F(PROGRESS_FORMAT, percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 			}
 		}
 		else
 		{
-			LOG_R();
+			LOG_ER();
 			LOGC_F(PROGRESS_FORMAT, percentage(lba, lba_overread - 1), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 		}
 	}
@@ -838,14 +887,7 @@ void redumper_rings(const Options &options)
 //FIXME: outdated code due to numerous changes, review later
 #if 0
 	SPTD sptd(options.drive);
-	drive_init(sptd, options);
-
-	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
-	drive_override_config(drive_config, options.drive_type.get(),
-						  options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
-	LOG("drive path: {}", options.drive);
-	LOG("drive: {}", drive_info_string(drive_config));
-	LOG("drive configuration: {}", drive_config_string(drive_config));
+	auto drive_config = drive_init(sptd, options);
 
 	// read TOC
 	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(sptd);
@@ -1137,14 +1179,7 @@ void redumper_debug(const Options &options)
 	if(0)
 	{
 		SPTD sptd(options.drive);
-		drive_init(sptd, options);
-
-		DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
-		drive_override_config(drive_config, options.drive_type.get(), options.drive_read_offset.get(),
-				options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
-		LOG("drive path: {}", options.drive);
-		LOG("drive: {}", drive_info_string(drive_config));
-		LOG("drive configuration: {}", drive_config_string(drive_config));
+		auto drive_config = drive_init(sptd, options);
 
 		auto cache = asus_cache_read(sptd, drive_config.type);
 	}
@@ -1243,21 +1278,6 @@ std::string first_ready_drive()
 	}
 
 	return drive;
-}
-
-
-void drive_init(SPTD &sptd, const Options &options)
-{
-	// test unit ready
-	SPTD::Status status = cmd_drive_ready(sptd);
-	if(status.status_code)
-		throw_line(fmt::format("drive not ready, SCSI ({})", SPTD::StatusMessage(status)));
-
-	// set drive speed
-	uint16_t speed = options.speed ? 150 * *options.speed : 0xFFFF;
-	status = cmd_set_cd_speed(sptd, speed);
-	if(status.status_code)
-		LOG("drive set speed failed, SCSI ({})", SPTD::StatusMessage(status));
 }
 
 
@@ -1508,7 +1528,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 			{
 				if(options.verbose)
 				{
-					LOG_R();
+					LOG_ER();
 					LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 				}
 			}

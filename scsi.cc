@@ -360,6 +360,8 @@ std::string SPTD::GetLastError()
 				  nullptr, ::GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buffer, 0, nullptr);
 
 	message = std::string(buffer);
+	message.erase(std::remove(message.begin(), message.end(), '\r'), message.end());
+	message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
 
 	LocalFree(buffer);
 #else

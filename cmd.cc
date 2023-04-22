@@ -47,19 +47,32 @@ SPTD::Status cmd_drive_ready(SPTD &sptd)
 {
 	CDB6_Generic cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::TEST_UNIT_READY;
+
 	return sptd.SendCommand(&cdb, sizeof(cdb), nullptr, 0);
 }
 
 
+SPTD::Status cmd_inquiry(SPTD &sptd, uint8_t *data, uint32_t data_size, INQUIRY_VPDPageCode page_code, bool command_support_data, bool enable_vital_product_data)
+{
+	CDB6_Inquiry cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::INQUIRY;
+	cdb.command_support_data = command_support_data ? 1 : 0;
+	cdb.enable_vital_product_data = enable_vital_product_data ? 1 : 0;
+	cdb.page_code = (uint8_t)page_code;
+
+	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(data_size);
+	
+	return sptd.SendCommand(&cdb, sizeof(cdb), data, data_size);
+}
+
+
+//TODO: not cmd, move out?
 DriveQuery cmd_drive_query(SPTD &sptd)
 {
 	DriveQuery drive_query;
 
-	CDB6_Inquiry3 cdb = {};
-	cdb.operation_code = (uint8_t)CDB_OperationCode::INQUIRY;
-	cdb.allocation_length = sizeof(InquiryData);
-	InquiryData inquiry_data;
-	auto status = sptd.SendCommand(&cdb, sizeof(cdb), &inquiry_data, sizeof(inquiry_data));
+	INQUIRY_StandardData inquiry_data;
+	auto status = cmd_inquiry(sptd, (uint8_t *)&inquiry_data, sizeof(inquiry_data), INQUIRY_VPDPageCode::SUPPORTED_PAGES, false, false);
 	if(status.status_code)
 		throw_line(fmt::format("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status)));
 
@@ -69,6 +82,17 @@ DriveQuery cmd_drive_query(SPTD &sptd)
 	drive_query.vendor_specific = normalize_string(std::string((char *)inquiry_data.vendor_specific, sizeof(inquiry_data.vendor_specific)));
 
 	return drive_query;
+}
+
+
+uint32_t cmd_inquiry_vpd_block_limits_optimal_transfer_length(SPTD &sptd)
+{
+	INQUIRY_VPDBlockLimits vpd_block_limits;
+	auto status = cmd_inquiry(sptd, (uint8_t *)&vpd_block_limits, sizeof(vpd_block_limits), INQUIRY_VPDPageCode::BLOCK_LIMITS, false, true);
+	if(status.status_code)
+		throw_line(fmt::format("unable to inquiry VPD block limits, SCSI ({})", SPTD::StatusMessage(status)));
+
+	return vpd_block_limits.optimal_transfer_length;
 }
 
 
@@ -163,6 +187,53 @@ SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 }
 
 
+SPTD::Status cmd_read_dvd_structure(SPTD &sptd, std::vector<uint8_t> &response_data, uint32_t address, uint8_t layer_number, READ_DVD_STRUCTURE_Format format, uint8_t agid)
+{
+	SPTD::Status status;
+
+	response_data.clear();
+
+	CDB12_ReadDVDStructure cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_DVD_STRUCTURE;
+	*(uint32_t *)cdb.address = endian_swap(address);
+	cdb.layer_number = layer_number;
+	cdb.format = (uint8_t)format;
+	cdb.agid = agid;
+
+	READ_TOC_Response toc_response;
+	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
+	status = sptd.SendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
+	if(!status.status_code)
+	{
+		uint16_t response_data_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
+		if(response_data_size > sizeof(toc_response))
+		{
+			response_data.resize(round_up_pow2<uint16_t>(response_data_size, sizeof(uint32_t)));
+
+			*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(response_data_size);
+
+			status = sptd.SendCommand(&cdb, sizeof(cdb), response_data.data(), (uint32_t)response_data.size());
+			if(!status.status_code)
+				response_data.resize(response_data_size);
+		}
+	}
+
+	return status;
+}
+
+
+SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, bool force_unit_access)
+{
+	CDB12_Read cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ12;
+	cdb.force_unit_access = force_unit_access ? 1 : 0;
+	*(int32_t *)cdb.starting_lba = endian_swap(start_lba);
+	*(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
+
+	return sptd.SendCommand(&cdb, sizeof(cdb), buffer, block_size * transfer_length);
+}
+
+
 SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
 {
 	CDB12_ReadCD cdb = {};
@@ -248,7 +319,6 @@ SPTD::Status cmd_asus_read_cache(SPTD &sptd, uint8_t *buffer, uint32_t offset, u
 }
 
 
-//DEBUG
 SPTD::Status cmd_get_configuration(SPTD &sptd)
 {
 	CDB10_GetConfiguration cdb = {};
@@ -275,6 +345,24 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
 	{
 //		std::cout << endian_swap(fds->feature_code) << std::endl;
 	}
+
+	return status;
+}
+
+
+SPTD::Status cmd_get_configuration_current_profile(SPTD &sptd, GET_CONFIGURATION_FeatureCode_ProfileList &current_profile)
+{
+	CDB10_GetConfiguration cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::GET_CONFIGURATION;
+	cdb.requested_type = (uint8_t)GET_CONFIGURATION_RequestedType::ONE;
+	cdb.starting_feature_number = 0;
+
+	GET_CONFIGURATION_FeatureHeader feature_header = {};
+	uint16_t size = sizeof(feature_header);
+	*(uint16_t *)cdb.allocation_length = endian_swap(size);
+	auto status = sptd.SendCommand(&cdb, sizeof(cdb), &feature_header, size);
+
+	current_profile = (GET_CONFIGURATION_FeatureCode_ProfileList)endian_swap(feature_header.current_profile);
 
 	return status;
 }

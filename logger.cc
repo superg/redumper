@@ -62,10 +62,12 @@ void Logger::Flush(bool file)
 }
 
 
-void Logger::ClearLine()
+void Logger::ReturnLine(bool erase)
 {
 	// default 80 terminal width - 1 is the largest value which doesn't wrap to a new line on Windows 7
-	std::cout << fmt::format("\r{:79}\r", "");
+	if(erase)
+		std::cout << fmt::format("\r{:79}", "");
+	std::cout << '\r';
 }
 
 
@@ -77,7 +79,13 @@ Logger &Logger::Get()
 
 void LOG_R()
 {
-	Logger::Get().ClearLine();
+	Logger::Get().ReturnLine(false);
+}
+
+
+void LOG_ER()
+{
+	Logger::Get().ReturnLine(true);
 }
 
 }

@@ -10,14 +10,14 @@
 namespace gpsxre
 {
 
-void write_entry(std::fstream &fs, const uint8_t *data, uint32_t entry_size, uint32_t index, uint32_t count, int32_t byte_offset)
+void write_entry(std::fstream &fs, const uint8_t *data, uint64_t entry_size, uint64_t index, uint64_t count, int64_t byte_offset)
 {
-	int32_t file_offset = index * entry_size - byte_offset;
+	int64_t file_offset = index * entry_size - byte_offset;
 
-	uint32_t total_size = entry_size * count;
+	uint64_t total_size = entry_size * count;
 
-	uint32_t size = total_size;
-	if(file_offset <= -(int32_t)total_size)
+	uint64_t size = total_size;
+	if(file_offset <= -(int64_t)total_size)
 		size = 0;
 	else if(file_offset < 0)
 	{
@@ -39,29 +39,29 @@ void write_entry(std::fstream &fs, const uint8_t *data, uint32_t entry_size, uin
 }
 
 
-void read_entry(std::fstream &fs, uint8_t *data, uint32_t entry_size, uint32_t index, uint32_t count, int32_t byte_offset, uint8_t fill_byte)
+void read_entry(std::fstream &fs, uint8_t *data, uint64_t entry_size, uint64_t index, uint64_t count, int64_t byte_offset, uint8_t fill_byte)
 {
-	int32_t file_offset = index * entry_size - byte_offset;
+	int64_t file_offset = index * entry_size - byte_offset;
 
-	uint32_t total_size = entry_size * count;
+	uint64_t total_size = entry_size * count;
 
 	// head
-	uint32_t size = total_size;
-	if(file_offset <= -(int32_t)total_size)
+	uint64_t size = total_size;
+	if(file_offset <= -(int64_t)total_size)
 		size = 0;
 	else if(file_offset < 0)
 	{
 		size += file_offset;
 		file_offset = 0;
 	}
-	uint32_t data_offset = total_size - size;
+	uint64_t data_offset = total_size - size;
 
 	// tail
 	fs.seekg(0, std::fstream::end);
 	if(fs.fail())
 		throw_line("seek failed");
 
-	uint32_t file_tail = std::max((int32_t)fs.tellg() - file_offset, 0);
+	uint64_t file_tail = std::max((int64_t)fs.tellg() - file_offset, (int64_t)0);
 
 	if(size > file_tail)
 		size = file_tail;
@@ -82,7 +82,7 @@ void read_entry(std::fstream &fs, uint8_t *data, uint32_t entry_size, uint32_t i
 }
 
 
-void write_align(std::fstream &fs, uint32_t index, uint32_t entry_size, uint8_t fill_byte)
+void write_align(std::fstream &fs, uint64_t index, uint64_t entry_size, uint8_t fill_byte)
 {
 	fs.seekp(0, std::fstream::end);
 	if(fs.fail())
@@ -126,7 +126,7 @@ void write_vector(const std::filesystem::path &file_path, const std::vector<uint
 }
 
 
-uint32_t check_file(const std::filesystem::path &file_path, uint32_t entry_size)
+uint64_t check_file(const std::filesystem::path &file_path, uint64_t entry_size)
 {
 	if(!std::filesystem::exists(file_path))
 		throw_line(fmt::format("file doesn't exist ({})", file_path.filename().string()));
@@ -134,7 +134,7 @@ uint32_t check_file(const std::filesystem::path &file_path, uint32_t entry_size)
 	if(!std::filesystem::is_regular_file(file_path))
 		throw_line(fmt::format("not a regular file ({})", file_path.filename().string()));
 
-	auto file_size = (uint32_t)std::filesystem::file_size(file_path);
+	auto file_size = (uint64_t)std::filesystem::file_size(file_path);
 	if(!file_size)
 		throw_line(fmt::format("file is empty ({})", file_path.filename().string()));
 

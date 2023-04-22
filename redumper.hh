@@ -36,7 +36,7 @@ void redumper_debug(const Options &options);
 
 uint32_t percentage(int32_t value, uint32_t value_max);
 std::string first_ready_drive();
-void drive_init(SPTD &sptd, const Options &options);
+DriveConfig drive_init(SPTD &sptd, const Options &options);
 SPTD::Status read_sector(uint8_t *sector_buffer, SPTD &sptd, const DriveConfig &drive_config, int32_t lba);
 bool is_data_track(int32_t lba, const TOC &toc);
 uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data);

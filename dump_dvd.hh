@@ -9,6 +9,6 @@
 namespace gpsxre
 {
 
-void dump_dvd(const Options &options, bool refine);
+bool dump_dvd(const Options &options, bool refine);
 
 }

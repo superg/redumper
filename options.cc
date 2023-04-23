@@ -36,7 +36,7 @@ Options::Options(int argc, const char *argv[])
 		if(argument.find(' ') != std::string::npos)
 			quoted = true;
 
-		command += fmt::vformat("{}{}{}{}", fmt::make_format_args(quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " "));
+		command_line += fmt::vformat("{}{}{}{}", fmt::make_format_args(quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " "));
 	}
 
 	std::string *s_value = nullptr;
@@ -180,7 +180,7 @@ Options::Options(int argc, const char *argv[])
 				i_value = nullptr;
 			}
 			else
-				positional.emplace_back(o);
+				commands.emplace_back(o);
 		}
 	}
 }

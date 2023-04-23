@@ -977,7 +977,7 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 }
 
 
-void redumper_protection(Options &options)
+void redumper_protection_cd(Options &options)
 {
 	auto image_prefix = image_init(options);
 
@@ -1142,7 +1142,7 @@ void redumper_protection(Options &options)
 }
 
 
-void redumper_split(const Options &options)
+void redumper_split_cd(const Options &options)
 {
 	auto image_prefix = image_init(options);
 
@@ -1723,7 +1723,7 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 }
 
 
-void redumper_info(const Options &options)
+void redumper_info_cd(const Options &options)
 {
 	auto image_prefix = image_init(options);
 

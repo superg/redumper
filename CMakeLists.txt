@@ -121,6 +121,8 @@ set(sources
 	"drive.hh"
 	"dump.cc"
 	"dump.hh"
+	"dump_cd.cc"
+	"dump_cd.hh"
 	"dump_dvd.cc"
 	"dump_dvd.hh"
 	"ecc_edc.cc"

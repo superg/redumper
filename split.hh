@@ -22,8 +22,8 @@ struct TrackEntry
 	std::string sha1;
 };
 
-void redumper_protection(Options &options);
-void redumper_split(const Options &options);
-void redumper_info(const Options &options);
+void redumper_protection_cd(Options &options);
+void redumper_split_cd(const Options &options);
+void redumper_info_cd(const Options &options);
 
 }

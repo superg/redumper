@@ -176,7 +176,7 @@ void progress_output(T sector, T sectors_count, T errors)
 }
 
 
-void dump_dvd(const Options &options, bool refine)
+bool dump_dvd(const Options &options, bool refine)
 {
 	SPTD sptd(options.drive);
 
@@ -191,11 +191,10 @@ void dump_dvd(const Options &options, bool refine)
 
 	// BD: cdb.reserved1 = 1, dump PIC area
 
-	std::vector<uint8_t> structure;
-
 	// get list of readable structures
 	std::set<READ_DVD_STRUCTURE_Format> readable_formats;
 	{
+		std::vector<uint8_t> structure;
 		cmd_read_dvd_structure(sptd, structure, 0, 0, READ_DVD_STRUCTURE_Format::STRUCTURE_LIST, 0);
 		strip_toc_response(structure);
 
@@ -207,14 +206,17 @@ void dump_dvd(const Options &options, bool refine)
 				readable_formats.insert((READ_DVD_STRUCTURE_Format)structures[i].format_code);
 	}
 
-	uint32_t layers_count = 0;
+	if(readable_formats.find(READ_DVD_STRUCTURE_Format::PHYSICAL) == readable_formats.end())
+		throw_line("disc physical structure not found");
+
 	uint32_t sectors_count = 0;
-	if(readable_formats.find(READ_DVD_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
 	{
-		LOG("");
-		LOG("disc structure:");
+		std::vector<std::vector<uint8_t>> structures;
+
+		uint32_t layers_count = 0;
 		for(uint32_t i = 0; !layers_count || i < layers_count; ++i)
 		{
+			auto &structure = structures.emplace_back();
 			cmd_read_dvd_structure(sptd, structure, 0, i, READ_DVD_STRUCTURE_Format::PHYSICAL, 0);
 			strip_toc_response(structure);
 
@@ -223,42 +225,51 @@ void dump_dvd(const Options &options, bool refine)
 				layers_count = (layer_descriptor->track_path ? 0 : layer_descriptor->layers_number) + 1;
 
 			sectors_count += endian_swap(layer_descriptor->data_end_sector) + 1 - endian_swap(layer_descriptor->data_start_sector);
-
-			print_physical_structure(*layer_descriptor, i);
 		}
-		LOG("");
-	}
 
-	if(!layers_count || !sectors_count)
-		return;
-
-	// dump structures
-	for(auto f : readable_formats)
-	{
-		switch(f)
+		// compare physical structures to stored to make sure it's the same disc
+		if(refine)
 		{
-			// skip some
-		case READ_DVD_STRUCTURE_Format::COPYRIGHT_MANAGEMENT:
-		case READ_DVD_STRUCTURE_Format::DISC_KEY:
-		case READ_DVD_STRUCTURE_Format::MEDIA_IDENTIFIER:
-		case READ_DVD_STRUCTURE_Format::MEDIA_KEY_BLOCK:
-		case READ_DVD_STRUCTURE_Format::RMD_LAST_BO:
-		case READ_DVD_STRUCTURE_Format::RMD:
-		case READ_DVD_STRUCTURE_Format::DISC_CONTROL_BLOCKS:
-		case READ_DVD_STRUCTURE_Format::STRUCTURE_LIST:
-			break;
-
-		default:
-			for(uint32_t i = 0; i < layers_count; ++i)
+			for(uint32_t i = 0; i < structures.size(); ++i)
 			{
-				cmd_read_dvd_structure(sptd, structure, 0, i, f, 0);
-				if(!structure.empty())
-					write_vector(fmt::format("{}.{}.{:02X}.structure", image_prefix, i + 1, (uint8_t)f), structure);
+				auto &structure = structures[i];
+
+				auto structure_fn = fmt::format("{}{}.physical", image_prefix, structures.size() > 1 ? fmt::format(".{}", i + 1) : "");
+				if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != structure)
+					throw_line("disc / file physical structure don't match, refining from a different disc?");
 			}
 		}
+		// store and output structures
+		else
+		{
+			LOG("");
+			LOG("disc structure:");
+			for(uint32_t i = 0; i < structures.size(); ++i)
+			{
+				auto &structure = structures[i];
+
+				write_vector(fmt::format("{}{}.physical", image_prefix, structures.size() > 1 ? fmt::format(".{}", i + 1) : ""), structure);
+
+				print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)structure.data(), i);
+
+				if(readable_formats.find(READ_DVD_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
+				{
+					std::vector<uint8_t> manufacturer;
+					cmd_read_dvd_structure(sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
+					strip_toc_response(manufacturer);
+
+					if(!manufacturer.empty())
+						write_vector(fmt::format("{}{}.manufacturer", image_prefix, structures.size() > 1 ? fmt::format(".{}", i + 1) : ""), manufacturer);
+				}
+			}
+			LOG("");
+		}
 	}
 
-	// 32 sectors on initial read seems like a reasonable choice
+	if(!sectors_count)
+		throw_line("disc physical structure invalid");
+
+	// batch of 32 sectors on initial read seems like a reasonable choice
 	const uint32_t sectors_at_once = (refine ? 1 : 0x10000 / FORM1_DATA_SIZE);
 
 	std::vector<uint8_t> sector_buffer(sectors_at_once * FORM1_DATA_SIZE);
@@ -305,6 +316,8 @@ void dump_dvd(const Options &options, bool refine)
 	auto dump_time_stop = std::chrono::high_resolution_clock::now();
 	LOG("{} complete (time: {}s)", refine ? "refine" : "dump", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count());
 	LOG("");
+
+	return errors;
 }
 
 }

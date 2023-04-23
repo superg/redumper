@@ -13,9 +13,9 @@ namespace gpsxre
 
 struct Options
 {
-	std::string command;
+	std::string command_line;
 
-	std::list<std::string> positional;
+	std::list<std::string> commands;
 
 	bool help;
 	bool verbose;

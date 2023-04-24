@@ -1206,7 +1206,6 @@ void redumper_split_cd(const Options &options)
 			subq.clear();
 		LOG("done");
 		LOG("");
-
 	}
 
 	if(subq.empty())

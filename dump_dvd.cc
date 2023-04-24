@@ -4,11 +4,14 @@
 #include "cd.hh"
 #include "cmd.hh"
 #include "common.hh"
+#include "crc32.hh"
 #include "drive.hh"
 #include "dump.hh"
 #include "endian.hh"
 #include "file_io.hh"
 #include "logger.hh"
+#include "md5.hh"
+#include "sha1.hh"
 #include "dump_dvd.hh"
 
 
@@ -290,6 +293,10 @@ bool dump_dvd(const Options &options, bool refine)
 		LOG("done");
 	}
 
+	uint32_t crc = crc32_seed();
+	MD5 bh_md5;
+	SHA1 bh_sha1;
+
 	LOG("{} started", refine ? "refine" : "dump");
 	auto dump_time_start = std::chrono::high_resolution_clock::now();
 
@@ -307,6 +314,12 @@ bool dump_dvd(const Options &options, bool refine)
 			write_entry(fs_state, (uint8_t *)state_success.data(), sizeof(State), s, sectors_to_read, 0);
 		}
 
+		if(!refine && !errors)
+		{
+			crc = crc32(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE, crc);
+			bh_md5.Update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
+			bh_sha1.Update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
+		}
 	}
 
 	progress_output(sectors_count, sectors_count, errors);
@@ -316,6 +329,25 @@ bool dump_dvd(const Options &options, bool refine)
 	auto dump_time_stop = std::chrono::high_resolution_clock::now();
 	LOG("{} complete (time: {}s)", refine ? "refine" : "dump", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count());
 	LOG("");
+
+	LOG("media errors: {}", errors);
+	LOG("");
+
+	if(refine)
+	{
+		;
+	}
+	else
+	{
+		if(!errors)
+		{
+			LOG("dat:");
+			std::string filename = iso_path.filename().string();
+			replace_all_occurences(filename, "&", "&amp;");
+
+			LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, (uint64_t)sectors_count * FORM1_DATA_SIZE, crc32_final(crc), bh_md5.Final(), bh_sha1.Final());
+		}
+	}
 
 	return errors;
 }

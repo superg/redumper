@@ -930,7 +930,11 @@ std::string TOC::DecodeText(const char *text, bool unicode, uint8_t language_cod
 {
 	//FIXME: codecvt is deprecated
 
-	return unicode ? std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(std::u16string((char16_t*)text)) : std::string(text);
+	// sometimes it's not UTF-16
+//	return unicode ? std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(std::u16string((char16_t*)text)) : std::string(text);
+
+	// for now copy verbatim
+	return std::string(text);
 }
 
 

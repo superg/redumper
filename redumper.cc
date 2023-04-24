@@ -148,8 +148,14 @@ DiscType query_disc_type(std::string drive)
 	auto disc_type = DiscType::CD;
 
 	SPTD sptd(drive);
+
+	// test unit ready
+	SPTD::Status status = cmd_drive_ready(sptd);
+	if(status.status_code)
+		throw_line(fmt::format("drive not ready, SCSI ({})", SPTD::StatusMessage(status)));
+
 	GET_CONFIGURATION_FeatureCode_ProfileList current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
-	auto status = cmd_get_configuration_current_profile(sptd, current_profile);
+	status = cmd_get_configuration_current_profile(sptd, current_profile);
 	if(status.status_code)
 		throw_line(fmt::format("failed to query disc type, SCSI ({})", SPTD::StatusMessage(status)));
 

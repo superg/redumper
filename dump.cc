@@ -10,14 +10,9 @@ namespace gpsxre
 
 DriveConfig drive_init(SPTD &sptd, const Options &options)
 {
-	// test unit ready
-	SPTD::Status status = cmd_drive_ready(sptd);
-	if(status.status_code)
-		throw_line(fmt::format("drive not ready, SCSI ({})", SPTD::StatusMessage(status)));
-
 	// set drive speed
 	uint16_t speed = options.speed ? 150 * *options.speed : 0xFFFF;
-	status = cmd_set_cd_speed(sptd, speed);
+	auto status = cmd_set_cd_speed(sptd, speed);
 	if(status.status_code)
 		LOG("drive set speed failed, SCSI ({})", SPTD::StatusMessage(status));
 

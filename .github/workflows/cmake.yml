@@ -13,30 +13,34 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-2022, ubuntu-22.04]
         platform: [32, 64]
         exclude:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: 32
         
     runs-on: ${{matrix.os}}
 
     steps:
+    - name: Customize Software
+      run: |
+        sudo snap install cmake --classic
+    
     - name: Checkout
       uses: actions/checkout@v3
       with:
         submodules: 'true'
 
     - name: CMake Configure (win32)
-      if: ${{ matrix.os == 'windows-latest' && matrix.platform == 32 }}
+      if: ${{ matrix.os == 'windows-2022' && matrix.platform == 32 }}
       run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Configure (win64)
-      if: ${{ matrix.os == 'windows-latest' && matrix.platform == 64 }}
+      if: ${{ matrix.os == 'windows-2022' && matrix.platform == 64 }}
       run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Configure (linux64)
-      if: ${{ matrix.os == 'ubuntu-latest' }}
+      if: ${{ matrix.os == 'ubuntu-22.04' }}
       run: cmake -B ${{env.build_directory}} -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Build
@@ -58,7 +62,7 @@ jobs:
         
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3

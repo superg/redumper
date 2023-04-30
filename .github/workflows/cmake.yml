@@ -27,7 +27,7 @@ jobs:
       run: |
         sudo snap install cmake --classic
         cmake --version
-        sudo add-apt-repository --yes 'deb http://us.archive.ubuntu.com/ubuntu/ lunar universe'
+        sudo add-apt-repository 'deb http://us.archive.ubuntu.com/ubuntu/ lunar universe'
         sudo apt update
         sudo apt install ninja-build
         ninja --version
@@ -47,7 +47,7 @@ jobs:
 
     - name: CMake Configure (linux64)
       if: ${{ matrix.os == 'ubuntu-22.04' }}
-      run: cmake -B ${{env.build_directory}} -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}}

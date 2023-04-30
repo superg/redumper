@@ -27,6 +27,10 @@ jobs:
       run: |
         sudo snap install cmake --classic
         cmake --version
+        sudo add-apt-repository --yes 'deb http://us.archive.ubuntu.com/ubuntu/ lunar universe'
+        sudo apt update
+        sudo apt install ninja-build
+        ninja --version
     
     - name: Checkout
       uses: actions/checkout@v3

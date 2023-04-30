@@ -27,9 +27,9 @@ jobs:
       run: |
         wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
         sudo add-apt-repository --yes 'deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main'
-        sudo add-apt-repository --yes 'deb http://us.archive.ubuntu.com/ubuntu/ lunar universe'
-        sudo apt update
-        sudo apt install clang-17 lldb-17 lld-17 clang-tools-17 ninja-build
+#        sudo add-apt-repository --yes 'deb http://us.archive.ubuntu.com/ubuntu/ lunar universe'
+        sudo apt-get update
+        sudo apt-get install clang-17 lldb-17 lld-17 clang-tools-17 ninja-build
         sudo ln -s /usr/lib/llvm-17/lib/clang/17 /usr/lib/llvm-17/lib/clang/17.0.0
         sudo snap install cmake --classic
     

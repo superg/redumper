@@ -22,9 +22,11 @@ jobs:
     runs-on: ${{matrix.os}}
 
     steps:
-    - name: Customize Software
+    - name: Customize Software (Linux)
+      if: ${{ matrix.os == 'ubuntu-22.04' }}
       run: |
         sudo snap install cmake --classic
+        cmake --version
     
     - name: Checkout
       uses: actions/checkout@v3

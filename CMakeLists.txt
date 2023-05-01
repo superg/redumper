@@ -165,8 +165,6 @@ set(sources
 	"subcode.hh"
 	"toc.cc"
 	"toc.hh"
-	"version.hh"
-	"version.cc"
 	"driveoffsets.txt"
 	${DRIVEOFFSETS_FN}
 )
@@ -176,7 +174,13 @@ set(includes
 	${CMAKE_CURRENT_BINARY_DIR}
 )
 
-add_executable(redumper ${sources})
+add_executable(redumper)
+target_sources(redumper
+	PUBLIC ${sources}
+	PUBLIC
+    FILE_SET cxx_modules TYPE CXX_MODULES FILES
+    "version.cc"
+)
 target_include_directories(redumper PUBLIC ${includes})
 
 add_custom_target(version_touch ALL COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_SOURCE_DIR}/version.cc")

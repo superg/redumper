@@ -15,8 +15,9 @@
 #include "signal.hh"
 #include "split.hh"
 #include "subcode.hh"
-#include "version.hh"
 #include "redumper.hh"
+
+import version;
 
 
 

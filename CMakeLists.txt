@@ -56,7 +56,11 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH}
                 -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
-# Visual Studio settings
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	set(clang_flags "-fexperimental-library -stdlib=libc++")
+	add_compile_options(${clang_flags})
+	add_link_options(${clang_flags})
+endif()
 if(MSVC)
 	# build MT configuration by default
 	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

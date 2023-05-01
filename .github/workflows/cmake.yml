@@ -28,7 +28,7 @@ jobs:
         wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
         sudo add-apt-repository --yes 'deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main'
         sudo apt-get update
-        sudo apt-get install clang-17 lldb-17 lld-17 clang-tools-17 ninja-build
+        sudo apt-get install clang-17 lldb-17 lld-17 clang-tools-17 libc++-17-dev libc++abi-17-dev
         sudo ln -s /usr/lib/llvm-17/lib/clang/17 /usr/lib/llvm-17/lib/clang/17.0.0
         wget http://mirrors.kernel.org/ubuntu/pool/universe/n/ninja-build/ninja-build_1.11.1-1_amd64.deb
         sudo dpkg -i ninja-build_1.11.1-1_amd64.deb

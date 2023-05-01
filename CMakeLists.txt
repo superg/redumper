@@ -57,9 +57,9 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	set(clang_flags "-fexperimental-library -stdlib=libc++")
-	add_compile_options(${clang_flags})
-	add_link_options(${clang_flags})
+	# needed for std::format
+	add_compile_options(-fexperimental-library -stdlib=libc++)
+	add_link_options(-fexperimental-library -stdlib=libc++)
 endif()
 if(MSVC)
 	# build MT configuration by default

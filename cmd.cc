@@ -74,7 +74,7 @@ DriveQuery cmd_drive_query(SPTD &sptd)
 	INQUIRY_StandardData inquiry_data;
 	auto status = cmd_inquiry(sptd, (uint8_t *)&inquiry_data, sizeof(inquiry_data), INQUIRY_VPDPageCode::SUPPORTED_PAGES, false, false);
 	if(status.status_code)
-		throw_line(fmt::format("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status)));
+		throw_line(std::format("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status)));
 
 	drive_query.vendor_id = normalize_string(std::string((char *)inquiry_data.vendor_id, sizeof(inquiry_data.vendor_id)));
 	drive_query.product_id = normalize_string(std::string((char *)inquiry_data.product_id, sizeof(inquiry_data.product_id)));
@@ -90,7 +90,7 @@ uint32_t cmd_inquiry_vpd_block_limits_optimal_transfer_length(SPTD &sptd)
 	INQUIRY_VPDBlockLimits vpd_block_limits;
 	auto status = cmd_inquiry(sptd, (uint8_t *)&vpd_block_limits, sizeof(vpd_block_limits), INQUIRY_VPDPageCode::BLOCK_LIMITS, false, true);
 	if(status.status_code)
-		throw_line(fmt::format("unable to inquiry VPD block limits, SCSI ({})", SPTD::StatusMessage(status)));
+		throw_line(std::format("unable to inquiry VPD block limits, SCSI ({})", SPTD::StatusMessage(status)));
 
 	return vpd_block_limits.optimal_transfer_length;
 }

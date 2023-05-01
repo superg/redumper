@@ -1,7 +1,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <fmt/format.h>
+#include <format>
 #include <iostream>
 #include <map>
 #include <stdexcept>
@@ -181,14 +181,14 @@ std::set<std::string> SPTD::ListDrives()
 #ifdef _WIN32
 	DWORD drive_mask = GetLogicalDrives();
 	if(!drive_mask)
-		throw_line(fmt::format("SYSTEM ({})", GetLastError()));
+		throw_line(std::format("SYSTEM ({})", GetLastError()));
 
 	for(uint32_t i = 0, n = sizeof(drive_mask) * CHAR_BIT; i < n; ++i)
 	{
 		if(drive_mask & 1 << i)
 		{
-			std::string drive(fmt::format("{}:", (char)('A' + i)));
-			if(GetDriveType(fmt::format("{}\\", drive).c_str()) == DRIVE_CDROM)
+			std::string drive(std::format("{}:", (char)('A' + i)));
+			if(GetDriveType(std::format("{}\\", drive).c_str()) == DRIVE_CDROM)
 				drives.emplace(drive);
 			;
 		}
@@ -199,7 +199,7 @@ std::set<std::string> SPTD::ListDrives()
 	// into "subsystem" so this directory is scanned first
 	for(auto &ss : {"subsystem", "bus", "class", "block"})
 	{
-		std::filesystem::path devices_path(fmt::format("/sys/{}/scsi/devices", ss));
+		std::filesystem::path devices_path(std::format("/sys/{}/scsi/devices", ss));
 		if(std::filesystem::is_directory(devices_path))
 		{
 			for(auto const &de : std::filesystem::directory_iterator(devices_path))
@@ -229,7 +229,7 @@ std::set<std::string> SPTD::ListDrives()
 				{
 					auto it = std::filesystem::directory_iterator(scsi_generic_path);
 					if(it != std::filesystem::directory_iterator() && std::filesystem::is_directory(it->path()))
-						drives.emplace(fmt::format("/dev/{}", it->path().filename().string()));
+						drives.emplace(std::format("/dev/{}", it->path().filename().string()));
 				}
 			}
 
@@ -248,17 +248,17 @@ std::string SPTD::StatusMessage(const Status &status)
 
 	{
 		auto it = _SCSISTAT_STRINGS.find(status.status_code);
-		status_message += "SC: " + (it == _SCSISTAT_STRINGS.end() ? fmt::format("{:02X}", status.status_code) : it->second);
+		status_message += "SC: " + (it == _SCSISTAT_STRINGS.end() ? std::format("{:02X}", status.status_code) : it->second);
 	}
 
 	if(auto it = _SCSI_SENSE_STRINGS.find(status.sense_key); it != _SCSI_SENSE_STRINGS.end() && it->first || it == _SCSI_SENSE_STRINGS.end())
-		status_message += ", SK: " + (it == _SCSI_SENSE_STRINGS.end() ? fmt::format("{:02X}", status.sense_key) : it->second);
+		status_message += ", SK: " + (it == _SCSI_SENSE_STRINGS.end() ? std::format("{:02X}", status.sense_key) : it->second);
 
 	if(auto it = _SCSI_ADSENSE_STRINGS.find(status.asc); it != _SCSI_ADSENSE_STRINGS.end() && it->first || it == _SCSI_ADSENSE_STRINGS.end())
-		status_message += ", ASC: " + (it == _SCSI_ADSENSE_STRINGS.end() ? fmt::format("{:02X}", status.asc) : it->second);
+		status_message += ", ASC: " + (it == _SCSI_ADSENSE_STRINGS.end() ? std::format("{:02X}", status.asc) : it->second);
 
 	if(status.ascq)
-		status_message += ", ASCQ: " + fmt::format("{:02X}", status.ascq);
+		status_message += ", ASCQ: " + std::format("{:02X}", status.ascq);
 
 	return status_message;
 }
@@ -267,13 +267,13 @@ std::string SPTD::StatusMessage(const Status &status)
 SPTD::SPTD(const std::string &drive_path)
 {
 #ifdef _WIN32
-	_handle = CreateFile(fmt::format("//./{}", drive_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+	_handle = CreateFile(std::format("//./{}", drive_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
 	if(_handle == INVALID_HANDLE_VALUE)
 #else
 	_handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
 	if(_handle < 0)
 #endif
-		throw_line(fmt::format("unable to open drive ({}, SYSTEM: {})", drive_path, GetLastError()));
+		throw_line(std::format("unable to open drive ({}, SYSTEM: {})", drive_path, GetLastError()));
 }
 
 
@@ -286,7 +286,7 @@ SPTD::~SPTD()
 	success = close(_handle) == 0;
 #endif
 	if(!success)
-		std::cout << fmt::format("warning: unable to close drive (SYSTEM: {})", GetLastError()) << std::endl;
+		std::cout << std::format("warning: unable to close drive (SYSTEM: {})", GetLastError()) << std::endl;
 }
 
 
@@ -310,7 +310,7 @@ SPTD::Status SPTD::SendCommand(const void *cdb, uint8_t cdb_length, void *buffer
 	DWORD bytes_returned;
 	BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
 	if(success != TRUE)
-		throw_line(fmt::format("SYSTEM ({})", GetLastError()));
+		throw_line(std::format("SYSTEM ({})", GetLastError()));
 
 	if(sptd_sd.sptd.ScsiStatus != SCSISTAT_GOOD)
 	{
@@ -335,7 +335,7 @@ SPTD::Status SPTD::SendCommand(const void *cdb, uint8_t cdb_length, void *buffer
 
 	int result = ioctl(_handle, SG_IO, &hdr);
 	if(result < 0)
-		throw_line(fmt::format("SYSTEM ({})", GetLastError()));
+		throw_line(std::format("SYSTEM ({})", GetLastError()));
 
 	if(hdr.status)
 	{

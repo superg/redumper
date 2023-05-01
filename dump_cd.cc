@@ -373,7 +373,7 @@ bool redumper_dump_cd(const Options &options, bool refine)
 							LOG_ER();
 							std::string status_retries;
 							if(refine)
-								status_retries = fmt::format(", retry: {}", refine_counter + 1);
+								status_retries = std::format(", retry: {}", refine_counter + 1);
 							LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}{})", lba, c2_count, data_crc, c2_crc, status_retries);
 						}
 
@@ -494,7 +494,7 @@ bool redumper_dump_cd(const Options &options, bool refine)
 						LOG_ER();
 						std::string status_retries;
 						if(refine)
-							status_retries = fmt::format(", retry: {}", refine_counter + 1);
+							status_retries = std::format(", retry: {}", refine_counter + 1);
 						LOG("[LBA: {:6}] SCSI error ({}{})", lba, SPTD::StatusMessage(status), status_retries);
 					}
 				}
@@ -520,7 +520,7 @@ bool redumper_dump_cd(const Options &options, bool refine)
 						LOG_ER();
 						std::string status_retries;
 						if(refine)
-							status_retries = fmt::format(", retry: {}", refine_counter + 1);
+							status_retries = std::format(", retry: {}", refine_counter + 1);
 						LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}{})", lba, c2_count, data_crc, c2_crc, status_retries);
 					}
 
@@ -1206,7 +1206,7 @@ void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int3
 		uint32_t bit_offset = ((CHAR_BIT - 1) - i % CHAR_BIT);
 
 		if(c2_data[byte_offset] & (1 << bit_offset))
-			offset_str += fmt::format("{:08X} ", scm_offset + i);
+			offset_str += std::format("{:08X} ", scm_offset + i);
 	}
 	LOG("");
 	LOG("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: {}", (int32_t)lba_index + lba_start, scm_offset, state_offset, offset_str);

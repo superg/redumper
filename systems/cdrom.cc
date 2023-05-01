@@ -1,4 +1,4 @@
-#include <fmt/format.h>
+#include <format>
 #include <fstream>
 #include <vector>
 #include "common.hh"
@@ -23,7 +23,7 @@ void SystemCDROM::operator()(std::ostream &os) const
 {
 	std::fstream fs(_trackPath, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line(fmt::format("unable to open file ({})", _trackPath.filename().string()));
+		throw_line(std::format("unable to open file ({})", _trackPath.filename().string()));
 	auto track_size = std::filesystem::file_size(_trackPath);
 	uint32_t sectors_count = track_size / CD_DATA_SIZE;
 
@@ -152,31 +152,31 @@ void SystemCDROM::operator()(std::ostream &os) const
 		}
 	}
 
-	os << fmt::format("CD-ROM [{}]:", _trackPath.filename().string()) << std::endl;
-	os << fmt::format("  sectors count: {}", sectors_count) << std::endl;
+	os << std::format("CD-ROM [{}]:", _trackPath.filename().string()) << std::endl;
+	os << std::format("  sectors count: {}", sectors_count) << std::endl;
 	for(uint32_t i = 0; i < modes.size(); ++i)
 		if(modes[i])
-			os << fmt::format("  mode{} sectors: {}", i, modes[i]) << std::endl;
+			os << std::format("  mode{} sectors: {}", i, modes[i]) << std::endl;
 
 	if(mode2_form1)
-		os << fmt::format("  mode2 (form 1) sectors: {}", mode2_form1) << std::endl;
+		os << std::format("  mode2 (form 1) sectors: {}", mode2_form1) << std::endl;
 	if(mode2_form2)
 	{
-		os << fmt::format("  mode2 (form 2) sectors: {}", mode2_form2) << std::endl;
-		os << fmt::format("  mode2 (form 2) EDC: {}", mode2_form2_edc ? "yes" : "no") << std::endl;
+		os << std::format("  mode2 (form 2) sectors: {}", mode2_form2) << std::endl;
+		os << std::format("  mode2 (form 2) EDC: {}", mode2_form2_edc ? "yes" : "no") << std::endl;
 	}
 	if(invalid_sync)
-		os << fmt::format("  invalid sync sectors: {}", invalid_sync) << std::endl;
+		os << std::format("  invalid sync sectors: {}", invalid_sync) << std::endl;
 	if(invalid_modes)
-		os << fmt::format("  invalid mode sectors: {}", invalid_modes) << std::endl;
+		os << std::format("  invalid mode sectors: {}", invalid_modes) << std::endl;
 	if(ecc_errors)
-		os << fmt::format("  ECC errors: {}", ecc_errors) << std::endl;
+		os << std::format("  ECC errors: {}", ecc_errors) << std::endl;
 	if(edc_errors)
-		os << fmt::format("  EDC errors: {}", edc_errors) << std::endl;
+		os << std::format("  EDC errors: {}", edc_errors) << std::endl;
 	if(subheader_mismatches)
-		os << fmt::format("  CD-XA subbeader mismatches: {}", subheader_mismatches) << std::endl;
+		os << std::format("  CD-XA subbeader mismatches: {}", subheader_mismatches) << std::endl;
 	os << std::endl;
-	os << fmt::format("  REDUMP.ORG errors: {}", redump_errors) << std::endl;
+	os << std::format("  REDUMP.ORG errors: {}", redump_errors) << std::endl;
 }
 
 }

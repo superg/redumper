@@ -1,4 +1,4 @@
-#include <fmt/format.h>
+#include <format>
 #include "common.hh"
 #include "logger.hh"
 #include "options.hh"
@@ -36,7 +36,7 @@ Options::Options(int argc, const char *argv[])
 		if(argument.find(' ') != std::string::npos)
 			quoted = true;
 
-		command_line += fmt::vformat("{}{}{}{}", fmt::make_format_args(quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " "));
+		command_line += std::vformat("{}{}{}{}", std::make_format_args(quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " "));
 	}
 
 	std::string *s_value = nullptr;
@@ -160,11 +160,11 @@ Options::Options(int argc, const char *argv[])
 				// unknown option
 				else
 				{
-					throw_line(fmt::format("unknown option ({})", key));
+					throw_line(std::format("unknown option ({})", key));
 				}
 			}
 			else
-				throw_line(fmt::format("option value expected ({})", argv[i - 1]));
+				throw_line(std::format("option value expected ({})", argv[i - 1]));
 		}
 
 		if(!o.empty())

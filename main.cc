@@ -1,5 +1,5 @@
 #include <filesystem>
-#include <fmt/format.h>
+#include <format>
 #include <stdexcept>
 #include <iostream>
 #include "common.hh"

@@ -63,7 +63,7 @@ void redumper(Options &options)
 
 std::string redumper_version()
 {
-	return fmt::format("redumper v{}.{}.{} build_{} [{}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR),
+	return std::format("redumper v{}.{}.{} build_{} [{}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR),
 			XSTRINGIFY(REDUMPER_VERSION_PATCH), XSTRINGIFY(REDUMPER_VERSION_BUILD), version::build());
 }
 
@@ -109,7 +109,7 @@ void normalize_options(Options &options)
 		auto drive = options.drive;
 		drive.erase(remove(drive.begin(), drive.end(), ':'), drive.end());
 		drive.erase(remove(drive.begin(), drive.end(), '/'), drive.end());
-		options.image_name = fmt::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
+		options.image_name = std::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
 	}
 }
 
@@ -152,12 +152,12 @@ DiscType query_disc_type(std::string drive)
 	// test unit ready
 	SPTD::Status status = cmd_drive_ready(sptd);
 	if(status.status_code)
-		throw_line(fmt::format("drive not ready, SCSI ({})", SPTD::StatusMessage(status)));
+		throw_line(std::format("drive not ready, SCSI ({})", SPTD::StatusMessage(status)));
 
 	GET_CONFIGURATION_FeatureCode_ProfileList current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
 	status = cmd_get_configuration_current_profile(sptd, current_profile);
 	if(status.status_code)
-		throw_line(fmt::format("failed to query disc type, SCSI ({})", SPTD::StatusMessage(status)));
+		throw_line(std::format("failed to query disc type, SCSI ({})", SPTD::StatusMessage(status)));
 
 	switch(current_profile)
 	{
@@ -184,7 +184,7 @@ DiscType query_disc_type(std::string drive)
 		break;
 
 	default:
-		throw_line(fmt::format("unsupported disc type (profile: {})", (uint16_t)current_profile));
+		throw_line(std::format("unsupported disc type (profile: {})", (uint16_t)current_profile));
 	}
 
 	return disc_type;
@@ -262,7 +262,7 @@ void redumper_subchannel(Options &options)
 	uint32_t sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
 	std::fstream sub_fs(sub_path, std::fstream::in | std::fstream::binary);
 	if(!sub_fs.is_open())
-		throw_line(fmt::format("unable to open file ({})", sub_path.filename().string()));
+		throw_line(std::format("unable to open file ({})", sub_path.filename().string()));
 
 	ChannelQ q_empty;
 	memset(&q_empty, 0, sizeof(q_empty));
@@ -327,7 +327,7 @@ void redumper_debug(Options &options)
 
 		std::fstream fs(cue_path, std::fstream::out);
 		if(!fs.is_open())
-			throw_line(fmt::format("unable to create file ({})", cue_path.string()));
+			throw_line(std::format("unable to create file ({})", cue_path.string()));
 		toc.PrintCUE(fs, options.image_name, 0);
 
 		LOG("");
@@ -360,12 +360,12 @@ void redumper_debug(Options &options)
 				MSF msf = *(MSF *)b;
 				auto lba = BCDMSF_to_LBA(msf);
 				++sbi_stats[lba];
-				std::cout << fmt::format("{} ", lba + 150);
+				std::cout << std::format("{} ", lba + 150);
 				Q = *(ChannelQ *)(b + 4);
 				Q.crc = 0;
 				//				for(uint32_t j = 0; j < 14; ++j)
-				//					std::cout << fmt::format("{:02X} ", b[j]);
-				std::cout << fmt::format("{}", Q.Decode()) << std::endl;
+				//					std::cout << std::format("{:02X} ", b[j]);
+				std::cout << std::format("{}", Q.Decode()) << std::endl;
 			}
 
 			LOG("");
@@ -373,7 +373,7 @@ void redumper_debug(Options &options)
 
 		for(auto const &ss : sbi_stats)
 		{
-			std::cout << fmt::format("{}, ", ss.first);
+			std::cout << std::format("{}, ", ss.first);
 		}
 		std::cout << std::endl;
 

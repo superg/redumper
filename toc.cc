@@ -1,4 +1,4 @@
-#include <fmt/format.h>
+#include <format>
 #include <map>
 #include <set>
 #include <cctype>
@@ -290,7 +290,7 @@ void TOC::UpdateMCN(const ChannelQ *subq, uint32_t sectors_count)
 			if(mcn.empty())
 			{
 				for(uint32_t i = 0; i < sizeof(Q.mode2.mcn); ++i)
-					mcn += fmt::format("{:02}", bcd_decode(Q.mode2.mcn[i]));
+					mcn += std::format("{:02}", bcd_decode(Q.mode2.mcn[i]));
 
 				// remove trailing zero
 				mcn.pop_back();
@@ -315,7 +315,7 @@ void TOC::UpdateMCN(const ChannelQ *subq, uint32_t sectors_count)
 
 					// 7 BCD 4-bit numbers
 					for(uint32_t i = 4; i < 8; ++i)
-						tracks[track_index]->isrc += fmt::format("{:02}", bcd_decode(Q.mode3.isrc[i]));
+						tracks[track_index]->isrc += std::format("{:02}", bcd_decode(Q.mode3.isrc[i]));
 					tracks[track_index]->isrc.pop_back();
 				}
 			}
@@ -576,12 +576,12 @@ void TOC::Print() const
 				if(index_length > 0)
 				{
 					MSF msf_end = LBA_to_MSF(t.lba_end - 1);
-					index_properties = fmt::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
+					index_properties = std::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
 												   index_start, index_end - 1, index_length,
 												   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
 				}
 				else
-					index_properties = fmt::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
+					index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
 
 				LOG("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i - 1, index_properties);
 			}
@@ -600,11 +600,11 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 	{
 		long long mcn_value;
 		if(mcn_print.length() == 12 && stoll_try(mcn_value, mcn_print))
-			mcn_print = fmt::format("{:013}", mcn_value);
+			mcn_print = std::format("{:013}", mcn_value);
 	}
 
 	if(!mcn_print.empty())
-		os << fmt::format("CATALOG {}", mcn_print) << std::endl;
+		os << std::format("CATALOG {}", mcn_print) << std::endl;
 
 	if(cd_text_index < cd_text.size())
 		PrintCDTextCUE(os, cd_text[cd_text_index], 0);
@@ -621,15 +621,15 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(j)
 			{
 				msf = LBA_to_MSF(CD_LEADOUT_MIN_SIZE + MSF_LBA_SHIFT);
-				os << fmt::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				os << std::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 			}
-			os << fmt::format("REM SESSION {:02}", s.session_number) << std::endl;
+			os << std::format("REM SESSION {:02}", s.session_number) << std::endl;
 			if(j)
 			{
 				msf = LBA_to_MSF(CD_LEADIN_MIN_SIZE + MSF_LBA_SHIFT);
-				os << fmt::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				os << std::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 				msf = LBA_to_MSF(CD_PREGAP_SIZE + MSF_LBA_SHIFT);
-				os << fmt::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				os << std::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
 			}
 		}
 
@@ -639,7 +639,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 				continue;
 
-			os << fmt::format("FILE \"{}{}.bin\" BINARY", image_name, TracksCount() > 1 ? fmt::format(" (Track {})", TrackString(t.track_number)) : "") << std::endl;
+			os << std::format("FILE \"{}{}.bin\" BINARY", image_name, TracksCount() > 1 ? std::format(" (Track {})", TrackString(t.track_number)) : "") << std::endl;
 
 			std::string track_type;
 			if(t.control & (uint8_t)ChannelQ::Control::DATA)
@@ -648,19 +648,19 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 				if(t.cdi)
 					track_mode = "CDI";
 				else
-					track_mode = fmt::format("MODE{}", t.data_mode);
-				track_type = fmt::format("{}/2352", track_mode);
+					track_mode = std::format("MODE{}", t.data_mode);
+				track_type = std::format("{}/2352", track_mode);
 			}
 			else
 				track_type = "AUDIO";
 
-			os << fmt::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
+			os << std::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
 			if(cd_text_index < t.cd_text.size())
 				PrintCDTextCUE(os, t.cd_text[cd_text_index], 4);
 
 			std::string isrc_print(GetMCN(t.isrc, t.cd_text, cd_text_index));
 			if(!isrc_print.empty())
-				os << fmt::format("    ISRC {}", isrc_print) << std::endl;
+				os << std::format("    ISRC {}", isrc_print) << std::endl;
 
 			std::string flags;
 			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
@@ -670,7 +670,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
 				flags += " PRE";
 			if(!flags.empty())
-				os << fmt::format("    FLAGS{}", flags) << std::endl;
+				os << std::format("    FLAGS{}", flags) << std::endl;
 
 			if(!t.indices.empty())
 			{
@@ -679,7 +679,7 @@ std::ostream &TOC::PrintCUE(std::ostream &os, const std::string &image_name, uin
 					if(!i && t.indices[i] == t.lba_start)
 						continue;
 					MSF msf = LBA_to_MSF((i == 0 ? 0 : t.indices[i - 1] - t.lba_start) + MSF_LBA_SHIFT);
-					os << fmt::format("    INDEX {:02} {:02}:{:02}:{:02}", i, msf.m, msf.s, msf.f) << std::endl;
+					os << std::format("    INDEX {:02} {:02}:{:02}:{:02}", i, msf.m, msf.s, msf.f) << std::endl;
 				}
 			}
 		}
@@ -832,15 +832,15 @@ void TOC::UpdateINDEX(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_
 std::ostream &TOC::PrintCDTextCUE(std::ostream &os, const CDText &cdt, uint32_t indent_level)
 {
 	if(!cdt.title.empty())
-		os << fmt::format("{}TITLE \"{}\"", std::string(indent_level, ' '), cdt.title) << std::endl;
+		os << std::format("{}TITLE \"{}\"", std::string(indent_level, ' '), cdt.title) << std::endl;
 	if(!cdt.performer.empty())
-		os << fmt::format("{}PERFORMER \"{}\"", std::string(indent_level, ' '), cdt.performer) << std::endl;
+		os << std::format("{}PERFORMER \"{}\"", std::string(indent_level, ' '), cdt.performer) << std::endl;
 	if(!cdt.songwriter.empty())
-		os << fmt::format("{}SONGWRITER \"{}\"", std::string(indent_level, ' '), cdt.songwriter) << std::endl;
+		os << std::format("{}SONGWRITER \"{}\"", std::string(indent_level, ' '), cdt.songwriter) << std::endl;
 //	if(!cdt.composer.empty())
-//		os << fmt::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
+//		os << std::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
 //	if(!cdt.arranger.empty())
-//		os << fmt::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
+//		os << std::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
 
 	return os;
 }
@@ -895,7 +895,7 @@ std::string TOC::TrackString(uint8_t track_number) const
 	if(track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 		track_string = std::string(width, 'A');
 	else
-		track_string = fmt::vformat(fmt::format("{{:0{}}}", width), fmt::make_format_args(track_number));
+		track_string = std::vformat(std::format("{{:0{}}}", width), std::make_format_args(track_number));
 
 	return track_string;
 }
@@ -947,7 +947,7 @@ std::string TOC::DescriptorText(const CD_TEXT_Descriptor &descriptor) const
 		uint16_t *text_unicode = (uint16_t *)descriptor.text;
 		for(uint32_t i = 0; i < sizeof(descriptor.text) / sizeof(uint16_t); ++i)
 		{
-			text += text_unicode[i] ? fmt::format("\\U{:04X}", text_unicode[i]) : "|";
+			text += text_unicode[i] ? std::format("\\U{:04X}", text_unicode[i]) : "|";
 		}
 	}
 	else
@@ -957,7 +957,7 @@ std::string TOC::DescriptorText(const CD_TEXT_Descriptor &descriptor) const
 			if(isprint(descriptor.text[i]))
 				text += (char)descriptor.text[i];
 			else
-				text += descriptor.text[i] ? fmt::format("\\x{:02X}", descriptor.text[i]) : "|";
+				text += descriptor.text[i] ? std::format("\\x{:02X}", descriptor.text[i]) : "|";
 		}
 	}
 

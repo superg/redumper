@@ -1,5 +1,5 @@
 #include <chrono>
-#include <fmt/format.h>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <thread>
@@ -270,7 +270,7 @@ int32_t drive_get_generic_read_offset(const std::string &vendor, const std::stri
 	else
 		v = vendor;
 
-	std::string vendor_product(fmt::format("{} - {}", v, product));
+	std::string vendor_product(std::format("{} - {}", v, product));
 	if(auto it = DRIVE_READ_OFFSETS.find(vendor_product); it != DRIVE_READ_OFFSETS.end())
 		offset = it->second;
 
@@ -280,7 +280,7 @@ int32_t drive_get_generic_read_offset(const std::string &vendor, const std::stri
 
 std::string drive_info_string(const DriveConfig &drive_config)
 {
-	return fmt::format("{} - {} (revision level: {}, vendor specific: {})", drive_config.vendor_id, drive_config.product_id,
+	return std::format("{} - {} (revision level: {}, vendor specific: {})", drive_config.vendor_id, drive_config.product_id,
 			drive_config.product_revision_level.empty() ? "<empty>" : drive_config.product_revision_level,
 			drive_config.vendor_specific.empty() ? "<empty>" : drive_config.vendor_specific);
 }
@@ -288,7 +288,7 @@ std::string drive_info_string(const DriveConfig &drive_config)
 
 std::string drive_config_string(const DriveConfig &drive_config)
 {
-	return fmt::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})",
+	return std::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})",
 			enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset, drive_config.c2_shift,
 			drive_config.pregap_start, enum_to_string(drive_config.read_method, READ_METHOD_STRING), enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
 }
@@ -371,7 +371,7 @@ std::vector<uint8_t> asus_cache_read(SPTD &sptd, DriveConfig::Type drive_type)
 	{
 		SPTD::Status status = cmd_asus_read_cache(sptd, cache.data() + offset, offset, std::min(read_size, n - offset));
 		if(status.status_code)
-			throw_line(fmt::format("read cache failed, SCSI ({})", SPTD::StatusMessage(status)));
+			throw_line(std::format("read cache failed, SCSI ({})", SPTD::StatusMessage(status)));
 	}
 
 	return cache;

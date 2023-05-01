@@ -1,4 +1,4 @@
-#include <fmt/format.h>
+#include <format>
 #include "image_browser.hh"
 #include "hex_bin.hh"
 #include "iso.hh"
@@ -22,11 +22,11 @@ void SystemISO::operator()(std::ostream &os) const
 	{
 		ImageBrowser browser(_trackPath, 0, _trackSize, false);
 
-		os << fmt::format("ISO9660 [{}]:", _trackPath.filename().string()) << std::endl;
+		os << std::format("ISO9660 [{}]:", _trackPath.filename().string()) << std::endl;
 
 		auto pvd = browser.GetPVD();
 		os << "  PVD:" << std::endl;
-		os << fmt::format("{}", hexdump((uint8_t *)&pvd, 0x320, 96));
+		os << std::format("{}", hexdump((uint8_t *)&pvd, 0x320, 96));
 	}
 }
 

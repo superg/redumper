@@ -1,5 +1,5 @@
 #include <filesystem>
-#include <fmt/format.h>
+#include <format>
 #include <iostream>
 #include <set>
 #include <vector>
@@ -41,13 +41,13 @@ bool test_scale()
 
 	for(size_t i = 0; i < cases.size(); ++i)
 	{
-		std::cout << fmt::format("scale_up({}, {}) -> {}... ", cases[i].first.first, cases[i].first.second, cases[i].second) << std::flush;
+		std::cout << std::format("scale_up({}, {}) -> {}... ", cases[i].first.first, cases[i].first.second, cases[i].second) << std::flush;
 		auto s = scale_up(cases[i].first.first, cases[i].first.second);
 		if(s == cases[i].second)
 			std::cout << "success";
 		else
 		{
-			std::cout << fmt::format("failure, result: {}", s);
+			std::cout << std::format("failure, result: {}", s);
 			success = false;
 		}
 
@@ -81,13 +81,13 @@ bool test_cd()
 
 	for(size_t i = 0; i < cases.size(); ++i)
 	{
-		std::cout << fmt::format("MSF_to_LBA: {:02}:{:02}:{:02} -> {:6}... ", cases[i].first.m, cases[i].first.s, cases[i].first.f, cases[i].second) << std::flush;
+		std::cout << std::format("MSF_to_LBA: {:02}:{:02}:{:02} -> {:6}... ", cases[i].first.m, cases[i].first.s, cases[i].first.f, cases[i].second) << std::flush;
 		auto lba = MSF_to_LBA(cases[i].first);
 		if(lba == cases[i].second)
 			std::cout << "success";
 		else
 		{
-			std::cout << fmt::format("failure, lba: {:6}", lba);
+			std::cout << std::format("failure, lba: {:6}", lba);
 			success = false;
 		}
 
@@ -96,13 +96,13 @@ bool test_cd()
 
 	for(size_t i = 0; i < cases.size(); ++i)
 	{
-		std::cout << fmt::format("LBA_to_MSF: {:6} -> {:02}:{:02}:{:02}... ", cases[i].second, cases[i].first.m, cases[i].first.s, cases[i].first.f) << std::flush;
+		std::cout << std::format("LBA_to_MSF: {:6} -> {:02}:{:02}:{:02}... ", cases[i].second, cases[i].first.m, cases[i].first.s, cases[i].first.f) << std::flush;
 		auto msf = LBA_to_MSF(cases[i].second);
 		if(msf.m == cases[i].first.m && msf.s == cases[i].first.s && msf.f == cases[i].first.f)
 			std::cout << "success";
 		else
 		{
-			std::cout << fmt::format("failure, msf: {:02}:{:02}:{:02}", msf.m, msf.s, msf.f);
+			std::cout << std::format("failure, msf: {:02}:{:02}:{:02}", msf.m, msf.s, msf.f);
 			success = false;
 		}
 
@@ -135,7 +135,7 @@ bool test_unscramble()
 
 	for(auto const &f : test_files)
 	{
-		std::cout << fmt::format("descramble: {}... ", f.filename().string()) << std::flush;
+		std::cout << std::format("descramble: {}... ", f.filename().string()) << std::flush;
 
 		std::vector<uint8_t> sector = read_vector(f);
 

@@ -4,7 +4,7 @@
 
 #include <cassert>
 #include <cstddef>
-#include <fmt/format.h>
+#include <format>
 #include <functional>
 #include <map>
 #include <ostream>
@@ -21,9 +21,9 @@
 
 // meaningful throw
 #ifdef NDEBUG
-#define throw_line(arg__) throw std::runtime_error(fmt::format("{}", arg__))
+#define throw_line(arg__) throw std::runtime_error(std::format("{}", arg__))
 #else
-#define throw_line(arg__) throw std::runtime_error(fmt::format("{} {{{}:{}}}", arg__, __FILE__, __LINE__))
+#define throw_line(arg__) throw std::runtime_error(std::format("{} {{{}:{}}}", arg__, __FILE__, __LINE__))
 #endif
 
 
@@ -257,7 +257,7 @@ std::string enum_to_string(T value, const std::map<T, std::string> &dictionary)
 {
 	auto it = dictionary.find(value);
 	if(it == dictionary.end())
-		throw_line(fmt::format("enum_to_string failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
+		throw_line(std::format("enum_to_string failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
 
 	return it->second;
 
@@ -270,7 +270,7 @@ T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
 		if(d.second == value)
 			return d.first;
 
-	throw_line(fmt::format("string_to_enum failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
+	throw_line(std::format("string_to_enum failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
 }
 
 template<typename T>

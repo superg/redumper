@@ -1,4 +1,4 @@
-#include <fmt/format.h>
+#include <format>
 #include <regex>
 #include <sstream>
 #include "common.hh"
@@ -59,31 +59,31 @@ void SystemPSX::operator()(std::ostream &os) const
 			auto exe = exe_file->Read();
 			if(exe.size() >= _EXE_MAGIC.length() && std::string((char *)exe.data(), _EXE_MAGIC.length()) == _EXE_MAGIC)
 			{
-				os << fmt::format("PSX [{}]:", _trackPath.filename().string()) << std::endl;
-				os << fmt::format("  EXE: {}", exe_path) << std::endl;
+				os << std::format("PSX [{}]:", _trackPath.filename().string()) << std::endl;
+				os << std::format("  EXE: {}", exe_path) << std::endl;
 
 				{
 					time_t t = exe_file->DateTime();
 					std::stringstream ss;
 					ss << std::put_time(localtime(&t), "%Y-%m-%d");
-					os << fmt::format("  EXE date: {}", ss.str()) << std::endl;
+					os << std::format("  EXE date: {}", ss.str()) << std::endl;
 				}
 
 				auto serial = deduceSerial(exe_path);
 				if(!serial.first.empty() && !serial.second.empty())
-					os << fmt::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
+					os << std::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
 
 				auto region = detectRegion(serial.first);
 				if(!region.empty())
-					os << fmt::format("  region: {}", region) << std::endl;
+					os << std::format("  region: {}", region) << std::endl;
 
 				bool edc = detectEdcFast();
-				os << fmt::format("  EDC: {}", edc ? "yes" : "no") << std::endl;
+				os << std::format("  EDC: {}", edc ? "yes" : "no") << std::endl;
 
 				{
 					std::stringstream ss;
 					bool antimod = findAntiModchipStrings(ss, browser);
-					os << fmt::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
+					os << std::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
 					if(antimod)
 						os << ss.str() << std::endl;
 				}
@@ -93,7 +93,7 @@ void SystemPSX::operator()(std::ostream &os) const
 				{
 					std::stringstream ss;
 					bool libcrypt = detectLibCrypt(ss, sub_path);
-					os << fmt::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
+					os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
 					if(libcrypt)
 						os << ss.str() << std::endl;
 				}
@@ -249,7 +249,7 @@ bool SystemPSX::detectEdcFast() const
 
 	std::fstream fs(_trackPath, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line(fmt::format("unable to open file ({})", _trackPath.filename().string()));
+		throw_line(std::format("unable to open file ({})", _trackPath.filename().string()));
 
 	uint32_t sectors_count = _trackSize / CD_DATA_SIZE;
 	if(sectors_count >= iso9660::SYSTEM_AREA_SIZE)
@@ -271,7 +271,7 @@ bool SystemPSX::detectLibCrypt(std::ostream &os, std::filesystem::path sub_path)
 
 	std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line(fmt::format("unable to open file ({})", sub_path.filename().string()));
+		throw_line(std::format("unable to open file ({})", sub_path.filename().string()));
 
 	std::vector<int32_t> candidates;
 	std::vector<int32_t> candidates_medievil;
@@ -314,7 +314,7 @@ bool SystemPSX::detectLibCrypt(std::ostream &os, std::filesystem::path sub_path)
 			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), c - LBA_START, 1, 0, 0);
 			subcode_extract_channel((uint8_t *)&Q, sub_buffer.data(), Subchannel::Q);
 			MSF msf = LBA_to_MSF(c);
-			os << fmt::format("MSF: {:02}:{:02}:{:02} Q-Data: {:02X}{:02X}{:02X} {:02X}:{:02X}:{:02X} {:02X} {:02X}:{:02X}:{:02X} {:04X}",
+			os << std::format("MSF: {:02}:{:02}:{:02} Q-Data: {:02X}{:02X}{:02X} {:02X}:{:02X}:{:02X} {:02X} {:02X}:{:02X}:{:02X} {:04X}",
 					msf.m, msf.s, msf.f, Q.control_adr, Q.mode1.tno, Q.mode1.index, Q.mode1.msf.m, Q.mode1.msf.s, Q.mode1.msf.f, Q.mode1.zero, Q.mode1.a_msf.m, Q.mode1.a_msf.s, Q.mode1.a_msf.f, endian_swap<uint16_t>(Q.crc)) << std::endl;
 		}
 

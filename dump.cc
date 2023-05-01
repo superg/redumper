@@ -44,7 +44,7 @@ std::string image_init(const Options &options)
 void image_check_overwrite(std::filesystem::path state_path, const Options &options)
 {
 	if(!options.overwrite && std::filesystem::exists(state_path))
-		throw_line(fmt::format("dump already exists (image name: {})", options.image_name));
+		throw_line(std::format("dump already exists (image name: {})", options.image_name));
 }
 
 

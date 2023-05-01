@@ -170,7 +170,7 @@ template<typename T>
 void progress_output(T sector, T sectors_count, T errors)
 {
 	T digits_count = (sectors_count ? log10(sectors_count) : 0) + 1;
-	std::string format_string = fmt::format("{{}} [{{:3}}%] sector: {{:{}}}/{{:{}}}, errors: {{:{}}}", digits_count, digits_count, digits_count);
+	std::string format_string = std::format("{{}} [{{:3}}%] sector: {{:{}}}/{{:{}}}, errors: {{:{}}}", digits_count, digits_count, digits_count);
 
 	char animation = sector == sectors_count ? '*' : spinner_animation();
 
@@ -237,7 +237,7 @@ bool dump_dvd(const Options &options, bool refine)
 			{
 				auto &structure = structures[i];
 
-				auto structure_fn = fmt::format("{}{}.physical", image_prefix, structures.size() > 1 ? fmt::format(".{}", i + 1) : "");
+				auto structure_fn = std::format("{}{}.physical", image_prefix, structures.size() > 1 ? std::format(".{}", i + 1) : "");
 				if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != structure)
 					throw_line("disc / file physical structure don't match, refining from a different disc?");
 			}
@@ -251,7 +251,7 @@ bool dump_dvd(const Options &options, bool refine)
 			{
 				auto &structure = structures[i];
 
-				write_vector(fmt::format("{}{}.physical", image_prefix, structures.size() > 1 ? fmt::format(".{}", i + 1) : ""), structure);
+				write_vector(std::format("{}{}.physical", image_prefix, structures.size() > 1 ? std::format(".{}", i + 1) : ""), structure);
 
 				print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)structure.data(), i);
 
@@ -262,7 +262,7 @@ bool dump_dvd(const Options &options, bool refine)
 					strip_toc_response(manufacturer);
 
 					if(!manufacturer.empty())
-						write_vector(fmt::format("{}{}.manufacturer", image_prefix, structures.size() > 1 ? fmt::format(".{}", i + 1) : ""), manufacturer);
+						write_vector(std::format("{}{}.manufacturer", image_prefix, structures.size() > 1 ? std::format(".{}", i + 1) : ""), manufacturer);
 				}
 			}
 			LOG("");

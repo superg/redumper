@@ -1,8 +1,7 @@
+module;
+#include <string>
+
 export module version;
-
-import <string>;
-
-
 
 namespace version
 {

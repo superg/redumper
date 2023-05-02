@@ -41,7 +41,7 @@ void redumper(Options &options)
 {
 	normalize_options(options);
 
-	Logger::Get().Reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
+	Logger::get().reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
 	LOG("{}\n", redumper_version());
 	LOG("command line: {}\n", options.command_line);

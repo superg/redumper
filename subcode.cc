@@ -1,5 +1,4 @@
 module;
-#include <climits>
 #include <cstdint>
 #include <format>
 #include <string>
@@ -91,37 +90,33 @@ export struct ChannelQ
 
 	uint16_t crc;
 
-	bool Valid() const;
-	std::string Decode() const;
-};
-
-
-bool ChannelQ::Valid() const
-{
-	return crc16_gsm(raw, sizeof(raw)) == endian_swap(crc);
-}
-
-
-std::string ChannelQ::Decode() const
-{
-	std::string q_data;
-	uint8_t control = control_adr >> 4;
-	uint8_t adr = control_adr & 0x0F;
-	switch(adr)
+	bool Valid() const
 	{
-	case 1:
-		q_data = std::format("tno: {:02X}, P/I: {:02X}, MSF: {:02X}:{:02X}:{:02X}, zero: {:02X}, A/P MSF: {:02X}:{:02X}:{:02X}",
-							 mode1.tno, mode1.index, mode1.msf.m, mode1.msf.s, mode1.msf.f, mode1.zero, mode1.a_msf.m, mode1.a_msf.s, mode1.a_msf.f);
-		break;
-
-		// RAW
-	default:
-		q_data = std::format("{:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}",
-							 raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9]);
+		return crc16_gsm(raw, sizeof(raw)) == endian_swap(crc);
 	}
 
-	return std::format("control: {:04b}, ADR: {}, {}, crc: {:04X} ({})", control, adr, q_data, crc, Valid() ? "+" : "-");
-}
+
+	std::string Decode() const
+	{
+		std::string q_data;
+		uint8_t control = control_adr >> 4;
+		uint8_t adr = control_adr & 0x0F;
+		switch(adr)
+		{
+		case 1:
+			q_data = std::format("tno: {:02X}, P/I: {:02X}, MSF: {:02X}:{:02X}:{:02X}, zero: {:02X}, A/P MSF: {:02X}:{:02X}:{:02X}",
+								mode1.tno, mode1.index, mode1.msf.m, mode1.msf.s, mode1.msf.f, mode1.zero, mode1.a_msf.m, mode1.a_msf.s, mode1.a_msf.f);
+			break;
+
+			// RAW
+		default:
+			q_data = std::format("{:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}",
+								raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9]);
+		}
+
+		return std::format("control: {:04b}, ADR: {}, {}, crc: {:04X} ({})", control, adr, q_data, crc, Valid() ? "+" : "-");
+	}
+};
 
 
 export void subcode_extract_channel(uint8_t *subchannel, const uint8_t *subcode, Subchannel name)

@@ -17,6 +17,7 @@
 #include "offset_manager.hh"
 #include "scrambler.hh"
 #include "sha1.hh"
+#include "subcode.hh"
 #include "split.hh"
 
 
@@ -255,7 +256,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 
-			LOG_F("track {}... ", toc.TrackString(t.track_number));
+			LOG_F("track {}... ", toc.getTrackString(t.track_number));
 
 			uint32_t skip_samples = 0;
 			uint32_t c2_samples = 0;
@@ -337,14 +338,14 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
 			bool data_mode_set = false;
 
-			std::string track_string = toc.TrackString(t.track_number);
+			std::string track_string = toc.getTrackString(t.track_number);
 			bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
 
 			// add session number to lead-in/lead-out track string to make filename unique
 			if(lilo && toc.sessions.size() > 1)
 				track_string = std::format("{}.{}", track_string, s.session_number);
 
-			std::string track_name = std::format("{}{}.bin", options.image_name, toc.TracksCount() > 1 || lilo ? std::format(" (Track {})", track_string) : "");
+			std::string track_name = std::format("{}{}.bin", options.image_name, toc.getTracksCount() > 1 || lilo ? std::format(" (Track {})", track_string) : "");
 			LOG("writing \"{}\"", track_name);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / track_name) && !options.overwrite)
@@ -474,16 +475,16 @@ bool toc_mismatch(const TOC &toc, const TOC &qtoc)
 	for(auto const &s : toc.sessions)
 		for(auto const &t : s.tracks)
 		{
-			toc_tracks[toc.TrackString(t.track_number)] = &t;
-			tracks.insert(toc.TrackString(t.track_number));
+			toc_tracks[toc.getTrackString(t.track_number)] = &t;
+			tracks.insert(toc.getTrackString(t.track_number));
 		}
 
 	std::map<std::string, const TOC::Session::Track *> qtoc_tracks;
 	for(auto const &s : qtoc.sessions)
 		for(auto const &t : s.tracks)
 		{
-			qtoc_tracks[toc.TrackString(t.track_number)] = &t;
-			tracks.insert(toc.TrackString(t.track_number));
+			qtoc_tracks[toc.getTrackString(t.track_number)] = &t;
+			tracks.insert(toc.getTrackString(t.track_number));
 		}
 
 	for(auto const &t : tracks)
@@ -1178,7 +1179,7 @@ void redumper_split_cd(const Options &options)
 		TOC toc_full(full_toc_buffer, true);
 
 		// PX-W5224TA: incorrect FULL TOC data in some cases
-		toc_full.DeriveINDEX(toc);
+		toc_full.deriveINDEX(toc);
 
 		if(toc_full.sessions.size() > 1)
 			toc = toc_full;
@@ -1211,13 +1212,13 @@ void redumper_split_cd(const Options &options)
 	if(subq.empty())
 	{
 		LOG("warning: subchannel data is not available, generating TOC index 0 entries");
-		toc.GenerateIndex0();
+		toc.generateIndex0();
 	}
 	else
-		toc.UpdateQ(subq.data(), sectors_count, LBA_START);
+		toc.updateQ(subq.data(), sectors_count, LBA_START);
 
 	LOG("final TOC:");
-	toc.Print();
+	toc.print();
 	LOG("");
 
 	if(!subq.empty())
@@ -1229,7 +1230,7 @@ void redumper_split_cd(const Options &options)
 		{
 			LOG("");
 			LOG("final QTOC:");
-			qtoc.Print();
+			qtoc.print();
 			LOG("");
 		}
 
@@ -1240,7 +1241,7 @@ void redumper_split_cd(const Options &options)
 			LOG("");
 		}
 
-		toc.UpdateMCN(subq.data(), sectors_count);
+		toc.updateMCN(subq.data(), sectors_count);
 	}
 
 	// CD-TEXT
@@ -1248,7 +1249,7 @@ void redumper_split_cd(const Options &options)
 	{
 		std::vector<uint8_t> cdtext_buffer = read_vector(cdtext_path);
 
-		toc.UpdateCDTEXT(cdtext_buffer);
+		toc.updateCDTEXT(cdtext_buffer);
 	}
 
 	std::list<std::shared_ptr<Analyzer>> analyzers;
@@ -1639,7 +1640,7 @@ void redumper_split_cd(const Options &options)
 			std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets[i], std::fstream::out);
 			if(!fs.is_open())
 				throw_line(std::format("unable to create file ({})", cue_sheets[i]));
-			toc.PrintCUE(fs, options.image_name, i);
+			toc.printCUE(fs, options.image_name, i);
 			LOG("done");
 		}
 	}
@@ -1654,7 +1655,7 @@ void redumper_split_cd(const Options &options)
 		std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets.front(), std::fstream::out);
 		if(!fs.is_open())
 			throw_line(std::format("unable to create file ({})", cue_sheets.front()));
-		toc.PrintCUE(fs, options.image_name);
+		toc.printCUE(fs, options.image_name, 0);
 		LOG("done");
 		LOG("");
 	}

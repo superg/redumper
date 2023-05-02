@@ -163,8 +163,8 @@ set(sources
 	"split.hh"
 	"subcode.cc"
 	"subcode.hh"
-	"toc.cc"
-	"toc.hh"
+#	"toc.cc"
+#	"toc.hh"
 	"driveoffsets.txt"
 	${DRIVEOFFSETS_FN}
 )
@@ -179,6 +179,7 @@ target_sources(redumper
 	PUBLIC ${sources}
 	PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
+    "toc.cc"
     "version.cc"
 )
 target_include_directories(redumper PUBLIC ${includes})

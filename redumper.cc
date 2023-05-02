@@ -324,12 +324,12 @@ void redumper_debug(Options &options)
 		TOC toc(toc_buffer, false);
 
 		std::vector<uint8_t> cdtext_buffer = read_vector(cdtext_path);
-		toc.UpdateCDTEXT(cdtext_buffer);
+		toc.updateCDTEXT(cdtext_buffer);
 
 		std::fstream fs(cue_path, std::fstream::out);
 		if(!fs.is_open())
 			throw_line(std::format("unable to create file ({})", cue_path.string()));
-		toc.PrintCUE(fs, options.image_name, 0);
+		toc.printCUE(fs, options.image_name, 0);
 
 		LOG("");
 	}

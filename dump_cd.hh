@@ -12,7 +12,8 @@
 #include "drive.hh"
 #include "options.hh"
 #include "scsi.hh"
-#include "toc.hh"
+
+import cd.toc;
 
 
 

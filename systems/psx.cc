@@ -6,6 +6,7 @@
 #include "file_io.hh"
 #include "hex_bin.hh"
 #include "redumper.hh"
+#include "subcode.hh"
 #include "psx.hh"
 
 

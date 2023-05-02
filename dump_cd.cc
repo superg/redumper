@@ -62,7 +62,7 @@ bool redumper_dump_cd(const Options &options, bool refine)
 		// [PSX] Motocross Mania
 		// [ENHANCED-CD] Vanishing Point
 		// PX-W5224TA: incorrect FULL TOC data in some cases
-		toc_full.DeriveINDEX(toc);
+		toc_full.deriveINDEX(toc);
 
 		// prefer TOC for single session discs and FULL TOC for multisession discs
 		if(toc_full.sessions.size() > 1)
@@ -73,7 +73,7 @@ bool redumper_dump_cd(const Options &options, bool refine)
 	{
 		LOG("");
 		LOG("disc TOC:");
-		toc.Print();
+		toc.print();
 		LOG("");
 	}
 

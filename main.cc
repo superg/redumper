@@ -5,9 +5,9 @@
 #include "common.hh"
 #include "options.hh"
 #include "redumper.hh"
-#include "signal.hh"
 
 import logger;
+import signal;
 
 
 
@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
 {
 	int exit_code(0);
 
-	Signal::GetInstance();
+	Signal::get();
 
 	try
 	{

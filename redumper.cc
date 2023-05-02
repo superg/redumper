@@ -11,12 +11,12 @@
 #include "dump_dvd.hh"
 #include "file_io.hh"
 #include "scrambler.hh"
-#include "signal.hh"
-#include "split.hh"
 #include "redumper.hh"
 
 import logger;
+import signal;
 import version;
+import cd.split;
 import cd.subcode;
 
 

@@ -1,3 +1,4 @@
+module;
 #include <chrono>
 #include <iostream>
 #include <limits>
@@ -16,7 +17,8 @@
 #include "offset_manager.hh"
 #include "scrambler.hh"
 #include "sha1.hh"
-#include "split.hh"
+
+export module cd.split;
 
 import logger;
 import cd.subcode;
@@ -25,6 +27,19 @@ import cd.subcode;
 
 namespace gpsxre
 {
+
+export constexpr uint32_t OFFSET_DEVIATION_MAX = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
+export constexpr uint32_t OFFSET_SHIFT_MAX_SECTORS = 4;
+export constexpr uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
+
+export struct TrackEntry
+{
+	std::string filename;
+
+	uint32_t crc;
+	std::string md5;
+	std::string sha1;
+};
 
 bool correct_program_subq(ChannelQ *subq, uint32_t sectors_count)
 {
@@ -979,7 +994,7 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 }
 
 
-void redumper_protection_cd(Options &options)
+export void redumper_protection_cd(Options &options)
 {
 	auto image_prefix = image_init(options);
 
@@ -1144,7 +1159,7 @@ void redumper_protection_cd(Options &options)
 }
 
 
-void redumper_split_cd(const Options &options)
+export void redumper_split_cd(const Options &options)
 {
 	auto image_prefix = image_init(options);
 
@@ -1724,7 +1739,7 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 }
 
 
-void redumper_info_cd(const Options &options)
+export void redumper_info_cd(const Options &options)
 {
 	auto image_prefix = image_init(options);
 

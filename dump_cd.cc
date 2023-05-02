@@ -10,12 +10,12 @@
 #include "dump_dvd.hh"
 #include "file_io.hh"
 #include "scrambler.hh"
-#include "signal.hh"
-#include "split.hh"
 #include "dump_cd.hh"
 
 import logger;
+import signal;
 import cd.toc;
+import cd.split;
 import cd.subcode;
 
 
@@ -291,11 +291,11 @@ bool redumper_dump_cd(const Options &options, bool refine)
 
 	auto dump_time_start = std::chrono::high_resolution_clock::now();
 
-	Signal::GetInstance().Engage();
+	Signal::get().engage();
 	int signal_dummy = 0;
 	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&signal_dummy, [](int *)
 	{
-		Signal::GetInstance().Disengage();
+		Signal::get().disengage();
 	});
 
 	int32_t lba_next = 0;
@@ -676,7 +676,7 @@ bool redumper_dump_cd(const Options &options, bool refine)
 				lba_next = r->second;
 		}
 
-		if(Signal::GetInstance().Interrupt())
+		if(Signal::get().interrupt())
 		{
 			LOG_ER();
 			LOG("[LBA: {:6}] forced stop ", lba);

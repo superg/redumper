@@ -1,5 +1,7 @@
+module;
 #include <signal.h>
-#include "signal.hh"
+
+export module signal;
 
 
 
@@ -10,47 +12,55 @@ static volatile sig_atomic_t g_sigint_flag = 0;
 namespace gpsxre
 {
 
-Signal &Signal::GetInstance()
+export class Signal
 {
-	static Signal instance;
-
-	return instance;
-}
-
-
-void Signal::Engage()
-{
-	g_sigint_flag = 2;
-}
-
-
-void Signal::Disengage()
-{
-	g_sigint_flag = 0;
-}
-
-
-bool Signal::Interrupt()
-{
-	return g_sigint_flag == 1;
-}
-
-
-Signal::Signal()
-{
-	signal(SIGINT, Handler);
-}
-
-
-void Signal::Handler(int sig)
-{
-	if(!g_sigint_flag)
+public:
+	static Signal &get()
 	{
-		signal(sig, SIG_DFL);
-		raise(sig);
+		static Signal instance;
+
+		return instance;
 	}
-	else if(g_sigint_flag == 2)
-		g_sigint_flag = 1;
-}
+
+
+	void engage()
+	{
+		g_sigint_flag = 2;
+	}
+
+
+	void disengage()
+	{
+		g_sigint_flag = 0;
+	}
+
+
+	bool interrupt()
+	{
+		return g_sigint_flag == 1;
+	}
+
+
+	Signal(Signal const &) = delete;
+	void operator=(Signal const &) = delete;
+
+private:
+	Signal()
+	{
+		signal(SIGINT, handler);
+	}
+
+
+	static void handler(int sig)
+	{
+		if(!g_sigint_flag)
+		{
+			signal(sig, SIG_DFL);
+			raise(sig);
+		}
+		else if(g_sigint_flag == 2)
+			g_sigint_flag = 1;
+	}
+};
 
 }

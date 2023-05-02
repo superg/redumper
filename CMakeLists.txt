@@ -155,10 +155,6 @@ set(sources
 	"scsi.hh"
 	"sha1.cc"
 	"sha1.hh"
-	"signal.cc"
-	"signal.hh"
-	"split.cc"
-	"split.hh"
 	"driveoffsets.txt"
 	${DRIVEOFFSETS_FN}
 )
@@ -174,6 +170,8 @@ target_sources(redumper
 	PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
 	"logger.cc"
+	"signal.cc"
+	"split.cc"
 	"subcode.cc"
     "toc.cc"
     "version.cc"

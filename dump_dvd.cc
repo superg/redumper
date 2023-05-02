@@ -9,10 +9,11 @@
 #include "dump.hh"
 #include "endian.hh"
 #include "file_io.hh"
-#include "logger.hh"
 #include "md5.hh"
 #include "sha1.hh"
 #include "dump_dvd.hh"
+
+import logger;
 
 
 

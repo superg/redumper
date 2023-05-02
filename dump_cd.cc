@@ -9,12 +9,14 @@
 #include "dump.hh"
 #include "dump_dvd.hh"
 #include "file_io.hh"
-#include "logger.hh"
 #include "scrambler.hh"
 #include "signal.hh"
 #include "split.hh"
-#include "subcode.hh"
 #include "dump_cd.hh"
+
+import logger;
+import cd.toc;
+import cd.subcode;
 
 
 
@@ -990,13 +992,13 @@ uint32_t plextor_leadin_compare(const std::vector<uint8_t> &leadin1, const std::
 
 	uint32_t leadin1_count = (uint32_t)leadin1.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
 	uint32_t leadin2_count = (uint32_t)leadin2.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
-	
+
 	uint32_t shared_count = std::min(leadin1_count, leadin2_count);
 	for(; count < shared_count; ++count)
 	{
 		auto sector1 = &leadin1[(leadin1_count - 1 - count) * PLEXTOR_LEADIN_ENTRY_SIZE];
 		auto sector2 = &leadin2[(leadin2_count - 1 - count) * PLEXTOR_LEADIN_ENTRY_SIZE];
-		
+
 		if(memcmp(sector1 + sizeof(SPTD::Status), sector2 + sizeof(SPTD::Status), CD_DATA_SIZE))
 			break;
 	}

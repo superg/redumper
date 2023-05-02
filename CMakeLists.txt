@@ -139,8 +139,6 @@ set(sources
 	"image_browser.hh"
 	"iso9660.cc"
 	"iso9660.hh"
-	"logger.cc"
-	"logger.hh"
 	"main.cc"
 	"md5.cc"
 	"md5.hh"
@@ -161,10 +159,6 @@ set(sources
 	"signal.hh"
 	"split.cc"
 	"split.hh"
-	"subcode.cc"
-	"subcode.hh"
-#	"toc.cc"
-#	"toc.hh"
 	"driveoffsets.txt"
 	${DRIVEOFFSETS_FN}
 )
@@ -179,6 +173,8 @@ target_sources(redumper
 	PUBLIC ${sources}
 	PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
+	"logger.cc"
+	"subcode.cc"
     "toc.cc"
     "version.cc"
 )

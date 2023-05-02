@@ -12,13 +12,14 @@
 #include "ecc_edc.hh"
 #include "file_io.hh"
 #include "image_browser.hh"
-#include "logger.hh"
 #include "md5.hh"
 #include "offset_manager.hh"
 #include "scrambler.hh"
 #include "sha1.hh"
-#include "subcode.hh"
 #include "split.hh"
+
+import logger;
+import cd.subcode;
 
 
 
@@ -852,7 +853,7 @@ bool state_errors_in_range(std::fstream &state_fs, std::pair<int32_t, int32_t> n
 	bool interrupted = batch_process_range<int32_t>(nonzero_data_range, state.size(), [&state_fs, &state](int32_t offset, int32_t size) -> bool
 	{
 		read_entry(state_fs, (uint8_t *)state.data(), sizeof(State), sample_offset_r2a(offset), size, 0, (uint8_t)State::ERROR_SKIP);
-		
+
 		return std::any_of(state.begin(), state.begin() + size, [](State s){ return s == State::ERROR_SKIP || s == State::ERROR_C2; });
 	});
 
@@ -1282,7 +1283,7 @@ void redumper_split_cd(const Options &options)
 	if(offsets.empty())
 	{
 		auto sync_records = sync_analyzer->getRecords();
-		  
+
 		uint32_t count = 0;
 		for(auto const &o : sync_records)
 			count += o.count;

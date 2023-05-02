@@ -10,9 +10,10 @@
 #include "crc16_gsm.hh"
 #include "endian.hh"
 #include "file_io.hh"
-#include "logger.hh"
-#include "subcode.hh"
 #include "drive.hh"
+
+import logger;
+import cd.subcode;
 
 
 

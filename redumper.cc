@@ -10,14 +10,14 @@
 #include "dump_cd.hh"
 #include "dump_dvd.hh"
 #include "file_io.hh"
-#include "logger.hh"
 #include "scrambler.hh"
 #include "signal.hh"
 #include "split.hh"
-#include "subcode.hh"
 #include "redumper.hh"
 
+import logger;
 import version;
+import cd.subcode;
 
 
 

@@ -3,10 +3,11 @@
 #include <stdexcept>
 #include <iostream>
 #include "common.hh"
-#include "logger.hh"
 #include "options.hh"
 #include "redumper.hh"
 #include "signal.hh"
+
+import logger;
 
 
 

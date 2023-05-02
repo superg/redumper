@@ -12,11 +12,12 @@ module;
 #include "common.hh"
 #include "crc16_gsm.hh"
 #include "endian.hh"
-#include "logger.hh"
 #include "mmc.hh"
-#include "subcode.hh"
 
 export module cd.toc;
+
+import logger;
+import cd.subcode;
 
 
 

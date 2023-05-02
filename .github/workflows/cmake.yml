@@ -18,7 +18,7 @@ jobs:
         exclude:
           - os: ubuntu-22.04
             platform: 32
-        
+
     runs-on: ${{matrix.os}}
 
     steps:
@@ -30,10 +30,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install clang-17 lldb-17 lld-17 clang-tools-17 libc++-17-dev libc++abi-17-dev
         sudo ln -s /usr/lib/llvm-17/lib/clang/17 /usr/lib/llvm-17/lib/clang/17.0.0
+        sudo ln -s /usr/lib/llvm-17/lib/libc++experimental.a /usr/lib/x86_64-linux-gnu
         wget http://mirrors.kernel.org/ubuntu/pool/universe/n/ninja-build/ninja-build_1.11.1-1_amd64.deb
         sudo dpkg -i ninja-build_1.11.1-1_amd64.deb
         sudo snap install cmake --classic
-    
+
     - name: Checkout
       uses: actions/checkout@v3
       with:
@@ -55,7 +56,7 @@ jobs:
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}}
-      
+
     - name: CTest
       working-directory: ${{env.build_directory}}
       run: ctest -C ${{env.build_type}}
@@ -69,7 +70,7 @@ jobs:
       with:
         name: ${{env.release_name}}
         path: ${{env.build_directory}}/redumper-*.zip
-        
+
   release:
     needs: build
     runs-on: ubuntu-22.04
@@ -82,7 +83,7 @@ jobs:
         id: download
         with:
           name: ${{env.release_name}}
-      
+
       - name: 'Create Release'
         shell: bash
         run: |

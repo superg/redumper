@@ -2,7 +2,9 @@
 
 
 
-#include "block_hasher.hh"
+#include <vector>
+
+import hash.block_hasher;
 
 
 

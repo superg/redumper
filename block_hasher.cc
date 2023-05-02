@@ -1,7 +1,4 @@
-#pragma once
-
-
-
+module;
 #include <algorithm> // std::min
 #include <climits>   // CHAR_BIT
 #include <cstdint>
@@ -9,12 +6,14 @@
 #include <vector>
 #include "hex_bin.hh"
 
+export module hash.block_hasher;
+
 
 
 namespace gpsxre
 {
 
-class BlockHasher
+export class BlockHasher
 {
 public:
 	BlockHasher(uint32_t block_size)

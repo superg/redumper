@@ -108,7 +108,6 @@ set(sources
 	"systems/iso.hh"
 	"systems/psx.cc"
 	"systems/psx.hh"
-	"block_hasher.hh"
 	"cd.cc"
 	"cd.hh"
 	"cmd.cc"
@@ -169,6 +168,7 @@ target_sources(redumper
 	PUBLIC ${sources}
 	PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
+	"block_hasher.cc"
 	"logger.cc"
 	"signal.cc"
 	"split.cc"

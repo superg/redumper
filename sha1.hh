@@ -2,7 +2,7 @@
 
 
 
-#include "block_hasher.hh"
+import hash.block_hasher;
 
 
 

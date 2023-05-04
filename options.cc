@@ -1,7 +1,7 @@
 #include <format>
-#include "common.hh"
 #include "options.hh"
 
+import common;
 import logger;
 
 

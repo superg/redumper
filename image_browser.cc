@@ -1,14 +1,16 @@
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <iomanip>
 #include <locale>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
-#include "common.hh"
-#include "endian.hh"
 #include "scrambler.hh"
 #include "image_browser.hh"
+
+import common;
+import endian;
 
 
 

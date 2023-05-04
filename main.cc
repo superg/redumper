@@ -2,10 +2,10 @@
 #include <format>
 #include <stdexcept>
 #include <iostream>
-#include "common.hh"
 #include "options.hh"
 #include "redumper.hh"
 
+import common;
 import logger;
 import signal;
 

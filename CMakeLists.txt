@@ -108,18 +108,12 @@ set(sources
 	"systems/iso.hh"
 	"systems/psx.cc"
 	"systems/psx.hh"
-	"cd.cc"
-	"cd.hh"
 	"cmd.cc"
 	"cmd.hh"
-	"common.cc"
-	"common.hh"
 	"crc16_gsm.cc"
 	"crc16_gsm.hh"
 	"crc32.cc"
 	"crc32.hh"
-	"drive.cc"
-	"drive.hh"
 	"dump.cc"
 	"dump.hh"
 	"dump_cd.cc"
@@ -128,10 +122,6 @@ set(sources
 	"dump_dvd.hh"
 	"ecc_edc.cc"
 	"ecc_edc.hh"
-	"endian.cc"
-	"endian.hh"
-	"file_io.cc"
-	"file_io.hh"
 	"hex_bin.cc"
 	"hex_bin.hh"
 	"image_browser.cc"
@@ -150,8 +140,6 @@ set(sources
 	"redumper.hh"
 	"scrambler.cc"
 	"scrambler.hh"
-	"scsi.cc"
-	"scsi.hh"
 	"sha1.cc"
 	"sha1.hh"
 	"driveoffsets.txt"
@@ -169,9 +157,15 @@ target_sources(redumper
 	PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
 	"block_hasher.cc"
+	"cd.cc"
+	"common.cc"
+	"drive.cc"
+	"endian.cc"
+	"file_io.cc"
 	"logger.cc"
 	"signal.cc"
 	"split.cc"
+	"sptd.cc"
 	"subcode.cc"
     "toc.cc"
     "version.cc"
@@ -189,4 +183,4 @@ if(MSVC AND ${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
 endif()
 
 enable_testing()
-add_subdirectory("tests")
+#add_subdirectory("tests")

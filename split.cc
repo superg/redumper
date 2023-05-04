@@ -7,11 +7,9 @@ module;
 #include "analyzers/silence.hh"
 #include "analyzers/sync.hh"
 #include "systems/system.hh"
-#include "common.hh"
 #include "crc32.hh"
 #include "dump.hh"
 #include "ecc_edc.hh"
-#include "file_io.hh"
 #include "image_browser.hh"
 #include "md5.hh"
 #include "offset_manager.hh"
@@ -20,7 +18,9 @@ module;
 
 export module cd.split;
 
+import common;
 import logger;
+import file.io;
 import cd.subcode;
 
 

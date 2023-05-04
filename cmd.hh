@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 #include "mmc.hh"
-#include "scsi.hh"
+
+import sptd;
 
 
 

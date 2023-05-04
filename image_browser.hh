@@ -8,8 +8,9 @@
 #include <list>
 #include <queue>
 #include <string>
-#include "cd.hh"
 #include "iso9660.hh"
+
+import cd;
 
 
 

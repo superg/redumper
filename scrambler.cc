@@ -1,7 +1,10 @@
+#include <algorithm>
 #include <climits>
 #include <cstring>
-#include "common.hh"
 #include "scrambler.hh"
+
+import common;
+import cd;
 
 
 

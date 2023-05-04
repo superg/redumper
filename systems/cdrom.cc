@@ -1,11 +1,12 @@
 #include <format>
 #include <fstream>
 #include <vector>
-#include "common.hh"
-#include "cd.hh"
 #include "ecc_edc.hh"
-#include "file_io.hh"
 #include "cdrom.hh"
+
+import common;
+import cd;
+import file.io;
 
 
 
@@ -53,7 +54,7 @@ void SystemCDROM::operator()(std::ostream &os) const
 			++invalid_sync;
 			continue;
 		}
-		
+
 		if(sector.header.mode < modes.size())
 			++modes[sector.header.mode];
 		else

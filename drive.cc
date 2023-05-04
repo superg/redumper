@@ -1,24 +1,82 @@
+module;
 #include <chrono>
+#include <cstdint>
 #include <format>
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <string>
 #include <thread>
 #include <unordered_map>
 #include <vector>
 #include "cmd.hh"
-#include "common.hh"
 #include "crc16_gsm.hh"
-#include "endian.hh"
-#include "file_io.hh"
-#include "drive.hh"
 
+export module drive;
+
+import common;
+import endian;
 import logger;
+import sptd;
+import file.io;
+import cd;
 import cd.subcode;
 
 
 
 namespace gpsxre
 {
+
+export struct DriveConfig
+{
+	std::string vendor_id;
+	std::string product_id;
+	std::string product_revision_level;
+	std::string vendor_specific;
+	int32_t read_offset;
+	uint32_t c2_shift;
+	int32_t pregap_start;
+
+	enum class ReadMethod
+	{
+		BE,
+		D8,
+		BE_CDDA
+	} read_method;
+
+	enum class SectorOrder
+	{
+		DATA_C2_SUB,
+		DATA_SUB_C2,
+		DATA_SUB,
+		DATA_C2
+	} sector_order;
+
+	enum class Type
+	{
+		GENERIC,
+		PLEXTOR,
+		LG_ASU8,
+		LG_ASU3,
+		LG_ASU2
+	} type;
+};
+
+export struct SectorLayout
+{
+	uint32_t data_offset;
+	uint32_t c2_offset;
+	uint32_t subcode_offset;
+	uint32_t size;
+};
+
+export struct AsusConfig
+{
+	uint32_t size_mb;
+	uint32_t entries_count;
+};
+
+export constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
 
 static const std::unordered_map<std::string, int32_t> DRIVE_READ_OFFSETS =
 {
@@ -184,7 +242,33 @@ static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG =
 };
 
 
-DriveConfig drive_get_config(const DriveQuery &drive_query)
+// AccurateRip database provides already "processed" drive offsets e.g.
+// the drive offset number has to be added to the data read start in order to get it corrected
+// (positive offset means that data has to be shifted left, negative - right)
+export int32_t drive_get_generic_read_offset(const std::string &vendor, const std::string &product)
+{
+	int32_t offset = std::numeric_limits<int32_t>::max();
+
+	//FIXME: clean up this AccurateRip mess later
+	std::string v(vendor);
+	if(vendor == "HL-DT-ST")
+		v = "LG Electronics";
+	else if(vendor == "JLMS")
+		v = "Lite-ON";
+	else if(vendor == "Matshita")
+		v = "Panasonic";
+	else
+		v = vendor;
+
+	std::string vendor_product(std::format("{} - {}", v, product));
+	if(auto it = DRIVE_READ_OFFSETS.find(vendor_product); it != DRIVE_READ_OFFSETS.end())
+		offset = it->second;
+
+	return offset;
+}
+
+
+export DriveConfig drive_get_config(const DriveQuery &drive_query)
 {
 	DriveConfig drive_config = DRIVE_CONFIG_GENERIC;
 
@@ -219,7 +303,7 @@ DriveConfig drive_get_config(const DriveQuery &drive_query)
 }
 
 
-AsusConfig asus_get_config(DriveConfig::Type type)
+export AsusConfig asus_get_config(DriveConfig::Type type)
 {
 	AsusConfig asus_config = {0, 0};
 
@@ -231,7 +315,7 @@ AsusConfig asus_get_config(DriveConfig::Type type)
 }
 
 
-void drive_override_config(DriveConfig &drive_config, const std::string *type, const int *read_offset, const int *c2_shift, const int *pregap_start, const std::string *read_method, const std::string *sector_order)
+export void drive_override_config(DriveConfig &drive_config, const std::string *type, const int *read_offset, const int *c2_shift, const int *pregap_start, const std::string *read_method, const std::string *sector_order)
 {
 	if(type != nullptr)
 		drive_config.type = string_to_enum(*type, TYPE_STRING);
@@ -253,33 +337,7 @@ void drive_override_config(DriveConfig &drive_config, const std::string *type, c
 }
 
 
-// AccurateRip database provides already "processed" drive offsets e.g.
-// the drive offset number has to be added to the data read start in order to get it corrected
-// (positive offset means that data has to be shifted left, negative - right)
-int32_t drive_get_generic_read_offset(const std::string &vendor, const std::string &product)
-{
-	int32_t offset = std::numeric_limits<int32_t>::max();
-
-	//FIXME: clean up this AccurateRip mess later
-	std::string v(vendor);
-	if(vendor == "HL-DT-ST")
-		v = "LG Electronics";
-	else if(vendor == "JLMS")
-		v = "Lite-ON";
-	else if(vendor == "Matshita")
-		v = "Panasonic";
-	else
-		v = vendor;
-
-	std::string vendor_product(std::format("{} - {}", v, product));
-	if(auto it = DRIVE_READ_OFFSETS.find(vendor_product); it != DRIVE_READ_OFFSETS.end())
-		offset = it->second;
-
-	return offset;
-}
-
-
-std::string drive_info_string(const DriveConfig &drive_config)
+export std::string drive_info_string(const DriveConfig &drive_config)
 {
 	return std::format("{} - {} (revision level: {}, vendor specific: {})", drive_config.vendor_id, drive_config.product_id,
 			drive_config.product_revision_level.empty() ? "<empty>" : drive_config.product_revision_level,
@@ -287,7 +345,7 @@ std::string drive_info_string(const DriveConfig &drive_config)
 }
 
 
-std::string drive_config_string(const DriveConfig &drive_config)
+export std::string drive_config_string(const DriveConfig &drive_config)
 {
 	return std::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})",
 			enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset, drive_config.c2_shift,
@@ -295,13 +353,13 @@ std::string drive_config_string(const DriveConfig &drive_config)
 }
 
 
-bool drive_is_asus(const DriveConfig &drive_config)
+export bool drive_is_asus(const DriveConfig &drive_config)
 {
 	return ASUS_CACHE_CONFIG.find(drive_config.type) != ASUS_CACHE_CONFIG.end();
 }
 
 
-void print_supported_drives()
+export void print_supported_drives()
 {
 	LOG("");
 	LOG("supported drives: ");
@@ -312,7 +370,47 @@ void print_supported_drives()
 }
 
 
-std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
+export SectorLayout sector_order_layout(const DriveConfig::SectorOrder &sector_order)
+{
+	SectorLayout sector_layout;
+
+	switch(sector_order)
+	{
+	default:
+	case DriveConfig::SectorOrder::DATA_C2_SUB:
+		sector_layout.data_offset = 0;
+		sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;
+		sector_layout.subcode_offset = sector_layout.c2_offset + CD_C2_SIZE;
+		sector_layout.size = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
+		break;
+
+	case DriveConfig::SectorOrder::DATA_SUB_C2:
+		sector_layout.data_offset = 0;
+		sector_layout.subcode_offset = sector_layout.data_offset + CD_DATA_SIZE;
+		sector_layout.c2_offset = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
+		sector_layout.size = sector_layout.c2_offset + CD_C2_SIZE;
+		break;
+
+	case DriveConfig::SectorOrder::DATA_SUB:
+		sector_layout.data_offset = 0;
+		sector_layout.subcode_offset = sector_layout.data_offset + CD_DATA_SIZE;
+		sector_layout.size = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
+		sector_layout.c2_offset = CD_RAW_DATA_SIZE;
+		break;
+
+	case DriveConfig::SectorOrder::DATA_C2:
+		sector_layout.data_offset = 0;
+		sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;
+		sector_layout.size = sector_layout.c2_offset + CD_C2_SIZE;
+		sector_layout.subcode_offset = CD_RAW_DATA_SIZE;
+		break;
+	}
+
+	return sector_layout;
+}
+
+
+export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 {
 	std::vector<uint8_t> buffer;
 
@@ -362,7 +460,7 @@ std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 }
 
 
-std::vector<uint8_t> asus_cache_read(SPTD &sptd, DriveConfig::Type drive_type)
+export std::vector<uint8_t> asus_cache_read(SPTD &sptd, DriveConfig::Type drive_type)
 {
 	constexpr uint32_t read_size = 1024 * 64; // 64Kb
 
@@ -379,7 +477,7 @@ std::vector<uint8_t> asus_cache_read(SPTD &sptd, DriveConfig::Type drive_type)
 }
 
 
-std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32_t lba_start, uint32_t entries_count, DriveConfig::Type drive_type)
+export std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32_t lba_start, uint32_t entries_count, DriveConfig::Type drive_type)
 {
 	uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 
@@ -488,7 +586,7 @@ std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32
 }
 
 
-void asus_cache_print_subq(const std::vector<uint8_t> &cache, DriveConfig::Type drive_type)
+export void asus_cache_print_subq(const std::vector<uint8_t> &cache, DriveConfig::Type drive_type)
 {
 	uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 
@@ -503,46 +601,6 @@ void asus_cache_print_subq(const std::vector<uint8_t> &cache, DriveConfig::Type 
 		int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
 		LOG("{:4} {:6}: {}", i, lba, Q.Decode());
 	}
-}
-
-
-SectorLayout sector_order_layout(const DriveConfig::SectorOrder &sector_order)
-{
-	SectorLayout sector_layout;
-
-	switch(sector_order)
-	{
-	default:
-	case DriveConfig::SectorOrder::DATA_C2_SUB:
-		sector_layout.data_offset = 0;
-		sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;
-		sector_layout.subcode_offset = sector_layout.c2_offset + CD_C2_SIZE;
-		sector_layout.size = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
-		break;
-
-	case DriveConfig::SectorOrder::DATA_SUB_C2:
-		sector_layout.data_offset = 0;
-		sector_layout.subcode_offset = sector_layout.data_offset + CD_DATA_SIZE;
-		sector_layout.c2_offset = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
-		sector_layout.size = sector_layout.c2_offset + CD_C2_SIZE;
-		break;
-
-	case DriveConfig::SectorOrder::DATA_SUB:
-		sector_layout.data_offset = 0;
-		sector_layout.subcode_offset = sector_layout.data_offset + CD_DATA_SIZE;
-		sector_layout.size = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
-		sector_layout.c2_offset = CD_RAW_DATA_SIZE;
-		break;
-
-	case DriveConfig::SectorOrder::DATA_C2:
-		sector_layout.data_offset = 0;
-		sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;
-		sector_layout.size = sector_layout.c2_offset + CD_C2_SIZE;
-		sector_layout.subcode_offset = CD_RAW_DATA_SIZE;
-		break;
-	}
-
-	return sector_layout;
 }
 
 }

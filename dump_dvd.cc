@@ -1,19 +1,19 @@
 #include <chrono>
 #include <cmath>
 #include <set>
-#include "cd.hh"
 #include "cmd.hh"
-#include "common.hh"
 #include "crc32.hh"
-#include "drive.hh"
 #include "dump.hh"
-#include "endian.hh"
-#include "file_io.hh"
 #include "md5.hh"
 #include "sha1.hh"
 #include "dump_dvd.hh"
 
+import common;
+import endian;
 import logger;
+import drive;
+import cd;
+import file.io;
 
 
 

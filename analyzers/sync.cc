@@ -1,5 +1,6 @@
-#include "common.hh"
 #include "sync.hh"
+
+import common;
 
 
 
@@ -29,7 +30,7 @@ void SyncAnalyzer::process(uint32_t *samples, State *state, uint32_t count, uint
 			_syncSearch = 0;
 			continue;
 		}
-		
+
 		if(_syncSearch < SYNC_SIZE_SAMPLES)
 		{
 			if(samples[i] == ((uint32_t *)CD_DATA_SYNC)[_syncSearch])
@@ -63,7 +64,7 @@ void SyncAnalyzer::process(uint32_t *samples, State *state, uint32_t count, uint
 				else
 					_records.push_back(record);
 			}
-			
+
 			_syncSearch = 0;
 		}
 	}

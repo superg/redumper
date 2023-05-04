@@ -1,16 +1,22 @@
+module;
 #include <cmath>
+#include <cstdint>
+#include <filesystem>
+#include <format>
+#include <fstream>
 #include <vector>
-#include "cd.hh"
-#include "common.hh"
-#include "scsi.hh"
-#include "file_io.hh"
+
+export module file.io;
+
+import common;
+import cd;
 
 
 
 namespace gpsxre
 {
 
-void write_entry(std::fstream &fs, const uint8_t *data, uint64_t entry_size, uint64_t index, uint64_t count, int64_t byte_offset)
+export void write_entry(std::fstream &fs, const uint8_t *data, uint64_t entry_size, uint64_t index, uint64_t count, int64_t byte_offset)
 {
 	int64_t file_offset = index * entry_size - byte_offset;
 
@@ -39,7 +45,7 @@ void write_entry(std::fstream &fs, const uint8_t *data, uint64_t entry_size, uin
 }
 
 
-void read_entry(std::fstream &fs, uint8_t *data, uint64_t entry_size, uint64_t index, uint64_t count, int64_t byte_offset, uint8_t fill_byte)
+export void read_entry(std::fstream &fs, uint8_t *data, uint64_t entry_size, uint64_t index, uint64_t count, int64_t byte_offset, uint8_t fill_byte)
 {
 	int64_t file_offset = index * entry_size - byte_offset;
 
@@ -82,7 +88,7 @@ void read_entry(std::fstream &fs, uint8_t *data, uint64_t entry_size, uint64_t i
 }
 
 
-void write_align(std::fstream &fs, uint64_t index, uint64_t entry_size, uint8_t fill_byte)
+export void write_align(std::fstream &fs, uint64_t index, uint64_t entry_size, uint8_t fill_byte)
 {
 	fs.seekp(0, std::fstream::end);
 	if(fs.fail())
@@ -100,7 +106,7 @@ void write_align(std::fstream &fs, uint64_t index, uint64_t entry_size, uint8_t 
 }
 
 
-std::vector<uint8_t> read_vector(const std::filesystem::path &file_path)
+export std::vector<uint8_t> read_vector(const std::filesystem::path &file_path)
 {
 	std::vector<uint8_t> data((std::vector<uint8_t>::size_type)std::filesystem::file_size(file_path));
 
@@ -115,7 +121,7 @@ std::vector<uint8_t> read_vector(const std::filesystem::path &file_path)
 }
 
 
-void write_vector(const std::filesystem::path &file_path, const std::vector<uint8_t> &data)
+export void write_vector(const std::filesystem::path &file_path, const std::vector<uint8_t> &data)
 {
 	std::fstream fs(file_path, std::fstream::out | std::fstream::binary);
 	if(!fs.is_open())
@@ -126,7 +132,7 @@ void write_vector(const std::filesystem::path &file_path, const std::vector<uint
 }
 
 
-uint64_t check_file(const std::filesystem::path &file_path, uint64_t entry_size)
+export uint64_t check_file(const std::filesystem::path &file_path, uint64_t entry_size)
 {
 	if(!std::filesystem::exists(file_path))
 		throw_line(std::format("file doesn't exist ({})", file_path.filename().string()));

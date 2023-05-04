@@ -4,9 +4,10 @@
 
 #include <filesystem>
 #include <string>
-#include "drive.hh"
 #include "options.hh"
-#include "scsi.hh"
+
+import sptd;
+import drive;
 
 
 

@@ -6,8 +6,9 @@
 
 #include "cd.hh"
 #include "common.hh"
-#include "file_io.hh"
 #include "scrambler.hh"
+
+import file.io;
 
 
 

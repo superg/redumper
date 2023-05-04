@@ -2,11 +2,12 @@ module;
 #include <cstdint>
 #include <format>
 #include <string>
-#include "cd.hh"
 #include "crc16_gsm.hh"
-#include "endian.hh"
 
 export module cd.subcode;
+
+import endian;
+import cd;
 
 
 

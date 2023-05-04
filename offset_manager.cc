@@ -1,5 +1,6 @@
-#include "common.hh"
 #include "offset_manager.hh"
+
+import common;
 
 
 

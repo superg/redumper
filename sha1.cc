@@ -1,5 +1,6 @@
-#include "endian.hh"
 #include "sha1.hh"
+
+import endian;
 
 
 

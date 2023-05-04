@@ -1,8 +1,10 @@
-#include "cd.hh"
-#include "common.hh"
-#include "endian.hh"
+#include <format>
 #include "mmc.hh"
 #include "cmd.hh"
+
+import common;
+import endian;
+import cd;
 
 
 
@@ -61,7 +63,7 @@ SPTD::Status cmd_inquiry(SPTD &sptd, uint8_t *data, uint32_t data_size, INQUIRY_
 	cdb.page_code = (uint8_t)page_code;
 
 	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(data_size);
-	
+
 	return sptd.SendCommand(&cdb, sizeof(cdb), data, data_size);
 }
 

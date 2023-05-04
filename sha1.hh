@@ -2,6 +2,10 @@
 
 
 
+#include <vector>
+
+
+
 import hash.block_hasher;
 
 

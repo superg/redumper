@@ -4,9 +4,10 @@ module;
 #include <fstream>
 #include <iostream>
 #include <string>
-#include "common.hh"
 
 export module logger;
+
+import common;
 
 
 

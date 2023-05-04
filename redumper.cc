@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -9,15 +10,21 @@
 #include "dump.hh"
 #include "dump_cd.hh"
 #include "dump_dvd.hh"
-#include "file_io.hh"
 #include "scrambler.hh"
 #include "redumper.hh"
 
 import logger;
 import signal;
 import version;
+import file.io;
 import cd.split;
 import cd.subcode;
+
+
+
+// stringify
+#define XSTRINGIFY(arg__) STRINGIFY(arg__)
+#define STRINGIFY(arg__) #arg__
 
 
 

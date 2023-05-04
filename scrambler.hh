@@ -3,7 +3,8 @@
 
 
 #include <cstdint>
-#include "cd.hh"
+
+import cd;
 
 
 

@@ -9,14 +9,15 @@ module;
 #include <string>
 #include <vector>
 
-#include "common.hh"
 #include "crc16_gsm.hh"
-#include "endian.hh"
 #include "mmc.hh"
 
 export module cd.toc;
 
+import common;
+import endian;
 import logger;
+import cd;
 import cd.subcode;
 
 

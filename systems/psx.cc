@@ -1,13 +1,13 @@
 #include <format>
 #include <regex>
 #include <sstream>
-#include "common.hh"
-#include "endian.hh"
-#include "file_io.hh"
 #include "hex_bin.hh"
 #include "redumper.hh"
 #include "psx.hh"
 
+import common;
+import endian;
+import file.io;
 import cd.subcode;
 
 

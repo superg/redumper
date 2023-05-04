@@ -7,12 +7,12 @@
 #include <set>
 #include <string>
 #include <vector>
-#include "cd.hh"
-#include "common.hh"
-#include "drive.hh"
 #include "options.hh"
-#include "scsi.hh"
 
+import common;
+import sptd;
+import drive;
+import cd;
 import cd.toc;
 
 

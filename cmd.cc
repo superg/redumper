@@ -1,15 +1,29 @@
+module;
+#include <cstdint>
 #include <format>
-#include "mmc.hh"
-#include "cmd.hh"
+#include <string>
+#include <vector>
+
+export module cmd;
 
 import common;
 import endian;
 import cd;
+import sptd;
+import mmc;
 
 
 
 namespace gpsxre
 {
+
+export struct DriveQuery
+{
+	std::string vendor_id;
+	std::string product_id;
+	std::string product_revision_level;
+	std::string vendor_specific;
+};
 
 static const uint32_t READ_CD_C2_SIZES[] =
 {
@@ -45,7 +59,7 @@ static const uint32_t READ_CDDA_SIZES[] =
 };
 
 
-SPTD::Status cmd_drive_ready(SPTD &sptd)
+export SPTD::Status cmd_drive_ready(SPTD &sptd)
 {
 	CDB6_Generic cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::TEST_UNIT_READY;
@@ -54,7 +68,7 @@ SPTD::Status cmd_drive_ready(SPTD &sptd)
 }
 
 
-SPTD::Status cmd_inquiry(SPTD &sptd, uint8_t *data, uint32_t data_size, INQUIRY_VPDPageCode page_code, bool command_support_data, bool enable_vital_product_data)
+export SPTD::Status cmd_inquiry(SPTD &sptd, uint8_t *data, uint32_t data_size, INQUIRY_VPDPageCode page_code, bool command_support_data, bool enable_vital_product_data)
 {
 	CDB6_Inquiry cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::INQUIRY;
@@ -69,7 +83,7 @@ SPTD::Status cmd_inquiry(SPTD &sptd, uint8_t *data, uint32_t data_size, INQUIRY_
 
 
 //TODO: not cmd, move out?
-DriveQuery cmd_drive_query(SPTD &sptd)
+export DriveQuery cmd_drive_query(SPTD &sptd)
 {
 	DriveQuery drive_query;
 
@@ -87,7 +101,7 @@ DriveQuery cmd_drive_query(SPTD &sptd)
 }
 
 
-uint32_t cmd_inquiry_vpd_block_limits_optimal_transfer_length(SPTD &sptd)
+export uint32_t cmd_inquiry_vpd_block_limits_optimal_transfer_length(SPTD &sptd)
 {
 	INQUIRY_VPDBlockLimits vpd_block_limits;
 	auto status = cmd_inquiry(sptd, (uint8_t *)&vpd_block_limits, sizeof(vpd_block_limits), INQUIRY_VPDPageCode::BLOCK_LIMITS, false, true);
@@ -98,7 +112,7 @@ uint32_t cmd_inquiry_vpd_block_limits_optimal_transfer_length(SPTD &sptd)
 }
 
 
-std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
+export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> toc;
 
@@ -128,7 +142,7 @@ std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 }
 
 
-std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
+export std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> full_toc;
 
@@ -158,7 +172,7 @@ std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 }
 
 
-SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
+export SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 {
 	SPTD::Status status;
 
@@ -189,7 +203,7 @@ SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 }
 
 
-SPTD::Status cmd_read_dvd_structure(SPTD &sptd, std::vector<uint8_t> &response_data, uint32_t address, uint8_t layer_number, READ_DVD_STRUCTURE_Format format, uint8_t agid)
+export SPTD::Status cmd_read_dvd_structure(SPTD &sptd, std::vector<uint8_t> &response_data, uint32_t address, uint8_t layer_number, READ_DVD_STRUCTURE_Format format, uint8_t agid)
 {
 	SPTD::Status status;
 
@@ -224,7 +238,7 @@ SPTD::Status cmd_read_dvd_structure(SPTD &sptd, std::vector<uint8_t> &response_d
 }
 
 
-SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, bool force_unit_access)
+export SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, bool force_unit_access)
 {
 	CDB12_Read cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::READ12;
@@ -236,7 +250,7 @@ SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, int32_t 
 }
 
 
-SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
+export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
 {
 	CDB12_ReadCD cdb = {};
 
@@ -257,7 +271,7 @@ SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_
 }
 
 
-SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
+export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
 {
 	CDB12_ReadCDDA cdb = {};
 
@@ -270,7 +284,7 @@ SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint3
 }
 
 
-SPTD::Status cmd_plextor_reset(SPTD &sptd)
+export SPTD::Status cmd_plextor_reset(SPTD &sptd)
 {
 	CDB6_Generic cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::PLEXTOR_RESET;
@@ -279,7 +293,7 @@ SPTD::Status cmd_plextor_reset(SPTD &sptd)
 }
 
 
-SPTD::Status cmd_synchronize_cache(SPTD &sptd)
+export SPTD::Status cmd_synchronize_cache(SPTD &sptd)
 {
 	CDB6_Generic cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::SYNCHRONIZE_CACHE;
@@ -288,7 +302,7 @@ SPTD::Status cmd_synchronize_cache(SPTD &sptd)
 }
 
 
-SPTD::Status cmd_flush_drive_cache(SPTD &sptd, int32_t lba)
+export SPTD::Status cmd_flush_drive_cache(SPTD &sptd, int32_t lba)
 {
 	CDB12_Read cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::READ12;
@@ -299,7 +313,7 @@ SPTD::Status cmd_flush_drive_cache(SPTD &sptd, int32_t lba)
 }
 
 
-SPTD::Status cmd_set_cd_speed(SPTD &sptd, uint16_t speed)
+export SPTD::Status cmd_set_cd_speed(SPTD &sptd, uint16_t speed)
 {
 	CDB12_SetCDSpeed cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::SET_CD_SPEED;
@@ -309,7 +323,7 @@ SPTD::Status cmd_set_cd_speed(SPTD &sptd, uint16_t speed)
 }
 
 
-SPTD::Status cmd_asus_read_cache(SPTD &sptd, uint8_t *buffer, uint32_t offset, uint32_t size)
+export SPTD::Status cmd_asus_read_cache(SPTD &sptd, uint8_t *buffer, uint32_t offset, uint32_t size)
 {
 	CDB_ASUS_ReadCache cdb;
 	cdb.operation_code = (uint8_t)CDB_OperationCode::ASUS_READ_CACHE;
@@ -321,7 +335,7 @@ SPTD::Status cmd_asus_read_cache(SPTD &sptd, uint8_t *buffer, uint32_t offset, u
 }
 
 
-SPTD::Status cmd_get_configuration(SPTD &sptd)
+export SPTD::Status cmd_get_configuration(SPTD &sptd)
 {
 	CDB10_GetConfiguration cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::GET_CONFIGURATION;
@@ -352,7 +366,7 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
 }
 
 
-SPTD::Status cmd_get_configuration_current_profile(SPTD &sptd, GET_CONFIGURATION_FeatureCode_ProfileList &current_profile)
+export SPTD::Status cmd_get_configuration_current_profile(SPTD &sptd, GET_CONFIGURATION_FeatureCode_ProfileList &current_profile)
 {
 	CDB10_GetConfiguration cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::GET_CONFIGURATION;

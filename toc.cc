@@ -10,7 +10,6 @@ module;
 #include <vector>
 
 #include "crc16_gsm.hh"
-#include "mmc.hh"
 
 export module cd.toc;
 
@@ -19,6 +18,7 @@ import endian;
 import logger;
 import cd;
 import cd.subcode;
+import mmc;
 
 
 

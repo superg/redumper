@@ -1,7 +1,6 @@
 #include <chrono>
 #include <cmath>
 #include <set>
-#include "cmd.hh"
 #include "crc32.hh"
 #include "dump.hh"
 #include "md5.hh"
@@ -14,6 +13,8 @@ import logger;
 import drive;
 import cd;
 import file.io;
+import cmd;
+import mmc;
 
 
 

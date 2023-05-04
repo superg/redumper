@@ -9,7 +9,6 @@ module;
 #include <thread>
 #include <unordered_map>
 #include <vector>
-#include "cmd.hh"
 #include "crc16_gsm.hh"
 
 export module drive;
@@ -21,6 +20,8 @@ import sptd;
 import file.io;
 import cd;
 import cd.subcode;
+import cmd;
+import mmc;
 
 
 

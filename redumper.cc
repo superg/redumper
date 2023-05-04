@@ -4,7 +4,6 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include "cmd.hh"
 #include "crc16_gsm.hh"
 #include "crc32.hh"
 #include "dump.hh"
@@ -19,6 +18,8 @@ import version;
 import file.io;
 import cd.split;
 import cd.subcode;
+import cmd;
+import mmc;
 
 
 

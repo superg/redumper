@@ -470,7 +470,7 @@ export std::vector<uint8_t> asus_cache_read(SPTD &sptd, DriveConfig::Type drive_
 	{
 		SPTD::Status status = cmd_asus_read_cache(sptd, cache.data() + offset, offset, std::min(read_size, n - offset));
 		if(status.status_code)
-			throw_line(std::format("read cache failed, SCSI ({})", SPTD::StatusMessage(status)));
+			throw_line("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
 	}
 
 	return cache;

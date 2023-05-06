@@ -56,7 +56,7 @@ public:
 
 				_fs.open(log_path, std::fstream::out | std::fstream::app);
 				if(_fs.fail())
-					throw_line(std::format("unable to open file ({})", log_path.filename().string()));
+					throw_line("unable to open file ({})", log_path.filename().string());
 
 				if(nl)
 					_fs << std::endl;

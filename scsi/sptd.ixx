@@ -53,7 +53,7 @@ public:
 		_handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
 		if(_handle < 0)
 #endif
-			throw_line(std::format("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError()));
+			throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
 	}
 
 
@@ -90,7 +90,7 @@ public:
 		DWORD bytes_returned;
 		BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
 		if(success != TRUE)
-			throw_line(std::format("SYSTEM ({})", GetLastError()));
+			throw_line("SYSTEM ({})", GetLastError());
 
 		if(sptd_sd.sptd.ScsiStatus != SCSISTAT_GOOD)
 		{
@@ -115,7 +115,7 @@ public:
 
 		int result = ioctl(_handle, SG_IO, &hdr);
 		if(result < 0)
-			throw_line(std::format("SYSTEM ({})", getLastError()));
+			throw_line("SYSTEM ({})", getLastError());
 
 		if(hdr.status)
 		{
@@ -137,7 +137,7 @@ public:
 #ifdef _WIN32
 		DWORD drive_mask = GetLogicalDrives();
 		if(!drive_mask)
-			throw_line(std::format("SYSTEM ({})", GetLastError()));
+			throw_line("SYSTEM ({})", GetLastError());
 
 		for(uint32_t i = 0, n = sizeof(drive_mask) * CHAR_BIT; i < n; ++i)
 		{

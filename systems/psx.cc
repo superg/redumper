@@ -252,7 +252,7 @@ bool SystemPSX::detectEdcFast() const
 
 	std::fstream fs(_trackPath, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line(std::format("unable to open file ({})", _trackPath.filename().string()));
+		throw_line("unable to open file ({})", _trackPath.filename().string());
 
 	uint32_t sectors_count = _trackSize / CD_DATA_SIZE;
 	if(sectors_count >= iso9660::SYSTEM_AREA_SIZE)
@@ -274,7 +274,7 @@ bool SystemPSX::detectLibCrypt(std::ostream &os, std::filesystem::path sub_path)
 
 	std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line(std::format("unable to open file ({})", sub_path.filename().string()));
+		throw_line("unable to open file ({})", sub_path.filename().string());
 
 	std::vector<int32_t> candidates;
 	std::vector<int32_t> candidates_medievil;

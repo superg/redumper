@@ -24,7 +24,7 @@ void SystemCDROM::operator()(std::ostream &os) const
 {
 	std::fstream fs(_trackPath, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line(std::format("unable to open file ({})", _trackPath.filename().string()));
+		throw_line("unable to open file ({})", _trackPath.filename().string());
 	auto track_size = std::filesystem::file_size(_trackPath);
 	uint32_t sectors_count = track_size / CD_DATA_SIZE;
 

@@ -250,11 +250,11 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 			LOG("writing \"{}\"", track_name);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / track_name) && !options.overwrite)
-				throw_line(std::format("file already exists ({})", track_name));
+				throw_line("file already exists ({})", track_name);
 
 			std::fstream fs_bin(std::filesystem::path(options.image_path) / track_name, std::fstream::out | std::fstream::binary);
 			if(!fs_bin.is_open())
-				throw_line(std::format("unable to create file ({})", track_name));
+				throw_line("unable to create file ({})", track_name);
 
 			TrackEntry track_entry;
 			track_entry.filename = track_name;
@@ -339,7 +339,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 
 				fs_bin.write((char *)sector.data(), sector.size());
 				if(fs_bin.fail())
-					throw_line(std::format("write failed ({})", track_name));
+					throw_line("write failed ({})", track_name);
 			}
 
 			for(auto const &d : descramble_errors)
@@ -929,11 +929,11 @@ export void redumper_protection_cd(Options &options)
 
 	std::fstream scm_fs(scra_path, std::fstream::in | std::fstream::binary);
 	if(!scm_fs.is_open())
-		throw_line(std::format("unable to open file ({})", scra_path.filename().string()));
+		throw_line("unable to open file ({})", scra_path.filename().string());
 
 	std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
 	if(!state_fs.is_open())
-		throw_line(std::format("unable to open file ({})", state_path.filename().string()));
+		throw_line("unable to open file ({})", state_path.filename().string());
 
 	std::string protection("N/A");
 
@@ -1063,11 +1063,11 @@ export void redumper_split_cd(const Options &options)
 
 	std::fstream scm_fs(scra_path, std::fstream::in | std::fstream::binary);
 	if(!scm_fs.is_open())
-		throw_line(std::format("unable to open file ({})", scra_path.filename().string()));
+		throw_line("unable to open file ({})", scra_path.filename().string());
 
 	std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
 	if(!state_fs.is_open())
-		throw_line(std::format("unable to open file ({})", state_path.filename().string()));
+		throw_line("unable to open file ({})", state_path.filename().string());
 
 	// TOC
 	std::vector<uint8_t> toc_buffer = read_vector(toc_path);
@@ -1092,7 +1092,7 @@ export void redumper_split_cd(const Options &options)
 	{
 		std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
 		if(!fs.is_open())
-			throw_line(std::format("unable to open file ({})", sub_path.filename().string()));
+			throw_line("unable to open file ({})", sub_path.filename().string());
 
 		subq.resize(sectors_count);
 		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
@@ -1518,7 +1518,7 @@ export void redumper_split_cd(const Options &options)
 
 	// check tracks
 	if(!check_tracks(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options) && !options.force_split)
-		throw_line(std::format("data errors detected, unable to continue"));
+		throw_line("data errors detected, unable to continue");
 
 	// write tracks
 	std::vector<TrackEntry> track_entries;
@@ -1536,11 +1536,11 @@ export void redumper_split_cd(const Options &options)
 			LOG_F("{}... ", cue_sheets[i]);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets[i]) && !options.overwrite)
-				throw_line(std::format("file already exists ({})", cue_sheets[i]));
+				throw_line("file already exists ({})", cue_sheets[i]);
 
 			std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets[i], std::fstream::out);
 			if(!fs.is_open())
-				throw_line(std::format("unable to create file ({})", cue_sheets[i]));
+				throw_line("unable to create file ({})", cue_sheets[i]);
 			toc.printCUE(fs, options.image_name, i);
 			LOG("done");
 		}
@@ -1551,11 +1551,11 @@ export void redumper_split_cd(const Options &options)
 		LOG_F("{}... ", cue_sheets.front());
 
 		if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets.front()) && !options.overwrite)
-			throw_line(std::format("file already exists ({})", cue_sheets.front()));
+			throw_line("file already exists ({})", cue_sheets.front());
 
 		std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets.front(), std::fstream::out);
 		if(!fs.is_open())
-			throw_line(std::format("unable to create file ({})", cue_sheets.front()));
+			throw_line("unable to create file ({})", cue_sheets.front());
 		toc.printCUE(fs, options.image_name, 0);
 		LOG("done");
 		LOG("");
@@ -1585,7 +1585,7 @@ export void redumper_split_cd(const Options &options)
 		std::filesystem::path cue_path(std::filesystem::path(options.image_path) / c);
 		std::fstream ifs(cue_path, std::fstream::in);
 		if(!ifs.is_open())
-			throw_line(std::format("unable to open file ({})", cue_path.filename().string()));
+			throw_line("unable to open file ({})", cue_path.filename().string());
 		std::string line;
 		while(std::getline(ifs, line))
 			LOG("{}", line);
@@ -1600,7 +1600,7 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 
 	std::fstream fs(cue_path, std::fstream::in);
 	if(!fs.is_open())
-		throw_line(std::format("unable to open file ({})", cue_path.filename().string()));
+		throw_line("unable to open file ({})", cue_path.filename().string());
 
 	std::pair<std::string, bool> entry;
 	std::string line;

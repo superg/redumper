@@ -22,26 +22,6 @@ import cd;
 
 
 
-// meaningful throw
-/*
-#ifdef NDEBUG
-#define throw_line(arg__) throw std::runtime_error(std::format("{}", arg__))
-#else
-#define throw_line(arg__) throw std::runtime_error(std::format("{} {{{}:{}}}", arg__, __FILE__, __LINE__))
-#endif
-*/
-
-export void throw_line(const std::string message)
-{
-#ifdef NDEBUG
-	throw std::runtime_error(message);
-#else
-	throw std::runtime_error(std::format("{} {{{}:{}}}", message, __FILE__, __LINE__));
-#endif
-}
-
-
-
 namespace gpsxre
 {
 
@@ -72,6 +52,18 @@ export enum class State : uint8_t
 	SUCCESS_SCSI_OFF,
 	SUCCESS
 };
+
+export template<typename... Args>
+void throw_line(const std::string fmt, const Args &... args)
+{
+	auto message = std::vformat(fmt, std::make_format_args(args...));
+
+#ifdef NDEBUG
+	throw std::runtime_error(message);
+#else
+	throw std::runtime_error(std::format("{} {{{}:{}}}", message, __FILE__, __LINE__));
+#endif
+}
 
 export template <typename T, size_t N>
 constexpr size_t countof(T(&)[N])
@@ -271,7 +263,7 @@ std::string enum_to_string(T value, const std::map<T, std::string> &dictionary)
 {
 	auto it = dictionary.find(value);
 	if(it == dictionary.end())
-		throw_line(std::format("enum_to_string failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
+		throw_line("enum_to_string failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary));
 
 	return it->second;
 
@@ -284,7 +276,7 @@ T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
 		if(d.second == value)
 			return d.first;
 
-	throw_line(std::format("string_to_enum failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary)));
+	throw_line("string_to_enum failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary));
 	//GGG
 	return (T)0;
 }

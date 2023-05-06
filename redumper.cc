@@ -132,12 +132,12 @@ DiscType query_disc_type(std::string drive)
 	// test unit ready
 	SPTD::Status status = cmd_drive_ready(sptd);
 	if(status.status_code)
-		throw_line(std::format("drive not ready, SCSI ({})", SPTD::StatusMessage(status)));
+		throw_line("drive not ready, SCSI ({})", SPTD::StatusMessage(status));
 
 	GET_CONFIGURATION_FeatureCode_ProfileList current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
 	status = cmd_get_configuration_current_profile(sptd, current_profile);
 	if(status.status_code)
-		throw_line(std::format("failed to query disc type, SCSI ({})", SPTD::StatusMessage(status)));
+		throw_line("failed to query disc type, SCSI ({})", SPTD::StatusMessage(status));
 
 	switch(current_profile)
 	{
@@ -164,7 +164,7 @@ DiscType query_disc_type(std::string drive)
 		break;
 
 	default:
-		throw_line(std::format("unsupported disc type (profile: {})", (uint16_t)current_profile));
+		throw_line("unsupported disc type (profile: {})", (uint16_t)current_profile);
 	}
 
 	return disc_type;
@@ -242,7 +242,7 @@ void redumper_subchannel(Options &options)
 	uint32_t sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
 	std::fstream sub_fs(sub_path, std::fstream::in | std::fstream::binary);
 	if(!sub_fs.is_open())
-		throw_line(std::format("unable to open file ({})", sub_path.filename().string()));
+		throw_line("unable to open file ({})", sub_path.filename().string());
 
 	ChannelQ q_empty;
 	memset(&q_empty, 0, sizeof(q_empty));
@@ -307,7 +307,7 @@ void redumper_debug(Options &options)
 
 		std::fstream fs(cue_path, std::fstream::out);
 		if(!fs.is_open())
-			throw_line(std::format("unable to create file ({})", cue_path.string()));
+			throw_line("unable to create file ({})", cue_path.string());
 		toc.printCUE(fs, options.image_name, 0);
 
 		LOG("");

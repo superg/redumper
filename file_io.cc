@@ -112,10 +112,10 @@ export std::vector<uint8_t> read_vector(const std::filesystem::path &file_path)
 
 	std::fstream fs(file_path, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line(std::format("unable to open file ({})", file_path.filename().string()));
+		throw_line("unable to open file ({})", file_path.filename().string());
 	fs.read((char *)data.data(), data.size());
 	if(fs.fail())
-		throw_line(std::format("read failed ({})", file_path.filename().string()));
+		throw_line("read failed ({})", file_path.filename().string());
 
 	return data;
 }
@@ -125,28 +125,28 @@ export void write_vector(const std::filesystem::path &file_path, const std::vect
 {
 	std::fstream fs(file_path, std::fstream::out | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line(std::format("unable to create file ({})", file_path.filename().string()));
+		throw_line("unable to create file ({})", file_path.filename().string());
 	fs.write((char *)data.data(), data.size());
 	if(fs.fail())
-		throw_line(std::format("write failed ({})", file_path.filename().string()));
+		throw_line("write failed ({})", file_path.filename().string());
 }
 
 
 export uint64_t check_file(const std::filesystem::path &file_path, uint64_t entry_size)
 {
 	if(!std::filesystem::exists(file_path))
-		throw_line(std::format("file doesn't exist ({})", file_path.filename().string()));
+		throw_line("file doesn't exist ({})", file_path.filename().string());
 
 	if(!std::filesystem::is_regular_file(file_path))
-		throw_line(std::format("not a regular file ({})", file_path.filename().string()));
+		throw_line("not a regular file ({})", file_path.filename().string());
 
 	auto file_size = (uint64_t)std::filesystem::file_size(file_path);
 	if(!file_size)
-		throw_line(std::format("file is empty ({})", file_path.filename().string()));
+		throw_line("file is empty ({})", file_path.filename().string());
 
 	//TODO: improve unaligned handling
 //	if(file_size % entry_size)
-//		throw_line(std::format("incomplete file or garbage in the end ({})", file_path.filename().string()));
+//		throw_line("incomplete file or garbage in the end ({})", file_path.filename().string());
 
 	return file_size / entry_size;
 }

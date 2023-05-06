@@ -212,11 +212,11 @@ export struct Options
 					// unknown option
 					else
 					{
-						throw_line(std::format("unknown option ({})", key));
+						throw_line("unknown option ({})", key);
 					}
 				}
 				else
-					throw_line(std::format("option value expected ({})", argv[i - 1]));
+					throw_line("option value expected ({})", argv[i - 1]);
 			}
 
 			if(!o.empty())

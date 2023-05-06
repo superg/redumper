@@ -1,7 +1,8 @@
 #include <format>
-#include "image_browser.hh"
-#include "hex_bin.hh"
 #include "iso.hh"
+
+import hex_bin;
+import image_browser;
 
 
 

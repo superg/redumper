@@ -7,13 +7,7 @@ module;
 #include "analyzers/silence.hh"
 #include "analyzers/sync.hh"
 #include "systems/system.hh"
-#include "crc32.hh"
-#include "dump.hh"
-#include "ecc_edc.hh"
-#include "image_browser.hh"
 #include "md5.hh"
-#include "offset_manager.hh"
-#include "scrambler.hh"
 #include "sha1.hh"
 
 export module cd.split;
@@ -22,6 +16,15 @@ import common;
 import logger;
 import file.io;
 import cd.subcode;
+import crc32;
+import dump;
+import ecc_edc;
+import image_browser;
+import iso9660;
+import offset_manager;
+import cd.toc;
+import options;
+import scrambler;
 
 
 

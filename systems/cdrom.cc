@@ -1,12 +1,12 @@
 #include <format>
 #include <fstream>
 #include <vector>
-#include "ecc_edc.hh"
 #include "cdrom.hh"
 
 import common;
 import cd;
 import file.io;
+import ecc_edc;
 
 
 

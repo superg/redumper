@@ -9,8 +9,6 @@ module;
 #include <string>
 #include <vector>
 
-#include "crc16_gsm.hh"
-
 export module cd.toc;
 
 import common;
@@ -19,6 +17,7 @@ import logger;
 import cd;
 import cd.subcode;
 import mmc;
+import crc16_gsm;
 
 
 

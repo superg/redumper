@@ -1,4 +1,13 @@
-#include "crc16_gsm.hh"
+module;
+#include <cstdint>
+
+export module crc16_gsm;
+
+
+
+// CRC-16/GSM
+// width=16 poly=0x1021 init=0x0000 refin=false refout=false xorout=0xffff check=0xce3c residue=0x1d0f name="CRC-16/GSM"
+// ECMA standard ECMA-130
 
 
 
@@ -42,13 +51,13 @@ const uint16_t CRC16_GSM_TABLE[] =
 };
 
 
-uint32_t crc16_seed()
+export uint32_t crc16_seed()
 {
 	return 0;
 }
 
 
-uint16_t crc16_gsm(const uint8_t *data, uint64_t size, uint16_t crc)
+export uint16_t crc16_gsm(const uint8_t *data, uint64_t size, uint16_t crc)
 {
 	for(uint64_t i = 0; i < size; ++i)
 		crc = CRC16_GSM_TABLE[((crc >> 8) ^ *data++) & 0xFF] ^ (crc << 8);
@@ -57,13 +66,13 @@ uint16_t crc16_gsm(const uint8_t *data, uint64_t size, uint16_t crc)
 }
 
 
-uint16_t crc16_gsm_final(uint16_t crc)
+export uint16_t crc16_gsm_final(uint16_t crc)
 {
 	return ~crc;
 }
 
 
-uint16_t crc16_gsm(const uint8_t *data, uint64_t size)
+export uint16_t crc16_gsm(const uint8_t *data, uint64_t size)
 {
 	return crc16_gsm_final(crc16_gsm(data, size, crc16_seed()));
 }

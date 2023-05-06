@@ -4,8 +4,10 @@
 
 #include <utility>
 #include <vector>
-#include "scrambler.hh"
 #include "analyzer.hh"
+
+import scrambler;
+import cd;
 
 
 

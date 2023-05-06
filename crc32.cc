@@ -1,4 +1,7 @@
-#include "crc32.hh"
+module;
+#include <cstdint>
+
+export module crc32;
 
 
 
@@ -42,13 +45,13 @@ const uint32_t CRC32_TABLE[] =
 };
 
 
-uint32_t crc32_seed()
+export uint32_t crc32_seed()
 {
 	return 0xFFFFFFFF;
 }
 
 
-uint32_t crc32(const uint8_t *data, uint64_t size, uint32_t crc)
+export uint32_t crc32(const uint8_t *data, uint64_t size, uint32_t crc)
 {
 	for(uint64_t i = 0; i < size; ++i)
 		crc = CRC32_TABLE[(crc ^ *data++) & 0xFF] ^ (crc >> 8);
@@ -57,13 +60,13 @@ uint32_t crc32(const uint8_t *data, uint64_t size, uint32_t crc)
 }
 
 
-uint32_t crc32_final(uint32_t crc)
+export uint32_t crc32_final(uint32_t crc)
 {
 	return ~crc;
 }
 
 
-uint32_t crc32(const uint8_t *data, uint64_t size)
+export uint32_t crc32(const uint8_t *data, uint64_t size)
 {
 	return crc32_final(crc32(data, size, crc32_seed()));
 }

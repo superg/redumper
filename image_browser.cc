@@ -1,16 +1,26 @@
+module;
 #include <algorithm>
+#include <ctime>
+#include <filesystem>
 #include <format>
+#include <fstream>
 #include <functional>
 #include <iomanip>
+#include <list>
 #include <locale>
+#include <queue>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <vector>
-#include "scrambler.hh"
-#include "image_browser.hh"
 
+export module image_browser;
+
+import cd;
 import common;
 import endian;
+import iso9660;
+import scrambler;
 
 
 
@@ -20,6 +30,96 @@ import endian;
 
 namespace gpsxre
 {
+
+export class ImageBrowser
+{
+public:
+	class Entry
+	{
+		friend class ImageBrowser;
+
+	public:
+		bool IsDirectory() const;
+		std::list<std::shared_ptr<Entry>> Entries();
+		std::shared_ptr<Entry> SubEntry(const std::filesystem::path &path);
+		const std::string &Name() const;
+		uint32_t Version() const;
+		time_t DateTime() const;
+		bool IsDummy() const;
+		bool IsInterleaved() const;
+
+		uint32_t SectorOffset() const;
+		uint32_t SectorSize() const;
+
+		std::vector<uint8_t> Read(bool form2 = false, bool throw_on_error = false);
+		//DEBUG
+		std::vector<uint8_t> Peek();
+//		std::vector<uint8_t> Read(uint32_t data_offset, uint32_t size);
+//		std::set<uint8_t> ReadMode2Test();
+//		std::vector<uint8_t> Read(std::set<uint8_t> *xa_channels = NULL);
+//		std::vector<uint8_t> ReadXA(uint8_t channel);
+
+	private:
+		ImageBrowser &_browser;
+		std::string _name;
+		uint32_t _version;
+		iso9660::DirectoryRecord _directory_record;
+
+		Entry(ImageBrowser &browser, const std::string &name, uint32_t version, const iso9660::DirectoryRecord &directory_record);
+
+		bool DirectoryRecordValid(const iso9660::DirectoryRecord &dr) const;
+	};
+
+	static bool IsDataTrack(const std::filesystem::path &track);
+
+	ImageBrowser(const std::filesystem::path &data_track, uint64_t file_start_offset, uint64_t file_end_offset, bool scrambled);
+	ImageBrowser(std::fstream &fs, uint64_t file_start_offset, uint64_t file_end_offset, bool scrambled);
+
+	std::shared_ptr<Entry> RootDirectory();
+
+	const iso9660::VolumeDescriptor &GetPVD() const;
+
+	template<typename F>
+	bool Iterate(F f)
+	{
+		bool interrupted = false;
+
+		std::queue<std::pair<std::string, std::shared_ptr<Entry>>> q;
+		q.push(std::pair<std::string, std::shared_ptr<Entry>>(std::string(""), RootDirectory()));
+
+		while(!q.empty())
+		{
+			auto p = q.front();
+			q.pop();
+
+			if(p.second->IsDirectory())
+				for(auto &dd : p.second->Entries())
+					q.push(std::pair<std::string, std::shared_ptr<Entry>>(dd->IsDirectory() ? (p.first.empty() ? "" : p.first + "/") + dd->Name() : p.first, dd));
+			else
+			{
+				if(f(p.first, p.second))
+				{
+					interrupted = true;
+					break;
+				}
+			}
+		}
+
+		return interrupted;
+	}
+
+private:
+	std::fstream _fsProxy;
+	std::fstream &_fs;
+	uint64_t _fileStartOffset;
+	uint64_t _fileEndOffset;
+	bool _scrambled;
+	iso9660::VolumeDescriptor _pvd;
+	uint32_t _trackLBA;
+
+	void Init();
+};
+
 
 //FIXME: reorganize so no code duplication in ImageBrowser::ImageBrowser()
 bool ImageBrowser::IsDataTrack(const std::filesystem::path &track)

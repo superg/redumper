@@ -18,14 +18,51 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-
+module;
 #include <algorithm>
-#include "ecc_edc.hh"
+#include <cstdint>
+
+export module ecc_edc;
+
+import cd;
 
 
 
 namespace gpsxre
 {
+
+export class ECC
+{
+public:
+	ECC();
+
+	Sector::ECC Generate(const uint8_t *data);
+	Sector::ECC Generate(Sector &sector, bool zero_address);
+
+private:
+	static const uint32_t _LUT_SIZE = 0x100;
+	static uint8_t _F_LUT[_LUT_SIZE];
+	static uint8_t _B_LUT[_LUT_SIZE];
+	static bool _initialized;
+
+	void InitLUTs();
+	void ComputeBlock(uint8_t *parity, const uint8_t *data, uint32_t major_count, uint32_t minor_count, uint32_t major_mult, uint32_t minor_inc);
+};
+
+export class EDC
+{
+public:
+	EDC();
+
+	uint32_t ComputeBlock(uint32_t edc, const uint8_t *data, uint32_t size);
+
+private:
+	static const uint32_t _LUT_SIZE = 0x100;
+	static uint32_t _LUT[_LUT_SIZE];
+	static bool _initialized;
+
+	void InitLUTs();
+};
 
 uint8_t ECC::_F_LUT[_LUT_SIZE];
 uint8_t ECC::_B_LUT[_LUT_SIZE];

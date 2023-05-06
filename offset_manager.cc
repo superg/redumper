@@ -1,4 +1,8 @@
-#include "offset_manager.hh"
+module;
+#include <utility>
+#include <vector>
+
+export module offset_manager;
 
 import common;
 
@@ -6,6 +10,18 @@ import common;
 
 namespace gpsxre
 {
+
+export class OffsetManager
+{
+public:
+	OffsetManager(const std::vector<std::pair<int32_t, int32_t>> &offsets);
+
+	bool isVariable() const;
+	int32_t getOffset(int32_t lba) const;
+
+private:
+	std::vector<std::pair<int32_t, int32_t>> _offsets;
+};
 
 OffsetManager::OffsetManager(const std::vector<std::pair<int32_t, int32_t>> &offsets)
 	: _offsets(offsets)

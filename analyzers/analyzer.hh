@@ -3,7 +3,8 @@
 
 
 #include <cstdint>
-#include "redumper.hh"
+
+import common;
 
 
 

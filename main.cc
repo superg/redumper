@@ -1,13 +1,9 @@
-#include <filesystem>
-#include <format>
-#include <stdexcept>
-#include <iostream>
-#include "options.hh"
-#include "redumper.hh"
+#include <exception>
 
-import common;
 import logger;
-import signal;
+import options;
+import redumper;
+import version;
 
 
 
@@ -19,14 +15,14 @@ int main(int argc, char *argv[])
 {
 	int exit_code(0);
 
-	Signal::get();
-
 	try
 	{
 		Options options(argc, const_cast<const char **>(argv));
 
 		if(options.help)
-			options.PrintUsage();
+			options.printUsage();
+		else if(options.version)
+			LOG(redumper_version());
 		else
 		{
 			redumper(options);

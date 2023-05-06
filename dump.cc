@@ -1,17 +1,24 @@
+module;
+#include <filesystem>
 #include <format>
-#include "dump.hh"
+#include <string>
+
+export module dump;
 
 import common;
 import logger;
 import cmd;
 import mmc;
+import sptd;
+import drive;
+import options;
 
 
 
 namespace gpsxre
 {
 
-DriveConfig drive_init(SPTD &sptd, const Options &options)
+export DriveConfig drive_init(SPTD &sptd, const Options &options)
 {
 	// set drive speed
 	uint16_t speed = options.speed ? 150 * *options.speed : 0xFFFF;
@@ -32,7 +39,7 @@ DriveConfig drive_init(SPTD &sptd, const Options &options)
 }
 
 
-std::string image_init(const Options &options)
+export std::string image_init(const Options &options)
 {
 	if(options.image_name.empty())
 		throw_line("image name is not provided");
@@ -44,14 +51,14 @@ std::string image_init(const Options &options)
 }
 
 
-void image_check_overwrite(std::filesystem::path state_path, const Options &options)
+export void image_check_overwrite(std::filesystem::path state_path, const Options &options)
 {
 	if(!options.overwrite && std::filesystem::exists(state_path))
 		throw_line(std::format("dump already exists (image name: {})", options.image_name));
 }
 
 
-void strip_toc_response(std::vector<uint8_t> &data)
+export void strip_toc_response(std::vector<uint8_t> &data)
 {
 	if(data.size() < sizeof(READ_TOC_Response))
 		data.clear();

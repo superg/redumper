@@ -4,9 +4,10 @@ module;
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "hex_bin.hh"
 
 export module hash.block_hasher;
+
+import hex_bin;
 
 
 

@@ -1,24 +1,35 @@
+module;
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include "crc16_gsm.hh"
-#include "crc32.hh"
-#include "dump.hh"
-#include "dump_dvd.hh"
-#include "scrambler.hh"
-#include "dump_cd.hh"
+#include <list>
+#include <set>
+#include <string>
+#include <vector>
 
+import common;
+import sptd;
+import drive;
 import logger;
 import signal;
 import file.io;
+import cd;
 import cd.toc;
 import cd.split;
 import cd.subcode;
 import cmd;
 import mmc;
+import crc16_gsm;
+import crc32;
+import dump;
+import options;
+import scrambler;
+
+export module dump_cd;
 
 
 
@@ -28,7 +39,354 @@ namespace gpsxre
 static const std::string PROGRESS_FORMAT("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}");
 
 
-bool redumper_dump_cd(const Options &options, bool refine)
+struct LeadInEntry
+{
+	std::vector<uint8_t> data;
+	int32_t lba_start;
+	bool verified;
+};
+
+
+uint32_t plextor_leadin_compare(const std::vector<uint8_t> &leadin1, const std::vector<uint8_t> &leadin2)
+{
+	uint32_t count = 0;
+
+	uint32_t leadin1_count = (uint32_t)leadin1.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
+	uint32_t leadin2_count = (uint32_t)leadin2.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
+
+	uint32_t shared_count = std::min(leadin1_count, leadin2_count);
+	for(; count < shared_count; ++count)
+	{
+		auto sector1 = &leadin1[(leadin1_count - 1 - count) * PLEXTOR_LEADIN_ENTRY_SIZE];
+		auto sector2 = &leadin2[(leadin2_count - 1 - count) * PLEXTOR_LEADIN_ENTRY_SIZE];
+
+		if(memcmp(sector1 + sizeof(SPTD::Status), sector2 + sizeof(SPTD::Status), CD_DATA_SIZE))
+			break;
+	}
+
+	return count * PLEXTOR_LEADIN_ENTRY_SIZE;
+}
+
+
+bool refine_needed(std::fstream &fs_state, int32_t lba_start, int32_t lba_end, int32_t read_offset)
+{
+	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
+
+	for(int32_t lba = lba_start; lba < lba_end; ++lba)
+	{
+		read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, read_offset, (uint8_t)State::ERROR_SKIP);
+		for(auto const &ss : sector_state)
+			if(ss == State::ERROR_SKIP || ss == State::ERROR_C2)
+				return true;
+	}
+
+	return false;
+}
+
+
+bool plextor_assign_leadin_session(std::vector<LeadInEntry> &entries, std::vector<uint8_t> leadin, int32_t drive_pregap_start)
+{
+	bool session_found = false;
+
+	uint32_t entries_count = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
+	for(uint32_t j = entries_count; j > 0; --j)
+	{
+		auto entry = &leadin[(j - 1) * PLEXTOR_LEADIN_ENTRY_SIZE];
+		auto status = *(SPTD::Status *)entry;
+
+		if(status.status_code)
+			continue;
+
+		auto sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
+
+		ChannelQ Q;
+		subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
+
+		if(Q.Valid())
+		{
+			uint8_t adr = Q.control_adr & 0x0F;
+			if(adr == 1 && Q.mode1.tno)
+			{
+				int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
+				for(uint32_t s = 0; s < (uint32_t)entries.size(); ++s)
+				{
+					int32_t pregap_end = entries[s].lba_start + (drive_pregap_start - MSF_LBA_SHIFT);
+					if(lba >= entries[s].lba_start && lba < pregap_end)
+					{
+						uint32_t trim_count = j - 1 + pregap_end - lba;
+
+						if(trim_count > entries_count)
+						{
+							LOG("PLEXTOR: lead-in incomplete (session: {})", s + 1);
+						}
+						else
+						{
+							LOG("PLEXTOR: lead-in found (session: {}, sectors: {})", s + 1, trim_count);
+
+							if(trim_count < entries_count)
+								leadin.resize(trim_count * PLEXTOR_LEADIN_ENTRY_SIZE);
+
+							// initial add
+							if(entries[s].data.empty())
+								entries[s].data = leadin;
+							else
+							{
+								auto size = plextor_leadin_compare(entries[s].data, leadin);
+
+								// match
+								if(size == std::min(entries[s].data.size(), leadin.size()))
+								{
+									// prefer smaller size
+									if(leadin.size() < entries[s].data.size())
+										entries[s].data.swap(leadin);
+
+									entries[s].verified = true;
+								}
+								// mismatch, prefer newest for the next comparison
+								else
+									entries[s].data.swap(leadin);
+							}
+						}
+
+						session_found = true;
+						break;
+					}
+				}
+
+				if(session_found)
+					break;
+			}
+		}
+	}
+
+	return session_found;
+}
+
+
+void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveConfig &drive_config, const Options &options)
+{
+	std::vector<LeadInEntry> entries;
+	for(auto s : session_lba_start)
+		entries.push_back({std::vector<uint8_t>(), s, false});
+
+	if(entries.empty())
+		return;
+
+	uint32_t retries = options.plextor_leadin_retries + entries.size();
+	for(uint32_t i = 0; i < retries && !entries.front().verified; ++i)
+	{
+		LOG("PLEXTOR: reading lead-in (retry: {})", i + 1);
+
+		// this helps with getting more consistent sectors count for the first session
+		if(i == entries.size() - 1)
+			cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
+
+		auto leadin = plextor_read_leadin(sptd, drive_config.pregap_start - MSF_LBA_SHIFT);
+
+		if(!plextor_assign_leadin_session(entries, leadin, drive_config.pregap_start))
+			LOG("PLEXTOR: lead-in session not identified");
+	}
+
+	// store
+	for(uint32_t s = 0; s < entries.size(); ++s)
+	{
+		auto &leadin = entries[s].data;
+
+		if(!leadin.empty())
+		{
+			// don't store unverified lead-in for the first session, it's always wrong
+			if(s == 0 && !entries[s].verified)
+			{
+				leadin.clear();
+				LOG("PLEXTOR: lead-in discarded as unverified (session: {})", s + 1);
+			}
+			else
+				LOG("PLEXTOR: storing lead-in (session: {}, verified: {})", s + 1, entries[s].verified ? "yes" : "no");
+		}
+
+		for(uint32_t i = 0, n = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE; i < n; ++i)
+		{
+			int32_t lba = entries[s].lba_start + (drive_config.pregap_start - MSF_LBA_SHIFT) - (n - i);
+			int32_t lba_index = lba - LBA_START;
+
+			uint8_t *entry = &leadin[i * PLEXTOR_LEADIN_ENTRY_SIZE];
+			auto status = *(SPTD::Status *)entry;
+
+			if(status.status_code)
+			{
+				if(options.verbose)
+				{
+					LOG_ER();
+					LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+				}
+			}
+			else
+			{
+				// data
+				std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
+				read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
+				for(auto const &s : sector_state)
+				{
+					// new data is improved
+					if(s < State::SUCCESS_C2_OFF)
+					{
+						uint8_t *sector_data = entry + sizeof(SPTD::Status);
+						std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
+
+						write_entry(fs_scm, sector_data, CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
+						write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset);
+
+						break;
+					}
+				}
+
+				// subcode
+				std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
+				read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
+				ChannelQ Q_file;
+				subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
+				if(!Q_file.Valid())
+				{
+					uint8_t *sector_subcode = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
+					write_entry(fs_sub, sector_subcode, CD_SUBCODE_SIZE, lba_index, 1, 0);
+				}
+			}
+		}
+	}
+}
+
+
+void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int32_t lba_start, int32_t drive_read_offset)
+{
+	uint32_t scm_offset = lba_index * CD_DATA_SIZE - drive_read_offset * CD_SAMPLE_SIZE;
+	uint32_t state_offset = lba_index * CD_DATA_SIZE_SAMPLES - drive_read_offset;
+
+	std::string offset_str;
+	for(uint32_t i = 0; i < CD_DATA_SIZE; ++i)
+	{
+		uint32_t byte_offset = i / CHAR_BIT;
+		uint32_t bit_offset = ((CHAR_BIT - 1) - i % CHAR_BIT);
+
+		if(c2_data[byte_offset] & (1 << bit_offset))
+			offset_str += std::format("{:08X} ", scm_offset + i);
+	}
+	LOG("");
+	LOG("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: {}", (int32_t)lba_index + lba_start, scm_offset, state_offset, offset_str);
+}
+
+
+uint32_t debug_get_scram_offset(int32_t lba, int32_t write_offset)
+{
+	return (lba - LBA_START) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE;
+}
+
+
+SPTD::Status read_sector(uint8_t *sector, SPTD &sptd, const DriveConfig &drive_config, int32_t lba)
+{
+	auto layout = sector_order_layout(drive_config.sector_order);
+
+	// PLEXTOR: C2 is shifted 294/295 bytes late, read as much sectors as needed to get whole C2
+	// as a consequence, lead-out overread will fail a few sectors earlier
+	uint32_t sectors_count = drive_config.c2_shift / CD_C2_SIZE + (drive_config.c2_shift % CD_C2_SIZE ? 1 : 0) + 1;
+	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
+
+	SPTD::Status status;
+	// D8
+	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
+	{
+		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
+				drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
+	}
+	// BE
+	else
+	{
+		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
+				drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
+				layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
+				layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
+	}
+
+	if(!status.status_code)
+	{
+		memset(sector, 0x00, CD_RAW_DATA_SIZE);
+
+		// copy data
+		if(layout.data_offset != CD_RAW_DATA_SIZE)
+			memcpy(sector + 0, sector_buffer.data() + layout.data_offset, CD_DATA_SIZE);
+
+		// copy C2
+		if(layout.c2_offset != CD_RAW_DATA_SIZE)
+		{
+			// compensate C2 shift
+			std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);
+			for(uint32_t i = 0; i < sectors_count; ++i)
+				memcpy(c2_buffer.data() + CD_C2_SIZE * i, sector_buffer.data() + layout.size * i + layout.c2_offset, CD_C2_SIZE);
+
+			memcpy(sector + CD_DATA_SIZE, c2_buffer.data() + drive_config.c2_shift, CD_C2_SIZE);
+		}
+
+		// copy subcode
+		if(layout.subcode_offset != CD_RAW_DATA_SIZE)
+			memcpy(sector + CD_DATA_SIZE + CD_C2_SIZE, sector_buffer.data() + layout.subcode_offset, CD_SUBCODE_SIZE);
+	}
+
+	return status;
+}
+
+
+bool is_data_track(int32_t lba, const TOC &toc)
+{
+	bool data_track = false;
+
+	for(auto const &s : toc.sessions)
+		for(auto const &t : s.tracks)
+			if(lba >= t.lba_start && lba < t.lba_end)
+			{
+				data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
+				break;
+			}
+
+	return data_track;
+}
+
+
+uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data)
+{
+	uint32_t c2_count = 0;
+
+	// group 4 C2 consecutive errors into 1 state, this way it aligns to the drive offset
+	// and covers the case where for 1 C2 bit there are 2 damaged sector bytes (scrambled data bytes, usually)
+	for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
+	{
+		uint8_t c2_quad = c2_data[i / 2];
+		if(i % 2)
+			c2_quad &= 0x0F;
+		else
+			c2_quad >>= 4;
+
+		if(c2_quad)
+		{
+			state[i] = State::ERROR_C2;
+			c2_count += bits_count(c2_quad);
+		}
+	}
+
+	return c2_count;
+}
+
+
+uint32_t percentage(int32_t value, uint32_t value_max)
+{
+	if(value < 0)
+		return 0;
+	else if(!value_max || (uint32_t)value >= value_max)
+		return 100;
+	else
+		return value * 100 / value_max;
+}
+
+
+export bool redumper_dump_cd(const Options &options, bool refine)
 {
 	SPTD sptd(options.drive);
 	auto drive_config = drive_init(sptd, options);
@@ -881,345 +1239,5 @@ void redumper_rings(const Options &options)
 	LOG("");
 }
 #endif
-
-
-uint32_t percentage(int32_t value, uint32_t value_max)
-{
-	if(value < 0)
-		return 0;
-	else if(!value_max || (uint32_t)value >= value_max)
-		return 100;
-	else
-		return value * 100 / value_max;
-}
-
-
-SPTD::Status read_sector(uint8_t *sector, SPTD &sptd, const DriveConfig &drive_config, int32_t lba)
-{
-	auto layout = sector_order_layout(drive_config.sector_order);
-
-	// PLEXTOR: C2 is shifted 294/295 bytes late, read as much sectors as needed to get whole C2
-	// as a consequence, lead-out overread will fail a few sectors earlier
-	uint32_t sectors_count = drive_config.c2_shift / CD_C2_SIZE + (drive_config.c2_shift % CD_C2_SIZE ? 1 : 0) + 1;
-	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
-
-	SPTD::Status status;
-	// D8
-	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
-	{
-		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
-				drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
-	}
-	// BE
-	else
-	{
-		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
-				drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
-				layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
-				layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
-	}
-
-	if(!status.status_code)
-	{
-		memset(sector, 0x00, CD_RAW_DATA_SIZE);
-
-		// copy data
-		if(layout.data_offset != CD_RAW_DATA_SIZE)
-			memcpy(sector + 0, sector_buffer.data() + layout.data_offset, CD_DATA_SIZE);
-
-		// copy C2
-		if(layout.c2_offset != CD_RAW_DATA_SIZE)
-		{
-			// compensate C2 shift
-			std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);
-			for(uint32_t i = 0; i < sectors_count; ++i)
-				memcpy(c2_buffer.data() + CD_C2_SIZE * i, sector_buffer.data() + layout.size * i + layout.c2_offset, CD_C2_SIZE);
-
-			memcpy(sector + CD_DATA_SIZE, c2_buffer.data() + drive_config.c2_shift, CD_C2_SIZE);
-		}
-
-		// copy subcode
-		if(layout.subcode_offset != CD_RAW_DATA_SIZE)
-			memcpy(sector + CD_DATA_SIZE + CD_C2_SIZE, sector_buffer.data() + layout.subcode_offset, CD_SUBCODE_SIZE);
-	}
-
-	return status;
-}
-
-
-bool is_data_track(int32_t lba, const TOC &toc)
-{
-	bool data_track = false;
-
-	for(auto const &s : toc.sessions)
-		for(auto const &t : s.tracks)
-			if(lba >= t.lba_start && lba < t.lba_end)
-			{
-				data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
-				break;
-			}
-
-	return data_track;
-}
-
-
-uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data)
-{
-	uint32_t c2_count = 0;
-
-	// group 4 C2 consecutive errors into 1 state, this way it aligns to the drive offset
-	// and covers the case where for 1 C2 bit there are 2 damaged sector bytes (scrambled data bytes, usually)
-	for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
-	{
-		uint8_t c2_quad = c2_data[i / 2];
-		if(i % 2)
-			c2_quad &= 0x0F;
-		else
-			c2_quad >>= 4;
-
-		if(c2_quad)
-		{
-			state[i] = State::ERROR_C2;
-			c2_count += bits_count(c2_quad);
-		}
-	}
-
-	return c2_count;
-}
-
-
-uint32_t plextor_leadin_compare(const std::vector<uint8_t> &leadin1, const std::vector<uint8_t> &leadin2)
-{
-	uint32_t count = 0;
-
-	uint32_t leadin1_count = (uint32_t)leadin1.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
-	uint32_t leadin2_count = (uint32_t)leadin2.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
-
-	uint32_t shared_count = std::min(leadin1_count, leadin2_count);
-	for(; count < shared_count; ++count)
-	{
-		auto sector1 = &leadin1[(leadin1_count - 1 - count) * PLEXTOR_LEADIN_ENTRY_SIZE];
-		auto sector2 = &leadin2[(leadin2_count - 1 - count) * PLEXTOR_LEADIN_ENTRY_SIZE];
-
-		if(memcmp(sector1 + sizeof(SPTD::Status), sector2 + sizeof(SPTD::Status), CD_DATA_SIZE))
-			break;
-	}
-
-	return count * PLEXTOR_LEADIN_ENTRY_SIZE;
-}
-
-
-bool plextor_assign_leadin_session(std::vector<LeadInEntry> &entries, std::vector<uint8_t> leadin, int32_t drive_pregap_start)
-{
-	bool session_found = false;
-
-	uint32_t entries_count = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
-	for(uint32_t j = entries_count; j > 0; --j)
-	{
-		auto entry = &leadin[(j - 1) * PLEXTOR_LEADIN_ENTRY_SIZE];
-		auto status = *(SPTD::Status *)entry;
-
-		if(status.status_code)
-			continue;
-
-		auto sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
-
-		ChannelQ Q;
-		subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
-
-		if(Q.Valid())
-		{
-			uint8_t adr = Q.control_adr & 0x0F;
-			if(adr == 1 && Q.mode1.tno)
-			{
-				int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
-				for(uint32_t s = 0; s < (uint32_t)entries.size(); ++s)
-				{
-					int32_t pregap_end = entries[s].lba_start + (drive_pregap_start - MSF_LBA_SHIFT);
-					if(lba >= entries[s].lba_start && lba < pregap_end)
-					{
-						uint32_t trim_count = j - 1 + pregap_end - lba;
-
-						if(trim_count > entries_count)
-						{
-							LOG("PLEXTOR: lead-in incomplete (session: {})", s + 1);
-						}
-						else
-						{
-							LOG("PLEXTOR: lead-in found (session: {}, sectors: {})", s + 1, trim_count);
-
-							if(trim_count < entries_count)
-								leadin.resize(trim_count * PLEXTOR_LEADIN_ENTRY_SIZE);
-
-							// initial add
-							if(entries[s].data.empty())
-								entries[s].data = leadin;
-							else
-							{
-								auto size = plextor_leadin_compare(entries[s].data, leadin);
-
-								// match
-								if(size == std::min(entries[s].data.size(), leadin.size()))
-								{
-									// prefer smaller size
-									if(leadin.size() < entries[s].data.size())
-										entries[s].data.swap(leadin);
-
-									entries[s].verified = true;
-								}
-								// mismatch, prefer newest for the next comparison
-								else
-									entries[s].data.swap(leadin);
-							}
-						}
-
-						session_found = true;
-						break;
-					}
-				}
-
-				if(session_found)
-					break;
-			}
-		}
-	}
-
-	return session_found;
-}
-
-
-void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveConfig &drive_config, const Options &options)
-{
-	std::vector<LeadInEntry> entries;
-	for(auto s : session_lba_start)
-		entries.push_back({std::vector<uint8_t>(), s, false});
-
-	if(entries.empty())
-		return;
-
-	uint32_t retries = options.plextor_leadin_retries + entries.size();
-	for(uint32_t i = 0; i < retries && !entries.front().verified; ++i)
-	{
-		LOG("PLEXTOR: reading lead-in (retry: {})", i + 1);
-
-		// this helps with getting more consistent sectors count for the first session
-		if(i == entries.size() - 1)
-			cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
-
-		auto leadin = plextor_read_leadin(sptd, drive_config.pregap_start - MSF_LBA_SHIFT);
-
-		if(!plextor_assign_leadin_session(entries, leadin, drive_config.pregap_start))
-			LOG("PLEXTOR: lead-in session not identified");
-	}
-
-	// store
-	for(uint32_t s = 0; s < entries.size(); ++s)
-	{
-		auto &leadin = entries[s].data;
-
-		if(!leadin.empty())
-		{
-			// don't store unverified lead-in for the first session, it's always wrong
-			if(s == 0 && !entries[s].verified)
-			{
-				leadin.clear();
-				LOG("PLEXTOR: lead-in discarded as unverified (session: {})", s + 1);
-			}
-			else
-				LOG("PLEXTOR: storing lead-in (session: {}, verified: {})", s + 1, entries[s].verified ? "yes" : "no");
-		}
-
-		for(uint32_t i = 0, n = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE; i < n; ++i)
-		{
-			int32_t lba = entries[s].lba_start + (drive_config.pregap_start - MSF_LBA_SHIFT) - (n - i);
-			int32_t lba_index = lba - LBA_START;
-
-			uint8_t *entry = &leadin[i * PLEXTOR_LEADIN_ENTRY_SIZE];
-			auto status = *(SPTD::Status *)entry;
-
-			if(status.status_code)
-			{
-				if(options.verbose)
-				{
-					LOG_ER();
-					LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
-				}
-			}
-			else
-			{
-				// data
-				std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
-				read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
-				for(auto const &s : sector_state)
-				{
-					// new data is improved
-					if(s < State::SUCCESS_C2_OFF)
-					{
-						uint8_t *sector_data = entry + sizeof(SPTD::Status);
-						std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
-
-						write_entry(fs_scm, sector_data, CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
-						write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset);
-
-						break;
-					}
-				}
-
-				// subcode
-				std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
-				read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
-				ChannelQ Q_file;
-				subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
-				if(!Q_file.Valid())
-				{
-					uint8_t *sector_subcode = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
-					write_entry(fs_sub, sector_subcode, CD_SUBCODE_SIZE, lba_index, 1, 0);
-				}
-			}
-		}
-	}
-}
-
-
-bool refine_needed(std::fstream &fs_state, int32_t lba_start, int32_t lba_end, int32_t read_offset)
-{
-	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
-
-	for(int32_t lba = lba_start; lba < lba_end; ++lba)
-	{
-		read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, read_offset, (uint8_t)State::ERROR_SKIP);
-		for(auto const &ss : sector_state)
-			if(ss == State::ERROR_SKIP || ss == State::ERROR_C2)
-				return true;
-	}
-
-	return false;
-}
-
-
-void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int32_t lba_start, int32_t drive_read_offset)
-{
-	uint32_t scm_offset = lba_index * CD_DATA_SIZE - drive_read_offset * CD_SAMPLE_SIZE;
-	uint32_t state_offset = lba_index * CD_DATA_SIZE_SAMPLES - drive_read_offset;
-
-	std::string offset_str;
-	for(uint32_t i = 0; i < CD_DATA_SIZE; ++i)
-	{
-		uint32_t byte_offset = i / CHAR_BIT;
-		uint32_t bit_offset = ((CHAR_BIT - 1) - i % CHAR_BIT);
-
-		if(c2_data[byte_offset] & (1 << bit_offset))
-			offset_str += std::format("{:08X} ", scm_offset + i);
-	}
-	LOG("");
-	LOG("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: {}", (int32_t)lba_index + lba_start, scm_offset, state_offset, offset_str);
-}
-
-
-uint32_t debug_get_scram_offset(int32_t lba, int32_t write_offset)
-{
-	return (lba - LBA_START) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE;
-}
-
 
 }

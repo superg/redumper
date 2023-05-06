@@ -7,7 +7,8 @@
 #include <set>
 #include <string>
 #include <vector>
-#include "image_browser.hh"
+
+import image_browser;
 
 
 

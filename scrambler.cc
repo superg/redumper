@@ -1,7 +1,10 @@
+module;
 #include <algorithm>
 #include <climits>
+#include <cstdint>
 #include <cstring>
-#include "scrambler.hh"
+
+export module scrambler;
 
 import common;
 import cd;
@@ -10,6 +13,19 @@ import cd;
 
 namespace gpsxre
 {
+
+export class Scrambler
+{
+public:
+	Scrambler();
+	bool Descramble(uint8_t *sector, int32_t *lba, uint32_t size = CD_DATA_SIZE) const;
+	void Process(uint8_t *output, const uint8_t *data, uint32_t offset, uint32_t size) const;
+
+private:
+	uint8_t _table[CD_DATA_SIZE];
+
+	void GenerateTable();
+};
 
 Scrambler::Scrambler()
 {

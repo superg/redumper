@@ -1,11 +1,12 @@
+module;
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <set>
-#include "crc32.hh"
-#include "dump.hh"
 #include "md5.hh"
 #include "sha1.hh"
-#include "dump_dvd.hh"
+
+export module dump_dvd;
 
 import common;
 import endian;
@@ -15,6 +16,10 @@ import cd;
 import file.io;
 import cmd;
 import mmc;
+import crc32;
+import dump;
+import sptd;
+import options;
 
 
 
@@ -181,7 +186,7 @@ void progress_output(T sector, T sectors_count, T errors)
 }
 
 
-bool dump_dvd(const Options &options, bool refine)
+export bool dump_dvd(const Options &options, bool refine)
 {
 	SPTD sptd(options.drive);
 

@@ -1,16 +1,17 @@
+module;
 #include <algorithm>
+#include <cstdint>
+#include <list>
+#include <set>
+#include <string>
+#include <vector>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include "crc16_gsm.hh"
-#include "crc32.hh"
-#include "dump.hh"
-#include "dump_cd.hh"
-#include "dump_dvd.hh"
-#include "scrambler.hh"
-#include "redumper.hh"
+
+export module redumper;
 
 import logger;
 import signal;
@@ -18,62 +19,61 @@ import version;
 import file.io;
 import cd.split;
 import cd.subcode;
+import dump;
+import dump_cd;
+import dump_dvd;
 import cmd;
 import mmc;
-
-
-
-// stringify
-#define XSTRINGIFY(arg__) STRINGIFY(arg__)
-#define STRINGIFY(arg__) #arg__
+import crc16_gsm;
+import crc32;
+import common;
+import sptd;
+import cd;
+import drive;
+import cd.toc;
+import options;
+import scrambler;
 
 
 
 namespace gpsxre
 {
 
-std::map<std::string, void (*)(Options &)> COMMAND_HANDLERS =
+enum class DiscType
 {
-	{"cd", redumper_cd},
-	{"dump", redumper_dump},
-	{"refine", redumper_refine},
-	{"protection", redumper_protection},
-	{"split", redumper_split},
-	{"info", redumper_info},
-	{"subchannel", redumper_subchannel},
-	{"debug", redumper_debug}
+	CD,
+	DVD,
+	BLURAY
 };
 
 
-void redumper(Options &options)
+
+std::string first_ready_drive()
 {
-	normalize_options(options);
+	std::string drive;
 
-	Logger::get().reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
-
-	LOG("{}\n", redumper_version());
-	LOG("command line: {}\n", options.command_line);
-
-	for(auto const &p : options.commands)
+	auto drives = SPTD::ListDrives();
+	for(const auto &d : drives)
 	{
-		LOG("*** COMMAND: {}", p);
-
-		auto it = COMMAND_HANDLERS.find(p);
-		if(it == COMMAND_HANDLERS.end())
+		try
 		{
-			LOG("warning: unknown command, skipping ({})", p);
-			continue;
+			SPTD sptd(d);
+
+			auto status = cmd_drive_ready(sptd);
+			if(!status.status_code)
+			{
+				drive = d;
+				break;
+			}
 		}
-
-		it->second(options);
+		// drive busy
+		catch(const std::exception &)
+		{
+			;
+		}
 	}
-}
 
-
-std::string redumper_version()
-{
-	return std::format("redumper v{}.{}.{} build_{} [{}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR),
-			XSTRINGIFY(REDUMPER_VERSION_PATCH), XSTRINGIFY(REDUMPER_VERSION_BUILD), version::build());
+	return drive;
 }
 
 
@@ -120,35 +120,6 @@ void normalize_options(Options &options)
 		drive.erase(remove(drive.begin(), drive.end(), '/'), drive.end());
 		options.image_name = std::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
 	}
-}
-
-
-std::string first_ready_drive()
-{
-	std::string drive;
-
-	auto drives = SPTD::ListDrives();
-	for(const auto &d : drives)
-	{
-		try
-		{
-			SPTD sptd(d);
-
-			auto status = cmd_drive_ready(sptd);
-			if(!status.status_code)
-			{
-				drive = d;
-				break;
-			}
-		}
-		// drive busy
-		catch(const std::exception &)
-		{
-			;
-		}
-	}
-
-	return drive;
 }
 
 
@@ -200,28 +171,6 @@ DiscType query_disc_type(std::string drive)
 }
 
 
-void redumper_cd(Options &options)
-{
-	auto disc_type = query_disc_type(options.drive);
-
-	if(disc_type == DiscType::CD)
-	{
-		bool refine = redumper_dump_cd(options, false);
-		if(refine)
-			redumper_dump_cd(options, true);
-		redumper_protection(options);
-		redumper_split(options);
-		redumper_info(options);
-	}
-	else
-	{
-		bool refine = dump_dvd(options, false);
-		if(refine)
-			dump_dvd(options, true);
-	}
-}
-
-
 void redumper_dump(Options &options)
 {
 	auto disc_type = query_disc_type(options.drive);
@@ -259,6 +208,28 @@ void redumper_split(Options &options)
 void redumper_info(Options &options)
 {
 	redumper_info_cd(options);
+}
+
+
+void redumper_cd(Options &options)
+{
+	auto disc_type = query_disc_type(options.drive);
+
+	if(disc_type == DiscType::CD)
+	{
+		bool refine = redumper_dump_cd(options, false);
+		if(refine)
+			redumper_dump_cd(options, true);
+		redumper_protection(options);
+		redumper_split(options);
+		redumper_info(options);
+	}
+	else
+	{
+		bool refine = dump_dvd(options, false);
+		if(refine)
+			dump_dvd(options, true);
+	}
 }
 
 
@@ -452,6 +423,46 @@ void redumper_debug(Options &options)
 	}
 
 	LOG("");
+}
+
+
+std::map<std::string, void (*)(Options &)> COMMAND_HANDLERS =
+{
+	{"cd", redumper_cd},
+	{"dump", redumper_dump},
+	{"refine", redumper_refine},
+	{"protection", redumper_protection},
+	{"split", redumper_split},
+	{"info", redumper_info},
+	{"subchannel", redumper_subchannel},
+	{"debug", redumper_debug}
+};
+
+
+export void redumper(Options &options)
+{
+	Signal::get();
+
+	normalize_options(options);
+
+	Logger::get().reset((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
+
+	LOG("{}\n", redumper_version());
+	LOG("command line: {}\n", options.command_line);
+
+	for(auto const &p : options.commands)
+	{
+		LOG("*** COMMAND: {}", p);
+
+		auto it = COMMAND_HANDLERS.find(p);
+		if(it == COMMAND_HANDLERS.end())
+		{
+			LOG("warning: unknown command, skipping ({})", p);
+			continue;
+		}
+
+		it->second(options);
+	}
 }
 
 }

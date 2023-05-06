@@ -1237,7 +1237,7 @@ export void redumper_split_cd(const Options &options)
 		toc.updateQ(subq.data(), sectors_count, LBA_START);
 
 	LOG("final TOC:");
-	toc.print();
+	print_toc(toc);
 	LOG("");
 
 	if(!subq.empty())
@@ -1249,7 +1249,7 @@ export void redumper_split_cd(const Options &options)
 		{
 			LOG("");
 			LOG("final QTOC:");
-			qtoc.print();
+			print_toc(qtoc);
 			LOG("");
 		}
 

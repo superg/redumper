@@ -435,7 +435,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 	{
 		LOG("");
 		LOG("disc TOC:");
-		toc.print();
+		print_toc(toc);
 		LOG("");
 	}
 

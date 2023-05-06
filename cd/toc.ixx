@@ -1,8 +1,7 @@
 module;
-#include <format>
 #include <cctype>
-#include <codecvt>
 #include <cstdint>
+#include <format>
 #include <map>
 #include <ostream>
 #include <set>
@@ -11,13 +10,12 @@ module;
 
 export module cd.toc;
 
-import common;
-import endian;
-import logger;
 import cd;
 import cd.subcode;
-import mmc;
+import common;
 import crc16_gsm;
+import endian;
+import mmc;
 
 
 
@@ -585,14 +583,14 @@ export struct TOC
 	}
 
 
-	void print() const
+	void print(std::ostream &os) const
 	{
 		bool multisession = sessions.size() > 1;
 
 		for(auto const &s : sessions)
 		{
 			if(multisession)
-				LOG("{}session {}", std::string(2, ' '), s.session_number);
+				os << std::format("{}session {}", std::string(2, ' '), s.session_number) << std::endl;
 
 			for(auto const &t : s.tracks)
 			{
@@ -604,7 +602,7 @@ export struct TOC
 				if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
 					flags += ", pre-emphasis";
 
-				LOG("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), getTrackString(t.track_number), flags);
+				os << std::format("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), getTrackString(t.track_number), flags) << std::endl;
 
 				auto indices = t.indices;
 				indices.insert(indices.begin(), t.lba_start);
@@ -634,7 +632,7 @@ export struct TOC
 					else
 						index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
 
-					LOG("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i - 1, index_properties);
+					os << std::format("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i - 1, index_properties) << std::endl;
 				}
 			}
 		}
@@ -1019,7 +1017,6 @@ private:
 	std::string decodeText(const char *text, bool unicode, uint8_t language_code, CharacterCode character_code) const
 	{
 		//FIXME: codecvt is deprecated
-
 		// sometimes it's not UTF-16
 //		return unicode ? std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(std::u16string((char16_t*)text)) : std::string(text);
 

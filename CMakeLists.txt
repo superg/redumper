@@ -108,7 +108,7 @@ set(sources
 	"systems/iso.hh"
 	"systems/psx.cc"
 	"systems/psx.hh"
-	"main.cc" #+++
+	"main.cc"
 	"md5.cc"
 	"md5.hh"
 	"sha1.cc"
@@ -146,19 +146,19 @@ target_sources(redumper
 	"logger.cc"
 	"mmc.cc"
 	"offset_manager.cc"
-	"options.cc"
+	"options.ixx"
 	"redumper.cc"
 	"scrambler.cc"
 	"signal.cc"
 	"split.cc"
 	"sptd.cc"
 	"subcode.cc"
-    "toc.cc"
-    "version.cc" #+++
+    "cd/toc.ixx"
+    "version.ixx"
 )
 target_include_directories(redumper PUBLIC ${includes})
 
-add_custom_target(version_touch ALL COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_SOURCE_DIR}/version.cc")
+add_custom_target(version_touch ALL COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_SOURCE_DIR}/version.ixx")
 add_dependencies(redumper version_touch)
 
 install(TARGETS redumper DESTINATION "bin")

@@ -15,12 +15,12 @@ export module drive;
 import common;
 import endian;
 import logger;
-import sptd;
+import scsi.sptd;
 import file.io;
 import cd;
 import cd.subcode;
 import cmd;
-import mmc;
+import scsi.mmc;
 import crc16_gsm;
 
 

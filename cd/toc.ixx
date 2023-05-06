@@ -15,7 +15,7 @@ import cd.subcode;
 import common;
 import crc16_gsm;
 import endian;
-import mmc;
+import scsi.mmc;
 
 
 

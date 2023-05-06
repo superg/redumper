@@ -23,11 +23,11 @@ import dump;
 import dump_cd;
 import dump_dvd;
 import cmd;
-import mmc;
+import scsi.mmc;
 import crc16_gsm;
 import crc32;
 import common;
-import sptd;
+import scsi.sptd;
 import cd;
 import drive;
 import cd.toc;
@@ -52,7 +52,7 @@ std::string first_ready_drive()
 {
 	std::string drive;
 
-	auto drives = SPTD::ListDrives();
+	auto drives = SPTD::listDrives();
 	for(const auto &d : drives)
 	{
 		try

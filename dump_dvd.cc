@@ -15,10 +15,10 @@ import drive;
 import cd;
 import file.io;
 import cmd;
-import mmc;
+import scsi.mmc;
 import crc32;
 import dump;
-import sptd;
+import scsi.sptd;
 import options;
 
 

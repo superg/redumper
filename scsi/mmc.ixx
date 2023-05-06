@@ -1,7 +1,7 @@
 module;
 #include <cstdint>
 
-export module mmc;
+export module scsi.mmc;
 
 
 
@@ -104,14 +104,14 @@ export enum class GET_CONFIGURATION_FeatureCode_ProfileList : uint16_t
 
 export enum class READ_CD_ExpectedSectorType : uint8_t
 {
-	ALL_TYPES  , // mandatory
-	CD_DA      , // optional
-	MODE1      , // mandatory
-	MODE2      , // mandatory
+	ALL_TYPES,   // mandatory
+	CD_DA,       // optional
+	MODE1,       // mandatory
+	MODE2,       // mandatory
 	MODE2_FORM1, // mandatory
 	MODE2_FORM2, // mandatory
-	RESERVED1  ,
-	RESERVED2  ,
+	RESERVED1,
+	RESERVED2,
 
 	COUNT
 };
@@ -284,43 +284,6 @@ export struct READ_DVD_STRUCTURE_LayerDescriptor
 
 
 #pragma pack(push, 1)
-export struct CDB_ASUS_ReadCache
-{
-	uint8_t operation_code;
-	uint8_t unknown;
-	uint32_t offset;
-	uint32_t size;
-};
-#pragma pack(pop)
-
-
-export struct CDB6_Generic
-{
-	uint8_t  operation_code;
-	uint8_t  immediate                :1;
-	uint8_t  command_unique_bits      :4;
-	uint8_t  logical_unit_number      :3;
-	uint8_t  command_unique_bytes[3];
-	uint8_t  link                     :1;
-	uint8_t  flag                     :1;
-	uint8_t  reserved                 :4;
-	uint8_t  vendor_unique            :2;
-};
-
-
-export struct CDB6_Inquiry
-{
-	uint8_t operation_code;
-	uint8_t enable_vital_product_data :1;
-	uint8_t command_support_data      :1;
-	uint8_t reserved1                 :6;
-	uint8_t page_code;
-	uint8_t allocation_length[2];     // unaligned
-	uint8_t control;
-};
-
-
-#pragma pack(push, 1)
 export struct INQUIRY_StandardData
 {
 	uint8_t device_type           :5;
@@ -382,6 +345,7 @@ export struct INQUIRY_StandardData
 };
 #pragma pack(pop)
 
+
 export struct INQUIRY_VPDBlockLimits
 {
 	uint8_t peripheral_device_type                                :5;
@@ -409,6 +373,32 @@ export struct INQUIRY_VPDBlockLimits
 };
 
 
+export struct CDB6_Generic
+{
+	uint8_t  operation_code;
+	uint8_t  immediate                :1;
+	uint8_t  command_unique_bits      :4;
+	uint8_t  logical_unit_number      :3;
+	uint8_t  command_unique_bytes[3];
+	uint8_t  link                     :1;
+	uint8_t  flag                     :1;
+	uint8_t  reserved                 :4;
+	uint8_t  vendor_unique            :2;
+};
+
+
+export struct CDB6_Inquiry
+{
+	uint8_t operation_code;
+	uint8_t enable_vital_product_data :1;
+	uint8_t command_support_data      :1;
+	uint8_t reserved1                 :6;
+	uint8_t page_code;
+	uint8_t allocation_length[2];     // unaligned
+	uint8_t control;
+};
+
+
 export struct CDB10_ReadTOC
 {
 	uint8_t operation_code;
@@ -426,19 +416,15 @@ export struct CDB10_ReadTOC
 };
 
 
-export struct CDB12_ReadDVDStructure
+#pragma pack(push, 1)
+export struct CDB10_ASUS_ReadCache
 {
 	uint8_t operation_code;
-	uint8_t reserved1             :5;
-	uint8_t lun                   :3;
-	uint8_t address[4];
-	uint8_t layer_number;
-	uint8_t format;
-	uint8_t allocation_length[2];
-	uint8_t reserved3             :6;
-	uint8_t agid                  :2;
-	uint8_t control;
+	uint8_t unknown;
+	uint32_t offset;
+	uint32_t size;
 };
+#pragma pack(pop)
 
 
 export struct CDB10_GetConfiguration
@@ -452,6 +438,21 @@ export struct CDB10_GetConfiguration
 	uint8_t reserved4;
 	uint8_t reserved5;
 	uint8_t allocation_length[2];     // unaligned
+	uint8_t control;
+};
+
+
+export struct CDB12_ReadDVDStructure
+{
+	uint8_t operation_code;
+	uint8_t reserved1             :5;
+	uint8_t lun                   :3;
+	uint8_t address[4];
+	uint8_t layer_number;
+	uint8_t format;
+	uint8_t allocation_length[2];
+	uint8_t reserved3             :6;
+	uint8_t agid                  :2;
 	uint8_t control;
 };
 

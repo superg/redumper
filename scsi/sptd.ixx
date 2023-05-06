@@ -2,14 +2,17 @@ module;
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <format>
-#include <iostream>
+#include <fstream>
 #include <map>
 #include <set>
-#include <stdexcept>
 #include <string>
-#ifndef _WIN32
+
+#ifdef _WIN32
+#include <windows.h>
+#include <ntddscsi.h>
+#include <scsi.h>
+#else
 #include <errno.h>
 #include <fcntl.h>
 #include <scsi/sg.h>
@@ -17,15 +20,10 @@ module;
 #include <unistd.h>
 #endif
 
-#ifdef _WIN32
-#include <windows.h>
-#include <ntddscsi.h>
-#include <scsi.h>
-#endif
-
-export module sptd;
+export module scsi.sptd;
 
 import common;
+import logger;
 
 
 
@@ -45,25 +43,193 @@ public:
 		uint8_t ascq;
 	};
 
-	static std::set<std::string> ListDrives();
-	static std::string StatusMessage(const Status &status);
 
-	SPTD(const std::string &drive_path);
-	~SPTD();
+	SPTD(const std::string &drive_path)
+	{
+#ifdef _WIN32
+		_handle = CreateFile(std::format("//./{}", drive_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+		if(_handle == INVALID_HANDLE_VALUE)
+#else
+		_handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
+		if(_handle < 0)
+#endif
+			throw_line(std::format("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError()));
+	}
 
-	Status SendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, uint32_t timeout = DEFAULT_TIMEOUT);
+
+	~SPTD()
+	{
+		bool success;
+#ifdef _WIN32
+		success = CloseHandle(_handle) == TRUE;
+#else
+		success = close(_handle) == 0;
+#endif
+		if(!success)
+			LOG("warning: unable to close drive (SYSTEM: {})", getLastError());
+	}
+
+
+	Status sendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, uint32_t timeout = DEFAULT_TIMEOUT)
+	{
+		Status status = {};
+
+#ifdef _WIN32
+		//FIXME: simplify and reuse common SenseData
+		SPTD_SD sptd_sd = {};
+		sptd_sd.sptd.Length = sizeof(sptd_sd.sptd);
+		sptd_sd.sptd.CdbLength = cdb_length;
+		sptd_sd.sptd.SenseInfoLength = sizeof(sptd_sd.sd);
+		sptd_sd.sptd.DataIn = SCSI_IOCTL_DATA_IN;
+		sptd_sd.sptd.DataTransferLength = buffer_length;
+		sptd_sd.sptd.TimeOutValue = timeout;
+		sptd_sd.sptd.DataBuffer = buffer;
+		sptd_sd.sptd.SenseInfoOffset = offsetof(SPTD_SD, sd);
+		memcpy(sptd_sd.sptd.Cdb, cdb, cdb_length);
+
+		DWORD bytes_returned;
+		BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
+		if(success != TRUE)
+			throw_line(std::format("SYSTEM ({})", GetLastError()));
+
+		if(sptd_sd.sptd.ScsiStatus != SCSISTAT_GOOD)
+		{
+			status.status_code = sptd_sd.sptd.ScsiStatus;
+			status.sense_key = sptd_sd.sd.SenseKey;
+			status.asc = sptd_sd.sd.AdditionalSenseCode;
+			status.ascq = sptd_sd.sd.AdditionalSenseCodeQualifier;
+		}
+#else
+		SenseData sense_data;
+
+		sg_io_hdr hdr = {};
+		hdr.interface_id = 'S';
+		hdr.dxfer_direction = SG_DXFER_FROM_DEV;
+		hdr.cmd_len = cdb_length;
+		hdr.mx_sb_len = sizeof(sense_data);
+		hdr.dxfer_len = buffer_length;
+		hdr.dxferp = buffer;
+		hdr.cmdp = (unsigned char *)cdb;
+		hdr.sbp = (unsigned char *)&sense_data;
+		hdr.timeout = timeout;
+
+		int result = ioctl(_handle, SG_IO, &hdr);
+		if(result < 0)
+			throw_line(std::format("SYSTEM ({})", getLastError()));
+
+		if(hdr.status)
+		{
+			status.status_code = hdr.status;
+			status.sense_key = sense_data.sense_key;
+			status.asc = sense_data.additional_sense_code;
+			status.ascq = sense_data.additional_sense_code_qualifier;
+		}
+#endif
+
+		return status;
+	}
+
+
+	static std::set<std::string> listDrives()
+	{
+		std::set<std::string> drives;
+
+#ifdef _WIN32
+		DWORD drive_mask = GetLogicalDrives();
+		if(!drive_mask)
+			throw_line(std::format("SYSTEM ({})", GetLastError()));
+
+		for(uint32_t i = 0, n = sizeof(drive_mask) * CHAR_BIT; i < n; ++i)
+		{
+			if(drive_mask & 1 << i)
+			{
+				std::string drive(std::format("{}:", (char)('A' + i)));
+				if(GetDriveType(std::format("{}\\", drive).c_str()) == DRIVE_CDROM)
+					drives.emplace(drive);
+				;
+			}
+		}
+#else
+		// detect available drives using sysfs
+		// according to sysfs kernel rules, it's planned to merge all 3 classification directories
+		// into "subsystem" so this directory is scanned first
+		for(auto &ss : {"subsystem", "bus", "class", "block"})
+		{
+			std::filesystem::path devices_path(std::format("/sys/{}/scsi/devices", ss));
+			if(std::filesystem::is_directory(devices_path))
+			{
+				for(auto const &de : std::filesystem::directory_iterator(devices_path))
+				{
+					if(!std::filesystem::is_directory(de.path()))
+						continue;
+
+					std::filesystem::path type_path(de.path() / "type");
+					if(!std::filesystem::exists(type_path))
+						continue;
+
+					std::ifstream ifs(type_path);
+					if(!ifs.is_open())
+						continue;
+
+					unsigned int type = 0;
+					ifs >> type;
+					if(!ifs)
+						continue;
+
+					if(type != 5)
+						continue;
+
+					// direct read-write ioctl requires a generic SCSI device
+					std::filesystem::path scsi_generic_path(de.path() / "scsi_generic");
+					if(std::filesystem::is_directory(scsi_generic_path))
+					{
+						auto it = std::filesystem::directory_iterator(scsi_generic_path);
+						if(it != std::filesystem::directory_iterator() && std::filesystem::is_directory(it->path()))
+							drives.emplace(std::format("/dev/{}", it->path().filename().string()));
+					}
+				}
+
+				break;
+			}
+		}
+#endif
+
+		return drives;
+	}
+
+
+	static std::string StatusMessage(const Status &status)
+	{
+		std::string status_message;
+
+		{
+			auto it = _SCSISTAT_STRINGS.find(status.status_code);
+			status_message += "SC: " + (it == _SCSISTAT_STRINGS.end() ? std::format("{:02X}", status.status_code) : it->second);
+		}
+
+		if(auto it = _SCSI_SENSE_STRINGS.find(status.sense_key); it != _SCSI_SENSE_STRINGS.end() && it->first || it == _SCSI_SENSE_STRINGS.end())
+			status_message += ", SK: " + (it == _SCSI_SENSE_STRINGS.end() ? std::format("{:02X}", status.sense_key) : it->second);
+
+		if(auto it = _SCSI_ADSENSE_STRINGS.find(status.asc); it != _SCSI_ADSENSE_STRINGS.end() && it->first || it == _SCSI_ADSENSE_STRINGS.end())
+			status_message += ", ASC: " + (it == _SCSI_ADSENSE_STRINGS.end() ? std::format("{:02X}", status.asc) : it->second);
+
+		if(status.ascq)
+			status_message += ", ASCQ: " + std::format("{:02X}", status.ascq);
+
+		return status_message;
+	}
 
 private:
 	struct SenseData
 	{
-		uint8_t error_code       :7;
-		uint8_t valid            :1;
+		uint8_t error_code                       :7;
+		uint8_t valid                            :1;
 		uint8_t segment_number;
-		uint8_t sense_key        :4;
-		uint8_t reserved         :1;
-		uint8_t incorrect_length :1;
-		uint8_t end_of_media     :1;
-		uint8_t file_mark        :1;
+		uint8_t sense_key                        :4;
+		uint8_t reserved                         :1;
+		uint8_t incorrect_length                 :1;
+		uint8_t end_of_media                     :1;
+		uint8_t file_mark                        :1;
 		uint8_t information[4];
 		uint8_t additional_sense_length;
 		uint8_t command_specific_information[4];
@@ -74,9 +240,9 @@ private:
 		uint8_t additional_sense_bytes[0];
 	};
 
-	static std::map<uint8_t, std::string> _SCSISTAT_STRINGS;
-	static std::map<uint8_t, std::string> _SCSI_SENSE_STRINGS;
-	static std::map<uint8_t, std::string> _SCSI_ADSENSE_STRINGS;
+	static const std::map<uint8_t, std::string> _SCSISTAT_STRINGS;
+	static const std::map<uint8_t, std::string> _SCSI_SENSE_STRINGS;
+	static const std::map<uint8_t, std::string> _SCSI_ADSENSE_STRINGS;
 
 #ifdef _WIN32
 	struct SPTD_SD
@@ -90,10 +256,30 @@ private:
 	int _handle;
 #endif
 
-	static std::string GetLastError();
+	static std::string getLastError()
+	{
+		std::string message;
+
+#ifdef _WIN32
+		LPSTR buffer = nullptr;
+			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+					nullptr, ::GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buffer, 0, nullptr);
+
+		message = std::string(buffer);
+		message.erase(std::remove(message.begin(), message.end(), '\r'), message.end());
+		message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
+
+		LocalFree(buffer);
+#else
+		message = strerror(errno);
+#endif
+
+		return message;
+	}
 };
 
-std::map<uint8_t, std::string> SPTD::_SCSISTAT_STRINGS =
+
+const std::map<uint8_t, std::string> SPTD::_SCSISTAT_STRINGS =
 {
 	{0x00, "GOOD"                        },
 	{0x02, "CHECK CONDITION"             },
@@ -109,7 +295,7 @@ std::map<uint8_t, std::string> SPTD::_SCSISTAT_STRINGS =
 };
 
 
-std::map<uint8_t, std::string> SPTD::_SCSI_SENSE_STRINGS =
+const std::map<uint8_t, std::string> SPTD::_SCSI_SENSE_STRINGS =
 {
 	{0x00, "NO SENSE"       },
 	{0x01, "RECOVERED ERROR"},
@@ -130,7 +316,7 @@ std::map<uint8_t, std::string> SPTD::_SCSI_SENSE_STRINGS =
 };
 
 
-std::map<uint8_t, std::string> SPTD::_SCSI_ADSENSE_STRINGS =
+const std::map<uint8_t, std::string> SPTD::_SCSI_ADSENSE_STRINGS =
 {
 	{0x00, "NO ADDITIONAL SENSE INFORMATION"                              },
 	{0x01, "NO INDEX/SECTOR SIGNAL"                                       },
@@ -244,203 +430,5 @@ std::map<uint8_t, std::string> SPTD::_SCSI_ADSENSE_STRINGS =
 	{0x74, "SECURITY ERROR"                                               }
 };
 // TODO: implement full ASCQ messages: https://www.t10.org/lists/asc-num.htm
-
-
-std::set<std::string> SPTD::ListDrives()
-{
-	std::set<std::string> drives;
-
-#ifdef _WIN32
-	DWORD drive_mask = GetLogicalDrives();
-	if(!drive_mask)
-		throw_line(std::format("SYSTEM ({})", GetLastError()));
-
-	for(uint32_t i = 0, n = sizeof(drive_mask) * CHAR_BIT; i < n; ++i)
-	{
-		if(drive_mask & 1 << i)
-		{
-			std::string drive(std::format("{}:", (char)('A' + i)));
-			if(GetDriveType(std::format("{}\\", drive).c_str()) == DRIVE_CDROM)
-				drives.emplace(drive);
-			;
-		}
-	}
-#else
-	// detect available drives using sysfs
-	// according to sysfs kernel rules, it's planned to merge all 3 classification directories
-	// into "subsystem" so this directory is scanned first
-	for(auto &ss : {"subsystem", "bus", "class", "block"})
-	{
-		std::filesystem::path devices_path(std::format("/sys/{}/scsi/devices", ss));
-		if(std::filesystem::is_directory(devices_path))
-		{
-			for(auto const &de : std::filesystem::directory_iterator(devices_path))
-			{
-				if(!std::filesystem::is_directory(de.path()))
-					continue;
-
-				std::filesystem::path type_path(de.path() / "type");
-				if(!std::filesystem::exists(type_path))
-					continue;
-
-				std::ifstream ifs(type_path);
-				if(!ifs.is_open())
-					continue;
-
-				unsigned int type = 0;
-				ifs >> type;
-				if(!ifs)
-					continue;
-
-				if(type != 5)
-					continue;
-
-				// direct read-write ioctl requires a generic SCSI device
-				std::filesystem::path scsi_generic_path(de.path() / "scsi_generic");
-				if(std::filesystem::is_directory(scsi_generic_path))
-				{
-					auto it = std::filesystem::directory_iterator(scsi_generic_path);
-					if(it != std::filesystem::directory_iterator() && std::filesystem::is_directory(it->path()))
-						drives.emplace(std::format("/dev/{}", it->path().filename().string()));
-				}
-			}
-
-			break;
-		}
-	}
-#endif
-
-	return drives;
-}
-
-
-std::string SPTD::StatusMessage(const Status &status)
-{
-	std::string status_message;
-
-	{
-		auto it = _SCSISTAT_STRINGS.find(status.status_code);
-		status_message += "SC: " + (it == _SCSISTAT_STRINGS.end() ? std::format("{:02X}", status.status_code) : it->second);
-	}
-
-	if(auto it = _SCSI_SENSE_STRINGS.find(status.sense_key); it != _SCSI_SENSE_STRINGS.end() && it->first || it == _SCSI_SENSE_STRINGS.end())
-		status_message += ", SK: " + (it == _SCSI_SENSE_STRINGS.end() ? std::format("{:02X}", status.sense_key) : it->second);
-
-	if(auto it = _SCSI_ADSENSE_STRINGS.find(status.asc); it != _SCSI_ADSENSE_STRINGS.end() && it->first || it == _SCSI_ADSENSE_STRINGS.end())
-		status_message += ", ASC: " + (it == _SCSI_ADSENSE_STRINGS.end() ? std::format("{:02X}", status.asc) : it->second);
-
-	if(status.ascq)
-		status_message += ", ASCQ: " + std::format("{:02X}", status.ascq);
-
-	return status_message;
-}
-
-
-SPTD::SPTD(const std::string &drive_path)
-{
-#ifdef _WIN32
-	_handle = CreateFile(std::format("//./{}", drive_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-	if(_handle == INVALID_HANDLE_VALUE)
-#else
-	_handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
-	if(_handle < 0)
-#endif
-		throw_line(std::format("unable to open drive ({}, SYSTEM: {})", drive_path, GetLastError()));
-}
-
-
-SPTD::~SPTD()
-{
-	bool success;
-#ifdef _WIN32
-	success = CloseHandle(_handle) == TRUE;
-#else
-	success = close(_handle) == 0;
-#endif
-	if(!success)
-		std::cout << std::format("warning: unable to close drive (SYSTEM: {})", GetLastError()) << std::endl;
-}
-
-
-SPTD::Status SPTD::SendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, uint32_t timeout)
-{
-	Status status = {};
-
-#ifdef _WIN32
-	//FIXME: simplify and reuse common SenseData
-	SPTD_SD sptd_sd = {};
-	sptd_sd.sptd.Length = sizeof(sptd_sd.sptd);
-	sptd_sd.sptd.CdbLength = cdb_length;
-	sptd_sd.sptd.SenseInfoLength = sizeof(sptd_sd.sd);
-	sptd_sd.sptd.DataIn = SCSI_IOCTL_DATA_IN;
-	sptd_sd.sptd.DataTransferLength = buffer_length;
-	sptd_sd.sptd.TimeOutValue = timeout;
-	sptd_sd.sptd.DataBuffer = buffer;
-	sptd_sd.sptd.SenseInfoOffset = offsetof(SPTD_SD, sd);
-	memcpy(sptd_sd.sptd.Cdb, cdb, cdb_length);
-
-	DWORD bytes_returned;
-	BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
-	if(success != TRUE)
-		throw_line(std::format("SYSTEM ({})", GetLastError()));
-
-	if(sptd_sd.sptd.ScsiStatus != SCSISTAT_GOOD)
-	{
-		status.status_code = sptd_sd.sptd.ScsiStatus;
-		status.sense_key = sptd_sd.sd.SenseKey;
-		status.asc = sptd_sd.sd.AdditionalSenseCode;
-		status.ascq = sptd_sd.sd.AdditionalSenseCodeQualifier;
-	}
-#else
-	SenseData sense_data;
-
-	sg_io_hdr hdr = {};
-	hdr.interface_id = 'S';
-	hdr.dxfer_direction = SG_DXFER_FROM_DEV;
-	hdr.cmd_len = cdb_length;
-	hdr.mx_sb_len = sizeof(sense_data);
-	hdr.dxfer_len = buffer_length;
-	hdr.dxferp = buffer;
-	hdr.cmdp = (unsigned char *)cdb;
-	hdr.sbp = (unsigned char *)&sense_data;
-	hdr.timeout = timeout;
-
-	int result = ioctl(_handle, SG_IO, &hdr);
-	if(result < 0)
-		throw_line(std::format("SYSTEM ({})", GetLastError()));
-
-	if(hdr.status)
-	{
-		status.status_code = hdr.status;
-		status.sense_key = sense_data.sense_key;
-		status.asc = sense_data.additional_sense_code;
-		status.ascq = sense_data.additional_sense_code_qualifier;
-	}
-#endif
-
-	return status;
-}
-
-
-std::string SPTD::GetLastError()
-{
-	std::string message;
-
-#ifdef _WIN32
-	LPSTR buffer = nullptr;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
-				  nullptr, ::GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buffer, 0, nullptr);
-
-	message = std::string(buffer);
-	message.erase(std::remove(message.begin(), message.end(), '\r'), message.end());
-	message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
-
-	LocalFree(buffer);
-#else
-	message = strerror(errno);
-#endif
-
-	return message;
-}
 
 }

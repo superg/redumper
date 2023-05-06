@@ -12,7 +12,7 @@ module;
 #include <vector>
 
 import common;
-import sptd;
+import scsi.sptd;
 import drive;
 import logger;
 import signal;
@@ -22,7 +22,7 @@ import cd.toc;
 import cd.split;
 import cd.subcode;
 import cmd;
-import mmc;
+import scsi.mmc;
 import crc16_gsm;
 import crc32;
 import dump;

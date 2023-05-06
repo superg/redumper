@@ -44,124 +44,6 @@ export struct TrackEntry
 	std::string sha1;
 };
 
-bool correct_program_subq(ChannelQ *subq, uint32_t sectors_count)
-{
-	uint32_t mcn = sectors_count;
-	std::map<uint8_t, uint32_t> isrc;
-	ChannelQ q_empty;
-	memset(&q_empty, 0, sizeof(q_empty));
-
-	bool invalid_subq = true;
-	uint8_t tno = 0;
-	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
-	{
-		if(!subq[lba_index].Valid())
-			continue;
-
-		invalid_subq = false;
-
-		uint8_t adr = subq[lba_index].control_adr & 0x0F;
-		if(adr == 1)
-			tno = subq[lba_index].mode1.tno;
-		else if(adr == 2 && mcn == sectors_count)
-			mcn = lba_index;
-		else if(adr == 3 && tno && isrc.find(tno) == isrc.end())
-			isrc[tno] = lba_index;
-	}
-
-	if(invalid_subq)
-		return false;
-
-	uint32_t q_prev = sectors_count;
-	uint32_t q_next = 0;
-	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
-	{
-		if(!memcmp(&subq[lba_index], &q_empty, sizeof(q_empty)))
-			continue;
-
-		if(subq[lba_index].Valid())
-		{
-			uint8_t adr = subq[lba_index].control_adr & 0x0F;
-			if(adr == 1)
-			{
-				if(subq[lba_index].mode1.tno)
-					q_prev = lba_index;
-				else
-					q_prev = sectors_count;
-			}
-		}
-		else
-		{
-			// find next valid Q
-			if(lba_index >= q_next && q_next != sectors_count)
-			{
-				q_next = lba_index + 1;
-				for(; q_next < sectors_count; ++q_next)
-					if(subq[q_next].Valid())
-					{
-						uint8_t adr = subq[q_next].control_adr & 0x0F;
-						if(adr == 1)
-						{
-							if(!subq[q_next].mode1.tno)
-								q_next = 0;
-
-							break;
-						}
-					}
-			}
-
-			std::vector<ChannelQ> candidates;
-			if(q_prev < lba_index)
-			{
-				// mode 1
-				candidates.emplace_back(subchannel_q_generate_mode1(subq[q_prev], lba_index - q_prev));
-
-				// mode 2
-				if(mcn != sectors_count)
-					candidates.emplace_back(subchannel_q_generate_mode2(subq[mcn], subq[q_prev], lba_index - q_prev));
-
-				// mode 3
-				if(!isrc.empty())
-				{
-					auto it = isrc.find(subq[q_prev].mode1.tno);
-					if(it != isrc.end())
-						candidates.emplace_back(subchannel_q_generate_mode3(subq[it->second], subq[q_prev], lba_index - q_prev));
-				}
-			}
-
-			if(q_next > lba_index && q_next != sectors_count)
-			{
-				// mode 1
-				candidates.emplace_back(subchannel_q_generate_mode1(subq[q_next], lba_index - q_next));
-
-				// mode 2
-				if(mcn != sectors_count)
-					candidates.emplace_back(subchannel_q_generate_mode2(subq[mcn], subq[q_next], lba_index - q_next));
-
-				// mode 3
-				if(!isrc.empty())
-				{
-					auto it = isrc.find(subq[q_next].mode1.tno);
-					if(it != isrc.end())
-						candidates.emplace_back(subchannel_q_generate_mode3(subq[it->second], subq[q_next], lba_index - q_next));
-				}
-			}
-
-			if(!candidates.empty())
-			{
-				uint32_t c = 0;
-				for(uint32_t j = 0; j < (uint32_t)candidates.size(); ++j)
-					if(bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[j], sizeof(ChannelQ) / sizeof(uint32_t)) < bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[c], sizeof(ChannelQ) / sizeof(uint32_t)))
-						c = j;
-
-				subq[lba_index] = candidates[c];
-			}
-		}
-	}
-
-	return true;
-}
-
 
 int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs)
 {
@@ -1222,7 +1104,7 @@ export void redumper_split_cd(const Options &options)
 
 		// correct Q
 		LOG_F("correcting Q... ");
-		if(!correct_program_subq(subq.data(), sectors_count))
+		if(!subcode_correct_subq(subq.data(), sectors_count))
 			subq.clear();
 		LOG("done");
 		LOG("");

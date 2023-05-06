@@ -102,10 +102,9 @@ bool plextor_assign_leadin_session(std::vector<LeadInEntry> &entries, std::vecto
 		ChannelQ Q;
 		subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
-		if(Q.Valid())
+		if(Q.isValid())
 		{
-			uint8_t adr = Q.control_adr & 0x0F;
-			if(adr == 1 && Q.mode1.tno)
+			if(Q.adr == 1 && Q.mode1.tno)
 			{
 				int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
 				for(uint32_t s = 0; s < (uint32_t)entries.size(); ++s)
@@ -245,7 +244,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 				read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 				ChannelQ Q_file;
 				subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
-				if(!Q_file.Valid())
+				if(!Q_file.isValid())
 				{
 					uint8_t *sector_subcode = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
 					write_entry(fs_sub, sector_subcode, CD_SUBCODE_SIZE, lba_index, 1, 0);
@@ -632,7 +631,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 				read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 				ChannelQ Q;
 				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-				if(!Q.Valid())
+				if(!Q.isValid())
 				{
 					++errors_q;
 					if(options.refine_subchannel)
@@ -777,7 +776,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 				read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0, 0);
 				ChannelQ Q;
 				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-				if(!Q.Valid())
+				if(!Q.isValid())
 					read = true;
 			}
 
@@ -900,10 +899,9 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 			{
 				ChannelQ Q;
 				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-				if(Q.Valid())
+				if(Q.isValid())
 				{
-					uint8_t adr = Q.control_adr & 0x0F;
-					if(adr == 1 && Q.mode1.tno)
+					if(Q.adr == 1 && Q.mode1.tno)
 					{
 						int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
 
@@ -976,13 +974,13 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 				{
 					ChannelQ Q;
 					subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-					if(Q.Valid())
+					if(Q.isValid())
 					{
 						std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
 						read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0, 0);
 						ChannelQ Q_file;
 						subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
-						if(!Q_file.Valid())
+						if(!Q_file.isValid())
 						{
 							write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0);
 							if(inside_range(lba, error_ranges) == nullptr)
@@ -1001,7 +999,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 					ChannelQ Q;
 					subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-					if(Q.Valid())
+					if(Q.isValid())
 					{
 						errors_q_last = errors_q;
 					}

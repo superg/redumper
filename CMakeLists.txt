@@ -152,7 +152,7 @@ target_sources(redumper
 	"signal.cc"
 	"split.cc"
 	"sptd.cc"
-	"subcode.cc"
+	"cd/subcode.ixx"
     "cd/toc.ixx"
     "version.ixx"
 )

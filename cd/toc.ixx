@@ -87,10 +87,9 @@ export struct TOC
 
 			auto &Q = subq[lba_index];
 
-			if(Q.Valid())
+			if(Q.isValid())
 			{
-				uint8_t adr = Q.control_adr & 0x0F;
-				if(adr == 1)
+				if(Q.adr == 1)
 				{
 					if(Q.mode1.tno)
 					{
@@ -114,7 +113,7 @@ export struct TOC
 							auto &t = s.tracks.emplace_back();
 
 							t.track_number = tno;
-							t.control = Q.control_adr >> 4;
+							t.control = Q.control;
 							t.lba_start = lba;
 							t.lba_end = lba;
 							t.data_mode = 0;
@@ -123,7 +122,7 @@ export struct TOC
 
 						Session::Track &t = s.tracks.back();
 
-						uint8_t index = bcd_decode(Q.mode1.index);
+						uint8_t index = bcd_decode(Q.mode1.point_index);
 						if(index == t.indices.size() + 1)
 							t.indices.push_back(lba);
 
@@ -134,12 +133,12 @@ export struct TOC
 						track_active = false;
 				}
 				// MCN & ISRC
-				else if(adr == 2 || adr == 3)
+				else if(Q.adr == 2 || Q.adr == 3)
 				{
 					;
 				}
 				// CD-R / CD-RW
-				else if(adr == 5)
+				else if(Q.adr == 5)
 				{
 					track_active = false;
 				}
@@ -201,11 +200,10 @@ export struct TOC
 					break;
 
 				auto &Q = subq[lba_index];
-				if(!Q.Valid())
+				if(!Q.isValid())
 					continue;
 
-				uint8_t adr = Q.control_adr & 0x0F;
-				if(adr == 1)
+				if(Q.adr == 1)
 				{
 					uint8_t tno = bcd_decode(Q.mode1.tno);
 					if(tno == t.track_number)
@@ -239,11 +237,10 @@ export struct TOC
 				uint32_t lba_index = lba - lba_start;
 
 				auto &Q = subq[lba_index];
-				if(!Q.Valid())
+				if(!Q.isValid())
 					continue;
 
-				uint8_t adr = Q.control_adr & 0x0F;
-				if(adr == 1)
+				if(Q.adr == 1)
 				{
 					uint8_t tno = bcd_decode(Q.mode1.tno);
 
@@ -268,16 +265,15 @@ export struct TOC
 					uint32_t lba_index = lba - lba_start;
 
 					auto &Q = subq[lba_index];
-					if(!Q.Valid())
+					if(!Q.isValid())
 						continue;
 
-					uint8_t adr = Q.control_adr & 0x0F;
-					if(adr == 1)
+					if(Q.adr == 1)
 					{
 						uint8_t tno = bcd_decode(Q.mode1.tno);
 						if(tno == s.tracks[i].track_number)
 						{
-							uint8_t index = bcd_decode(Q.mode1.index);
+							uint8_t index = bcd_decode(Q.mode1.point_index);
 
 							// no gap, preserve TOC configuration
 							if(index)
@@ -318,11 +314,10 @@ export struct TOC
 		{
 			auto &Q = subq[lba_index];
 
-			if(!Q.Valid())
+			if(!Q.isValid())
 				continue;
 
-			uint8_t adr = Q.control_adr & 0x0F;
-			switch(adr)
+			switch(Q.adr)
 			{
 			case 1:
 				// tracks
@@ -338,8 +333,8 @@ export struct TOC
 			case 2:
 				if(mcn.empty())
 				{
-					for(uint32_t i = 0; i < sizeof(Q.mode2.mcn); ++i)
-						mcn += std::format("{:02}", bcd_decode(Q.mode2.mcn[i]));
+					for(uint32_t i = 0; i < sizeof(Q.mode23.mcn); ++i)
+						mcn += std::format("{:02}", bcd_decode(Q.mode23.mcn[i]));
 
 					// remove trailing zero
 					mcn.pop_back();
@@ -356,7 +351,7 @@ export struct TOC
 						for(uint32_t i = 0; i < 5; ++i)
 						{
 							uint8_t c = 0;
-							bit_copy(&c, 2, Q.mode3.isrc, i * 6, 6);
+							bit_copy(&c, 2, Q.mode23.isrc, i * 6, 6);
 							tracks[track_index]->isrc += ISRC_TABLE[c];
 						}
 
@@ -364,7 +359,7 @@ export struct TOC
 
 						// 7 BCD 4-bit numbers
 						for(uint32_t i = 4; i < 8; ++i)
-							tracks[track_index]->isrc += std::format("{:02}", bcd_decode(Q.mode3.isrc[i]));
+							tracks[track_index]->isrc += std::format("{:02}", bcd_decode(Q.mode23.isrc[i]));
 						tracks[track_index]->isrc.pop_back();
 					}
 				}
@@ -927,14 +922,13 @@ private:
 
 					auto &Q = subq[lba_index];
 
-					if(!Q.Valid())
+					if(!Q.isValid())
 						continue;
 
-					uint8_t adr = Q.control_adr & 0x0F;
-					if(adr == 1)
+					if(Q.adr == 1)
 					{
 						uint8_t tno = bcd_decode(Q.mode1.tno);
-						uint8_t index = bcd_decode(Q.mode1.index);
+						uint8_t index = bcd_decode(Q.mode1.point_index);
 						if(tno == t.track_number && index == t.indices.size() + 1)
 							t.indices.push_back(lba);
 					}

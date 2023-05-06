@@ -446,10 +446,9 @@ export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 //			LOG_R();
 //			LOGC("{}", Q.Decode());
 
-			if(Q.Valid())
+			if(Q.isValid())
 			{
-				uint8_t adr = Q.control_adr & 0x0F;
-				if(adr == 1 && Q.mode1.tno && neg_end == neg_limit)
+				if(Q.adr == 1 && Q.mode1.tno && neg_end == neg_limit)
 					neg_end = neg + tail_size;
 			}
 		}
@@ -495,11 +494,10 @@ export std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache
 		ChannelQ Q;
 		subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
-		if(!Q.Valid())
+		if(!Q.isValid())
 			continue;
 
-		uint8_t adr = Q.control_adr & 0x0F;
-		if(adr != 1 || !Q.mode1.tno)
+		if(Q.adr != 1 || !Q.mode1.tno)
 			continue;
 
 		int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
@@ -557,10 +555,9 @@ export std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache
 			ChannelQ Q;
 			subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
-			if(Q.Valid())
+			if(Q.isValid())
 			{
-				uint8_t adr = Q.control_adr & 0x0F;
-				if(adr == 1 && Q.mode1.tno && lba_start + i != BCDMSF_to_LBA(Q.mode1.a_msf))
+				if(Q.adr == 1 && Q.mode1.tno && lba_start + i != BCDMSF_to_LBA(Q.mode1.a_msf))
 					break;
 
 				last_valid = true;

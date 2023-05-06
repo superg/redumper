@@ -296,13 +296,13 @@ bool SystemPSX::detectLibCrypt(std::ostream &os, std::filesystem::path sub_path)
 		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba_pair - LBA_START, 1, 0, 0);
 		subcode_extract_channel((uint8_t *)&Q_pair, sub_buffer.data(), Subchannel::Q);
 
-		if(!Q.Valid() && !Q_pair.Valid())
+		if(!Q.isValid() && !Q_pair.isValid())
 		{
 			candidates.push_back(lba);
 			candidates.push_back(lba_pair);
 		}
 
-		if(_LIBCRYPT_SECTORS_MEDIEVIL.find(lba) != _LIBCRYPT_SECTORS_MEDIEVIL.end() && !Q.Valid())
+		if(_LIBCRYPT_SECTORS_MEDIEVIL.find(lba) != _LIBCRYPT_SECTORS_MEDIEVIL.end() && !Q.isValid())
 			candidates_medievil.push_back(lba);
 	}
 
@@ -317,8 +317,8 @@ bool SystemPSX::detectLibCrypt(std::ostream &os, std::filesystem::path sub_path)
 			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), c - LBA_START, 1, 0, 0);
 			subcode_extract_channel((uint8_t *)&Q, sub_buffer.data(), Subchannel::Q);
 			MSF msf = LBA_to_MSF(c);
-			os << std::format("MSF: {:02}:{:02}:{:02} Q-Data: {:02X}{:02X}{:02X} {:02X}:{:02X}:{:02X} {:02X} {:02X}:{:02X}:{:02X} {:04X}",
-					msf.m, msf.s, msf.f, Q.control_adr, Q.mode1.tno, Q.mode1.index, Q.mode1.msf.m, Q.mode1.msf.s, Q.mode1.msf.f, Q.mode1.zero, Q.mode1.a_msf.m, Q.mode1.a_msf.s, Q.mode1.a_msf.f, endian_swap<uint16_t>(Q.crc)) << std::endl;
+			os << std::format("MSF: {:02}:{:02}:{:02} Q-Data: {:X}{:X}{:02X}{:02X} {:02X}:{:02X}:{:02X} {:02X} {:02X}:{:02X}:{:02X} {:04X}",
+					msf.m, msf.s, msf.f, (uint8_t)Q.control, (uint8_t)Q.adr, Q.mode1.tno, Q.mode1.point_index, Q.mode1.msf.m, Q.mode1.msf.s, Q.mode1.msf.f, Q.mode1.zero, Q.mode1.a_msf.m, Q.mode1.a_msf.s, Q.mode1.a_msf.f, endian_swap<uint16_t>(Q.crc)) << std::endl;
 		}
 
 		libcrypt = true;

@@ -6,7 +6,7 @@
 #include <vector>
 #include "analyzer.hh"
 
-import scrambler;
+import cd.scrambler;
 import cd;
 
 

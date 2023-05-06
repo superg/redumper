@@ -27,7 +27,7 @@ import crc16_gsm;
 import crc32;
 import dump;
 import options;
-import scrambler;
+import cd.scrambler;
 
 export module dump_cd;
 

@@ -148,7 +148,7 @@ target_sources(redumper
 	"offset_manager.cc"
 	"options.ixx"
 	"redumper.cc"
-	"scrambler.cc"
+	"cd/scrambler.ixx"
 	"signal.ixx"
 	"split.cc"
 	"scsi/sptd.ixx"

@@ -20,7 +20,7 @@ import cd;
 import common;
 import endian;
 import iso9660;
-import scrambler;
+import cd.scrambler;
 
 
 
@@ -222,7 +222,7 @@ void ImageBrowser::Init()
 		throw_line("read failure");
 
 	if(_scrambled)
-		scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
+		scrambler.process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
 	_trackLBA = BCDMSF_to_LBA(sector.header.address);
 
 	// skip system area
@@ -243,7 +243,7 @@ void ImageBrowser::Init()
 		}
 
 		if(_scrambled)
-			scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
+			scrambler.process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
 
 		iso9660::VolumeDescriptor *vd;
 		switch(sector.header.mode)
@@ -463,7 +463,7 @@ bool ImageBrowser::Entry::IsInterleaved() const
 		}
 
 		if(_browser._scrambled)
-			scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
+			scrambler.process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
 
 		uint8_t file_form_next = 0;
 		if(sector.header.mode == 1)
@@ -523,7 +523,7 @@ std::vector<uint8_t> ImageBrowser::Entry::Read(bool form2, bool throw_on_error)
 			}
 
 			if(_browser._scrambled)
-				scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
+				scrambler.process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
 
 			uint8_t *user_data;
 			uint32_t bytes_to_copy;
@@ -590,7 +590,7 @@ std::vector<uint8_t> ImageBrowser::Entry::Peek()
 		else
 		{
 			if(_browser._scrambled)
-				scrambler.Process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
+				scrambler.process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
 
 			uint8_t *user_data;
 			uint32_t bytes_to_copy = 0;

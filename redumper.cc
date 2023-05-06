@@ -32,7 +32,7 @@ import cd;
 import drive;
 import cd.toc;
 import options;
-import scrambler;
+import cd.scrambler;
 
 
 

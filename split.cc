@@ -24,7 +24,7 @@ import iso9660;
 import offset_manager;
 import cd.toc;
 import options;
-import scrambler;
+import cd.scrambler;
 
 
 
@@ -75,7 +75,7 @@ int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &s
 			{
 				Sector &sector = *(Sector *)&data[sector_offset];
 				Scrambler scrambler;
-				scrambler.Descramble((uint8_t *)&sector, nullptr);
+				scrambler.descramble((uint8_t *)&sector, nullptr);
 
 				if(BCDMSF_valid(sector.header.address))
 				{
@@ -310,9 +310,9 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 					{
 						bool success = true;
 						if(force_descramble)
-							scrambler.Process(sector.data(), sector.data(), 0, sector.size());
+							scrambler.process(sector.data(), sector.data(), 0, sector.size());
 						else
-							success = scrambler.Descramble(sector.data(), &lba);
+							success = scrambler.descramble(sector.data(), &lba);
 
 						if(success)
 						{
@@ -577,7 +577,7 @@ int32_t disc_offset_by_overlap(const TOC &toc, std::fstream &scm_fs, int32_t wri
 				for(uint32_t i = 0; i < sectors_to_check; ++i)
 				{
 					uint8_t *s = (uint8_t *)t1_samples.data() + i * CD_DATA_SIZE;
-					scrambler.Process(s, s, 0, CD_DATA_SIZE);
+					scrambler.process(s, s, 0, CD_DATA_SIZE);
 				}
 
 				for(auto it = t1_samples.begin(); it != t1_samples.end(); ++it)
@@ -638,7 +638,7 @@ int32_t find_non_zero_data_offset(std::fstream &scm_fs, std::fstream &state_fs, 
 
 		read_entry(scm_fs, data, CD_SAMPLE_SIZE, sample_offset_r2a(sample_offset), CD_DATA_SIZE_SAMPLES, 0, 0);
 		if(!scrap)
-			scrambler.Process(data, data, 0, data_size);
+			scrambler.process(data, data, 0, data_size);
 
 		if(sector.header.mode == 0)
 		{
@@ -709,7 +709,7 @@ uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32
 		uint64_t data_size = sector.size();
 		if(data_track)
 		{
-			scrambler.Descramble(sector.data(), &lba);
+			scrambler.descramble(sector.data(), &lba);
 
 			auto s = (Sector *)sector.data();
 			if(s->header.mode == 0)

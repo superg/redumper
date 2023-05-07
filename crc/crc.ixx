@@ -51,100 +51,100 @@ private:
 	}
 
 
-    template<bool rec = reciprocal>
-    static constexpr T reciprocal_reflect(typename std::enable_if<!rec, T>::type value)
-    {
+	template<bool rec = reciprocal>
+	static constexpr T reciprocal_reflect(typename std::enable_if<!rec, T>::type value)
+	{
 		return value;
-    }
-    template<bool rec = reciprocal>
-    static constexpr T reciprocal_reflect(typename std::enable_if<rec, T>::type value)
-    {
+	}
+	template<bool rec = reciprocal>
+	static constexpr T reciprocal_reflect(typename std::enable_if<rec, T>::type value)
+	{
 		return reflect(value);
-    }
+	}
 
 
-    template<bool rec = reciprocal>
-    static constexpr T mask(typename std::enable_if<!rec, void>::type* = nullptr)
-    {
+	template<bool rec = reciprocal>
+	static constexpr T mask(typename std::enable_if<!rec, void>::type* = nullptr)
+	{
 		return 1 << (sizeof(T) * CHAR_BIT - 1);
-    }
-    template<bool rec = reciprocal>
-    static constexpr T mask(typename std::enable_if<rec, void>::type* = nullptr)
-    {
+	}
+	template<bool rec = reciprocal>
+	static constexpr T mask(typename std::enable_if<rec, void>::type* = nullptr)
+	{
 		return 1;
-    }
+	}
 
 
-    template<bool rec = reciprocal>
-    static constexpr T shift_bit(typename std::enable_if<!rec, T>::type value)
-    {
+	template<bool rec = reciprocal>
+	static constexpr T shift_bit(typename std::enable_if<!rec, T>::type value)
+	{
 		return value << 1;
-    }
-    template<bool rec = reciprocal>
-    static constexpr T shift_bit(typename std::enable_if<rec, T>::type value)
-    {
+	}
+	template<bool rec = reciprocal>
+	static constexpr T shift_bit(typename std::enable_if<rec, T>::type value)
+	{
 		return value >> 1;
-    }
+	}
 
 
-    template<bool rec = reciprocal>
-    static constexpr T shift_byte(typename std::enable_if<!rec, T>::type value)
-    {
+	template<bool rec = reciprocal>
+	static constexpr T shift_byte(typename std::enable_if<!rec, T>::type value)
+	{
 		return value << CHAR_BIT;
-    }
-    template<bool rec = reciprocal>
-    static constexpr T shift_byte(typename std::enable_if<rec, T>::type value)
-    {
+	}
+	template<bool rec = reciprocal>
+	static constexpr T shift_byte(typename std::enable_if<rec, T>::type value)
+	{
 		return value >> CHAR_BIT;
-    }
+	}
 
 
-    template<bool rec = reciprocal>
-    static constexpr T shift_right(typename std::enable_if<!rec, T>::type value)
-    {
+	template<bool rec = reciprocal>
+	static constexpr T shift_right(typename std::enable_if<!rec, T>::type value)
+	{
 		return value >> (sizeof(T) - 1) * CHAR_BIT;
-    }
-    template<bool rec = reciprocal>
-    static constexpr T shift_right(typename std::enable_if<rec, T>::type value)
-    {
+	}
+	template<bool rec = reciprocal>
+	static constexpr T shift_right(typename std::enable_if<rec, T>::type value)
+	{
 		return value;
-    }
+	}
 
 
-    template<bool rec = reciprocal>
-    static constexpr T shift_left(typename std::enable_if<!rec, T>::type value)
-    {
+	template<bool rec = reciprocal>
+	static constexpr T shift_left(typename std::enable_if<!rec, T>::type value)
+	{
 		return value << (sizeof(T) - 1) * CHAR_BIT;
-    }
-    template<bool rec = reciprocal>
-    static constexpr T shift_left(typename std::enable_if<rec, T>::type value)
-    {
+	}
+	template<bool rec = reciprocal>
+	static constexpr T shift_left(typename std::enable_if<rec, T>::type value)
+	{
 		return value;
-    }
+	}
 
 
-    template<bool rec = reciprocal, bool ref = reflect_input>
-    static constexpr T reflect_data(typename std::enable_if<!(!rec && ref || rec && !ref), uint8_t>::type value)
-    {
+	template<bool rec = reciprocal, bool ref = reflect_input>
+	static constexpr T reflect_data(typename std::enable_if<!(!rec && ref || rec && !ref), uint8_t>::type value)
+	{
 		return value;
-    }
-    template<bool rec = reciprocal, bool ref = reflect_input>
-    static constexpr T reflect_data(typename std::enable_if<!rec && ref || rec && !ref, uint8_t>::type value)
-    {
+	}
+	template<bool rec = reciprocal, bool ref = reflect_input>
+	static constexpr T reflect_data(typename std::enable_if<!rec && ref || rec && !ref, uint8_t>::type value)
+	{
 		return reflect(value);
-    }
+	}
 
 
-    template<bool rec = reciprocal, bool ref = reflect_output>
-    static constexpr T reflect_final(typename std::enable_if<!(!rec && ref || rec && !ref), T>::type value)
-    {
+	template<bool rec = reciprocal, bool ref = reflect_output>
+	static constexpr T reflect_final(typename std::enable_if<!(!rec && ref || rec && !ref), T>::type value)
+	{
 		return value;
-    }
-    template<bool rec = reciprocal, bool ref = reflect_output>
-    static constexpr T reflect_final(typename std::enable_if<!rec && ref || rec && !ref, T>::type value)
-    {
+	}
+	template<bool rec = reciprocal, bool ref = reflect_output>
+	static constexpr T reflect_final(typename std::enable_if<!rec && ref || rec && !ref, T>::type value)
+	{
 		return reflect(value);
-    }
+	}
 
 
 	static constexpr auto _TABLE = []()

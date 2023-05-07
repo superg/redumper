@@ -4,10 +4,13 @@
 #include <set>
 #include <vector>
 
-#include "cd.hh"
-#include "common.hh"
-#include "scrambler.hh"
-
+import cd;
+import cd.edc;
+import cd.scrambler;
+import common;
+import crc.crc;
+import crc.crc16_gsm;
+import crc.crc32;
 import file.io;
 
 
@@ -124,7 +127,7 @@ bool test_unscramble()
 	if(0)
 	{
 		std::vector<uint8_t> sector = read_vector("unscramble/11_invalid_mode_non_zeroed_intermediate_last_byte.uns.0.fail");
-		scrambler.Process(sector.data(), sector.data(), 0, sector.size());
+		scrambler.process(sector.data(), sector.data(), 0, sector.size());
 		std::ofstream ofs("unscramble/11_invalid_mode_non_zeroed_intermediate_last_byte.0.fail", std::fstream::binary);
 		ofs.write((char *)sector.data(), sector.size());
 	}
@@ -150,7 +153,7 @@ bool test_unscramble()
 			else
 				*lba_ptr = stoll_strict(tokens[1]);
 			bool scrambled = tokens[2] == "pass";
-			bool unscrambled = scrambler.Descramble(sector.data(), lba_ptr, sector.size());
+			bool unscrambled = scrambler.descramble(sector.data(), lba_ptr, sector.size());
 
 			if(unscrambled == scrambled)
 				std::cout << "success";
@@ -167,6 +170,41 @@ bool test_unscramble()
 	return success;
 }
 
+bool test_crc()
+{
+	bool success = true;
+
+	std::string check_value("123456789");
+
+	// CRC-16/GSM
+	auto crc16 = CRC16_GSM().update((uint8_t *)check_value.data(), check_value.length()).final();
+	auto crc16_match = crc16 == 0xCE3C;
+	std::cout << std::format("CRC-16/GSM: 0x{:04X}, {}", crc16, crc16_match ? "success" : "failure") << std::endl;
+	if(!crc16_match)
+		success = false;
+
+	// CRC-32
+	auto crc32 = CRC32().update((uint8_t *)check_value.data(), check_value.length()).final();
+	auto crc32_match = crc32 == 0xCBF43926;
+	std::cout << std::format("CRC-32: 0x{:08X}, {}", crc32, crc32_match ? "success" : "failure") << std::endl;
+	if(!crc32_match)
+		success = false;
+
+	// EDC
+	auto edc = EDC().update((uint8_t *)check_value.data(), check_value.length()).final();
+	auto edc_match = edc == 0x6EC2EDC4;
+	std::cout << std::format("EDC: 0x{:08X}, {}", edc, edc_match ? "success" : "failure") << std::endl;
+	if(!edc_match)
+		success = false;
+
+	// CRC reciprocal
+	bool reciprocal_match = CRC<uint32_t, 0x04C11DB7, 0x12345678, 0x87654321, true, false, false>().update((uint8_t *)check_value.data(), check_value.length()).final() ==
+	                        CRC<uint32_t, 0x04C11DB7, 0x12345678, 0x87654321, true, false, true >().update((uint8_t *)check_value.data(), check_value.length()).final();
+	std::cout << std::format("CRC normal/reciprocal test: {}", reciprocal_match ? "success" : "failure") << std::endl;
+
+	return success;
+}
+
 
 
 int main(int argc, char *argv[])
@@ -178,6 +216,8 @@ int main(int argc, char *argv[])
 	success |= (int)!test_cd();
 	std::cout << std::endl;
 	success |= (int)!test_unscramble();
+	std::cout << std::endl;
+	success |= (int)!test_crc();
 	std::cout << std::endl;
 
 	return success;

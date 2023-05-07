@@ -171,4 +171,4 @@ if(MSVC AND ${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
 endif()
 
 enable_testing()
-#add_subdirectory("tests")
+add_subdirectory("tests")

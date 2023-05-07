@@ -23,8 +23,7 @@ import cd.split;
 import cd.subcode;
 import cmd;
 import scsi.mmc;
-import crc16_gsm;
-import crc32;
+import crc.crc32;
 import dump;
 import options;
 import cd.scrambler;
@@ -727,8 +726,8 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 						if(options.verbose)
 						{
-							uint32_t data_crc = crc32(sector_data.data(), CD_DATA_SIZE);
-							uint32_t c2_crc = crc32(sector_c2, CD_C2_SIZE);
+							uint32_t data_crc = CRC32().update(sector_data.data(), CD_DATA_SIZE).final();
+							uint32_t c2_crc = CRC32().update(sector_c2, CD_C2_SIZE).final();
 
 							LOG_ER();
 							std::string status_retries;
@@ -874,8 +873,8 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 					if(options.verbose)
 					{
-						uint32_t data_crc = crc32(sector_data.data(), CD_DATA_SIZE);
-						uint32_t c2_crc = crc32(sector_c2, CD_C2_SIZE);
+						uint32_t data_crc = CRC32().update(sector_data.data(), CD_DATA_SIZE).final();
+						uint32_t c2_crc = CRC32().update(sector_c2, CD_C2_SIZE).final();
 
 						LOG_ER();
 						std::string status_retries;

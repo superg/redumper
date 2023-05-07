@@ -16,9 +16,10 @@ import common;
 import logger;
 import file.io;
 import cd.subcode;
-import crc32;
+import crc.crc32;
 import dump;
-import ecc_edc;
+import cd.ecc;
+import cd.edc;
 import image_browser;
 import iso9660;
 import offset_manager;
@@ -259,7 +260,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 			TrackEntry track_entry;
 			track_entry.filename = track_name;
 
-			uint32_t crc = crc32_seed();
+			CRC32 crc32;
 			MD5 bh_md5;
 			SHA1 bh_sha1;
 
@@ -333,7 +334,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 					}
 				}
 
-				crc = crc32(sector.data(), sector.size(), crc);
+				crc32.update(sector.data(), sector.size());
 				bh_md5.Update(sector.data(), sector.size());
 				bh_sha1.Update(sector.data(), sector.size());
 
@@ -353,7 +354,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 //				LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
 			}
 
-			track_entry.crc = crc32_final(crc);
+			track_entry.crc = crc32.final();
 			track_entry.md5 = bh_md5.Final();
 			track_entry.sha1 = bh_sha1.Final();
 			track_entries.push_back(track_entry);

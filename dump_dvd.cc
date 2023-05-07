@@ -16,7 +16,7 @@ import cd;
 import file.io;
 import cmd;
 import scsi.mmc;
-import crc32;
+import crc.crc32;
 import dump;
 import scsi.sptd;
 import options;
@@ -300,7 +300,7 @@ export bool dump_dvd(const Options &options, bool refine)
 		LOG("done");
 	}
 
-	uint32_t crc = crc32_seed();
+	CRC32 crc32;
 	MD5 bh_md5;
 	SHA1 bh_sha1;
 
@@ -323,7 +323,7 @@ export bool dump_dvd(const Options &options, bool refine)
 
 		if(!refine && !errors)
 		{
-			crc = crc32(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE, crc);
+			crc32.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
 			bh_md5.Update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
 			bh_sha1.Update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
 		}
@@ -352,7 +352,7 @@ export bool dump_dvd(const Options &options, bool refine)
 			std::string filename = iso_path.filename().string();
 			replace_all_occurences(filename, "&", "&amp;");
 
-			LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, (uint64_t)sectors_count * FORM1_DATA_SIZE, crc32_final(crc), bh_md5.Final(), bh_sha1.Final());
+			LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, (uint64_t)sectors_count * FORM1_DATA_SIZE, crc32.final(), bh_md5.Final(), bh_sha1.Final());
 		}
 	}
 

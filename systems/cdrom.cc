@@ -6,7 +6,8 @@
 import common;
 import cd;
 import file.io;
-import ecc_edc;
+import cd.ecc;
+import cd.edc;
 
 
 
@@ -75,7 +76,7 @@ void SystemCDROM::operator()(std::ostream &os) const
 				error_detected = true;
 			}
 
-			uint32_t edc = EDC().ComputeBlock(0, (uint8_t *)&sector, offsetof(Sector, mode1.edc));
+			uint32_t edc = EDC().update((uint8_t *)&sector, offsetof(Sector, mode1.edc)).final();
 			if(edc != sector.mode1.edc)
 			{
 				++edc_errors;
@@ -104,8 +105,9 @@ void SystemCDROM::operator()(std::ostream &os) const
 				// Form2 EDC can be zero depending on mastering utility
 				if(sector.mode2.xa.form2.edc)
 				{
-					uint32_t edc = EDC().ComputeBlock(0, (uint8_t *)&sector.mode2.xa.sub_header,
-													offsetof(Sector, mode2.xa.form2.edc) - offsetof(Sector, mode2.xa.sub_header));
+					uint32_t edc = EDC().update((uint8_t *)&sector.mode2.xa.sub_header,
+												offsetof(Sector, mode2.xa.form2.edc) - offsetof(Sector, mode2.xa.sub_header)).final();
+
 					if(edc != sector.mode2.xa.form2.edc)
 					{
 						++edc_errors;
@@ -123,8 +125,8 @@ void SystemCDROM::operator()(std::ostream &os) const
 				bool error_detected = false;
 
 				// EDC
-				uint32_t edc = EDC().ComputeBlock(0, (uint8_t *)&sector.mode2.xa.sub_header,
-												offsetof(Sector, mode2.xa.form1.edc) - offsetof(Sector, mode2.xa.sub_header));
+				uint32_t edc = EDC().update((uint8_t *)&sector.mode2.xa.sub_header,
+												offsetof(Sector, mode2.xa.form1.edc) - offsetof(Sector, mode2.xa.sub_header)).final();
 				if(edc != sector.mode2.xa.form1.edc)
 				{
 					++edc_errors;

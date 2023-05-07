@@ -24,8 +24,6 @@ import dump_cd;
 import dump_dvd;
 import cmd;
 import scsi.mmc;
-import crc16_gsm;
-import crc32;
 import common;
 import scsi.sptd;
 import cd;
@@ -273,8 +271,37 @@ void redumper_subchannel(Options &options)
 }
 
 
+/*
+int crc_test()
+{
+	std::string check("123456789");
+
+	// CRC16
+	std::cout << std::format("crc16 old: {:04X}", crc16_gsm((uint8_t *)check.data(), check.length())) << std::endl;
+	std::cout << std::format("crc16 new: {:04X}",  CRC<uint16_t, 0x1021, 0, 0xFFFF, false, false, false>().update((uint8_t *)check.data(), check.length()).final()) << std::endl;
+	std::cout << std::format("crc16r new: {:04X}", CRC<uint16_t, 0x1021, 0, 0xFFFF, false, false, true>().update((uint8_t *)check.data(), check.length()).final()) << std::endl;
+
+	// CRC32
+	std::cout << std::format("crc32 old: {:08X}", crc32((uint8_t *)check.data(), check.length())) << std::endl;
+	std::cout << std::format("crc32 new: {:08X}",  CRC<uint32_t, 0x04C11DB7, 0xFFFFFFFF, 0xFFFFFFFF, true, true, false>().update((uint8_t *)check.data(), check.length()).final()) << std::endl;
+	std::cout << std::format("crc32r new: {:08X}", CRC<uint32_t, 0x04C11DB7, 0xFFFFFFFF, 0xFFFFFFFF, true, true, true>().update((uint8_t *)check.data(), check.length()).final()) << std::endl;
+
+	// EDC
+	std::cout << std::format("edc new: {:08X}", EDC().update((uint8_t *)check.data(), check.length()).final()) << std::endl;
+	std::cout << std::format("edcr new: {:08X}", CRC<uint32_t, 0x8001801B, 0, 0, true, true, false>().update((uint8_t *)check.data(), check.length()).final()) << std::endl;
+
+	// seed
+	std::cout << std::format("crc32 seed new: {:08X}",  CRC<uint32_t, 0x04C11DB7, 0x12345678, 0x87654321, true, false, false>().update((uint8_t *)check.data(), check.length()).final()) << std::endl;
+	std::cout << std::format("crc32r seed new: {:08X}", CRC<uint32_t, 0x04C11DB7, 0x12345678, 0x87654321, true, false, true>().update((uint8_t *)check.data(), check.length()).final()) << std::endl;
+
+	return 0;
+}
+*/
+
 void redumper_debug(Options &options)
 {
+//	crc_test();
+
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 	std::filesystem::path state_path(image_prefix + ".state");
 	std::filesystem::path cache_path(image_prefix + ".asus");

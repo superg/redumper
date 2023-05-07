@@ -8,7 +8,7 @@ export module cd.subcode;
 
 import cd;
 import common;
-import crc16_gsm;
+import crc.crc16_gsm;
 import endian;
 
 
@@ -76,7 +76,7 @@ export struct ChannelQ
 
 	bool isValid() const
 	{
-		return crc16_gsm(raw, sizeof(raw)) == endian_swap(crc);
+		return CRC16_GSM().update(raw, sizeof(raw)).final() == endian_swap(crc);
 	}
 
 
@@ -125,7 +125,7 @@ export struct ChannelQ
 			Q.mode1.msf = LBA_to_BCDMSF(BCDMSF_to_LBA(Q.mode1.msf) + offset);
 
 		Q.mode1.a_msf = LBA_to_BCDMSF(BCDMSF_to_LBA(Q.mode1.a_msf) + shift);
-		Q.crc = endian_swap(crc16_gsm(Q.raw, sizeof(Q.raw)));
+		Q.crc = endian_swap(CRC16_GSM().update(Q.raw, sizeof(Q.raw)).final());
 
 		return Q;
 	}
@@ -136,7 +136,7 @@ export struct ChannelQ
 		ChannelQ Q(base);
 
 		Q.mode23.a_frame = (mode1.a_msf.f + shift) % MSF_LIMIT.f;
-		Q.crc = endian_swap(crc16_gsm(Q.raw, sizeof(Q.raw)));
+		Q.crc = endian_swap(CRC16_GSM().update(Q.raw, sizeof(Q.raw)).final());
 
 		return Q;
 	}

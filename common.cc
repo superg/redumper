@@ -242,6 +242,26 @@ uint64_t bit_diff(const T *data1, const T *data2, uint64_t count)
 	return diff;
 }
 
+
+export template<typename T>
+constexpr T bits_reflect(T word)
+{
+	T r = word;
+
+	int s = sizeof(word) * CHAR_BIT - 1;
+
+	for(word >>= 1; word; word >>= 1)
+	{
+		r <<= 1;
+		r |= word & 1;
+		--s;
+	}
+	r <<= s;
+
+	return r;
+}
+
+
 export template<typename T>
 std::string dictionary_values(const std::map<T, std::string> &dictionary)
 {

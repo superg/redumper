@@ -13,7 +13,7 @@ export module cd.toc;
 import cd;
 import cd.subcode;
 import common;
-import crc16_gsm;
+import crc.crc16_gsm;
 import endian;
 import scsi.mmc;
 
@@ -396,7 +396,7 @@ export struct TOC
 //									 pack_data.pack_type, pack_data.track_number, pack_data.extension_flag, pack_data.sequence_number, pack_data.character_position, pack_data.block_number, pack_data.unicode,
 //									 DescriptorText(pack_data));
 
-			auto crc = crc16_gsm((uint8_t *)&pack_data, sizeof(pack_data) - sizeof(uint16_t));
+			auto crc = CRC16_GSM().update((uint8_t *)&pack_data, sizeof(pack_data) - sizeof(uint16_t)).final();
 			// PLEXTOR PX-W5224TA: crc of last pack is always zeroed
 			if(crc != endian_swap(pack_data.crc) && i + 1 != descriptors_count)
 			{

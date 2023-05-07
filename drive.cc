@@ -21,7 +21,6 @@ import cd;
 import cd.subcode;
 import cmd;
 import scsi.mmc;
-import crc16_gsm;
 
 
 

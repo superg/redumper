@@ -24,7 +24,7 @@ public:
 		_tail.reserve(_blockSize);
 	}
 
-	void Update(const uint8_t *data, uint64_t size)
+	void update(const uint8_t *data, uint64_t size)
 	{
 		auto data_end = data + size;
 
@@ -36,18 +36,18 @@ public:
 
 			if(_tail.size() == _blockSize)
 			{
-				Update(_tail.data());
+				update(_tail.data());
 				_tail.clear();
 			}
 		}
 
 		for(; (uint32_t)(data_end - data) >= _blockSize; data += _blockSize)
-			Update(data);
+			update(data);
 
 		_tail.insert(_tail.end(), data, data_end);
 	}
 
-	std::string Final()
+	std::string final()
 	{
 		// calculate original message length in bits
 		uint64_t ml = (_blocksHashed * _blockSize + _tail.size()) * CHAR_BIT;
@@ -62,24 +62,24 @@ public:
 		// if no space to store message length, store it in the next block
 		if(bytes_left < sizeof(uint64_t))
 		{
-			Update(_tail.data());
+			update(_tail.data());
 			std::fill(_tail.begin(), _tail.end() - sizeof(uint64_t), 0);
 		}
 
 		// store message length (will be swapped again inside)
-		*(uint64_t *)(_tail.data() + _blockSize - sizeof(uint64_t)) = ConvertML(ml);
-		Update(_tail.data());
+		*(uint64_t *)(_tail.data() + _blockSize - sizeof(uint64_t)) = convertML(ml);
+		update(_tail.data());
 
 		_blocksHashed = 0;
 		_tail.clear();
 
-		return bin2hex(Hash());
+		return bin2hex(hash());
 	}
 
 protected:
-	virtual void UpdateBlock(const uint8_t *block) = 0;
-	virtual uint64_t ConvertML(uint64_t ml) = 0;
-	virtual std::vector<uint32_t> Hash() = 0;
+	virtual void updateBlock(const uint8_t *block) = 0;
+	virtual uint64_t convertML(uint64_t ml) = 0;
+	virtual std::vector<uint32_t> hash() = 0;
 
 	static uint32_t ROTL(uint32_t x, uint32_t n)
 	{
@@ -91,9 +91,9 @@ private:
 	uint64_t _blocksHashed;
 	std::vector<uint8_t> _tail;
 
-	void Update(const uint8_t *block)
+	void update(const uint8_t *block)
 	{
-		UpdateBlock(block);
+		updateBlock(block);
 		++_blocksHashed;
 	}
 };

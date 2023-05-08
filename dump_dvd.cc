@@ -3,8 +3,6 @@ module;
 #include <cmath>
 #include <filesystem>
 #include <set>
-#include "md5.hh"
-#include "sha1.hh"
 
 export module dump_dvd;
 
@@ -15,6 +13,8 @@ import drive;
 import dump;
 import endian;
 import file.io;
+import hash.md5;
+import hash.sha1;
 import logger;
 import options;
 import scsi.cmd;
@@ -324,8 +324,8 @@ export bool dump_dvd(const Options &options, bool refine)
 		if(!refine && !errors)
 		{
 			crc32.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
-			bh_md5.Update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
-			bh_sha1.Update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
+			bh_md5.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
+			bh_sha1.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
 		}
 	}
 
@@ -352,7 +352,7 @@ export bool dump_dvd(const Options &options, bool refine)
 			std::string filename = iso_path.filename().string();
 			replace_all_occurences(filename, "&", "&amp;");
 
-			LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, (uint64_t)sectors_count * FORM1_DATA_SIZE, crc32.final(), bh_md5.Final(), bh_sha1.Final());
+			LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, (uint64_t)sectors_count * FORM1_DATA_SIZE, crc32.final(), bh_md5.final(), bh_sha1.final());
 		}
 	}
 

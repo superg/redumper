@@ -7,25 +7,25 @@ module;
 #include "analyzers/silence.hh"
 #include "analyzers/sync.hh"
 #include "systems/system.hh"
-#include "md5.hh"
-#include "sha1.hh"
 
 export module cd.split;
 
-import common;
-import logger;
-import file.io;
-import cd.subcode;
-import crc.crc32;
-import dump;
 import cd.ecc;
 import cd.edc;
+import cd.scrambler;
+import cd.subcode;
+import cd.toc;
+import common;
+import crc.crc32;
+import dump;
+import file.io;
+import hash.md5;
+import hash.sha1;
 import image_browser;
 import iso9660;
+import logger;
 import offset_manager;
-import cd.toc;
 import options;
-import cd.scrambler;
 
 
 
@@ -335,8 +335,8 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 				}
 
 				crc32.update(sector.data(), sector.size());
-				bh_md5.Update(sector.data(), sector.size());
-				bh_sha1.Update(sector.data(), sector.size());
+				bh_md5.update(sector.data(), sector.size());
+				bh_sha1.update(sector.data(), sector.size());
 
 				fs_bin.write((char *)sector.data(), sector.size());
 				if(fs_bin.fail())
@@ -355,8 +355,8 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 			}
 
 			track_entry.crc = crc32.final();
-			track_entry.md5 = bh_md5.Final();
-			track_entry.sha1 = bh_sha1.Final();
+			track_entry.md5 = bh_md5.final();
+			track_entry.sha1 = bh_sha1.final();
 			track_entries.push_back(track_entry);
 		}
 	}
@@ -770,12 +770,12 @@ std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, in
 	batch_process_range<int32_t>(nonzero_data_range, samples.size(), [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size) -> bool
 	{
 		read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset - LBA_START * CD_DATA_SIZE_SAMPLES, size, 0, 0);
-		bh_sha1.Update((uint8_t *)samples.data(), size * sizeof(uint32_t));
+		bh_sha1.update((uint8_t *)samples.data(), size * sizeof(uint32_t));
 
 		return false;
 	});
 
-	return bh_sha1.Final();
+	return bh_sha1.final();
 }
 
 

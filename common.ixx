@@ -1,20 +1,12 @@
 module;
 #include <cassert>
-#include <cstddef>
-#include <format>
-#include <functional>
-#include <map>
-#include <ostream>
-#include <stdexcept>
-#include <string>
-#include <vector>
-#include <algorithm>
-#include <chrono>
-#include <ctime>
+#include <cstdint>
 #include <format>
 #include <iomanip>
+#include <map>
 #include <set>
 #include <sstream>
+#include <string>
 
 export module common;
 
@@ -65,11 +57,13 @@ void throw_line(const std::string fmt, const Args &... args)
 #endif
 }
 
+
 export template <typename T, size_t N>
 constexpr size_t countof(T(&)[N])
 {
 	return N;
 }
+
 
 export template <typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
 constexpr T round_up_pow2(T value, T multiple)
@@ -77,6 +71,7 @@ constexpr T round_up_pow2(T value, T multiple)
 	multiple -= 1;
 	return (value + multiple) & ~multiple;
 }
+
 
 export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale_up(T value, U multiple)
@@ -86,6 +81,7 @@ constexpr T scale_up(T value, U multiple)
 	return (value - sign) / (T)multiple + sign;
 }
 
+
 export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale_down(T value, U multiple)
 {
@@ -93,11 +89,13 @@ constexpr T scale_down(T value, U multiple)
 	return value / (T)multiple;
 }
 
+
 export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale_left(T value, U multiple)
 {
 	return value < 0 ? scale_up(value, multiple) : scale_down(value, multiple);
 }
+
 
 export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale_right(T value, U multiple)
@@ -105,11 +103,13 @@ constexpr T scale_right(T value, U multiple)
 	return value < 0 ? scale_down(value, multiple) : scale_up(value, multiple);
 }
 
+
 export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_up(T value, U multiple)
 {
 	return scale_up(value, multiple) * (T)multiple;
 }
+
 
 export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_down(T value, U multiple)
@@ -117,12 +117,14 @@ constexpr T round_down(T value, U multiple)
 	return scale_down(value, multiple) * (T)multiple;
 }
 
+
 export template<typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
 void clean_write(T *dst, size_t dst_offset, size_t size, T data)
 {
 	T mask = (T)(~(T)0 << (sizeof(T) * CHAR_BIT - size)) >> dst_offset;
 	*dst = (*dst & ~mask) | (data & mask);
 };
+
 
 export template<typename T>
 bool is_zeroed(const T *data, uint64_t count)
@@ -133,6 +135,7 @@ bool is_zeroed(const T *data, uint64_t count)
 
 	return true;
 }
+
 
 export template<typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
 void bit_copy(T *dst, size_t dst_offset, const T *src, size_t src_offset, size_t size)
@@ -220,6 +223,7 @@ void bit_copy(T *dst, size_t dst_offset, const T *src, size_t src_offset, size_t
 	}
 }
 
+
 export template<typename T>
 uint32_t bits_count(T value)
 {
@@ -230,6 +234,7 @@ uint32_t bits_count(T value)
 
 	return count;
 }
+
 
 export template<typename T>
 uint64_t bit_diff(const T *data1, const T *data2, uint64_t count)
@@ -278,6 +283,7 @@ std::string dictionary_values(const std::map<T, std::string> &dictionary)
 	return values;
 }
 
+
 export template<typename T>
 std::string enum_to_string(T value, const std::map<T, std::string> &dictionary)
 {
@@ -288,6 +294,7 @@ std::string enum_to_string(T value, const std::map<T, std::string> &dictionary)
 	return it->second;
 
 }
+
 
 export template<typename T>
 T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
@@ -301,6 +308,7 @@ T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
 	return (T)0;
 }
 
+
 export template<typename T>
 T diff_bytes_count(const uint8_t *data1, const uint8_t *data2, T size)
 {
@@ -312,6 +320,7 @@ T diff_bytes_count(const uint8_t *data1, const uint8_t *data2, T size)
 
 	return diff;
 }
+
 
 export template<typename T>
 bool batch_process_range(const std::pair<T, T> &range, T batch_size, const std::function<bool(T, T)> &func)

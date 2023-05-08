@@ -12,7 +12,7 @@ import crc.crc32;
 import drive;
 import dump;
 import endian;
-import file.io;
+import file_io;
 import hash.md5;
 import hash.sha1;
 import logger;

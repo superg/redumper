@@ -10,8 +10,8 @@ target_sources(tests
 	BASE_DIRS
 		"${CMAKE_SOURCE_DIR}"
 	FILES
-		"${CMAKE_SOURCE_DIR}/file_io.cc"
-		"${CMAKE_SOURCE_DIR}/common.cc"
+		"${CMAKE_SOURCE_DIR}/file_io.ixx"
+		"${CMAKE_SOURCE_DIR}/common.ixx"
 		"${CMAKE_SOURCE_DIR}/cd/cd.ixx"
 		"${CMAKE_SOURCE_DIR}/cd/cdrom.ixx"
 		"${CMAKE_SOURCE_DIR}/cd/edc.ixx"

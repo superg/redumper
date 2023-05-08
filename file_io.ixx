@@ -1,12 +1,12 @@
 module;
-#include <cmath>
-#include <cstdint>
-#include <filesystem>
-#include <format>
+//#include <cmath>
+//#include <cstdint>
+//#include <filesystem>
+//#include <format>
 #include <fstream>
-#include <vector>
+//#include <vector>
 
-export module file.io;
+export module file_io;
 
 import common;
 

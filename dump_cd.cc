@@ -20,7 +20,7 @@ import common;
 import crc.crc32;
 import drive;
 import dump;
-import file.io;
+import file_io;
 import logger;
 import options;
 import scsi.cmd;

@@ -16,7 +16,7 @@ import cd.cd;
 import cd.subcode;
 import common;
 import endian;
-import file.io;
+import file_io;
 import logger;
 import scsi.cmd;
 import scsi.mmc;

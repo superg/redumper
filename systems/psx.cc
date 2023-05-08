@@ -8,7 +8,7 @@ import cd.cdrom;
 import cd.subcode;
 import common;
 import endian;
-import file.io;
+import file_io;
 import hex_bin;
 import iso9660;
 

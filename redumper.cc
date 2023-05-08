@@ -23,7 +23,7 @@ import drive;
 import dump;
 import dump_cd;
 import dump_dvd;
-import file.io;
+import file_io;
 import logger;
 import options;
 import scsi.cmd;

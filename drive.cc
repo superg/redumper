@@ -12,20 +12,28 @@ module;
 
 export module drive;
 
+import cd.cd;
+import cd.subcode;
 import common;
 import endian;
-import logger;
-import scsi.sptd;
 import file.io;
-import cd;
-import cd.subcode;
-import cmd;
+import logger;
+import scsi.cmd;
 import scsi.mmc;
+import scsi.sptd;
 
 
 
 namespace gpsxre
 {
+
+export struct DriveQuery
+{
+	std::string vendor_id;
+	std::string product_id;
+	std::string product_revision_level;
+	std::string vendor_specific;
+};
 
 export struct DriveConfig
 {
@@ -265,6 +273,24 @@ export int32_t drive_get_generic_read_offset(const std::string &vendor, const st
 		offset = it->second;
 
 	return offset;
+}
+
+
+export DriveQuery cmd_drive_query(SPTD &sptd)
+{
+	DriveQuery drive_query;
+
+	INQUIRY_StandardData inquiry_data;
+	auto status = cmd_inquiry(sptd, (uint8_t *)&inquiry_data, sizeof(inquiry_data), INQUIRY_VPDPageCode::SUPPORTED_PAGES, false, false);
+	if(status.status_code)
+		throw_line("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status));
+
+	drive_query.vendor_id = normalize_string(std::string((char *)inquiry_data.vendor_id, sizeof(inquiry_data.vendor_id)));
+	drive_query.product_id = normalize_string(std::string((char *)inquiry_data.product_id, sizeof(inquiry_data.product_id)));
+	drive_query.product_revision_level = normalize_string(std::string((char *)inquiry_data.product_revision_level, sizeof(inquiry_data.product_revision_level)));
+	drive_query.vendor_specific = normalize_string(std::string((char *)inquiry_data.vendor_specific, sizeof(inquiry_data.vendor_specific)));
+
+	return drive_query;
 }
 
 

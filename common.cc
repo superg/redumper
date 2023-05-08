@@ -18,7 +18,7 @@ module;
 
 export module common;
 
-import cd;
+import cd.cd;
 
 
 

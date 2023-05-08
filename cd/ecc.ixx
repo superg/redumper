@@ -4,7 +4,7 @@ module;
 
 export module cd.ecc;
 
-import cd;
+import cd.cdrom;
 
 
 

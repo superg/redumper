@@ -11,22 +11,22 @@ module;
 #include <string>
 #include <vector>
 
-import common;
-import scsi.sptd;
-import drive;
-import logger;
-import signal;
-import file.io;
-import cd;
-import cd.toc;
+import cd.cd;
+import cd.scrambler;
 import cd.split;
 import cd.subcode;
-import cmd;
-import scsi.mmc;
+import cd.toc;
+import common;
 import crc.crc32;
+import drive;
 import dump;
+import file.io;
+import logger;
 import options;
-import cd.scrambler;
+import scsi.cmd;
+import scsi.mmc;
+import scsi.sptd;
+import signal;
 
 export module dump_cd;
 
@@ -177,7 +177,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 
 		// this helps with getting more consistent sectors count for the first session
 		if(i == entries.size() - 1)
-			cmd_flush_drive_cache(sptd, 0xFFFFFFFF);
+			cmd_read(sptd, nullptr, 0, -1, 0, true);
 
 		auto leadin = plextor_read_leadin(sptd, drive_config.pregap_start - MSF_LBA_SHIFT);
 
@@ -825,7 +825,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 			std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 
 			if(flush)
-				cmd_flush_drive_cache(sptd, lba);
+				cmd_read(sptd, nullptr, 0, lba, 0, true);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
 			auto status = read_sector(sector_buffer.data(), sptd, drive_config, lba);
@@ -1008,7 +1008,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 						// prevent this by flushing drive cache after C2 error range (flush cache on 5 consecutive Q errors)
 						if(errors_q - errors_q_last > 5)
 						{
-							cmd_flush_drive_cache(sptd, lba);
+							cmd_read(sptd, nullptr, 0, lba, 0, true);
 							errors_q_last = errors_q;
 						}
 

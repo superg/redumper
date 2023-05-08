@@ -11,8 +11,9 @@ target_sources(tests
 		"${CMAKE_SOURCE_DIR}"
 	FILES
 		"${CMAKE_SOURCE_DIR}/file_io.cc"
-		"${CMAKE_SOURCE_DIR}/cd.cc"
 		"${CMAKE_SOURCE_DIR}/common.cc"
+		"${CMAKE_SOURCE_DIR}/cd/cd.ixx"
+		"${CMAKE_SOURCE_DIR}/cd/cdrom.ixx"
 		"${CMAKE_SOURCE_DIR}/cd/edc.ixx"
 		"${CMAKE_SOURCE_DIR}/cd/scrambler.ixx"
 		"${CMAKE_SOURCE_DIR}/crc/crc.ixx"

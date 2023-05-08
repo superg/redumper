@@ -3,11 +3,12 @@
 #include <sstream>
 #include "psx.hh"
 
+import cd.cd;
+import cd.cdrom;
+import cd.subcode;
 import common;
 import endian;
 import file.io;
-import cd;
-import cd.subcode;
 import hex_bin;
 import iso9660;
 

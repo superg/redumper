@@ -1,7 +1,7 @@
 #include <limits>
 #include "silence.hh"
 
-import cd;
+import cd.cd;
 
 
 

@@ -8,6 +8,15 @@ import common;
 
 
 
+// generic CRC implementation with compile time table optimization
+// invaluable and thoroughly explained resource:
+// http://www.sunshine2k.de/articles/coding/crc/understanding_crc.html
+//
+// catalog of CRC algorithms:
+// https://reveng.sourceforge.io/crc-catalogue/all.htm
+
+
+
 namespace gpsxre
 {
 

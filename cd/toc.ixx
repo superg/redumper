@@ -10,7 +10,7 @@ module;
 
 export module cd.toc;
 
-import cd;
+import cd.cd;
 import cd.subcode;
 import common;
 import crc.crc16_gsm;

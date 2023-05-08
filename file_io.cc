@@ -9,7 +9,6 @@ module;
 export module file.io;
 
 import common;
-import cd;
 
 
 

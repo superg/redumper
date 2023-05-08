@@ -4,7 +4,7 @@
 #include <set>
 #include <vector>
 
-import cd;
+import cd.cd;
 import cd.edc;
 import cd.scrambler;
 import common;

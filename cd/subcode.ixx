@@ -6,7 +6,7 @@ module;
 
 export module cd.subcode;
 
-import cd;
+import cd.cd;
 import common;
 import crc.crc16_gsm;
 import endian;

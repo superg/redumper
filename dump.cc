@@ -7,7 +7,7 @@ export module dump;
 
 import common;
 import logger;
-import cmd;
+import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import drive;

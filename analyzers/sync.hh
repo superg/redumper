@@ -6,8 +6,9 @@
 #include <vector>
 #include "analyzer.hh"
 
+import cd.cd;
+import cd.cdrom;
 import cd.scrambler;
-import cd;
 
 
 

@@ -1,8 +1,7 @@
-#pragma once
-
-
-
+module;
 #include <cstdint>
+
+export module analyzers.analyzer;
 
 import common;
 
@@ -11,7 +10,7 @@ import common;
 namespace gpsxre
 {
 
-class Analyzer
+export class Analyzer
 {
 public:
 	virtual ~Analyzer() {}

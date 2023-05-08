@@ -95,11 +95,6 @@ add_custom_command(
 )
 
 set(sources
-	"analyzers/analyzer.hh"
-	"analyzers/silence.hh"
-	"analyzers/silence.cc"
-	"analyzers/sync.hh"
-	"analyzers/sync.cc"
 	"systems/system.cc"
 	"systems/system.hh"
 	"systems/cdrom.cc"
@@ -123,6 +118,9 @@ target_sources(redumper
 	PUBLIC ${sources}
 	PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
+	"analyzers/analyzer.ixx"
+	"analyzers/silence.ixx"
+	"analyzers/sync.ixx"
 	"cd/cd.ixx"
 	"cd/cdrom.ixx"
 	"cd/ecc.ixx"
@@ -143,7 +141,7 @@ target_sources(redumper
 	"dump.cc"
 	"dump_cd.cc"
 	"dump_dvd.cc"
-	"drive.cc"
+	"drive.ixx"
 	"endian.cc"
 	"file_io.ixx"
 	"hex_bin.cc"

@@ -4,12 +4,15 @@ module;
 #include <limits>
 #include <map>
 #include <sstream>
-#include "analyzers/silence.hh"
-#include "analyzers/sync.hh"
 #include "systems/system.hh"
 
 export module cd.split;
 
+import analyzers.analyzer;
+import analyzers.silence_analyzer;
+import analyzers.sync_analyzer;
+import cd.cd;
+import cd.cdrom;
 import cd.ecc;
 import cd.edc;
 import cd.scrambler;

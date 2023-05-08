@@ -70,7 +70,7 @@ export struct DriveConfig
 	} type;
 };
 
-export struct SectorLayout
+struct SectorLayout
 {
 	uint32_t data_offset;
 	uint32_t c2_offset;
@@ -78,7 +78,7 @@ export struct SectorLayout
 	uint32_t size;
 };
 
-export struct AsusConfig
+struct AsusConfig
 {
 	uint32_t size_mb;
 	uint32_t entries_count;
@@ -253,7 +253,7 @@ static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG =
 // AccurateRip database provides already "processed" drive offsets e.g.
 // the drive offset number has to be added to the data read start in order to get it corrected
 // (positive offset means that data has to be shifted left, negative - right)
-export int32_t drive_get_generic_read_offset(const std::string &vendor, const std::string &product)
+int32_t drive_get_generic_read_offset(const std::string &vendor, const std::string &product)
 {
 	int32_t offset = std::numeric_limits<int32_t>::max();
 
@@ -329,7 +329,7 @@ export DriveConfig drive_get_config(const DriveQuery &drive_query)
 }
 
 
-export AsusConfig asus_get_config(DriveConfig::Type type)
+AsusConfig asus_get_config(DriveConfig::Type type)
 {
 	AsusConfig asus_config = {0, 0};
 

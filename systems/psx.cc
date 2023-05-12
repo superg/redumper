@@ -52,57 +52,60 @@ SystemPSX::SystemPSX(const std::filesystem::path &track_path)
 
 void SystemPSX::operator()(std::ostream &os) const
 {
-	if(ImageBrowser::IsDataTrack(_trackPath))
+	if(!ImageBrowser::IsDataTrack(_trackPath))
+		return;
+
+	ImageBrowser browser(_trackPath, 0, _trackSize, false);
+
+	auto exe_path = findEXE(browser);
+	if(exe_path.empty())
+		return;
+
+	auto exe_file = browser.RootDirectory()->SubEntry(exe_path);
+	if(!exe_file)
+		return;
+
+	auto exe = exe_file->Read();
+	if(exe.size() < _EXE_MAGIC.length() || std::string((char *)exe.data(), _EXE_MAGIC.length()) != _EXE_MAGIC)
+		return;
+
+	os << std::format("PSX [{}]:", _trackPath.filename().string()) << std::endl;
+	os << std::format("  EXE: {}", exe_path) << std::endl;
+
 	{
-		ImageBrowser browser(_trackPath, 0, _trackSize, false);
+		time_t t = exe_file->DateTime();
+		std::stringstream ss;
+		ss << std::put_time(localtime(&t), "%Y-%m-%d");
+		os << std::format("  EXE date: {}", ss.str()) << std::endl;
+	}
 
-		auto exe_path = findEXE(browser);
-		if(!exe_path.empty())
-		{
-			auto exe_file = browser.RootDirectory()->SubEntry(exe_path);
-			auto exe = exe_file->Read();
-			if(exe.size() >= _EXE_MAGIC.length() && std::string((char *)exe.data(), _EXE_MAGIC.length()) == _EXE_MAGIC)
-			{
-				os << std::format("PSX [{}]:", _trackPath.filename().string()) << std::endl;
-				os << std::format("  EXE: {}", exe_path) << std::endl;
+	auto serial = deduceSerial(exe_path);
+	if(!serial.first.empty() && !serial.second.empty())
+		os << std::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
 
-				{
-					time_t t = exe_file->DateTime();
-					std::stringstream ss;
-					ss << std::put_time(localtime(&t), "%Y-%m-%d");
-					os << std::format("  EXE date: {}", ss.str()) << std::endl;
-				}
+	auto region = detectRegion(serial.first);
+	if(!region.empty())
+		os << std::format("  region: {}", region) << std::endl;
 
-				auto serial = deduceSerial(exe_path);
-				if(!serial.first.empty() && !serial.second.empty())
-					os << std::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
+	bool edc = detectEdcFast();
+	os << std::format("  EDC: {}", edc ? "yes" : "no") << std::endl;
 
-				auto region = detectRegion(serial.first);
-				if(!region.empty())
-					os << std::format("  region: {}", region) << std::endl;
+	{
+		std::stringstream ss;
+		bool antimod = findAntiModchipStrings(ss, browser);
+		os << std::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
+		if(antimod)
+			os << ss.str() << std::endl;
+	}
 
-				bool edc = detectEdcFast();
-				os << std::format("  EDC: {}", edc ? "yes" : "no") << std::endl;
-
-				{
-					std::stringstream ss;
-					bool antimod = findAntiModchipStrings(ss, browser);
-					os << std::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
-					if(antimod)
-						os << ss.str() << std::endl;
-				}
-
-				std::filesystem::path sub_path = track_extract_basename(_trackPath.string()) + ".subcode";
-				if(std::filesystem::exists(sub_path))
-				{
-					std::stringstream ss;
-					bool libcrypt = detectLibCrypt(ss, sub_path);
-					os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
-					if(libcrypt)
-						os << ss.str() << std::endl;
-				}
-			}
-		}
+	std::filesystem::path sub_path = track_extract_basename(_trackPath.string()) + ".subcode";
+	if(std::filesystem::exists(sub_path))
+	{
+		std::stringstream ss;
+		bool libcrypt = detectLibCrypt(ss, sub_path);
+		os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
+		if(libcrypt)
+			os << ss.str() << std::endl;
 	}
 }
 

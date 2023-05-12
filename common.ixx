@@ -304,7 +304,8 @@ T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
 			return d.first;
 
 	throw_line("string_to_enum failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary));
-	//GGG
+
+	//FIXME: find good way to suppress "-Wreturn-type" warning
 	return (T)0;
 }
 

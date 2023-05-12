@@ -42,7 +42,7 @@ public:
 	public:
 		bool IsDirectory() const;
 		std::list<std::shared_ptr<Entry>> Entries();
-		std::shared_ptr<Entry> SubEntry(const std::filesystem::path &path);
+		std::shared_ptr<Entry> SubEntry(const std::string &path);
 		const std::string &Name() const;
 		uint32_t Version() const;
 		time_t DateTime() const;
@@ -375,11 +375,16 @@ std::list<std::shared_ptr<ImageBrowser::Entry>> ImageBrowser::Entry::Entries()
 }
 
 
-std::shared_ptr<ImageBrowser::Entry> ImageBrowser::Entry::SubEntry(const std::filesystem::path &path)
+std::shared_ptr<ImageBrowser::Entry> ImageBrowser::Entry::SubEntry(const std::string &path)
 {
 	std::shared_ptr<Entry> entry;
 
-	std::filesystem::path path_case(str_uppercase(path.string()));
+	std::string p(path);
+
+	// libc++ std::filesystem implementation doesn't iterate on linux if path delimiter is '\\'
+	std::replace(p.begin(), p.end(), '\\', '/');
+
+	std::filesystem::path path_case(p);
 
 	for(auto const &p : path_case)
 	{

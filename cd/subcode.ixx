@@ -7,9 +7,9 @@ module;
 export module cd.subcode;
 
 import cd.cd;
-import common;
+import utils.common;
 import crc.crc16_gsm;
-import endian;
+import utils.endian;
 
 
 

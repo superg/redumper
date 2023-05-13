@@ -22,8 +22,8 @@ module;
 
 export module scsi.sptd;
 
-import common;
-import logger;
+import utils.common;
+import utils.logger;
 
 
 

@@ -14,10 +14,10 @@ export module drive;
 
 import cd.cd;
 import cd.subcode;
-import common;
-import endian;
-import file_io;
-import logger;
+import utils.common;
+import utils.endian;
+import utils.file_io;
+import utils.logger;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;

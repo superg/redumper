@@ -8,7 +8,7 @@ import analyzers.analyzer;
 import cd.cd;
 import cd.cdrom;
 import cd.scrambler;
-import common;
+import utils.common;
 
 
 

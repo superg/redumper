@@ -5,8 +5,8 @@ module;
 export module scsi.cmd;
 
 import cd.cd;
-import common;
-import endian;
+import utils.common;
+import utils.endian;
 import scsi.mmc;
 import scsi.sptd;
 

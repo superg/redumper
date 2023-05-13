@@ -5,9 +5,9 @@ module;
 #include <iostream>
 #include <string>
 
-export module logger;
+export module utils.logger;
 
-import common;
+import utils.common;
 
 
 

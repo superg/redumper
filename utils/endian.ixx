@@ -4,7 +4,7 @@ module;
 #include <cstdint>
 #include <cstdlib>
 
-export module endian;
+export module utils.endian;
 
 
 
@@ -24,6 +24,7 @@ T endian_swap(const T &v)
 	std::reverse_copy(src.raw.begin(), src.raw.end(), dst.raw.begin());
 	return dst.v;
 }
+
 
 export template<>
 uint16_t endian_swap<uint16_t>(const uint16_t &v)

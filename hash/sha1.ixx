@@ -3,7 +3,7 @@ module;
 
 export module hash.sha1;
 
-import endian;
+import utils.endian;
 import hash.block_hasher;
 
 

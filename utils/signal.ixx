@@ -1,7 +1,7 @@
 module;
 #include <signal.h>
 
-export module signal;
+export module utils.signal;
 
 
 

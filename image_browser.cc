@@ -19,8 +19,8 @@ export module image_browser;
 import cd.cd;
 import cd.cdrom;
 import cd.scrambler;
-import common;
-import endian;
+import utils.common;
+import utils.endian;
 import iso9660;
 
 

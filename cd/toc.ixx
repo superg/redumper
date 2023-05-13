@@ -12,9 +12,9 @@ export module cd.toc;
 
 import cd.cd;
 import cd.subcode;
-import common;
+import utils.common;
 import crc.crc16_gsm;
-import endian;
+import utils.endian;
 import scsi.mmc;
 
 

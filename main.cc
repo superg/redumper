@@ -1,8 +1,8 @@
 #include <exception>
 
-import logger;
 import options;
 import redumper;
+import utils.logger;
 import version;
 
 

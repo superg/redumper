@@ -5,8 +5,8 @@ module;
 
 export module dump;
 
-import common;
-import logger;
+import utils.common;
+import utils.logger;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;

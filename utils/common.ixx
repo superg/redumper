@@ -8,7 +8,7 @@ module;
 #include <sstream>
 #include <string>
 
-export module common;
+export module utils.common;
 
 import cd.cd;
 

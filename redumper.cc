@@ -18,18 +18,18 @@ import cd.scrambler;
 import cd.split;
 import cd.subcode;
 import cd.toc;
-import common;
+import utils.common;
 import drive;
 import dump;
 import dump_cd;
 import dump_dvd;
-import file_io;
-import logger;
+import utils.file_io;
+import utils.logger;
 import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
-import signal;
+import utils.signal;
 import version;
 
 

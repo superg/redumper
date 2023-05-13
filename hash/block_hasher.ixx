@@ -7,7 +7,7 @@ module;
 
 export module hash.block_hasher;
 
-import hex_bin;
+import utils.hex_bin;
 
 
 

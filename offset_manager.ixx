@@ -4,7 +4,7 @@ module;
 
 export module offset_manager;
 
-import common;
+import utils.common;
 
 
 

@@ -6,7 +6,7 @@ module;
 #include <string>
 #include <vector>
 
-export module hex_bin;
+export module utils.hex_bin;
 
 
 

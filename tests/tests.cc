@@ -7,11 +7,11 @@
 import cd.cd;
 import cd.edc;
 import cd.scrambler;
-import common;
+import utils.common;
 import crc.crc;
 import crc.crc16_gsm;
 import crc.crc32;
-import file_io;
+import utils.file_io;
 
 
 

@@ -19,18 +19,18 @@ import cd.edc;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
-import utils.common;
 import crc.crc32;
 import dump;
-import utils.file_io;
+import filesystem.image_browser;
+import filesystem.iso9660;
 import hash.md5;
 import hash.sha1;
-import image_browser;
-import iso9660;
-import utils.logger;
 import offset_manager;
 import options;
 import systems.system;
+import utils.file_io;
+import utils.logger;
+import utils.misc;
 
 
 

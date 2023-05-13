@@ -7,7 +7,7 @@ module;
 
 export module utils.logger;
 
-import utils.common;
+import utils.misc;
 
 
 

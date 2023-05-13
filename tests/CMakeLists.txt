@@ -17,8 +17,8 @@ target_sources(tests
 		"${CMAKE_SOURCE_DIR}/crc/crc.ixx"
 		"${CMAKE_SOURCE_DIR}/crc/crc16_gsm.ixx"
 		"${CMAKE_SOURCE_DIR}/crc/crc32.ixx"
-		"${CMAKE_SOURCE_DIR}/utils/common.ixx"
 		"${CMAKE_SOURCE_DIR}/utils/file_io.ixx"
+		"${CMAKE_SOURCE_DIR}/utils/misc.ixx"
 )
 
 add_test(NAME tests COMMAND tests WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")

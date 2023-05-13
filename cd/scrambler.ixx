@@ -8,7 +8,7 @@ export module cd.scrambler;
 
 import cd.cd;
 import cd.cdrom;
-import utils.common;
+import utils.misc;
 
 
 

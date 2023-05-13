@@ -7,7 +7,7 @@ export module analyzers.silence_analyzer;
 
 import analyzers.analyzer;
 import cd.cd;
-import utils.common;
+import utils.misc;
 
 
 

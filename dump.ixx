@@ -5,14 +5,14 @@ module;
 
 export module dump;
 
-import utils.common;
-import utils.logger;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import drive;
 import options;
 import cd.toc;
+import utils.logger;
+import utils.misc;
 
 
 

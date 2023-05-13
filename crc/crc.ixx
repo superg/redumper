@@ -4,7 +4,7 @@ module;
 
 export module crc.crc;
 
-import utils.common;
+import utils.misc;
 
 
 

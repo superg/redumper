@@ -14,14 +14,14 @@ module;
 #include <string>
 #include <vector>
 
-export module image_browser;
+export module filesystem.image_browser;
 
 import cd.cd;
 import cd.cdrom;
 import cd.scrambler;
-import utils.common;
+import filesystem.iso9660;
 import utils.endian;
-import iso9660;
+import utils.misc;
 
 
 

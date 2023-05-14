@@ -577,22 +577,11 @@ export struct TOC
 		}
 	}
 
+
 	// MSVC modules workaround, have to be defined outside
 	void print(std::ostream &os) const;
 	std::ostream &printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const;
-
-	std::string getTrackString(uint8_t track_number) const
-	{
-		std::string track_string;
-
-		auto width = getTrackNumberWidth();
-		if(track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
-			track_string = std::string(width, 'A');
-		else
-			track_string = std::vformat(std::format("{{:0{}}}", width), std::make_format_args(track_number));
-
-		return track_string;
-	}
+	std::string getTrackString(uint8_t track_number) const;
 
 
 	uint32_t getTracksCount() const
@@ -1047,6 +1036,20 @@ std::ostream &TOC::printCUE(std::ostream &os, const std::string &image_name, uin
 	}
 
 	return os;
+}
+
+
+std::string TOC::getTrackString(uint8_t track_number) const
+{
+	std::string track_string;
+
+	auto width = getTrackNumberWidth();
+	if(track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+		track_string = std::string(width, 'A');
+	else
+		track_string = std::vformat(std::format("{{:0{}}}", width), std::make_format_args(track_number));
+
+	return track_string;
 }
 
 }

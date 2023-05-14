@@ -10,6 +10,7 @@ module;
 
 export module filesystem.image_browser;
 
+import cd.cd;
 import cd.cdrom;
 import cd.scrambler;
 import filesystem.iso9660;

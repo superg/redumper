@@ -86,7 +86,7 @@ export struct Options
 			if(argument.find(' ') != std::string::npos)
 				quoted = true;
 
-			command_line += std::vformat("{}{}{}{}", std::make_format_args(quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " "));
+			command_line += std::format("{}{}{}{}", quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " ");
 		}
 
 		std::string *s_value = nullptr;

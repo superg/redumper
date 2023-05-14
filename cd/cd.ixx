@@ -23,31 +23,31 @@ export struct MSF
 	};
 };
 
-export constexpr uint32_t CD_DATA_SIZE = 2352;
-export constexpr uint32_t CD_C2_SIZE = 294;
-export constexpr uint32_t CD_SUBCODE_SIZE = 96;
-export constexpr uint32_t CD_RAW_DATA_SIZE = CD_DATA_SIZE + CD_C2_SIZE + CD_SUBCODE_SIZE;
-export constexpr int32_t CD_SAMPLE_SIZE = sizeof(int16_t) * 2; // 16-bit signed sample, stereo
-export constexpr uint32_t CD_DATA_SIZE_SAMPLES = CD_DATA_SIZE / CD_SAMPLE_SIZE;
+export const uint32_t CD_DATA_SIZE = 2352;
+export const uint32_t CD_C2_SIZE = 294;
+export const uint32_t CD_SUBCODE_SIZE = 96;
+export const uint32_t CD_RAW_DATA_SIZE = CD_DATA_SIZE + CD_C2_SIZE + CD_SUBCODE_SIZE;
+export const int32_t CD_SAMPLE_SIZE = sizeof(int16_t) * 2; // 16-bit signed sample, stereo
+export const uint32_t CD_DATA_SIZE_SAMPLES = CD_DATA_SIZE / CD_SAMPLE_SIZE;
 
-export constexpr uint32_t CD_TRACKS_COUNT = 100;
-export constexpr uint32_t CD_INDEX_COUNT = 100;
-export constexpr uint32_t CD_LEADOUT_TRACK_NUMBER = 0xAA;
+export const uint32_t CD_TRACKS_COUNT = 100;
+export const uint32_t CD_INDEX_COUNT = 100;
+export const uint32_t CD_LEADOUT_TRACK_NUMBER = 0xAA;
 
-export constexpr uint32_t MSF_MINUTES_WRAP = 90;
-export constexpr MSF MSF_ZERO = {0, 0, 0};
-export constexpr MSF MSF_LIMIT = {100, 60, 75};
-export constexpr MSF MSF_MAX = {MSF_MINUTES_WRAP - 1, MSF_LIMIT.s, MSF_LIMIT.f};
+export const uint32_t MSF_MINUTES_WRAP = 90;
+export const MSF MSF_ZERO = {0, 0, 0};
+export const MSF MSF_LIMIT = {100, 60, 75};
+export const MSF MSF_MAX = {MSF_MINUTES_WRAP - 1, MSF_LIMIT.s, MSF_LIMIT.f};
 
-export constexpr MSF MSF_LEADIN_START = {MSF_MINUTES_WRAP, 0, 0};
+export const MSF MSF_LEADIN_START = {MSF_MINUTES_WRAP, 0, 0};
 
-export constexpr uint32_t LBA_LIMIT = MSF_LIMIT.m * MSF_LIMIT.s * MSF_LIMIT.f;
+export const uint32_t LBA_LIMIT = MSF_LIMIT.m * MSF_LIMIT.s * MSF_LIMIT.f;
 
-export constexpr uint32_t CD_PREGAP_SIZE = 2 * MSF_LIMIT.f; // 2 seconds
-export constexpr uint32_t CD_LEADIN_MIN_SIZE = 60 * MSF_LIMIT.f; // 60 seconds
-export constexpr uint32_t CD_LEADOUT_MIN_SIZE = 90 * MSF_LIMIT.f; // 90 seconds
+export const uint32_t CD_PREGAP_SIZE = 2 * MSF_LIMIT.f; // 2 seconds
+export const uint32_t CD_LEADIN_MIN_SIZE = 60 * MSF_LIMIT.f; // 60 seconds
+export const uint32_t CD_LEADOUT_MIN_SIZE = 90 * MSF_LIMIT.f; // 90 seconds
 
-export constexpr int32_t MSF_LBA_SHIFT = -1 * CD_PREGAP_SIZE;
+export const int32_t MSF_LBA_SHIFT = -1 * CD_PREGAP_SIZE;
 
 
 export template<typename T>

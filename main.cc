@@ -1,4 +1,5 @@
 #include <exception>
+#include <format>
 
 import options;
 import redumper;
@@ -22,7 +23,7 @@ int main(int argc, char *argv[])
 		if(options.help)
 			options.printUsage();
 		else if(options.version)
-			LOG(redumper_version());
+			LOG("{}", redumper_version());
 		else
 		{
 			redumper(options);

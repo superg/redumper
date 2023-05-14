@@ -1,4 +1,5 @@
 module;
+#include <algorithm>
 #include <vector>
 
 export module hash.sha1;

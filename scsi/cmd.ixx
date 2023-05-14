@@ -1,5 +1,6 @@
 module;
 #include <cstdint>
+#include <format>
 #include <vector>
 
 export module scsi.cmd;

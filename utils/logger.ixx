@@ -24,9 +24,9 @@ public:
 
 
 	template<typename... Args>
-	void log(bool file, std::string fmt, const Args &... args)
+	constexpr void log(bool file, std::format_string<Args...> fmt, Args &&... args)
 	{
-		auto message = std::vformat(fmt, std::make_format_args(args...));
+		auto message = std::format(fmt, std::forward<Args>(args)...);
 
 		std::cout << message;
 
@@ -72,20 +72,8 @@ public:
 	}
 
 
-	void NL(bool file = true)
-	{
-		std::cout << std::endl;
-		if(file && _fs.is_open())
-			_fs << std::endl;
-	}
-
-
-	void flush(bool file)
-	{
-		std::cout << std::flush;
-		if(file && _fs.is_open())
-			_fs << std::flush;
-	}
+	void NL(bool file);
+	void flush(bool file);
 
 
 	void returnLine(bool erase)
@@ -104,45 +92,61 @@ private:
 };
 
 
+void Logger::NL(bool file)
+{
+	std::cout << std::endl;
+	if(file && _fs.is_open())
+		_fs << std::endl;
+}
+
+
+void Logger::flush(bool file)
+{
+	std::cout << std::flush;
+	if(file && _fs.is_open())
+		_fs << std::flush;
+}
+
+
 Logger Logger::_logger;
 
 
 // log message followed by a new line (console & file)
 export template<typename... Args>
-void LOG(std::string fmt, const Args &... args)
+constexpr void LOG(std::format_string<Args...> fmt, Args &&... args)
 {
 	auto &logger = Logger::get();
-	logger.log(true, fmt, std::forward<const Args>(args)...);
+	logger.log(true, fmt, std::forward<Args>(args)...);
 	logger.NL(true);
 }
 
 
 // log message and flush, no new line (console & file)
 export template<typename... Args>
-void LOG_F(std::string fmt, const Args &... args)
+constexpr void LOG_F(std::format_string<Args...> fmt, Args &&... args)
 {
 	auto &logger = Logger::get();
-	logger.log(true, fmt, std::forward<const Args>(args)...);
+	logger.log(true, fmt, std::forward<Args>(args)...);
 	logger.flush(true);
 }
 
 
 // log message followed by a new line (console only)
 export template<typename... Args>
-void LOGC(std::string fmt, const Args &... args)
+constexpr void LOGC(std::format_string<Args...> fmt, Args &&... args)
 {
 	auto &logger = Logger::get();
-	logger.log(false, fmt, std::forward<const Args>(args)...);
+	logger.log(false, fmt, std::forward<Args>(args)...);
 	logger.NL(false);
 }
 
 
 // log message and flush, no new line (console only)
 export template<typename... Args>
-void LOGC_F(std::string fmt, const Args &... args)
+constexpr void LOGC_F(std::format_string<Args...> fmt, Args &&... args)
 {
 	auto &logger = Logger::get();
-	logger.log(false, fmt, std::forward<const Args>(args)...);
+	logger.log(false, fmt, std::forward<Args>(args)...);
 	logger.flush(false);
 }
 

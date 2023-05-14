@@ -3,6 +3,7 @@ module;
 #include <format>
 #include <map>
 #include <string>
+#include <vector>
 
 export module cd.subcode;
 

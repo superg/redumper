@@ -577,161 +577,9 @@ export struct TOC
 		}
 	}
 
-
-	void print(std::ostream &os) const
-	{
-		bool multisession = sessions.size() > 1;
-
-		for(auto const &s : sessions)
-		{
-			if(multisession)
-				os << std::format("{}session {}", std::string(2, ' '), s.session_number) << std::endl;
-
-			for(auto const &t : s.tracks)
-			{
-				std::string flags(t.control & (uint8_t)ChannelQ::Control::DATA ? " data" : "audio");
-				if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
-					flags += ", four-channel";
-				if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
-					flags += ", dcp";
-				if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
-					flags += ", pre-emphasis";
-
-				os << std::format("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), getTrackString(t.track_number), flags) << std::endl;
-
-				auto indices = t.indices;
-				indices.insert(indices.begin(), t.lba_start);
-				indices.push_back(t.lba_end);
-
-				for(uint32_t i = 1; i < (uint32_t)indices.size(); ++i)
-				{
-					int32_t index_start = indices[i - 1];
-					int32_t index_end = indices[i];
-
-					int32_t index_length = index_end - index_start;
-
-					// skip index 0
-					if(i == 1 && index_length <= 0)
-						continue;
-
-					std::string index_properties;
-
-					MSF msf_start = LBA_to_MSF(index_start);
-					if(index_length > 0)
-					{
-						MSF msf_end = LBA_to_MSF(t.lba_end - 1);
-						index_properties = std::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
-													   index_start, index_end - 1, index_length,
-													   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
-					}
-					else
-						index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
-
-					os << std::format("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i - 1, index_properties) << std::endl;
-				}
-			}
-		}
-	}
-
-
-	std::ostream &printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const
-	{
-		bool multisession = sessions.size() > 1;
-
-		std::string mcn_print(getMCN(mcn, cd_text, cd_text_index));
-
-		// make sure to prepend 0 to 12-digit MCN, total length should always be 13 digits
-		{
-			long long mcn_value;
-			if(mcn_print.length() == 12 && stoll_try(mcn_value, mcn_print))
-				mcn_print = std::format("{:013}", mcn_value);
-		}
-
-		if(!mcn_print.empty())
-			os << std::format("CATALOG {}", mcn_print) << std::endl;
-
-		if(cd_text_index < cd_text.size())
-			printCDTextCUE(os, cd_text[cd_text_index], 0);
-
-		for(uint32_t j = 0; j < sessions.size(); ++j)
-		{
-			auto &s = sessions[j];
-
-			// output standard sizes here for now
-			// can be calculated precisely if whole lead-out/toc/pre-gap range is dumped
-			if(multisession)
-			{
-				MSF msf;
-				if(j)
-				{
-					msf = LBA_to_MSF(CD_LEADOUT_MIN_SIZE + MSF_LBA_SHIFT);
-					os << std::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-				}
-				os << std::format("REM SESSION {:02}", s.session_number) << std::endl;
-				if(j)
-				{
-					msf = LBA_to_MSF(CD_LEADIN_MIN_SIZE + MSF_LBA_SHIFT);
-					os << std::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-					msf = LBA_to_MSF(CD_PREGAP_SIZE + MSF_LBA_SHIFT);
-					os << std::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-				}
-			}
-
-			for(auto const &t : s.tracks)
-			{
-				// skip lead-in and lead-out tracks
-				if(t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
-					continue;
-
-				os << std::format("FILE \"{}{}.bin\" BINARY", image_name, getTracksCount() > 1 ? std::format(" (Track {})", getTrackString(t.track_number)) : "") << std::endl;
-
-				std::string track_type;
-				if(t.control & (uint8_t)ChannelQ::Control::DATA)
-				{
-					std::string track_mode;
-					if(t.cdi)
-						track_mode = "CDI";
-					else
-						track_mode = std::format("MODE{}", t.data_mode);
-					track_type = std::format("{}/2352", track_mode);
-				}
-				else
-					track_type = "AUDIO";
-
-				os << std::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
-				if(cd_text_index < t.cd_text.size())
-					printCDTextCUE(os, t.cd_text[cd_text_index], 4);
-
-				std::string isrc_print(getMCN(t.isrc, t.cd_text, cd_text_index));
-				if(!isrc_print.empty())
-					os << std::format("    ISRC {}", isrc_print) << std::endl;
-
-				std::string flags;
-				if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
-					flags += " 4CH";
-				if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
-					flags += " DCP";
-				if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
-					flags += " PRE";
-				if(!flags.empty())
-					os << std::format("    FLAGS{}", flags) << std::endl;
-
-				if(!t.indices.empty())
-				{
-					for(uint32_t i = 0; i <= t.indices.size(); ++i)
-					{
-						if(!i && t.indices[i] == t.lba_start)
-							continue;
-						MSF msf = LBA_to_MSF((i == 0 ? 0 : t.indices[i - 1] - t.lba_start) + MSF_LBA_SHIFT);
-						os << std::format("    INDEX {:02} {:02}:{:02}:{:02}", i, msf.m, msf.s, msf.f) << std::endl;
-					}
-				}
-			}
-		}
-
-		return os;
-	}
-
+	// MSVC modules workaround, have to be defined outside
+	void print(std::ostream &os) const;
+	std::ostream &printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const;
 
 	std::string getTrackString(uint8_t track_number) const
 	{
@@ -1045,5 +893,160 @@ private:
 		return text;
 	}
 };
+
+
+void TOC::print(std::ostream &os) const
+{
+	bool multisession = sessions.size() > 1;
+
+	for(auto const &s : sessions)
+	{
+		if(multisession)
+			os << std::format("{}session {}", std::string(2, ' '), s.session_number) << std::endl;
+
+		for(auto const &t : s.tracks)
+		{
+			std::string flags(t.control & (uint8_t)ChannelQ::Control::DATA ? " data" : "audio");
+			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
+				flags += ", four-channel";
+			if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
+				flags += ", dcp";
+			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
+				flags += ", pre-emphasis";
+
+			os << std::format("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), getTrackString(t.track_number), flags) << std::endl;
+
+			auto indices = t.indices;
+			indices.insert(indices.begin(), t.lba_start);
+			indices.push_back(t.lba_end);
+
+			for(uint32_t i = 1; i < (uint32_t)indices.size(); ++i)
+			{
+				int32_t index_start = indices[i - 1];
+				int32_t index_end = indices[i];
+
+				int32_t index_length = index_end - index_start;
+
+				// skip index 0
+				if(i == 1 && index_length <= 0)
+					continue;
+
+				std::string index_properties;
+
+				MSF msf_start = LBA_to_MSF(index_start);
+				if(index_length > 0)
+				{
+					MSF msf_end = LBA_to_MSF(t.lba_end - 1);
+					index_properties = std::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
+												   index_start, index_end - 1, index_length,
+												   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
+				}
+				else
+					index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
+
+				os << std::format("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i - 1, index_properties) << std::endl;
+			}
+		}
+	}
+}
+
+
+std::ostream &TOC::printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const
+{
+	bool multisession = sessions.size() > 1;
+
+	std::string mcn_print(getMCN(mcn, cd_text, cd_text_index));
+
+	// make sure to prepend 0 to 12-digit MCN, total length should always be 13 digits
+	{
+		long long mcn_value;
+		if(mcn_print.length() == 12 && stoll_try(mcn_value, mcn_print))
+			mcn_print = std::format("{:013}", mcn_value);
+	}
+
+	if(!mcn_print.empty())
+		os << std::format("CATALOG {}", mcn_print) << std::endl;
+
+	if(cd_text_index < cd_text.size())
+		printCDTextCUE(os, cd_text[cd_text_index], 0);
+
+	for(uint32_t j = 0; j < sessions.size(); ++j)
+	{
+		auto &s = sessions[j];
+
+		// output standard sizes here for now
+		// can be calculated precisely if whole lead-out/toc/pre-gap range is dumped
+		if(multisession)
+		{
+			MSF msf;
+			if(j)
+			{
+				msf = LBA_to_MSF(CD_LEADOUT_MIN_SIZE + MSF_LBA_SHIFT);
+				os << std::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+			}
+			os << std::format("REM SESSION {:02}", s.session_number) << std::endl;
+			if(j)
+			{
+				msf = LBA_to_MSF(CD_LEADIN_MIN_SIZE + MSF_LBA_SHIFT);
+				os << std::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				msf = LBA_to_MSF(CD_PREGAP_SIZE + MSF_LBA_SHIFT);
+				os << std::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+			}
+		}
+
+		for(auto const &t : s.tracks)
+		{
+			// skip lead-in and lead-out tracks
+			if(t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+				continue;
+
+			os << std::format("FILE \"{}{}.bin\" BINARY", image_name, getTracksCount() > 1 ? std::format(" (Track {})", getTrackString(t.track_number)) : "") << std::endl;
+
+			std::string track_type;
+			if(t.control & (uint8_t)ChannelQ::Control::DATA)
+			{
+				std::string track_mode;
+				if(t.cdi)
+					track_mode = "CDI";
+				else
+					track_mode = std::format("MODE{}", t.data_mode);
+				track_type = std::format("{}/2352", track_mode);
+			}
+			else
+				track_type = "AUDIO";
+
+			os << std::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
+			if(cd_text_index < t.cd_text.size())
+				printCDTextCUE(os, t.cd_text[cd_text_index], 4);
+
+			std::string isrc_print(getMCN(t.isrc, t.cd_text, cd_text_index));
+			if(!isrc_print.empty())
+				os << std::format("    ISRC {}", isrc_print) << std::endl;
+
+			std::string flags;
+			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
+				flags += " 4CH";
+			if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
+				flags += " DCP";
+			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
+				flags += " PRE";
+			if(!flags.empty())
+				os << std::format("    FLAGS{}", flags) << std::endl;
+
+			if(!t.indices.empty())
+			{
+				for(uint32_t i = 0; i <= t.indices.size(); ++i)
+				{
+					if(!i && t.indices[i] == t.lba_start)
+						continue;
+					MSF msf = LBA_to_MSF((i == 0 ? 0 : t.indices[i - 1] - t.lba_start) + MSF_LBA_SHIFT);
+					os << std::format("    INDEX {:02} {:02}:{:02}:{:02}", i, msf.m, msf.s, msf.f) << std::endl;
+				}
+			}
+		}
+	}
+
+	return os;
+}
 
 }

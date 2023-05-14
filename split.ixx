@@ -1,10 +1,12 @@
 module;
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <list>
 #include <map>
+#include <set>
 #include <sstream>
 
 export module cd.split;
@@ -37,9 +39,9 @@ import utils.misc;
 namespace gpsxre
 {
 
-export constexpr uint32_t OFFSET_DEVIATION_MAX = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
-export constexpr uint32_t OFFSET_SHIFT_MAX_SECTORS = 4;
-export constexpr uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
+const uint32_t OFFSET_DEVIATION_MAX = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
+const uint32_t OFFSET_SHIFT_MAX_SECTORS = 4;
+const uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
 
 export struct TrackEntry
 {

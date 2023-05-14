@@ -11,6 +11,8 @@ module;
 #include <string>
 #include <vector>
 
+export module dump_cd;
+
 import cd.cd;
 import cd.scrambler;
 import cd.split;
@@ -28,15 +30,10 @@ import utils.logger;
 import utils.misc;
 import utils.signal;
 
-export module dump_cd;
-
 
 
 namespace gpsxre
 {
-
-static const std::string PROGRESS_FORMAT("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}");
-
 
 struct LeadInEntry
 {
@@ -1045,13 +1042,13 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 			if(lba == lba_refine)
 			{
 				LOG_ER();
-				LOGC_F(PROGRESS_FORMAT, percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
+				LOGC_F("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 			}
 		}
 		else
 		{
 			LOG_ER();
-			LOGC_F(PROGRESS_FORMAT, percentage(lba, lba_overread - 1), lba, lba_overread, errors_scsi, errors_c2, errors_q);
+			LOGC_F("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", percentage(lba, lba_overread - 1), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 		}
 	}
 	LOGC("");

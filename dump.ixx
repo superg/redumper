@@ -1,6 +1,8 @@
 module;
 #include <filesystem>
 #include <format>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 export module dump;

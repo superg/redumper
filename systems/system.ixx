@@ -1,5 +1,6 @@
 module;
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <list>
 #include <ostream>

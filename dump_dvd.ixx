@@ -2,6 +2,7 @@ module;
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <set>
 
 export module dump_dvd;
@@ -176,13 +177,13 @@ char spinner_animation()
 template<typename T>
 void progress_output(T sector, T sectors_count, T errors)
 {
-	T digits_count = (sectors_count ? log10(sectors_count) : 0) + 1;
-	std::string format_string = std::format("{{}} [{{:3}}%] sector: {{:{}}}/{{:{}}}, errors: {{:{}}}", digits_count, digits_count, digits_count);
+//	T digits_count = (sectors_count ? log10(sectors_count) : 0) + 1;
+//	std::string format_string = std::format("{{}} [{{:3}}%] sector: {{:{}}}/{{:{}}}, errors: {{:{}}}", digits_count, digits_count, digits_count);
 
 	char animation = sector == sectors_count ? '*' : spinner_animation();
 
 	LOG_R();
-	LOGC_F(format_string, animation, sector * 100 / sectors_count, sector, sectors_count, errors);
+	LOGC_F("{} [{:3}%] sector: {:8}/{:8}, errors: {:8}", animation, sector * 100 / sectors_count, sector, sectors_count, errors);
 }
 
 

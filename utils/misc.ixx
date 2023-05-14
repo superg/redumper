@@ -1,7 +1,9 @@
 module;
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <format>
+#include <functional>
 #include <iomanip>
 #include <map>
 #include <set>
@@ -19,7 +21,7 @@ namespace gpsxre
 
 export constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
 #if 1
-export int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START); // -45150
+export constexpr int32_t LBA_START = -45150; //MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
 #else
 // easier debugging, LBA starts with 0, plextor lead-in and asus cache are disabled
 export constexpr int32_t LBA_START = 0;
@@ -45,10 +47,11 @@ export enum class State : uint8_t
 	SUCCESS
 };
 
+
 export template<typename... Args>
-void throw_line(const std::string fmt, const Args &... args)
+constexpr void throw_line(std::format_string<Args...> fmt, Args &&... args)
 {
-	auto message = std::vformat(fmt, std::make_format_args(args...));
+	auto message = std::format(fmt, std::forward<Args>(args)...);
 
 #ifdef NDEBUG
 	throw std::runtime_error(message);

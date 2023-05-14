@@ -11,11 +11,11 @@ import cd.cd;
 namespace gpsxre
 {
 
-export constexpr uint32_t FORM1_DATA_SIZE = 2048;
-export constexpr uint32_t FORM2_DATA_SIZE = 2324;
-export constexpr uint32_t MODE0_DATA_SIZE = 2336;
+export const uint32_t FORM1_DATA_SIZE = 2048;
+export const uint32_t FORM2_DATA_SIZE = 2324;
+export const uint32_t MODE0_DATA_SIZE = 2336;
 
-export constexpr uint8_t CD_DATA_SYNC[] =
+export const uint8_t CD_DATA_SYNC[] =
 {
 	0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00
 };

@@ -49,9 +49,9 @@ export enum class State : uint8_t
 
 
 export template<typename... Args>
-constexpr void throw_line(std::format_string<Args...> fmt, Args &&... args)
+constexpr void throw_line(const std::string fmt, Args &&... args)
 {
-	auto message = std::format(fmt, std::forward<Args>(args)...);
+	auto message = std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...));
 
 #ifdef NDEBUG
 	throw std::runtime_error(message);

@@ -133,6 +133,7 @@ target_sources(redumper
 	"scsi/sptd.ixx"
 	"systems/system_cdrom.ixx"
 	"systems/system_iso.ixx"
+	"systems/system_mcd.ixx"
 	"systems/system_psx.ixx"
 	"systems/system.ixx"
 	"utils/endian.ixx"

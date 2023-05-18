@@ -424,6 +424,12 @@ public:
 	}
 	
 
+	std::vector<uint8_t> getSystemArea()
+	{
+		return read(_trackLBA, iso9660::SYSTEM_AREA_SIZE);
+	}
+
+
 	template<typename F>
 	bool Iterate(F f)
 	{
@@ -541,6 +547,64 @@ private:
 		// this value includes all following audio tracks
 		if(!_fileEndOffset)
 			_fileEndOffset = _fileStartOffset + _pvd.primary.volume_space_size.lsb * sizeof(Sector);
+	}
+
+
+	std::vector<uint8_t> read(uint32_t lba, uint32_t count)
+	{
+		std::vector<uint8_t> data;
+		data.reserve(count * FORM1_DATA_SIZE);
+
+		Scrambler scrambler;
+
+		uint32_t offset = lba - _trackLBA;
+		_fs.seekg(_fileStartOffset + offset * sizeof(Sector));
+		if(_fs.fail())
+		{
+			_fs.clear();
+			throw_line("seek failure");
+		}
+
+		for(uint32_t s = 0; s < count; ++s)
+		{
+			Sector sector;
+			_fs.read((char *)&sector, sizeof(sector));
+			if(_fs.fail())
+			{
+				_fs.clear();
+				throw_line("read failure ({})", std::strerror(errno));
+			}
+
+			if(_scrambled)
+				scrambler.process((uint8_t *)&sector, (uint8_t *)&sector, 0, CD_DATA_SIZE);
+
+			uint8_t *user_data;
+			uint32_t bytes_to_copy;
+			if(sector.header.mode == 1)
+			{
+				user_data = sector.mode1.user_data;
+				bytes_to_copy = FORM1_DATA_SIZE;
+			}
+			else if(sector.header.mode == 2)
+			{
+				if(sector.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
+				{
+					user_data = sector.mode2.xa.form2.user_data;
+					bytes_to_copy = FORM2_DATA_SIZE;
+				}
+				else
+				{
+					user_data = sector.mode2.xa.form1.user_data;
+					bytes_to_copy = FORM1_DATA_SIZE;
+				}
+			}
+			else
+				throw_line("unexpected sector mode (mode: {})", sector.header.mode);
+
+			data.insert(data.end(), user_data, user_data + bytes_to_copy);
+		}
+
+		return data;
 	}
 };
 

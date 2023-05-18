@@ -9,6 +9,7 @@ export module systems.iso;
 
 import filesystem.image_browser;
 import utils.hex_bin;
+import utils.strings;
 
 
 
@@ -43,6 +44,10 @@ void SystemISO::operator()(std::ostream &os) const
 		os << std::format("ISO9660 [{}]:", _trackPath.filename().string()) << std::endl;
 
 		auto pvd = browser.GetPVD();
+
+		auto volume_identifier = trim(pvd.primary.volume_identifier);
+		if(!volume_identifier.empty())
+			os << std::format("  volume identifier: {}", volume_identifier) << std::endl;
 		os << "  PVD:" << std::endl;
 		os << std::format("{}", hexdump((uint8_t *)&pvd, 0x320, 96));
 	}

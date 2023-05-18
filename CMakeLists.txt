@@ -141,6 +141,7 @@ target_sources(redumper
 	"utils/logger.ixx"
 	"utils/misc.ixx"
 	"utils/signal.ixx"
+	"utils/strings.ixx"
 	"dump.ixx"
 	"dump_cd.ixx"
 	"dump_dvd.ixx"

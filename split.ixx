@@ -951,22 +951,25 @@ export void redumper_protection_cd(Options &options)
 
 	// PS2 Datel DATA.DAT / BIG.DAT
 	// only one track
-	if(toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 1)
+	if(toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 2)
 	{
 		// data track
 		auto &t = toc.sessions.front().tracks.front();
+		int32_t track_lba_start = t.indices.front();
+		int32_t track_lba_end = toc.sessions.front().tracks.back().lba_end;
+
 		if(t.control & (uint8_t)ChannelQ::Control::DATA)
 		{
 			std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
-			int32_t write_offset = track_offset_by_sync(t.indices.front(), t.lba_end, state_fs, scm_fs);
+			int32_t write_offset = track_offset_by_sync(track_lba_start, track_lba_end, state_fs, scm_fs);
 			if(write_offset != std::numeric_limits<int32_t>::max())
 			{
 				// preliminary check
 				bool candidate = false;
 				{
 					constexpr int32_t lba_check = 50;
-					if(lba_check >= t.indices.front() && lba_check < t.lba_end)
+					if(lba_check >= track_lba_start && lba_check < track_lba_end)
 					{
 						read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba_check - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 						for(auto const &s : state)
@@ -1005,7 +1008,7 @@ export void redumper_protection_cd(Options &options)
 					if(!protected_filename.empty())
 					{
 						std::pair<int32_t, int32_t> range(0, 0);
-						for(int32_t lba = 25, lba_end = std::min(t.lba_end, 5000); lba < lba_end; ++lba)
+						for(int32_t lba = 25, lba_end = std::min(track_lba_end, 5000); lba < lba_end; ++lba)
 						{
 							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 

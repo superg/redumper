@@ -11,6 +11,7 @@ import systems.cdrom;
 import systems.iso;
 import systems.mcd;
 import systems.psx;
+import systems.ss;
 
 
 
@@ -34,6 +35,7 @@ public:
 		systems.emplace_back(SystemISO(track_path));
 		systems.emplace_back(SystemMCD(track_path));
 		systems.emplace_back(SystemPSX(track_path));
+		systems.emplace_back(SystemSS(track_path));
 
 		return systems;
 	}

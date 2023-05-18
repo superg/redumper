@@ -135,6 +135,7 @@ target_sources(redumper
 	"systems/system_iso.ixx"
 	"systems/system_mcd.ixx"
 	"systems/system_psx.ixx"
+	"systems/system_ss.ixx"
 	"systems/system.ixx"
 	"utils/endian.ixx"
 	"utils/file_io.ixx"

@@ -580,8 +580,118 @@ export struct TOC
 
 	// MSVC modules workaround, have to be defined outside
 	void print(std::ostream &os) const;
-	std::ostream &printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const;
-	std::string getTrackString(uint8_t track_number) const;
+	std::ostream &printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const
+	{
+		bool multisession = sessions.size() > 1;
+
+		std::string mcn_print(getMCN(mcn, cd_text, cd_text_index));
+
+		// make sure to prepend 0 to 12-digit MCN, total length should always be 13 digits
+		{
+			long long mcn_value;
+			if(mcn_print.length() == 12 && stoll_try(mcn_value, mcn_print))
+				mcn_print = std::format("{:013}", mcn_value);
+		}
+
+		if(!mcn_print.empty())
+			os << std::format("CATALOG {}", mcn_print) << std::endl;
+
+		if(cd_text_index < cd_text.size())
+			printCDTextCUE(os, cd_text[cd_text_index], 0);
+
+		for(uint32_t j = 0; j < sessions.size(); ++j)
+		{
+			auto &s = sessions[j];
+
+			// output standard sizes here for now
+			// can be calculated precisely if whole lead-out/toc/pre-gap range is dumped
+			if(multisession)
+			{
+				MSF msf;
+				if(j)
+				{
+					msf = LBA_to_MSF(CD_LEADOUT_MIN_SIZE + MSF_LBA_SHIFT);
+					os << std::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				}
+				os << std::format("REM SESSION {:02}", s.session_number) << std::endl;
+				if(j)
+				{
+					msf = LBA_to_MSF(CD_LEADIN_MIN_SIZE + MSF_LBA_SHIFT);
+					os << std::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+					msf = LBA_to_MSF(CD_PREGAP_SIZE + MSF_LBA_SHIFT);
+					os << std::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+				}
+			}
+
+			for(auto const &t : s.tracks)
+			{
+				// skip lead-in and lead-out tracks
+				if(t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+					continue;
+
+				os << std::format("FILE \"{}{}.bin\" BINARY", image_name, getTracksCount() > 1 ? std::format(" (Track {})", getTrackString(t.track_number)) : "") << std::endl;
+
+				std::string track_type;
+				if(t.control & (uint8_t)ChannelQ::Control::DATA)
+				{
+					std::string track_mode;
+					if(t.cdi)
+						track_mode = "CDI";
+					else
+						track_mode = std::format("MODE{}", t.data_mode);
+					track_type = std::format("{}/2352", track_mode);
+				}
+				else
+					track_type = "AUDIO";
+
+				os << std::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
+				if(cd_text_index < t.cd_text.size())
+					printCDTextCUE(os, t.cd_text[cd_text_index], 4);
+
+				std::string isrc_print(getMCN(t.isrc, t.cd_text, cd_text_index));
+				if(!isrc_print.empty())
+					os << std::format("    ISRC {}", isrc_print) << std::endl;
+
+				std::string flags;
+				if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
+					flags += " 4CH";
+				if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
+					flags += " DCP";
+				if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
+					flags += " PRE";
+				if(!flags.empty())
+					os << std::format("    FLAGS{}", flags) << std::endl;
+
+				if(!t.indices.empty())
+				{
+					for(uint32_t i = 0; i <= t.indices.size(); ++i)
+					{
+						if(!i && t.indices[i] == t.lba_start)
+							continue;
+						MSF msf = LBA_to_MSF((i == 0 ? 0 : t.indices[i - 1] - t.lba_start) + MSF_LBA_SHIFT);
+						os << std::format("    INDEX {:02} {:02}:{:02}:{:02}", i, msf.m, msf.s, msf.f) << std::endl;
+					}
+				}
+			}
+		}
+
+		return os;
+	}
+
+
+	std::string getTrackString(uint8_t track_number) const
+	{
+		std::string track_string;
+
+		auto width = getTrackNumberWidth();
+		if(track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+			track_string = std::string(width, 'A');
+		else
+			track_string = std::vformat(std::format("{{:0{}}}", width), std::make_format_args(track_number));
+
+		return track_string;
+	}
+
 
 
 	uint32_t getTracksCount() const
@@ -937,119 +1047,6 @@ void TOC::print(std::ostream &os) const
 			}
 		}
 	}
-}
-
-
-std::ostream &TOC::printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const
-{
-	bool multisession = sessions.size() > 1;
-
-	std::string mcn_print(getMCN(mcn, cd_text, cd_text_index));
-
-	// make sure to prepend 0 to 12-digit MCN, total length should always be 13 digits
-	{
-		long long mcn_value;
-		if(mcn_print.length() == 12 && stoll_try(mcn_value, mcn_print))
-			mcn_print = std::format("{:013}", mcn_value);
-	}
-
-	if(!mcn_print.empty())
-		os << std::format("CATALOG {}", mcn_print) << std::endl;
-
-	if(cd_text_index < cd_text.size())
-		printCDTextCUE(os, cd_text[cd_text_index], 0);
-
-	for(uint32_t j = 0; j < sessions.size(); ++j)
-	{
-		auto &s = sessions[j];
-
-		// output standard sizes here for now
-		// can be calculated precisely if whole lead-out/toc/pre-gap range is dumped
-		if(multisession)
-		{
-			MSF msf;
-			if(j)
-			{
-				msf = LBA_to_MSF(CD_LEADOUT_MIN_SIZE + MSF_LBA_SHIFT);
-				os << std::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-			}
-			os << std::format("REM SESSION {:02}", s.session_number) << std::endl;
-			if(j)
-			{
-				msf = LBA_to_MSF(CD_LEADIN_MIN_SIZE + MSF_LBA_SHIFT);
-				os << std::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-				msf = LBA_to_MSF(CD_PREGAP_SIZE + MSF_LBA_SHIFT);
-				os << std::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-			}
-		}
-
-		for(auto const &t : s.tracks)
-		{
-			// skip lead-in and lead-out tracks
-			if(t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
-				continue;
-
-			os << std::format("FILE \"{}{}.bin\" BINARY", image_name, getTracksCount() > 1 ? std::format(" (Track {})", getTrackString(t.track_number)) : "") << std::endl;
-
-			std::string track_type;
-			if(t.control & (uint8_t)ChannelQ::Control::DATA)
-			{
-				std::string track_mode;
-				if(t.cdi)
-					track_mode = "CDI";
-				else
-					track_mode = std::format("MODE{}", t.data_mode);
-				track_type = std::format("{}/2352", track_mode);
-			}
-			else
-				track_type = "AUDIO";
-
-			os << std::format("  TRACK {:02} {}", t.track_number, track_type) << std::endl;
-			if(cd_text_index < t.cd_text.size())
-				printCDTextCUE(os, t.cd_text[cd_text_index], 4);
-
-			std::string isrc_print(getMCN(t.isrc, t.cd_text, cd_text_index));
-			if(!isrc_print.empty())
-				os << std::format("    ISRC {}", isrc_print) << std::endl;
-
-			std::string flags;
-			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
-				flags += " 4CH";
-			if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
-				flags += " DCP";
-			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
-				flags += " PRE";
-			if(!flags.empty())
-				os << std::format("    FLAGS{}", flags) << std::endl;
-
-			if(!t.indices.empty())
-			{
-				for(uint32_t i = 0; i <= t.indices.size(); ++i)
-				{
-					if(!i && t.indices[i] == t.lba_start)
-						continue;
-					MSF msf = LBA_to_MSF((i == 0 ? 0 : t.indices[i - 1] - t.lba_start) + MSF_LBA_SHIFT);
-					os << std::format("    INDEX {:02} {:02}:{:02}:{:02}", i, msf.m, msf.s, msf.f) << std::endl;
-				}
-			}
-		}
-	}
-
-	return os;
-}
-
-
-std::string TOC::getTrackString(uint8_t track_number) const
-{
-	std::string track_string;
-
-	auto width = getTrackNumberWidth();
-	if(track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
-		track_string = std::string(width, 'A');
-	else
-		track_string = std::vformat(std::format("{{:0{}}}", width), std::make_format_args(track_number));
-
-	return track_string;
 }
 
 }

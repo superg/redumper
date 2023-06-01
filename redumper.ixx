@@ -1,15 +1,10 @@
 module;
-#include <algorithm>
 #include <cstdint>
-#include <list>
-#include <set>
 #include <string>
 #include <vector>
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <functional>
-#include <iostream>
 
 export module redumper;
 
@@ -216,9 +211,9 @@ void redumper_cd(Options &options)
 	if(disc_type == DiscType::CD)
 	{
 		bool refine = redumper_dump_cd(options, false);
+		redumper_protection(options);
 		if(refine)
 			redumper_dump_cd(options, true);
-		redumper_protection(options);
 		redumper_split(options);
 		redumper_info(options);
 	}
@@ -307,53 +302,6 @@ void redumper_debug(Options &options)
 		if(!fs.is_open())
 			throw_line("unable to create file ({})", cue_path.string());
 		toc.printCUE(fs, options.image_name, 0);
-
-		LOG("");
-	}
-
-	// SBI stats
-	if(0)
-	{
-		std::vector<std::filesystem::path> sbi_files;
-		for(auto const &f : std::filesystem::directory_iterator("sbi"))
-			sbi_files.push_back(f);
-		std::sort(sbi_files.begin(), sbi_files.end());
-
-		std::map<uint32_t, uint32_t> sbi_stats;
-		for(auto const &f : sbi_files)
-		{
-			LOG("{}", f.string());
-
-			auto buffer = read_vector(f);
-
-			ChannelQ Q;
-			constexpr uint32_t sbi_magic_size = 4;
-			constexpr uint32_t sbi_entry_size = 14;
-
-			uint32_t sectors_count = (buffer.size() - sbi_magic_size) / sbi_entry_size;
-			for(uint32_t i = 0; i < sectors_count; ++i)
-			{
-				auto *b = &buffer[sbi_magic_size + i * sbi_entry_size];
-
-				MSF msf = *(MSF *)b;
-				auto lba = BCDMSF_to_LBA(msf);
-				++sbi_stats[lba];
-				std::cout << std::format("{} ", lba + 150);
-				Q = *(ChannelQ *)(b + 4);
-				Q.crc = 0;
-				//				for(uint32_t j = 0; j < 14; ++j)
-				//					std::cout << std::format("{:02X} ", b[j]);
-				std::cout << std::format("{}", Q.Decode()) << std::endl;
-			}
-
-			LOG("");
-		}
-
-		for(auto const &ss : sbi_stats)
-		{
-			std::cout << std::format("{}, ", ss.first);
-		}
-		std::cout << std::endl;
 
 		LOG("");
 	}

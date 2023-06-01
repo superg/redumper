@@ -62,11 +62,18 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	add_link_options(-fexperimental-library -stdlib=libc++)
 endif()
 if(MSVC)
+	# disable modules inlining
+	# wait until Microsoft actually fixes this and remove the option, more information:
+	# https://developercommunity.visualstudio.com/t/VS-1750-Compiler-is-Broken/10288409
+	# https://developercommunity.visualstudio.com/t/Modules-ICE-when-using-cout-inside-of-/10299789
+	# https://developercommunity.visualstudio.com/t/C-Modules:-Internal-Compiler-Error-on-/10377473
+	add_compile_options(/dxifcInlineFunctions-)
+
 	# build MT configuration by default
 	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 	# multithreaded build
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+	add_compile_options(/MP)
 
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -DNOMINMAX -D_NTSCSI_USER_MODE_)
 

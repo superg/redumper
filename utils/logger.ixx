@@ -19,108 +19,116 @@ export class Logger
 public:
 	static Logger &get()
 	{
-		return _logger;
+		static Logger logger;
+
+		return logger;
 	}
 
-	// use this after github runner updates MSVC version
-//	constexpr void log(bool file, std::format_string<Args...> fmt, Args &&... args)
-//	auto message = std::format(fmt, std::forward<Args>(args)...);
+
+	Logger &setFile(std::filesystem::path log_path)
+	{
+		auto pp = log_path.parent_path();
+		if(!pp.empty())
+			std::filesystem::create_directories(pp);
+
+		bool nl = false;
+		if(std::filesystem::exists(log_path))
+			nl = true;
+
+		_fs.open(log_path, std::fstream::out | std::fstream::app);
+		if(_fs.fail())
+			throw_line("unable to open file ({})", log_path.filename().string());
+
+		if(nl)
+			_fs << std::endl;
+
+		auto dt = system_date_time(" %F %T ");
+		_fs << std::format("{}{}{}", std::string(3, '='), dt, std::string(_LINE_WIDTH - 3 - dt.length(), '=')) << std::endl;
+
+		return Logger::get();
+	}
+
 
 	template<typename... Args>
-	constexpr void log(bool file, std::format_string<Args...> fmt, Args &&... args)
+	constexpr Logger &log(bool file, std::format_string<Args...> fmt, Args &&... args)
 	{
 		auto message = std::format(fmt, std::forward<Args>(args)...);
+		_currentLength = message.length();
+		
+		if(_eraseLength > _currentLength)
+		{
+			message += std::string(_eraseLength - _currentLength, ' ');
+			_eraseLength = 0;
+		}
 
 		std::cout << message;
 
 		if(file && _fs.is_open())
 			_fs << message;
+
+		return Logger::get();
 	}
 
 
-	bool reset(std::filesystem::path log_path)
+	Logger &NL(bool file)
 	{
-		bool reset = false;
-		if(_log_path != log_path)
-		{
-			_log_path = log_path;
-			if(_fs.is_open())
-				_fs.close();
+		_currentLength = 0;
+		_eraseLength = 0;
 
-			if(!_log_path.empty())
-			{
-				auto pp = log_path.parent_path();
-				if(!pp.empty())
-					std::filesystem::create_directories(pp);
+		std::cout << std::endl;
+		if(file && _fs.is_open())
+			_fs << std::endl;
 
-				bool nl = false;
-				if(std::filesystem::exists(log_path))
-					nl = true;
-
-				_fs.open(log_path, std::fstream::out | std::fstream::app);
-				if(_fs.fail())
-					throw_line("unable to open file ({})", log_path.filename().string());
-
-				if(nl)
-					_fs << std::endl;
-
-				auto dt = system_date_time(" %F %T ");
-				_fs << std::format("{}{}{}", std::string(3, '='), dt, std::string(80 - 3 - dt.length(), '=')) << std::endl;
-			}
-
-			reset = true;
-		}
-
-		return reset;
+		return Logger::get();
 	}
 
 
-	void NL(bool file);
-	void flush(bool file);
+	Logger &RL()
+	{
+		_eraseLength = _currentLength;
+		_currentLength = 0;
+
+		std::cout << '\r';
+
+		return Logger::get();
+	}
 
 
-	void returnLine(bool erase)
+	Logger &flush(bool file)
+	{
+		std::cout << std::flush;
+		if(file && _fs.is_open())
+			_fs << std::flush;
+
+		return Logger::get();
+	}
+
+
+	Logger &returnLine(bool erase)
 	{
 		// default 80 terminal width - 1 is the largest value which doesn't wrap to a new line on Windows 7
 		if(erase)
 			std::cout << std::format("\r{:79}", "");
 		std::cout << '\r';
+
+		return Logger::get();
 	}
 
 private:
-	static Logger _logger;
+	static constexpr unsigned int _LINE_WIDTH = 80;
 
-	std::filesystem::path _log_path;
 	std::fstream _fs;
+
+	unsigned int _currentLength = 0;
+	unsigned int _eraseLength = 0;
 };
-
-
-void Logger::NL(bool file)
-{
-	std::cout << std::endl;
-	if(file && _fs.is_open())
-		_fs << std::endl;
-}
-
-
-void Logger::flush(bool file)
-{
-	std::cout << std::flush;
-	if(file && _fs.is_open())
-		_fs << std::flush;
-}
-
-
-Logger Logger::_logger;
 
 
 // log message followed by a new line (console & file)
 export template<typename... Args>
 constexpr void LOG(std::format_string<Args...> fmt, Args &&... args)
 {
-	auto &logger = Logger::get();
-	logger.log(true, fmt, std::forward<Args>(args)...);
-	logger.NL(true);
+	Logger::get().log(true, fmt, std::forward<Args>(args)...).NL(true);
 }
 
 
@@ -128,9 +136,7 @@ constexpr void LOG(std::format_string<Args...> fmt, Args &&... args)
 export template<typename... Args>
 constexpr void LOG_F(std::format_string<Args...> fmt, Args &&... args)
 {
-	auto &logger = Logger::get();
-	logger.log(true, fmt, std::forward<Args>(args)...);
-	logger.flush(true);
+	Logger::get().log(true, fmt, std::forward<Args>(args)...).flush(true);
 }
 
 
@@ -138,9 +144,7 @@ constexpr void LOG_F(std::format_string<Args...> fmt, Args &&... args)
 export template<typename... Args>
 constexpr void LOGC(std::format_string<Args...> fmt, Args &&... args)
 {
-	auto &logger = Logger::get();
-	logger.log(false, fmt, std::forward<Args>(args)...);
-	logger.NL(false);
+	Logger::get().log(false, fmt, std::forward<Args>(args)...).NL(false);
 }
 
 
@@ -148,9 +152,14 @@ constexpr void LOGC(std::format_string<Args...> fmt, Args &&... args)
 export template<typename... Args>
 constexpr void LOGC_F(std::format_string<Args...> fmt, Args &&... args)
 {
-	auto &logger = Logger::get();
-	logger.log(false, fmt, std::forward<Args>(args)...);
-	logger.flush(false);
+	Logger::get().log(false, fmt, std::forward<Args>(args)...).flush(false);
+}
+
+
+export template<typename... Args>
+constexpr void LOGC_RF(std::format_string<Args...> fmt, Args &&... args)
+{
+	Logger::get().RL().log(false, fmt, std::forward<Args>(args)...).flush(false);
 }
 
 

@@ -1,6 +1,7 @@
 module;
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <format>
 #include <functional>
@@ -49,9 +50,9 @@ export enum class State : uint8_t
 
 
 export template<typename... Args>
-constexpr void throw_line(const std::string fmt, Args &&... args)
+constexpr void throw_line(std::format_string<Args...> fmt, Args &&... args)
 {
-	auto message = std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...));
+	auto message = std::format(fmt, std::forward<Args>(args)...);
 
 #ifdef NDEBUG
 	throw std::runtime_error(message);
@@ -554,6 +555,13 @@ export int32_t sample_offset_a2r(uint32_t absolute)
 export uint32_t sample_offset_r2a(int32_t relative)
 {
 	return relative - (LBA_START * CD_DATA_SIZE_SAMPLES);
+}
+
+
+export template<typename T>
+T digits_count(T value)
+{
+	return (value ? log10(value) : 0) + 1;
 }
 
 }

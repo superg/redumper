@@ -42,4 +42,18 @@ export void erase_all_inplace(std::string &s, char c)
     s.erase(std::remove(s.begin(), s.end(), c), s.end());
 }
 
+
+export void extend_left_inplace(std::string &s, char c, size_t width)
+{
+    s = std::string(width - std::min(width, s.length()), c) + s;
+}
+
+
+export std::string extend_left(std::string s, char c, size_t width)
+{
+    extend_left_inplace(s, c, width);
+    return s;
+}
+
+
 }

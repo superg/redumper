@@ -27,9 +27,9 @@ public:
 //	auto message = std::format(fmt, std::forward<Args>(args)...);
 
 	template<typename... Args>
-	constexpr void log(bool file, const std::string fmt, Args &&... args)
+	constexpr void log(bool file, std::format_string<Args...> fmt, Args &&... args)
 	{
-		auto message = std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...));
+		auto message = std::format(fmt, std::forward<Args>(args)...);
 
 		std::cout << message;
 
@@ -116,7 +116,7 @@ Logger Logger::_logger;
 
 // log message followed by a new line (console & file)
 export template<typename... Args>
-constexpr void LOG(const std::string fmt, Args &&... args)
+constexpr void LOG(std::format_string<Args...> fmt, Args &&... args)
 {
 	auto &logger = Logger::get();
 	logger.log(true, fmt, std::forward<Args>(args)...);
@@ -126,7 +126,7 @@ constexpr void LOG(const std::string fmt, Args &&... args)
 
 // log message and flush, no new line (console & file)
 export template<typename... Args>
-constexpr void LOG_F(const std::string fmt, Args &&... args)
+constexpr void LOG_F(std::format_string<Args...> fmt, Args &&... args)
 {
 	auto &logger = Logger::get();
 	logger.log(true, fmt, std::forward<Args>(args)...);
@@ -136,7 +136,7 @@ constexpr void LOG_F(const std::string fmt, Args &&... args)
 
 // log message followed by a new line (console only)
 export template<typename... Args>
-constexpr void LOGC(const std::string fmt, Args &&... args)
+constexpr void LOGC(std::format_string<Args...> fmt, Args &&... args)
 {
 	auto &logger = Logger::get();
 	logger.log(false, fmt, std::forward<Args>(args)...);
@@ -146,7 +146,7 @@ constexpr void LOGC(const std::string fmt, Args &&... args)
 
 // log message and flush, no new line (console only)
 export template<typename... Args>
-constexpr void LOGC_F(const std::string fmt, Args &&... args)
+constexpr void LOGC_F(std::format_string<Args...> fmt, Args &&... args)
 {
 	auto &logger = Logger::get();
 	logger.log(false, fmt, std::forward<Args>(args)...);

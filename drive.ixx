@@ -453,8 +453,7 @@ export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 		uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE];
 		auto &status = *(SPTD::Status *)entry;
 
-		LOG_ER();
-		LOGC_F("[LBA: {:6}]", neg);
+		LOGC_RF("[LBA: {:6}]", neg);
 
 		std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 		status = cmd_read_cdda(sptd, sector_buffer.data(), neg, 1, READ_CDDA_SubCode::DATA_SUB);
@@ -479,7 +478,7 @@ export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 		}
 	}
 
-	LOG_ER();
+	LOGC_RF("");
 
 	return buffer;
 }

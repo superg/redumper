@@ -288,6 +288,7 @@ export bool dump_dvd(const Options &options, bool refine)
 	std::fstream fs_iso(iso_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 	std::fstream fs_state(state_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 
+/*
 	// preallocate data
 	if(!refine)
 	{
@@ -296,6 +297,7 @@ export bool dump_dvd(const Options &options, bool refine)
 		write_entry(fs_state, (uint8_t *)state_failure.data(), sizeof(State), sectors_count - 1, 1, 0);
 		LOG("done");
 	}
+*/
 
 	CRC32 crc32;
 	MD5 bh_md5;

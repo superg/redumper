@@ -210,10 +210,7 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 			if(status.status_code)
 			{
 				if(options.verbose)
-				{
-					LOG_ER();
-					LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
-				}
+					LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 			}
 			else
 			{
@@ -685,8 +682,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 					read_sector(sector_buffer.data(), sptd, drive_config, lba - 1);
 				}
 
-				LOG_ER();
-				LOG("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
+				LOG_R("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
 				{
 					auto cache = asus_cache_read(sptd, drive_config.type);
 					write_vector(asus_path, cache);
@@ -696,11 +692,10 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 				uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 
-				LOG_ER();
 				if(entries_count)
-					LOG("LG/ASUS: lead-out found (LBA: {:6}, sectors: {})", lba, entries_count);
+					LOG_R("LG/ASUS: lead-out found (LBA: {:6}, sectors: {})", lba, entries_count);
 				else
-					LOG("LG/ASUS: lead-out not found");
+					LOG_R("LG/ASUS: lead-out not found");
 			}
 
 			if(r != nullptr && lba >= r->first || lba >= lba_end)
@@ -726,11 +721,10 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 							uint32_t data_crc = CRC32().update(sector_data.data(), CD_DATA_SIZE).final();
 							uint32_t c2_crc = CRC32().update(sector_c2, CD_C2_SIZE).final();
 
-							LOG_ER();
 							std::string status_retries;
 							if(refine)
 								status_retries = std::format(", retry: {}", refine_counter + 1);
-							LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}{})", lba, c2_count, data_crc, c2_crc, status_retries);
+							LOG_R("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}{})", lba, c2_count, data_crc, c2_crc, status_retries);
 						}
 
 						//DEBUG
@@ -788,10 +782,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 					else
 					{
 						if(options.verbose)
-						{
-							LOG_ER();
-							LOG("[LBA: {:6}] correction failure", lba);
-						}
+							LOG_R("[LBA: {:6}] correction failure", lba);
 						read = false;
 						++refine_processed;
 						refine_counter = 0;
@@ -808,10 +799,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 			else if(lba_refine == lba)
 			{
 				if(options.verbose)
-				{
-					LOG_ER();
-					LOG("[LBA: {:6}] correction success", lba);
-				}
+					LOG_R("[LBA: {:6}] correction success", lba);
 				++refine_processed;
 				refine_counter = 0;
 			}
@@ -847,11 +835,10 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 					if(options.verbose)
 					{
-						LOG_ER();
 						std::string status_retries;
 						if(refine)
 							status_retries = std::format(", retry: {}", refine_counter + 1);
-						LOG("[LBA: {:6}] SCSI error ({}{})", lba, SPTD::StatusMessage(status), status_retries);
+						LOG_R("[LBA: {:6}] SCSI error ({}{})", lba, SPTD::StatusMessage(status), status_retries);
 					}
 				}
 			}
@@ -873,11 +860,10 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 						uint32_t data_crc = CRC32().update(sector_data.data(), CD_DATA_SIZE).final();
 						uint32_t c2_crc = CRC32().update(sector_c2, CD_C2_SIZE).final();
 
-						LOG_ER();
 						std::string status_retries;
 						if(refine)
 							status_retries = std::format(", retry: {}", refine_counter + 1);
-						LOG("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}{})", lba, c2_count, data_crc, c2_crc, status_retries);
+						LOG_R("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}{})", lba, c2_count, data_crc, c2_crc, status_retries);
 					}
 
 					//DEBUG
@@ -905,8 +891,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 						if(subcode_shift != shift)
 						{
 							subcode_shift = shift;
-							LOG_ER();
-							LOG("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
+							LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
 						}
 					}
 				}
@@ -1032,8 +1017,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 		if(Signal::get().interrupt())
 		{
-			LOG_ER();
-			LOG("[LBA: {:6}] forced stop ", lba);
+			LOG_R("[LBA: {:6}] forced stop ", lba);
 			lba_overread = lba;
 		}
 
@@ -1041,17 +1025,15 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 		{
 			if(lba == lba_refine)
 			{
-				LOG_ER();
-				LOGC_F("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
+				LOGC_RF("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 			}
 		}
 		else
 		{
-			LOG_ER();
-			LOGC_F("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", percentage(lba, lba_overread - 1), lba, lba_overread, errors_scsi, errors_c2, errors_q);
+			LOGC_RF("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", percentage(lba, lba_overread - 1), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 		}
 	}
-	LOGC("");
+	LOGC_RF("");
 
 	auto dump_time_stop = std::chrono::high_resolution_clock::now();
 

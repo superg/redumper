@@ -1305,17 +1305,17 @@ export void redumper_split_cd(const Options &options)
 		uint16_t silence_level = disc_offset_by_silence(offset_ranges, index0_ranges, silence_ranges);
 		if(silence_level < silence_ranges.size())
 		{
-			LOG_F("Perfect Audio Offset (silence level: {}): ", silence_level);
+			std::string offset_string;
 			for(uint32_t i = 0; i < offset_ranges.size(); ++i)
 			{
 				auto const &r = offset_ranges[i];
 
 				if(r.first == r.second)
-					LOG_F("{:+}{}", r.first, i + 1 == offset_ranges.size() ? "" : ", ");
+					offset_string += std::format("{:+}{}", r.first, i + 1 == offset_ranges.size() ? "" : ", ");
 				else
-					LOG_F("[{:+} .. {:+}]{}", r.first, r.second, i + 1 == offset_ranges.size() ? "" : ", ");
+					offset_string += std::format("[{:+} .. {:+}]{}", r.first, r.second, i + 1 == offset_ranges.size() ? "" : ", ");
 			}
-			LOG("");
+			LOG("Perfect Audio Offset (silence level: {}): {}", silence_level, offset_string);
 
 			// only one perfect offset exists
 			if(offset_ranges.size() == 1 && offset_ranges.front().first == offset_ranges.front().second && !silence_level)
@@ -1543,7 +1543,6 @@ export void redumper_split_cd(const Options &options)
 		for(uint32_t i = 0; i < toc.cd_text_lang.size(); ++i)
 		{
 			cue_sheets[i] = i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name);
-			LOG_F("{}... ", cue_sheets[i]);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets[i]) && !options.overwrite)
 				throw_line("file already exists ({})", cue_sheets[i]);
@@ -1552,13 +1551,11 @@ export void redumper_split_cd(const Options &options)
 			if(!fs.is_open())
 				throw_line("unable to create file ({})", cue_sheets[i]);
 			toc.printCUE(fs, options.image_name, i);
-			LOG("done");
 		}
 	}
 	else
 	{
 		cue_sheets.push_back(std::format("{}.cue", options.image_name));
-		LOG_F("{}... ", cue_sheets.front());
 
 		if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets.front()) && !options.overwrite)
 			throw_line("file already exists ({})", cue_sheets.front());
@@ -1567,8 +1564,6 @@ export void redumper_split_cd(const Options &options)
 		if(!fs.is_open())
 			throw_line("unable to create file ({})", cue_sheets.front());
 		toc.printCUE(fs, options.image_name, 0);
-		LOG("done");
-		LOG("");
 	}
 
 	if(toc.sessions.size() > 1)

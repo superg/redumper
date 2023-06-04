@@ -255,7 +255,7 @@ void redumper_subchannel(Options &options)
 		{
 			int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
 
-			LOGC("[LBA: {:6}, LBAQ: {:6}] {}", LBA_START + (int32_t)lba_index, lbaq, Q.Decode());
+			LOG("[LBA: {:6}, LBAQ: {:6}] {}", LBA_START + (int32_t)lba_index, lbaq, Q.Decode());
 			empty = false;
 		}
 		else if(!empty)

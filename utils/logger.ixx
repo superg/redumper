@@ -63,6 +63,10 @@ public:
 
 		std::cout << message;
 
+		// just erasing
+		if(!_currentLength)
+			carriageReturn();
+
 		if(file && _fs.is_open())
 			_fs << message;
 
@@ -70,7 +74,7 @@ public:
 	}
 
 
-	Logger &NL(bool file)
+	Logger &lineFeed(bool file)
 	{
 		_currentLength = 0;
 		_eraseLength = 0;
@@ -83,7 +87,7 @@ public:
 	}
 
 
-	Logger &RL()
+	Logger &carriageReturn()
 	{
 		_eraseLength = _currentLength;
 		_currentLength = 0;
@@ -128,7 +132,7 @@ private:
 export template<typename... Args>
 constexpr void LOG(std::format_string<Args...> fmt, Args &&... args)
 {
-	Logger::get().log(true, fmt, std::forward<Args>(args)...).NL(true);
+	Logger::get().log(true, fmt, std::forward<Args>(args)...).lineFeed(true);
 }
 
 
@@ -140,40 +144,20 @@ constexpr void LOG_F(std::format_string<Args...> fmt, Args &&... args)
 }
 
 
-// log message followed by a new line (console only)
+// erase current line (console only), log message followed by a new line (console & file)
 export template<typename... Args>
-constexpr void LOGC(std::format_string<Args...> fmt, Args &&... args)
+constexpr void LOG_R(std::format_string<Args...> fmt, Args &&... args)
 {
-	Logger::get().log(false, fmt, std::forward<Args>(args)...).NL(false);
+	Logger::get().carriageReturn().log(true, fmt, std::forward<Args>(args)...).lineFeed(true);
 }
 
 
-// log message and flush, no new line (console only)
-export template<typename... Args>
-constexpr void LOGC_F(std::format_string<Args...> fmt, Args &&... args)
-{
-	Logger::get().log(false, fmt, std::forward<Args>(args)...).flush(false);
-}
-
-
+// erase current line, log message and flush, no new line (console only)
+// used for progress update
 export template<typename... Args>
 constexpr void LOGC_RF(std::format_string<Args...> fmt, Args &&... args)
 {
-	Logger::get().RL().log(false, fmt, std::forward<Args>(args)...).flush(false);
-}
-
-
-// return line (console only)
-export void LOG_R()
-{
-	Logger::get().returnLine(false);
-}
-
-
-// erase line / return line (console only)
-export void LOG_ER()
-{
-	Logger::get().returnLine(true);
+	Logger::get().carriageReturn().log(false, fmt, std::forward<Args>(args)...).flush(false);
 }
 
 }

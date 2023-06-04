@@ -47,7 +47,7 @@ public:
 	}
 
 
-	T final()
+	T final() const
 	{
 		return reflect_final(_crc) ^ final_xor;
 	}

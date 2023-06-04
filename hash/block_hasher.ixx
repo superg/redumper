@@ -52,7 +52,7 @@ public:
 		// calculate original message length in bits
 		uint64_t ml = (_blocksHashed * _blockSize + _tail.size()) * CHAR_BIT;
 
-		// append the bit '1' to the message e.g. by adding 0x80
+		// append bit '1' to the message e.g. by adding 0x80
 		_tail.push_back(0x80);
 
 		// pad chunk with '0' bits
@@ -85,7 +85,7 @@ protected:
 	{
 		return x << n | x >> ((0 - n) & 31);
 	}
-
+	
 private:
 	uint32_t _blockSize;
 	uint64_t _blocksHashed;

@@ -158,6 +158,7 @@ target_sources(redumper
 	"offset_manager.ixx"
 	"options.ixx"
 	"redumper.ixx"
+	"rom_entry.ixx"
 	"split.ixx"
     "version.ixx"
 )

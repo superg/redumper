@@ -20,18 +20,17 @@ import cd.edc;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
-import crc.crc32;
 import dump;
 import filesystem.image_browser;
 import filesystem.iso9660;
-import hash.md5;
-import hash.sha1;
 import offset_manager;
 import options;
+import rom_entry;
 import systems.system;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
+import utils.strings;
 
 
 
@@ -41,15 +40,6 @@ namespace gpsxre
 const uint32_t OFFSET_DEVIATION_MAX = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
 const uint32_t OFFSET_SHIFT_MAX_SECTORS = 4;
 const uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
-
-export struct TrackEntry
-{
-	std::string filename;
-
-	uint32_t crc;
-	std::string md5;
-	std::string sha1;
-};
 
 
 int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs)
@@ -221,9 +211,11 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 }
 
 
-void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
+std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
                   const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
 {
+	std::vector<std::string> xml_lines;
+
 	Scrambler scrambler;
 	std::vector<uint8_t> sector(CD_DATA_SIZE);
 	std::vector<State> state(CD_DATA_SIZE_SAMPLES);
@@ -263,12 +255,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 			if(!fs_bin.is_open())
 				throw_line("unable to create file ({})", track_name);
 
-			TrackEntry track_entry;
-			track_entry.filename = track_name;
-
-			CRC32 crc32;
-			MD5 bh_md5;
-			SHA1 bh_sha1;
+			ROMEntry rom_entry(track_name);
 
 			std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
@@ -340,9 +327,7 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 					}
 				}
 
-				crc32.update(sector.data(), sector.size());
-				bh_md5.update(sector.data(), sector.size());
-				bh_sha1.update(sector.data(), sector.size());
+				rom_entry.update(sector.data(), sector.size());
 
 				fs_bin.write((char *)sector.data(), sector.size());
 				if(fs_bin.fail())
@@ -360,16 +345,15 @@ void write_tracks(std::vector<TrackEntry> &track_entries, TOC &toc, std::fstream
 //				LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
 			}
 
-			track_entry.crc = crc32.final();
-			track_entry.md5 = bh_md5.final();
-			track_entry.sha1 = bh_sha1.final();
-			track_entries.push_back(track_entry);
+			xml_lines.emplace_back(rom_entry.xmlLine());
 		}
 	}
 	auto time_stop = std::chrono::high_resolution_clock::now();
 
 	LOG("split complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
 	LOG("");
+
+	return xml_lines;
 }
 
 
@@ -1531,8 +1515,7 @@ export void redumper_split_cd(const Options &options)
 		throw_line("data errors detected, unable to continue");
 
 	// write tracks
-	std::vector<TrackEntry> track_entries;
-	write_tracks(track_entries, toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
+	auto xml_lines = write_tracks(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
 
 	// write CUE-sheet
 	std::vector<std::string> cue_sheets;
@@ -1575,13 +1558,8 @@ export void redumper_split_cd(const Options &options)
 	}
 
 	LOG("dat:");
-	for(auto const &t : track_entries)
-	{
-		std::string filename = t.filename;
-		replace_all_occurences(filename, "&", "&amp;");
-
-		LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, std::filesystem::file_size(std::filesystem::path(options.image_path) / t.filename), t.crc, t.md5, t.sha1);
-	}
+	for(auto const &line : xml_lines)
+		LOG("{}", line);
 	LOG("");
 
 	for(auto const &c : cue_sheets)

@@ -578,8 +578,62 @@ export struct TOC
 	}
 
 
-	// MSVC modules workaround, have to be defined outside
-	void print(std::ostream &os) const;
+	void print(std::ostream &os) const
+	{
+		bool multisession = sessions.size() > 1;
+
+		for(auto const &s : sessions)
+		{
+			if(multisession)
+				os << std::format("{}session {}", std::string(2, ' '), s.session_number) << std::endl;
+
+			for(auto const &t : s.tracks)
+			{
+				std::string flags(t.control & (uint8_t)ChannelQ::Control::DATA ? " data" : "audio");
+				if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
+					flags += ", four-channel";
+				if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
+					flags += ", dcp";
+				if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
+					flags += ", pre-emphasis";
+
+				os << std::format("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), getTrackString(t.track_number), flags) << std::endl;
+
+				auto indices = t.indices;
+				indices.insert(indices.begin(), t.lba_start);
+				indices.push_back(t.lba_end);
+
+				for(uint32_t i = 1; i < (uint32_t)indices.size(); ++i)
+				{
+					int32_t index_start = indices[i - 1];
+					int32_t index_end = indices[i];
+
+					int32_t index_length = index_end - index_start;
+
+					// skip empty index 0
+					if(i == 1 && index_length <= 0)
+						continue;
+
+					std::string index_properties;
+
+					MSF msf_start = LBA_to_MSF(index_start);
+					if(index_length > 0)
+					{
+						MSF msf_end = LBA_to_MSF(index_end - 1);
+						index_properties = std::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
+													   index_start, index_end - 1, index_length,
+													   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
+					}
+					else
+						index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
+
+					os << std::format("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i - 1, index_properties) << std::endl;
+				}
+			}
+		}
+	}
+
+
 	std::ostream &printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const
 	{
 		bool multisession = sessions.size() > 1;
@@ -992,61 +1046,5 @@ private:
 		return text;
 	}
 };
-
-
-void TOC::print(std::ostream &os) const
-{
-	bool multisession = sessions.size() > 1;
-
-	for(auto const &s : sessions)
-	{
-		if(multisession)
-			os << std::format("{}session {}", std::string(2, ' '), s.session_number) << std::endl;
-
-		for(auto const &t : s.tracks)
-		{
-			std::string flags(t.control & (uint8_t)ChannelQ::Control::DATA ? " data" : "audio");
-			if(t.control & (uint8_t)ChannelQ::Control::FOUR_CHANNEL)
-				flags += ", four-channel";
-			if(t.control & (uint8_t)ChannelQ::Control::DIGITAL_COPY)
-				flags += ", dcp";
-			if(t.control & (uint8_t)ChannelQ::Control::PRE_EMPHASIS)
-				flags += ", pre-emphasis";
-
-			os << std::format("{}track {} {{ {} }}", std::string(multisession ? 4 : 2, ' '), getTrackString(t.track_number), flags) << std::endl;
-
-			auto indices = t.indices;
-			indices.insert(indices.begin(), t.lba_start);
-			indices.push_back(t.lba_end);
-
-			for(uint32_t i = 1; i < (uint32_t)indices.size(); ++i)
-			{
-				int32_t index_start = indices[i - 1];
-				int32_t index_end = indices[i];
-
-				int32_t index_length = index_end - index_start;
-
-				// skip empty index 0
-				if(i == 1 && index_length <= 0)
-					continue;
-
-				std::string index_properties;
-
-				MSF msf_start = LBA_to_MSF(index_start);
-				if(index_length > 0)
-				{
-					MSF msf_end = LBA_to_MSF(index_end - 1);
-					index_properties = std::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
-												   index_start, index_end - 1, index_length,
-												   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
-				}
-				else
-					index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
-
-				os << std::format("{}index {:02} {{ {} }}", std::string(multisession ? 6 : 4, ' '), i - 1, index_properties) << std::endl;
-			}
-		}
-	}
-}
 
 }

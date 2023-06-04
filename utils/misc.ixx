@@ -429,13 +429,6 @@ export std::string str_uppercase(const std::string &str)
 }
 
 
-export void replace_all_occurences(std::string &str, const std::string &from, const std::string &to)
-{
-	for(size_t pos = 0; (pos = str.find(from, pos)) != std::string::npos; pos += to.length())
-		str.replace(pos, from.length(), to);
-}
-
-
 export long long stoll_strict(const std::string &str)
 {
 	size_t idx = 0;

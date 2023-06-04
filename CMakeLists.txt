@@ -144,6 +144,7 @@ target_sources(redumper
 	"systems/system_psx.ixx"
 	"systems/system_ss.ixx"
 	"systems/system.ixx"
+	"utils/animation.ixx"
 	"utils/endian.ixx"
 	"utils/file_io.ixx"
 	"utils/hex_bin.ixx"

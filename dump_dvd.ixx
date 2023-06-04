@@ -16,6 +16,7 @@ import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
+import utils.animation;
 import utils.endian;
 import utils.file_io;
 import utils.logger;
@@ -152,25 +153,6 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 	LOG("{}linear density: {}", indent, LINEAR_DENSITY[layer_descriptor.linear_density]);
 	LOG("{}track density: {}", indent, TRACK_DENSITY[layer_descriptor.track_density]);
 	LOG("{}BCA: {}", indent, layer_descriptor.bca ? "yes" : "no");
-}
-
-
-char spinner_animation()
-{
-	static const std::string spinner("-\\|/");
-
-	static size_t index = 0;
-	static auto t_prev(std::chrono::high_resolution_clock::now());
-
-	auto t = std::chrono::high_resolution_clock::now();
-	if(std::chrono::duration_cast<std::chrono::milliseconds>(t - t_prev) > std::chrono::milliseconds(100))
-	{
-		++index;
-		index %= spinner.size();
-		t_prev = t;
-	}
-
-	return spinner[index];
 }
 
 

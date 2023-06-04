@@ -25,6 +25,7 @@ import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
+import utils.animation;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
@@ -1025,12 +1026,12 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 		{
 			if(lba == lba_refine)
 			{
-				LOGC_RF("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
+				LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", spinner_animation(), percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 			}
 		}
 		else
 		{
-			LOGC_RF("[{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", percentage(lba, lba_overread - 1), lba, lba_overread, errors_scsi, errors_c2, errors_q);
+			LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", spinner_animation(), percentage(lba, lba_overread - 1), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 		}
 	}
 	LOGC_RF("");

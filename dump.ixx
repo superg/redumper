@@ -21,6 +21,14 @@ import utils.misc;
 namespace gpsxre
 {
 
+export enum class DumpMode
+{
+	DUMP,
+	VERIFY,
+	REFINE
+};
+
+
 export DriveConfig drive_init(SPTD &sptd, const Options &options)
 {
 	// set drive speed

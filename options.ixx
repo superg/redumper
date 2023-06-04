@@ -55,6 +55,7 @@ export struct Options
 	bool offset_shift_relocate;
 	std::unique_ptr<int> force_offset;
 	int audio_silence_threshold;
+	int dump_read_size;
 
 
 	Options(int argc, const char *argv[])
@@ -77,6 +78,7 @@ export struct Options
 		, correct_offset_shift(false)
 		, offset_shift_relocate(false)
 		, audio_silence_threshold(32)
+		, dump_read_size(32)
 	{
 		for(int i = 0; i < argc; ++i)
 		{
@@ -209,6 +211,8 @@ export struct Options
 					}
 					else if(key == "--audio-silence-threshold")
 						i_value = &audio_silence_threshold;
+					else if(key == "--dump-read-size")
+						i_value = &dump_read_size;
 					// unknown option
 					else
 					{
@@ -296,6 +300,7 @@ export struct Options
 		LOG("\t--lba-end=VALUE                \tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
 		LOG("\t--refine-subchannel            \tIn addition to SCSI/C2, refine subchannel");
 		LOG("\t--skip=VALUE                   \tLBA ranges of sectors to skip");
+		LOG("\t--dump-read-size=VALUE         \tnumber of sectors to read at once on initial dump, DVD only (default: {})", dump_read_size);
 	}
 };
 

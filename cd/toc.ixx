@@ -1026,7 +1026,7 @@ void TOC::print(std::ostream &os) const
 
 				int32_t index_length = index_end - index_start;
 
-				// skip index 0
+				// skip empty index 0
 				if(i == 1 && index_length <= 0)
 					continue;
 
@@ -1035,7 +1035,7 @@ void TOC::print(std::ostream &os) const
 				MSF msf_start = LBA_to_MSF(index_start);
 				if(index_length > 0)
 				{
-					MSF msf_end = LBA_to_MSF(t.lba_end - 1);
+					MSF msf_end = LBA_to_MSF(index_end - 1);
 					index_properties = std::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
 												   index_start, index_end - 1, index_length,
 												   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);

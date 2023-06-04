@@ -156,16 +156,55 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 }
 
 
+std::set<READ_DVD_STRUCTURE_Format> get_readable_formats(SPTD &sptd)
+{
+	std::set<READ_DVD_STRUCTURE_Format> readable_formats;
+
+	std::vector<uint8_t> structure;
+	cmd_read_dvd_structure(sptd, structure, 0, 0, READ_DVD_STRUCTURE_Format::STRUCTURE_LIST, 0);
+	strip_toc_response(structure);
+
+	auto structures_count = (uint16_t)(structure.size() / sizeof(READ_DVD_STRUCTURE_StructureListEntry));
+	auto structures = (READ_DVD_STRUCTURE_StructureListEntry *)structure.data();
+
+	for(uint16_t i = 0; i < structures_count; ++i)
+		if(structures[i].rds)
+			readable_formats.insert((READ_DVD_STRUCTURE_Format)structures[i].format_code);
+
+	return readable_formats;
+}
+
+
+std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
+{
+	std::vector<std::vector<uint8_t>> structures;
+
+	uint32_t layers_count = 0;
+	for(uint32_t i = 0; !layers_count || i < layers_count; ++i)
+	{
+		auto &structure = structures.emplace_back();
+		cmd_read_dvd_structure(sptd, structure, 0, i, READ_DVD_STRUCTURE_Format::PHYSICAL, 0);
+		strip_toc_response(structure);
+
+		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)structure.data();
+		if(!layers_count)
+			layers_count = (layer_descriptor->track_path ? 0 : layer_descriptor->layers_number) + 1;
+	}
+
+	return structures;
+}
+
+
 template<typename T>
 void progress_output(T sector, T sectors_count, T errors)
 {
 	char animation = sector == sectors_count ? '*' : spinner_animation();
 
-	LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {}", animation, sector * 100 / sectors_count, extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count, errors);
+	LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, sector * 100 / sectors_count, extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count, errors);
 }
 
 
-export bool dump_dvd(const Options &options, bool refine)
+export bool dump_dvd(const Options &options, DumpMode dump_mode)
 {
 	SPTD sptd(options.drive);
 
@@ -175,100 +214,76 @@ export bool dump_dvd(const Options &options, bool refine)
 	std::filesystem::path iso_path(image_prefix + ".iso");
 	std::filesystem::path state_path(image_prefix + ".state");
 
-	if(!refine)
+	if(dump_mode == DumpMode::DUMP)
 		image_check_overwrite(state_path, options);
 
 	// BD: cdb.reserved1 = 1, dump PIC area
 
-	// get list of readable structures
-	std::set<READ_DVD_STRUCTURE_Format> readable_formats;
-	{
-		std::vector<uint8_t> structure;
-		cmd_read_dvd_structure(sptd, structure, 0, 0, READ_DVD_STRUCTURE_Format::STRUCTURE_LIST, 0);
-		strip_toc_response(structure);
-
-		auto structures_count = (uint16_t)(structure.size() / sizeof(READ_DVD_STRUCTURE_StructureListEntry));
-		auto structures = (READ_DVD_STRUCTURE_StructureListEntry *)structure.data();
-
-		for(uint16_t i = 0; i < structures_count; ++i)
-			if(structures[i].rds)
-				readable_formats.insert((READ_DVD_STRUCTURE_Format)structures[i].format_code);
-	}
+	auto readable_formats = get_readable_formats(sptd);
 
 	if(readable_formats.find(READ_DVD_STRUCTURE_Format::PHYSICAL) == readable_formats.end())
 		throw_line("disc physical structure not found");
 
+	auto physical_structures = read_physical_structures(sptd);
+
 	uint32_t sectors_count = 0;
+	for(uint32_t i = 0; i < physical_structures.size(); ++i)
 	{
-		std::vector<std::vector<uint8_t>> structures;
+		if(physical_structures[i].size() < sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+			throw_line("invalid layer descriptor size (layer: {})", i);
 
-		uint32_t layers_count = 0;
-		for(uint32_t i = 0; !layers_count || i < layers_count; ++i)
-		{
-			auto &structure = structures.emplace_back();
-			cmd_read_dvd_structure(sptd, structure, 0, i, READ_DVD_STRUCTURE_Format::PHYSICAL, 0);
-			strip_toc_response(structure);
+		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
 
-			auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)structure.data();
-			if(!layers_count)
-				layers_count = (layer_descriptor->track_path ? 0 : layer_descriptor->layers_number) + 1;
-
-			sectors_count += endian_swap(layer_descriptor->data_end_sector) + 1 - endian_swap(layer_descriptor->data_start_sector);
-		}
-
-		// compare physical structures to stored to make sure it's the same disc
-		if(refine)
-		{
-			for(uint32_t i = 0; i < structures.size(); ++i)
-			{
-				auto &structure = structures[i];
-
-				auto structure_fn = std::format("{}{}.physical", image_prefix, structures.size() > 1 ? std::format(".{}", i + 1) : "");
-				if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != structure)
-					throw_line("disc / file physical structure don't match, refining from a different disc?");
-			}
-		}
-		// store and output structures
-		else
-		{
-			LOG("");
-			LOG("disc structure:");
-			for(uint32_t i = 0; i < structures.size(); ++i)
-			{
-				auto &structure = structures[i];
-
-				write_vector(std::format("{}{}.physical", image_prefix, structures.size() > 1 ? std::format(".{}", i + 1) : ""), structure);
-
-				print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)structure.data(), i);
-
-				if(readable_formats.find(READ_DVD_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
-				{
-					std::vector<uint8_t> manufacturer;
-					cmd_read_dvd_structure(sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
-					strip_toc_response(manufacturer);
-
-					if(!manufacturer.empty())
-						write_vector(std::format("{}{}.manufacturer", image_prefix, structures.size() > 1 ? std::format(".{}", i + 1) : ""), manufacturer);
-				}
-			}
-			LOG("");
-		}
+		sectors_count += endian_swap(layer_descriptor->data_end_sector) + 1 - endian_swap(layer_descriptor->data_start_sector);
 	}
 
 	if(!sectors_count)
 		throw_line("disc physical structure invalid");
 
-	// batch of 32 sectors on initial read seems like a reasonable choice
-	const uint32_t sectors_at_once = (refine ? 1 : 0x10000 / FORM1_DATA_SIZE);
+	if(dump_mode == DumpMode::DUMP)
+	{
+		LOG("");
+		LOG("disc structure:");
+		for(uint32_t i = 0; i < physical_structures.size(); ++i)
+		{
+			write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), physical_structures[i]);
+
+			print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data(), i);
+
+			if(readable_formats.find(READ_DVD_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
+			{
+				std::vector<uint8_t> manufacturer;
+				cmd_read_dvd_structure(sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
+				strip_toc_response(manufacturer);
+
+				if(!manufacturer.empty())
+					write_vector(std::format("{}{}.manufacturer", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), manufacturer);
+			}
+		}
+		LOG("");
+	}
+	// compare physical structures to stored to make sure it's the same disc
+	else
+	{
+		for(uint32_t i = 0; i < physical_structures.size(); ++i)
+		{
+			auto structure_fn = std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : "");
+
+			if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != physical_structures[i])
+				throw_line("disc / file physical structure doesn't match, refining from a different disc?");
+		}
+	}
+
+	const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
 	std::vector<uint8_t> sector_buffer(sectors_at_once * FORM1_DATA_SIZE);
 	std::vector<State> state_success(sectors_at_once, State::SUCCESS);
 	std::vector<State> state_failure(sectors_at_once, State::ERROR_SKIP);
 
-	uint32_t errors = 0;
+	uint32_t errors_scsi = 0;
 
-	std::fstream fs_iso(iso_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
-	std::fstream fs_state(state_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
+	std::fstream fs_iso(iso_path, std::fstream::out | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in) | std::fstream::binary);
+	std::fstream fs_state(state_path, std::fstream::out | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in) | std::fstream::binary);
 
 /*
 	// preallocate data
@@ -285,24 +300,24 @@ export bool dump_dvd(const Options &options, bool refine)
 	MD5 bh_md5;
 	SHA1 bh_sha1;
 
-	LOG("{} started", refine ? "refine" : "dump");
+	LOG("operation started");
 	auto dump_time_start = std::chrono::high_resolution_clock::now();
 
 	for(uint32_t s = 0; s < sectors_count; s += sectors_at_once)
 	{
-		progress_output(s, sectors_count, errors);
+		progress_output(s, sectors_count, errors_scsi);
 
 		uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
 		auto status = cmd_read(sptd, sector_buffer.data(), FORM1_DATA_SIZE, s, sectors_to_read, false);
 		if(status.status_code)
-			errors += sectors_to_read;
+			errors_scsi += sectors_to_read;
 		else
 		{
 			write_entry(fs_iso, sector_buffer.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
 			write_entry(fs_state, (uint8_t *)state_success.data(), sizeof(State), s, sectors_to_read, 0);
 		}
 
-		if(!refine && !errors)
+		if(dump_mode != DumpMode::REFINE && !errors_scsi)
 		{
 			crc32.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
 			bh_md5.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
@@ -310,34 +325,28 @@ export bool dump_dvd(const Options &options, bool refine)
 		}
 	}
 
-	progress_output(sectors_count, sectors_count, errors);
+	progress_output(sectors_count, sectors_count, errors_scsi);
 	LOG("");
 	LOG("");
 
 	auto dump_time_stop = std::chrono::high_resolution_clock::now();
-	LOG("{} complete (time: {}s)", refine ? "refine" : "dump", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count());
+	LOG("operation complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count());
 	LOG("");
 
-	LOG("media errors: {}", errors);
+	LOG("media errors: ");
+	LOG("  SCSI: {}", errors_scsi);
 	LOG("");
 
-	if(refine)
+	if(dump_mode != DumpMode::REFINE && !errors_scsi)
 	{
-		;
-	}
-	else
-	{
-		if(!errors)
-		{
-			LOG("dat:");
-			std::string filename = iso_path.filename().string();
-			replace_all_occurences(filename, "&", "&amp;");
+		LOG("dat:");
+		std::string filename = iso_path.filename().string();
+		replace_all_occurences(filename, "&", "&amp;");
 
-			LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, (uint64_t)sectors_count * FORM1_DATA_SIZE, crc32.final(), bh_md5.final(), bh_sha1.final());
-		}
+		LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, (uint64_t)sectors_count * FORM1_DATA_SIZE, crc32.final(), bh_md5.final(), bh_sha1.final());
 	}
 
-	return errors;
+	return errors_scsi;
 }
 
 }

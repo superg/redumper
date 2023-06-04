@@ -172,7 +172,7 @@ void redumper_dump(Options &options)
 	if(disc_type == DiscType::CD)
 		redumper_dump_cd(options, false);
 	else
-		dump_dvd(options, false);
+		dump_dvd(options, DumpMode::DUMP);
 }
 
 
@@ -183,7 +183,18 @@ void redumper_refine(Options &options)
 	if(disc_type == DiscType::CD)
 		redumper_dump_cd(options, true);
 	else
-		dump_dvd(options, true);
+		dump_dvd(options, DumpMode::REFINE);
+}
+
+
+void redumper_verify(Options &options)
+{
+	auto disc_type = query_disc_type(options.drive);
+
+	if(disc_type == DiscType::CD)
+		throw_line("verify is not supported for CD yet");
+	else
+		dump_dvd(options, DumpMode::VERIFY);
 }
 
 
@@ -220,9 +231,9 @@ void redumper_cd(Options &options)
 	}
 	else
 	{
-		bool refine = dump_dvd(options, false);
+		bool refine = dump_dvd(options, DumpMode::DUMP);
 		if(refine)
-			dump_dvd(options, true);
+			dump_dvd(options, DumpMode::REFINE);
 	}
 }
 
@@ -378,6 +389,7 @@ std::map<std::string, void (*)(Options &)> COMMAND_HANDLERS =
 	{"cd", redumper_cd},
 	{"dump", redumper_dump},
 	{"refine", redumper_refine},
+	{"verify", redumper_verify},
 	{"protection", redumper_protection},
 	{"split", redumper_split},
 	{"info", redumper_info},

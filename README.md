@@ -33,7 +33,7 @@ The dumper operates using modes. The current modes are "dump", "protection", "re
 Everything is being actively developed so modes / options may change, always use --help to see the latest information.
 
 ## Supported Drives
-Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommended for the perfect dump, the full list is [HERE](drive.cc#L61).
+Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommended for the perfect dump, the full list is [HERE](drive.ixx#L130).
 GENERIC drive support is implemented. In some cases, GENERIC drives will not provide a perfect dump but redumper will do it's best given the drive hardware/firmware limitations. Read on for GENERIC drive features evaluation guide.
 
 ## Good Drives Technical

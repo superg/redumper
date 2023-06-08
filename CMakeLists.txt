@@ -115,8 +115,7 @@ set(includes
 add_executable(redumper)
 target_sources(redumper
 	PUBLIC ${sources}
-	PUBLIC
-    FILE_SET cxx_modules TYPE CXX_MODULES FILES
+	PRIVATE FILE_SET cxx_modules TYPE CXX_MODULES FILES
 	"analyzers/analyzer.ixx"
 	"analyzers/silence.ixx"
 	"analyzers/sync.ixx"

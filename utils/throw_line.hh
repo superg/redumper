@@ -8,7 +8,7 @@
 
 
 #ifdef NDEBUG
-#define throw_line(fmt, ...) throw std::runtime_error(std::format(fmt, __VA_ARGS__))
+#define throw_line(...) throw std::runtime_error(std::format(__VA_ARGS__))
 #else
-#define throw_line(fmt, ...) throw std::runtime_error(std::format("{} {{{}:{}}}", std::format(fmt, __VA_ARGS__), __FILE__, __LINE__))
+#define throw_line(...) throw std::runtime_error(std::format("{} {{{}:{}}}", std::format(__VA_ARGS__), __FILE__, __LINE__))
 #endif

@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.26)
-cmake_policy(SET CMP0096 NEW) # preserve leading zeroes in version components
 
 # project / version
 set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
@@ -59,6 +58,12 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	add_compile_options(-stdlib=libc++)
 	add_link_options(-stdlib=libc++ -static)
+
+	# silence implicit modules use warning
+	# TL;DR, this will be taken cared of by listing module dependencies explicitly (cmake)
+	# more information:
+	# https://github.com/llvm/llvm-project/issues/62707
+	add_compile_options(-Wno-read-modules-implicitly)
 endif()
 if(MSVC)
 	# disable modules inlining
@@ -77,7 +82,7 @@ if(MSVC)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -DNOMINMAX -D_NTSCSI_USER_MODE_)
 
 	set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-	# flatten the sources lists
+	# flatten source lists
 	file(GLOB_RECURSE files LIST_DIRECTORIES false RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *)
 	foreach(i IN LISTS files)
 		get_filename_component(source_path "${i}" PATH)
@@ -85,10 +90,6 @@ if(MSVC)
 		source_group("${source_path}" FILES ${i})
 	endforeach()
 endif()
-
-#if(CMAKE_COMPILER_IS_GNUCC)
-#	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-#endif()
 
 # generated source file
 set(DRIVEOFFSETS_FN "${CMAKE_CURRENT_BINARY_DIR}/driveoffsets.inc")

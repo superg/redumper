@@ -4,6 +4,7 @@ module;
 #include <fstream>
 #include <iostream>
 #include <string>
+#include "throw_line.hh"
 
 export module utils.logger;
 

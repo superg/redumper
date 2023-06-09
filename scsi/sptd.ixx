@@ -7,6 +7,7 @@ module;
 #include <map>
 #include <set>
 #include <string>
+#include "throw_line.hh"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -23,7 +24,6 @@ module;
 export module scsi.sptd;
 
 import utils.logger;
-import utils.misc;
 
 
 

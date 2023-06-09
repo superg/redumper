@@ -1,18 +1,19 @@
 module;
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <set>
+#include "throw_line.hh"
 
 export module dump_dvd;
 
 import cd.cdrom;
-import crc.crc32;
 import drive;
 import dump;
-import hash.md5;
-import hash.sha1;
 import options;
+import rom_entry;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -21,6 +22,7 @@ import utils.endian;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
+import utils.signal;
 import utils.strings;
 
 
@@ -195,16 +197,16 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
 }
 
 
-template<typename T>
-void progress_output(T sector, T sectors_count, T errors)
+void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
 {
 	char animation = sector == sectors_count ? '*' : spinner_animation();
 
-	LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, sector * 100 / sectors_count, extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count, errors);
+	LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, sector * 100 / sectors_count,
+			extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count, errors);
 }
 
 
-export bool dump_dvd(const Options &options, DumpMode dump_mode)
+export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 {
 	SPTD sptd(options.drive);
 
@@ -233,7 +235,6 @@ export bool dump_dvd(const Options &options, DumpMode dump_mode)
 			throw_line("invalid layer descriptor size (layer: {})", i);
 
 		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
-
 		sectors_count += endian_swap(layer_descriptor->data_end_sector) + 1 - endian_swap(layer_descriptor->data_start_sector);
 	}
 
@@ -276,58 +277,152 @@ export bool dump_dvd(const Options &options, DumpMode dump_mode)
 
 	const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
-	std::vector<uint8_t> sector_buffer(sectors_at_once * FORM1_DATA_SIZE);
-	std::vector<State> state_success(sectors_at_once, State::SUCCESS);
-	std::vector<State> state_failure(sectors_at_once, State::ERROR_SKIP);
-
-	uint32_t errors_scsi = 0;
+	std::vector<uint8_t> file_data(sectors_at_once * FORM1_DATA_SIZE);
+	std::vector<State> file_state(sectors_at_once);
 
 	std::fstream fs_iso(iso_path, std::fstream::out | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in) | std::fstream::binary);
 	std::fstream fs_state(state_path, std::fstream::out | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in) | std::fstream::binary);
 
-/*
-	// preallocate data
-	if(!refine)
-	{
-		LOG_F("preallocating space... ");
-		write_entry(fs_iso, sector_buffer.data(), FORM1_DATA_SIZE, sectors_count - 1, 1, 0);
-		write_entry(fs_state, (uint8_t *)state_failure.data(), sizeof(State), sectors_count - 1, 1, 0);
-		LOG("done");
-	}
-*/
+	uint32_t refine_counter = 0;
+	uint32_t refine_retries = options.retries ? options.retries : 1;
 
-	CRC32 crc32;
-	MD5 bh_md5;
-	SHA1 bh_sha1;
+	uint32_t errors_scsi = 0;
+	if(dump_mode != DumpMode::DUMP)
+	{
+		std::vector<State> state_buffer(sectors_count);
+		read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), 0, sectors_count, 0, (uint8_t)State::ERROR_SKIP);
+		errors_scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
+	}
+
+	ROMEntry rom_entry(iso_path.filename().string());
 
 	LOG("operation started");
 	auto dump_time_start = std::chrono::high_resolution_clock::now();
 
+	bool interrupted = false;
+	Signal::get().engage();
+	int signal_dummy = 0;
+	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&signal_dummy, [](int *)
+	{
+		Signal::get().disengage();
+	});
+	
 	for(uint32_t s = 0; s < sectors_count; s += sectors_at_once)
 	{
+		uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
+
 		progress_output(s, sectors_count, errors_scsi);
 
-		uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
-		auto status = cmd_read(sptd, sector_buffer.data(), FORM1_DATA_SIZE, s, sectors_to_read, false);
-		if(status.status_code)
-			errors_scsi += sectors_to_read;
-		else
+		bool read = false;
+		if(dump_mode == DumpMode::DUMP)
 		{
-			write_entry(fs_iso, sector_buffer.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
-			write_entry(fs_state, (uint8_t *)state_success.data(), sizeof(State), s, sectors_to_read, 0);
+			read = true;
+		}
+		else if(dump_mode == DumpMode::REFINE || dump_mode == DumpMode::VERIFY)
+		{
+			read_entry(fs_iso, (uint8_t *)file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0, 0);
+
+			read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+			read = std::count(file_state.begin(), file_state.end(), State::ERROR_SKIP);
 		}
 
-		if(dump_mode != DumpMode::REFINE && !errors_scsi)
+		if(read)
 		{
-			crc32.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
-			bh_md5.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
-			bh_sha1.update(sector_buffer.data(), sectors_to_read * FORM1_DATA_SIZE);
+			std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
+			auto status = cmd_read(sptd, drive_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+			if(status.status_code)
+			{
+				if(dump_mode == DumpMode::DUMP)
+					errors_scsi += sectors_to_read;
+
+				if(options.verbose)
+				{
+					std::string status_retries;
+//					if(refine)
+//						status_retries = std::format(", retry: {}", refine_counter + 1);
+					for(uint32_t i = 0; i < sectors_to_read; ++i)
+						LOG_R("[sector: {}] SCSI error ({}{})", s + i, SPTD::StatusMessage(status), status_retries);
+				}
+			}
+			else
+			{
+				if(dump_mode == DumpMode::DUMP)
+				{
+					file_data.swap(drive_data);
+
+					write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
+					std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
+					write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+
+				}
+				else if(dump_mode == DumpMode::REFINE)
+				{
+					bool update = false;
+
+					for(uint32_t i = 0; i < sectors_to_read; ++i)
+					{
+						if(file_state[i] == State::SUCCESS)
+							continue;
+
+						std::copy(drive_data.begin() + i * FORM1_DATA_SIZE, drive_data.begin() + (i + 1) * FORM1_DATA_SIZE, file_data.begin() + i * FORM1_DATA_SIZE);
+						file_state[i] = State::SUCCESS;
+						update = true;
+
+						--errors_scsi;
+
+						if(options.verbose)
+							LOG_R("[sector: {}] correction success", s + i);
+					}
+
+					if(update)
+					{
+						write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
+						write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+					}
+				}
+				else if(dump_mode == DumpMode::VERIFY)
+				{
+					bool update = false;
+
+					for(uint32_t i = 0; i < sectors_to_read; ++i)
+					{
+						if(file_state[i] != State::SUCCESS)
+							continue;
+
+						if(!std::equal(file_data.begin() + i * FORM1_DATA_SIZE, file_data.begin() + (i + 1) * FORM1_DATA_SIZE, drive_data.begin() + i * FORM1_DATA_SIZE))
+						{
+							file_state[i] = State::ERROR_SKIP;
+							update = true;
+
+							++errors_scsi;
+
+							if(options.verbose)
+								LOG_R("[sector: {}] data mismatch, sector state updated", s + i);
+						}
+					}
+
+					if(update)
+						write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+				}
+			}
+		}
+
+		rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
+
+		if(Signal::get().interrupt())
+		{
+			LOG_R("[sector: {:6}] forced stop ", s);
+			interrupted = true;
+			break;
 		}
 	}
 
-	progress_output(sectors_count, sectors_count, errors_scsi);
-	LOG("");
-	LOG("");
+	if(!interrupted)
+	{
+		progress_output(sectors_count, sectors_count, errors_scsi);
+		LOG("");
+		LOG("");
+	}
 
 	auto dump_time_stop = std::chrono::high_resolution_clock::now();
 	LOG("operation complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count());
@@ -337,16 +432,13 @@ export bool dump_dvd(const Options &options, DumpMode dump_mode)
 	LOG("  SCSI: {}", errors_scsi);
 	LOG("");
 
-	if(dump_mode != DumpMode::REFINE && !errors_scsi)
+	if(!errors_scsi && !interrupted)
 	{
 		LOG("dat:");
-		std::string filename = iso_path.filename().string();
-		replace_all_occurences(filename, "&", "&amp;");
-
-		LOG("<rom name=\"{}\" size=\"{}\" crc=\"{:08x}\" md5=\"{}\" sha1=\"{}\" />", filename, (uint64_t)sectors_count * FORM1_DATA_SIZE, crc32.final(), bh_md5.final(), bh_sha1.final());
+		LOG("{}", rom_entry.xmlLine());
 	}
 
-	return errors_scsi;
+	return interrupted ? DumpStatus::INTERRUPTED : (errors_scsi ? DumpStatus::ERRORS : DumpStatus::SUCCESS);
 }
 
 }

@@ -4,6 +4,7 @@ module;
 #include <fstream>
 #include <sstream>
 #include <string>
+#include "throw_line.hh"
 
 export module dump;
 
@@ -14,7 +15,6 @@ import drive;
 import options;
 import cd.toc;
 import utils.logger;
-import utils.misc;
 
 
 
@@ -26,6 +26,14 @@ export enum class DumpMode
 	DUMP,
 	VERIFY,
 	REFINE
+};
+
+
+export enum class DumpStatus
+{
+	SUCCESS,
+	ERRORS,
+	INTERRUPTED
 };
 
 

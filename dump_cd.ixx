@@ -10,6 +10,7 @@ module;
 #include <set>
 #include <string>
 #include <vector>
+#include "throw_line.hh"
 
 export module dump_cd;
 

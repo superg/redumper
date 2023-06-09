@@ -6,6 +6,7 @@ module;
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include "throw_line.hh"
 
 export module redumper;
 
@@ -81,7 +82,7 @@ void normalize_options(Options &options)
 	bool generate_name = false;
 	for(auto const &p : options.commands)
 	{
-		if(p == "cd" || p == "dump" || p == "refine")
+		if(p == "cd" || p == "dump" || p == "refine" || p == "verify")
 			drive_required = true;
 
 		if(p == "cd" || p == "dump")
@@ -231,8 +232,8 @@ void redumper_cd(Options &options)
 	}
 	else
 	{
-		bool refine = dump_dvd(options, DumpMode::DUMP);
-		if(refine)
+		auto dump_status = dump_dvd(options, DumpMode::DUMP);
+		if(dump_status == DumpStatus::ERRORS)
 			dump_dvd(options, DumpMode::REFINE);
 	}
 }

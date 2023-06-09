@@ -4,6 +4,7 @@ module;
 #include <fstream>
 #include <ostream>
 #include <vector>
+#include "throw_line.hh"
 
 export module systems.cdrom;
 
@@ -12,7 +13,6 @@ import cd.cdrom;
 import cd.ecc;
 import cd.edc;
 import utils.file_io;
-import utils.misc;
 
 
 

@@ -10,6 +10,7 @@ module;
 #include <set>
 #include <sstream>
 #include <string>
+#include "throw_line.hh"
 
 export module utils.misc;
 
@@ -47,19 +48,6 @@ export enum class State : uint8_t
 	SUCCESS_SCSI_OFF,
 	SUCCESS
 };
-
-
-export template<typename... Args>
-constexpr void throw_line(std::format_string<Args...> fmt, Args &&... args)
-{
-	auto message = std::format(fmt, std::forward<Args>(args)...);
-
-#ifdef NDEBUG
-	throw std::runtime_error(message);
-#else
-	throw std::runtime_error(std::format("{} {{{}:{}}}", message, __FILE__, __LINE__));
-#endif
-}
 
 
 export template <typename T, size_t N>

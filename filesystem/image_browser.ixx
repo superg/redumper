@@ -7,6 +7,7 @@ module;
 #include <queue>
 #include <string>
 #include <vector>
+#include "throw_line.hh"
 
 export module filesystem.image_browser;
 

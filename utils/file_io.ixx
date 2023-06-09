@@ -2,10 +2,9 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <vector>
+#include "throw_line.hh"
 
 export module utils.file_io;
-
-import utils.misc;
 
 
 
@@ -108,7 +107,8 @@ export std::vector<uint8_t> read_vector(const std::filesystem::path &file_path)
 
 	std::fstream fs(file_path, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line("unable to open file ({})", file_path.filename().string());
+		throw std::runtime_error(std::format("{} {{{}:{}}}", std::format("unable to open file ({})", file_path.filename().string()), __FILE__, __LINE__));
+//GGG		throw_line("unable to open file ({})", file_path.filename().string());
 	fs.read((char *)data.data(), data.size());
 	if(fs.fail())
 		throw_line("read failed ({})", file_path.filename().string());

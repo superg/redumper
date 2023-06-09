@@ -9,6 +9,7 @@ module;
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include "throw_line.hh"
 
 export module drive;
 

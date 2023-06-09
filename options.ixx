@@ -3,6 +3,7 @@ module;
 #include <list>
 #include <memory>
 #include <string>
+#include "throw_line.hh"
 
 export module options;
 

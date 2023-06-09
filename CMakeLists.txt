@@ -110,6 +110,7 @@ set(sources
 set(includes
 	${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_CURRENT_BINARY_DIR}
+	"utils"
 )
 
 add_executable(redumper)

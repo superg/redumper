@@ -307,8 +307,10 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 		Signal::get().disengage();
 	});
 	
-	for(uint32_t s = 0; s < sectors_count; s += sectors_at_once)
+	for(uint32_t s = 0; s < sectors_count;)
 	{
+		bool increment = true;
+
 		uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
 
 		progress_output(s, sectors_count, errors_scsi);
@@ -330,18 +332,33 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 		{
 			std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
 			auto status = cmd_read(sptd, drive_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+
 			if(status.status_code)
 			{
-				if(dump_mode == DumpMode::DUMP)
-					errors_scsi += sectors_to_read;
-
 				if(options.verbose)
 				{
 					std::string status_retries;
-//					if(refine)
-//						status_retries = std::format(", retry: {}", refine_counter + 1);
+					if(dump_mode == DumpMode::REFINE)
+						status_retries = std::format(", retry: {}", refine_counter + 1);
 					for(uint32_t i = 0; i < sectors_to_read; ++i)
 						LOG_R("[sector: {}] SCSI error ({}{})", s + i, SPTD::StatusMessage(status), status_retries);
+				}
+
+				if(dump_mode == DumpMode::DUMP)
+					errors_scsi += sectors_to_read;
+				else if(dump_mode == DumpMode::REFINE)
+				{
+					++refine_counter;
+					if(refine_counter < refine_retries)
+						increment = false;
+					else
+					{
+						if(options.verbose)
+							for(uint32_t i = 0; i < sectors_to_read; ++i)
+								LOG_R("[sector: {}] correction failure", s + i);
+
+						refine_counter = 0;
+					}
 				}
 			}
 			else
@@ -357,28 +374,24 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 				}
 				else if(dump_mode == DumpMode::REFINE)
 				{
-					bool update = false;
-
 					for(uint32_t i = 0; i < sectors_to_read; ++i)
 					{
 						if(file_state[i] == State::SUCCESS)
 							continue;
 
-						std::copy(drive_data.begin() + i * FORM1_DATA_SIZE, drive_data.begin() + (i + 1) * FORM1_DATA_SIZE, file_data.begin() + i * FORM1_DATA_SIZE);
-						file_state[i] = State::SUCCESS;
-						update = true;
-
-						--errors_scsi;
-
 						if(options.verbose)
 							LOG_R("[sector: {}] correction success", s + i);
+
+						std::copy(drive_data.begin() + i * FORM1_DATA_SIZE, drive_data.begin() + (i + 1) * FORM1_DATA_SIZE, file_data.begin() + i * FORM1_DATA_SIZE);
+						file_state[i] = State::SUCCESS;
+
+						--errors_scsi;
 					}
 
-					if(update)
-					{
-						write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
-						write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
-					}
+					refine_counter = 0;
+
+					write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
+					write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
 				}
 				else if(dump_mode == DumpMode::VERIFY)
 				{
@@ -391,13 +404,13 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 
 						if(!std::equal(file_data.begin() + i * FORM1_DATA_SIZE, file_data.begin() + (i + 1) * FORM1_DATA_SIZE, drive_data.begin() + i * FORM1_DATA_SIZE))
 						{
+							if(options.verbose)
+								LOG_R("[sector: {}] data mismatch, sector state updated", s + i);
+
 							file_state[i] = State::ERROR_SKIP;
 							update = true;
 
 							++errors_scsi;
-
-							if(options.verbose)
-								LOG_R("[sector: {}] data mismatch, sector state updated", s + i);
 						}
 					}
 
@@ -415,6 +428,9 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 			interrupted = true;
 			break;
 		}
+
+		if(increment)
+			s += sectors_at_once;
 	}
 
 	if(!interrupted)

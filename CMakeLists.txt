@@ -104,6 +104,7 @@ add_custom_command(
 set(sources
 	"main.cc"
 	"driveoffsets.txt"
+	"utils/throw_line.hh"
 	${DRIVEOFFSETS_FN}
 )
 

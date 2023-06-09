@@ -57,9 +57,8 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	# needed for std::format
-	add_compile_options(-fexperimental-library -stdlib=libc++)
-	add_link_options(-fexperimental-library -stdlib=libc++)
+	add_compile_options(-stdlib=libc++)
+	add_link_options(-stdlib=libc++ -static)
 endif()
 if(MSVC)
 	# disable modules inlining

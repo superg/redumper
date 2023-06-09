@@ -24,6 +24,7 @@ import cd.toc;
 import dump;
 import filesystem.image_browser;
 import filesystem.iso9660;
+import hash.sha1;
 import offset_manager;
 import options;
 import rom_entry;

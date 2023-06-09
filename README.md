@@ -141,6 +141,8 @@ Force generation of track split with track errors, just because you really want 
 
 ## Building from Source
 
+[OUTDATED]
+
 Some users may wish to build the software from source, particularly Linux users who may not have the same system configuration as was used to generate the Release versions. This process is fairly simple.
 
 1. Ensure you have the `cmake` and `build-essentials` packages on your system.

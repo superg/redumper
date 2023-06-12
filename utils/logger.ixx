@@ -20,9 +20,7 @@ export class Logger
 public:
 	static Logger &get()
 	{
-		static Logger logger;
-
-		return logger;
+		return _logger;
 	}
 
 
@@ -55,7 +53,7 @@ public:
 	{
 		auto message = std::format(fmt, std::forward<Args>(args)...);
 		_currentLength = message.length();
-		
+
 		if(_eraseLength > _currentLength)
 		{
 			message += std::string(_eraseLength - _currentLength, ' ');
@@ -122,11 +120,16 @@ public:
 private:
 	static constexpr unsigned int _LINE_WIDTH = 80;
 
+	static Logger _logger;
+
 	std::fstream _fs;
 
 	unsigned int _currentLength = 0;
 	unsigned int _eraseLength = 0;
 };
+
+
+Logger Logger::_logger;
 
 
 // log message followed by a new line (console & file)

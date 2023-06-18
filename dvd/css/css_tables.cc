@@ -1,3 +1,6 @@
+module;
+#include <cstdint>
+
 module dvd.css;
 
 

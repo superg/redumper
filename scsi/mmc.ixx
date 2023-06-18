@@ -15,6 +15,8 @@ export enum class CDB_OperationCode : uint8_t
 	SYNCHRONIZE_CACHE  = 0x35,
 	READ_TOC           = 0x43,
 	GET_CONFIGURATION  = 0x46,
+	SEND_KEY           = 0xA3,
+	REPORT_KEY         = 0xA4,
 	READ12             = 0xA8,
 	READ_DVD_STRUCTURE = 0xAD,
 	SET_CD_SPEED       = 0xBB,
@@ -186,7 +188,43 @@ export enum class READ_DVD_STRUCTURE_Format : uint8_t
 };
 
 
-export struct READ_TOC_Response
+export enum class READ_DVD_STRUCTURE_CopyrightInformation_CPST : uint8_t
+{
+	NONE,
+	CSS_CPPM,
+	CPRM
+};
+
+export enum class SEND_KEY_KeyFormat : uint8_t
+{
+	CHALLENGE_KEY = 0x01,
+	KEY2 = 0x03,
+	RPC_STRUCTURE = 0x06,
+	INVALIDATE_AGID = 0x3F
+};
+
+
+export enum class REPORT_KEY_KeyClass : uint8_t
+{
+	DVD_CSS_CPPM_CPRM,
+	REWRITABLE_SECURITY_SERVICE_A
+};
+
+
+export enum class REPORT_KEY_KeyFormat : uint8_t
+{
+	AGID,
+	CHALLENGE_KEY,
+	KEY1,
+	TITLE_KEY = 0x04,
+	ASF,
+	RPC_STATE = 0x08,
+	AGID_CPRM = 0x11,
+	INVALIDATE_AGID = 0x3F
+};
+
+
+export struct CMD_ParameterListHeader
 {
 	uint16_t data_length;
 	uint8_t fields[2];
@@ -228,6 +266,52 @@ export struct CD_TEXT_Descriptor
 	uint8_t unicode            :1;
 	uint8_t text[12];
 	uint16_t crc;
+};
+
+
+export struct REPORT_KEY_AGID
+{
+	uint8_t reserved1;
+	uint8_t reserved2;
+	uint8_t reserved3;
+	uint8_t reserved4   :6;
+	uint8_t agid        :2;
+};
+
+
+export struct REPORT_KEY_ASF
+{
+	uint8_t reserved1;
+	uint8_t reserved2;
+	uint8_t reserved3;
+	uint8_t asf : 1;
+	uint8_t reserved4 : 7;
+};
+
+
+export struct REPORT_KEY_TitleKey
+{
+	uint8_t cp_mod        :4;
+	uint8_t cgms          :2;
+	uint8_t cp_sec        :1;
+	uint8_t cpm           :1;
+	uint8_t title_key[5];
+	uint8_t reserved1;
+	uint8_t reserved2;
+};
+
+
+export struct REPORT_KEY_Key
+{
+	uint8_t key[5];
+	uint8_t reserved[3];
+};
+
+
+export struct REPORT_KEY_ChallengeKey
+{
+	uint8_t challenge[10];
+	uint8_t reserved[2];
 };
 
 
@@ -282,6 +366,14 @@ export struct READ_DVD_STRUCTURE_LayerDescriptor
 	uint8_t media_specific[2031];
 };
 
+
+export struct READ_DVD_STRUCTURE_CopyrightInformation
+{
+	uint8_t copyright_protection_system_type;
+	uint8_t region_management_information;
+	uint8_t reserved1;
+	uint8_t reserved2;
+};
 
 #pragma pack(push, 1)
 export struct INQUIRY_StandardData
@@ -452,6 +544,34 @@ export struct CDB12_ReadDVDStructure
 	uint8_t format;
 	uint8_t allocation_length[2];
 	uint8_t reserved3             :6;
+	uint8_t agid                  :2;
+	uint8_t control;
+};
+
+
+export struct CDB12_SendKey
+{
+	uint8_t operation_code;
+	uint8_t reserved2               :5;
+	uint8_t reserved1               :3;
+	uint8_t reserved3[6];
+	uint16_t parameter_list_length;
+	uint8_t key_format              :6;
+	uint8_t agid                    :2;
+	uint8_t control;
+};
+
+
+export struct CDB12_ReportKey
+{
+	uint8_t operation_code;
+	uint8_t reserved2             :5;
+	uint8_t reserved1             :3;
+	uint8_t lba[4];
+	uint8_t reserved3;
+	uint8_t key_class;
+	uint8_t allocation_length[2];
+	uint8_t key_format            :6;
 	uint8_t agid                  :2;
 	uint8_t control;
 };

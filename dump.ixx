@@ -77,15 +77,6 @@ export void image_check_overwrite(std::filesystem::path state_path, const Option
 }
 
 
-export void strip_toc_response(std::vector<uint8_t> &data)
-{
-	if(data.size() < sizeof(READ_TOC_Response))
-		data.clear();
-	else
-		data.erase(data.begin(), data.begin() + sizeof(READ_TOC_Response));
-}
-
-
 export void print_toc(const TOC &toc)
 {
 	std::stringstream ss;

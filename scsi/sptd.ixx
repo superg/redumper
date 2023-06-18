@@ -70,7 +70,7 @@ public:
 	}
 
 
-	Status sendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, uint32_t timeout = DEFAULT_TIMEOUT)
+	Status sendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, bool out = false, uint32_t timeout = DEFAULT_TIMEOUT)
 	{
 		Status status = {};
 
@@ -80,13 +80,13 @@ public:
 		sptd_sd.sptd.Length = sizeof(sptd_sd.sptd);
 		sptd_sd.sptd.CdbLength = cdb_length;
 		sptd_sd.sptd.SenseInfoLength = sizeof(sptd_sd.sd);
-		sptd_sd.sptd.DataIn = SCSI_IOCTL_DATA_IN;
+		sptd_sd.sptd.DataIn = out ? SCSI_IOCTL_DATA_OUT : SCSI_IOCTL_DATA_IN;
 		sptd_sd.sptd.DataTransferLength = buffer_length;
 		sptd_sd.sptd.TimeOutValue = timeout;
 		sptd_sd.sptd.DataBuffer = buffer;
 		sptd_sd.sptd.SenseInfoOffset = offsetof(SPTD_SD, sd);
 		memcpy(sptd_sd.sptd.Cdb, cdb, cdb_length);
-
+		
 		DWORD bytes_returned;
 		BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
 		if(success != TRUE)
@@ -104,7 +104,7 @@ public:
 
 		sg_io_hdr hdr = {};
 		hdr.interface_id = 'S';
-		hdr.dxfer_direction = SG_DXFER_FROM_DEV;
+		hdr.dxfer_direction = out ? SG_DXFER_TO_DEV : SG_DXFER_FROM_DEV;
 		hdr.cmd_len = cdb_length;
 		hdr.mx_sb_len = sizeof(sense_data);
 		hdr.dxfer_len = buffer_length;

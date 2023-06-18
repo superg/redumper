@@ -4,6 +4,7 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <set>
 #include "throw_line.hh"
 
@@ -12,6 +13,7 @@ export module dump_dvd;
 import cd.cdrom;
 import drive;
 import dump;
+import dvd.css;
 import options;
 import rom_entry;
 import scsi.cmd;
@@ -164,7 +166,7 @@ std::set<READ_DVD_STRUCTURE_Format> get_readable_formats(SPTD &sptd)
 
 	std::vector<uint8_t> structure;
 	cmd_read_dvd_structure(sptd, structure, 0, 0, READ_DVD_STRUCTURE_Format::STRUCTURE_LIST, 0);
-	strip_toc_response(structure);
+	strip_response_header(structure);
 
 	auto structures_count = (uint16_t)(structure.size() / sizeof(READ_DVD_STRUCTURE_StructureListEntry));
 	auto structures = (READ_DVD_STRUCTURE_StructureListEntry *)structure.data();
@@ -186,7 +188,7 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
 	{
 		auto &structure = structures.emplace_back();
 		cmd_read_dvd_structure(sptd, structure, 0, i, READ_DVD_STRUCTURE_Format::PHYSICAL, 0);
-		strip_toc_response(structure);
+		strip_response_header(structure);
 
 		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)structure.data();
 		if(!layers_count)
@@ -194,6 +196,33 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
 	}
 
 	return structures;
+}
+
+
+std::string region_string(uint8_t region_bits)
+{
+	std::string region;
+
+	for(uint32_t i = 0; i < CHAR_BIT; ++i)
+		if(!(region_bits & 1 << i))
+			region += std::to_string(i + 1) + " ";
+
+	if(!region.empty())
+		region.pop_back();
+
+	return region;
+}
+
+
+std::map<std::string, uint32_t> extract_vob_list(SPTD &sptd)
+{
+	std::map<std::string, uint32_t> titles;
+	
+	//TODO:
+//	titles["VTS_01_1.VOB"] = 311;
+//	titles["VTS_01_2.VOB"] = 524573;
+	
+	return titles;
 }
 
 
@@ -255,13 +284,62 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 			{
 				std::vector<uint8_t> manufacturer;
 				cmd_read_dvd_structure(sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
-				strip_toc_response(manufacturer);
+				strip_response_header(manufacturer);
 
 				if(!manufacturer.empty())
 					write_vector(std::format("{}{}.manufacturer", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), manufacturer);
 			}
 		}
 		LOG("");
+
+		// protection
+		if(readable_formats.find(READ_DVD_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
+		{
+			std::vector<uint8_t> copyright;
+			cmd_read_dvd_structure(sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
+			strip_response_header(copyright);
+
+			auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
+			auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
+
+			LOG("copyright: ");
+
+			//TODO: distinguish CSS/CPPM?
+			std::string protection("unknown");
+			if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::NONE)
+				protection = "none";
+			else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
+				protection = "CSS/CPPM";
+			else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
+				protection = "CPRM";
+			LOG("  protection system type: {}", protection);
+			LOG("  region management information: {}", region_string(ci->region_management_information));
+
+			if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
+			{
+				CSS css(sptd);
+
+				auto disc_key = css.getDiscKey();
+				if(!disc_key.empty())
+				{
+					LOG("  disc key: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}", disc_key[0], disc_key[1], disc_key[2], disc_key[3], disc_key[4]);
+					LOG("  title keys:");
+					auto titles = extract_vob_list(sptd);
+					for(auto const &t : titles)
+					{
+						auto title_key = css.getTitleKey(disc_key, t.second);
+						if(!title_key.empty())
+							LOG("    {}: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.first, title_key[0], title_key[1], title_key[2], title_key[3], title_key[4]);
+					}
+				}
+			}
+			else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
+			{
+				LOG("warning: CPRM protection is unsupported");
+			}
+
+			LOG("");
+		}
 	}
 	// compare physical structures to stored to make sure it's the same disc
 	else

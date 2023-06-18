@@ -380,8 +380,8 @@ export struct TOC
 	{
 		bool success = true;
 
-		auto descriptors_count = (uint16_t)((cdtext_buffer.size() - sizeof(READ_TOC_Response)) / sizeof(CD_TEXT_Descriptor));
-		auto descriptors = (CD_TEXT_Descriptor *)(cdtext_buffer.data() + sizeof(READ_TOC_Response));
+		auto descriptors_count = (uint16_t)((cdtext_buffer.size() - sizeof(CMD_ParameterListHeader)) / sizeof(CD_TEXT_Descriptor));
+		auto descriptors = (CD_TEXT_Descriptor *)(cdtext_buffer.data() + sizeof(CMD_ParameterListHeader));
 
 		// load first available block size information structure and block number statistics
 		BlockSizeInfo block_size_info;
@@ -805,8 +805,8 @@ private:
 		// don't rely on anything and sort by session number / track number
 		std::map<uint8_t, Session::Track> tracks;
 
-		auto descriptors_count = (uint16_t)((toc_buffer.size() - sizeof(READ_TOC_Response)) / sizeof(TOC_Descriptor));
-		auto descriptors = (TOC_Descriptor *)(toc_buffer.data() + sizeof(READ_TOC_Response));
+		auto descriptors_count = (uint16_t)((toc_buffer.size() - sizeof(CMD_ParameterListHeader)) / sizeof(TOC_Descriptor));
+		auto descriptors = (TOC_Descriptor *)(toc_buffer.data() + sizeof(CMD_ParameterListHeader));
 
 		for(uint16_t i = 0; i < descriptors_count; ++i)
 		{
@@ -848,8 +848,8 @@ private:
 		// don't rely on anything and sort by session number / track number
 		std::map<uint8_t, std::map<uint8_t, Session::Track>> tracks;
 
-		auto descriptors_count = (uint16_t)((toc_buffer.size() - sizeof(READ_TOC_Response)) / sizeof(FULL_TOC_Descriptor));
-		auto descriptors = (FULL_TOC_Descriptor *)(toc_buffer.data() + sizeof(READ_TOC_Response));
+		auto descriptors_count = (uint16_t)((toc_buffer.size() - sizeof(CMD_ParameterListHeader)) / sizeof(FULL_TOC_Descriptor));
+		auto descriptors = (FULL_TOC_Descriptor *)(toc_buffer.data() + sizeof(CMD_ParameterListHeader));
 
 		for(uint16_t i = 0; i < descriptors_count; ++i)
 		{

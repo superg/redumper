@@ -50,6 +50,55 @@ static const uint32_t READ_CDDA_SIZES[] =
 };
 
 
+export void strip_response_header(std::vector<uint8_t> &data)
+{
+	if(data.size() < sizeof(CMD_ParameterListHeader))
+		data.clear();
+	else
+		data.erase(data.begin(), data.begin() + sizeof(CMD_ParameterListHeader));
+}
+
+
+// sends SCSI command once to get partial data and optionally followed by another command with appropriately sized buffer to get everything
+template<typename T>
+SPTD::Status cdb_send_receive(SPTD &sptd, std::vector<uint8_t> &response, T &cdb)
+{
+	SPTD::Status status;
+
+	// some drives expect CSS related calls to be completed in one go
+	// otherwise SCSI error is returned, keep this value high
+	constexpr uint16_t initial_size = 4096;
+
+	response.resize(initial_size);
+	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(response.size());
+	status = sptd.sendCommand(&cdb, sizeof(cdb), response.data(), (uint32_t)response.size());
+	if(status.status_code)
+	{
+		response.clear();
+	}
+	else
+	{
+		auto response_header = (CMD_ParameterListHeader *)response.data();
+
+		uint16_t response_size = sizeof(response_header->data_length) + endian_swap(response_header->data_length);
+		if(response_size > response.size())
+		{
+			response.resize(round_up_pow2<uint16_t>(response_size, sizeof(uint32_t)));
+
+			*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(response_size);
+
+			status = sptd.sendCommand(&cdb, sizeof(cdb), response.data(), (uint32_t)response.size());
+			if(!status.status_code)
+				response_size = 0;
+		}
+
+		response.resize(response_size);
+	}
+
+	return status;
+}
+
+
 export SPTD::Status cmd_drive_ready(SPTD &sptd)
 {
 	CDB6_Generic cdb = {};
@@ -83,7 +132,7 @@ export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 	cdb.starting_track = 1;
 
 	// read TOC header first to get the full TOC size
-	READ_TOC_Response toc_response;
+	CMD_ParameterListHeader toc_response;
 	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
 	auto status = sptd.sendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
 	if(!status.status_code)
@@ -113,7 +162,7 @@ export std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 	cdb.starting_track = 1;
 
 	// read TOC header first to get the full TOC size
-	READ_TOC_Response toc_response;
+	CMD_ParameterListHeader toc_response;
 	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
 	auto status = sptd.sendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
 	if(!status.status_code)
@@ -142,7 +191,7 @@ export SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 	cdb.format2 = (uint8_t)READ_TOC_ExFormat::CD_TEXT;
 
 	// read CD-TEXT header first to get the full TOC size
-	READ_TOC_Response toc_response;
+	CMD_ParameterListHeader toc_response;
 	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
 	status = sptd.sendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
 	if(!status.status_code)
@@ -177,25 +226,46 @@ export SPTD::Status cmd_read_dvd_structure(SPTD &sptd, std::vector<uint8_t> &res
 	cdb.format = (uint8_t)format;
 	cdb.agid = agid;
 
-	READ_TOC_Response toc_response;
-	*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
-	status = sptd.sendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
-	if(!status.status_code)
-	{
-		uint16_t response_data_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
-		if(response_data_size > sizeof(toc_response))
-		{
-			response_data.resize(round_up_pow2<uint16_t>(response_data_size, sizeof(uint32_t)));
-
-			*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(response_data_size);
-
-			status = sptd.sendCommand(&cdb, sizeof(cdb), response_data.data(), (uint32_t)response_data.size());
-			if(!status.status_code)
-				response_data.resize(response_data_size);
-		}
-	}
+	status = cdb_send_receive(sptd, response_data, cdb);
 
 	return status;
+}
+
+
+export SPTD::Status cmd_send_key(SPTD &sptd, const uint8_t *data, uint32_t data_size, SEND_KEY_KeyFormat key_format, uint8_t agid)
+{
+	CDB12_SendKey cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::SEND_KEY;
+	cdb.key_format = (uint8_t)key_format;
+	cdb.agid = agid;
+
+	std::vector<uint8_t> parameter_list;
+	if(data_size)
+	{
+		parameter_list.resize(sizeof(CMD_ParameterListHeader) + data_size);
+		cdb.parameter_list_length = endian_swap<uint16_t>(parameter_list.size());
+
+		auto header = (CMD_ParameterListHeader *)parameter_list.data();
+		header->data_length = endian_swap<uint16_t>(parameter_list.size() - sizeof(header->data_length));
+
+		memcpy(parameter_list.data() + sizeof(CMD_ParameterListHeader), data, data_size);
+	}
+
+	return sptd.sendCommand(&cdb, sizeof(cdb), parameter_list.empty() ? nullptr : parameter_list.data(), parameter_list.size(), true);
+}
+
+
+
+export SPTD::Status cmd_report_key(SPTD &sptd, std::vector<uint8_t> &response, uint32_t lba, REPORT_KEY_KeyClass key_class, uint8_t agid, REPORT_KEY_KeyFormat key_format)
+{
+	CDB12_ReportKey cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::REPORT_KEY;
+	*(uint32_t *)cdb.lba = endian_swap(lba);
+	cdb.key_class = (uint8_t)key_class;
+	cdb.agid = agid;
+	cdb.key_format = (uint8_t)key_format;
+
+	return key_format == REPORT_KEY_KeyFormat::INVALIDATE_AGID ? sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0) : cdb_send_receive(sptd, response, cdb);
 }
 
 

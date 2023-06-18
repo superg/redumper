@@ -117,7 +117,9 @@ set(includes
 
 add_executable(redumper)
 target_sources(redumper
-	PUBLIC ${sources}
+	PUBLIC
+	${sources}
+	"dvd/css/css_tables.cc"
 	PRIVATE FILE_SET cxx_modules TYPE CXX_MODULES FILES
 	"analyzers/analyzer.ixx"
 	"analyzers/silence.ixx"
@@ -132,6 +134,7 @@ target_sources(redumper
 	"crc/crc.ixx"
 	"crc/crc16_gsm.ixx"
 	"crc/crc32.ixx"
+	"dvd/css/css.ixx"
 	"filesystem/image_browser.ixx"
 	"filesystem/iso9660.ixx"
 	"hash/block_hasher.ixx"
@@ -166,9 +169,6 @@ target_sources(redumper
     "version.ixx"
 )
 target_include_directories(redumper PUBLIC ${includes})
-
-add_custom_target(version_touch ALL COMMAND ${CMAKE_COMMAND} -E touch "${PROJECT_SOURCE_DIR}/version.ixx")
-add_dependencies(redumper version_touch)
 
 install(TARGETS redumper DESTINATION "bin")
 

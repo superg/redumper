@@ -14,6 +14,7 @@ import cd.cdrom;
 import drive;
 import dump;
 import dvd.css;
+import filesystem.iso9660;
 import options;
 import rom_entry;
 import scsi.cmd;
@@ -214,14 +215,92 @@ std::string region_string(uint8_t region_bits)
 }
 
 
+std::map<std::string, iso9660::DirectoryRecord> dr_list(SPTD &sptd, const iso9660::DirectoryRecord &dr)
+{
+	std::map<std::string, iso9660::DirectoryRecord> entries;
+
+	if(!(dr.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY))
+		return entries;
+
+	uint32_t sectors_count = scale_up(dr.data_length.lsb, FORM1_DATA_SIZE);
+	std::vector<uint8_t> buffer(sectors_count * FORM1_DATA_SIZE);
+	auto status = cmd_read(sptd, buffer.data(), FORM1_DATA_SIZE, dr.offset.lsb, sectors_count, false);
+	if(status.status_code)
+		throw_line("failed to read directory record, SCSI ({})", SPTD::StatusMessage(status));
+	buffer.resize(dr.data_length.lsb);
+
+	for(uint32_t i = 0, n = (uint32_t)buffer.size(); i < n;)
+	{
+		iso9660::DirectoryRecord &dr = *(iso9660::DirectoryRecord *)&buffer[i];
+
+		if(dr.length && dr.length <= FORM1_DATA_SIZE - i % FORM1_DATA_SIZE)
+		{
+			char b1 = (char)buffer[i + sizeof(dr)];
+			if(b1 != (char)iso9660::Characters::DIR_CURRENT && b1 != (char)iso9660::Characters::DIR_PARENT)
+			{
+				std::string identifier((const char *)&buffer[i + sizeof(dr)], dr.file_identifier_length);
+				auto s = identifier.find((char)iso9660::Characters::SEPARATOR2);
+				std::string name(s == std::string::npos ? identifier : identifier.substr(0, s));
+
+				entries[name] = dr;
+			}
+
+			i += dr.length;
+		}
+		// skip sector boundary
+		else
+			i = ((i / FORM1_DATA_SIZE) + 1) * FORM1_DATA_SIZE;
+	}
+
+	return entries;
+}
+
+
+//TODO: reimplement properly after ImageBrowser rewrite
 std::map<std::string, uint32_t> extract_vob_list(SPTD &sptd)
 {
 	std::map<std::string, uint32_t> titles;
-	
-	//TODO:
-//	titles["VTS_01_1.VOB"] = 311;
-//	titles["VTS_01_2.VOB"] = 524573;
-	
+
+	SPTD::Status status;
+
+	// read PVD root directory record lba
+	iso9660::DirectoryRecord root_dr;
+	bool pvd_found = false;
+	for(uint32_t lba = iso9660::SYSTEM_AREA_SIZE; ; ++lba)
+	{
+		std::vector<uint8_t> sector(FORM1_DATA_SIZE);
+		status = cmd_read(sptd, sector.data(), FORM1_DATA_SIZE, lba, 1, false);
+		if(status.status_code)
+			throw_line("failed to read PVD, SCSI ({})", SPTD::StatusMessage(status));
+
+		auto vd = (iso9660::VolumeDescriptor *)sector.data();
+		if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
+			break;
+
+		if(vd->type == iso9660::VolumeDescriptor::Type::PRIMARY)
+		{
+			auto pvd = (iso9660::VolumeDescriptor *)vd;
+			root_dr = pvd->primary.root_directory_record;
+			pvd_found = true;
+			break;
+		}
+		else if(vd->type == iso9660::VolumeDescriptor::Type::SET_TERMINATOR)
+			break;
+	}
+
+	if(!pvd_found)
+		throw_line("PVD not found");
+
+	auto root_entries = dr_list(sptd, root_dr);
+	auto it = root_entries.find("VIDEO_TS");
+	if(it != root_entries.end())
+	{
+		auto video_entries = dr_list(sptd, it->second);
+		for(auto const &e : video_entries)
+			if(ends_with(e.first, ".VOB"))
+				titles[e.first] = e.second.offset.lsb;
+	}
+
 	return titles;
 }
 

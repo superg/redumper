@@ -76,4 +76,13 @@ export std::string replace_all(std::string s, const std::string &from, const std
     return s;
 }
 
+
+export bool ends_with(const std::string &s, const std::string &suffix)
+{
+    if(suffix.size() > s.size())
+        return false;
+
+    return std::equal(suffix.rbegin(), suffix.rend(), s.rbegin());
+}
+
 }

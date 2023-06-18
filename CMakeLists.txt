@@ -161,6 +161,7 @@ target_sources(redumper
 	"dump_cd.ixx"
 	"dump_dvd.ixx"
 	"drive.ixx"
+	"info.ixx"
 	"offset_manager.ixx"
 	"options.ixx"
 	"redumper.ixx"

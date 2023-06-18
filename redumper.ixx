@@ -19,6 +19,7 @@ import drive;
 import dump;
 import dump_cd;
 import dump_dvd;
+import info;
 import options;
 import scsi.cmd;
 import scsi.mmc;
@@ -211,12 +212,6 @@ void redumper_split(Options &options)
 }
 
 
-void redumper_info(Options &options)
-{
-	redumper_info_cd(options);
-}
-
-
 void redumper_cd(Options &options)
 {
 	auto disc_type = query_disc_type(options.drive);
@@ -235,6 +230,7 @@ void redumper_cd(Options &options)
 		auto dump_status = dump_dvd(options, DumpMode::DUMP);
 		if(dump_status == DumpStatus::ERRORS)
 			dump_dvd(options, DumpMode::REFINE);
+		redumper_info(options);
 	}
 }
 
@@ -388,6 +384,8 @@ void redumper_debug(Options &options)
 std::map<std::string, void (*)(Options &)> COMMAND_HANDLERS =
 {
 	{"cd", redumper_cd},
+	{"dvd", redumper_cd},
+	{"bd", redumper_cd},
 	{"dump", redumper_dump},
 	{"refine", redumper_refine},
 	{"verify", redumper_verify},

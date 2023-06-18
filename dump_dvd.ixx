@@ -609,6 +609,7 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 	{
 		LOG("dat:");
 		LOG("{}", rom_entry.xmlLine());
+		LOG("");
 	}
 
 	return interrupted ? DumpStatus::INTERRUPTED : (errors_scsi ? DumpStatus::ERRORS : DumpStatus::SUCCESS);

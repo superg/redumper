@@ -6,7 +6,6 @@ module;
 #include <list>
 #include <map>
 #include <set>
-#include <sstream>
 #include "throw_line.hh"
 
 export module cd.split;
@@ -28,7 +27,6 @@ import hash.sha1;
 import offset_manager;
 import options;
 import rom_entry;
-import systems.system;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
@@ -1575,58 +1573,6 @@ export void redumper_split_cd(const Options &options)
 		while(std::getline(ifs, line))
 			LOG("{}", line);
 		LOG("");
-	}
-}
-
-
-std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::path &cue_path)
-{
-	std::list<std::pair<std::string, bool>> entries;
-
-	std::fstream fs(cue_path, std::fstream::in);
-	if(!fs.is_open())
-		throw_line("unable to open file ({})", cue_path.filename().string());
-
-	std::pair<std::string, bool> entry;
-	std::string line;
-	while(std::getline(fs, line))
-	{
-		auto tokens(tokenize(line, " \t", "\"\""));
-		if(tokens.size() == 3)
-		{
-			if(tokens[0] == "FILE")
-				entry.first = tokens[1];
-			else if(tokens[0] == "TRACK" && !entry.first.empty())
-			{
-				entry.second = tokens[2] != "AUDIO";
-				entries.push_back(entry);
-				entry.first.clear();
-			}
-		}
-	}
-
-	return entries;
-}
-
-
-export void redumper_info_cd(const Options &options)
-{
-	auto image_prefix = image_init(options);
-
-	auto tracks = cue_get_entries(image_prefix + ".cue");
-
-	for(auto const &t : tracks)
-	{
-		auto track_path = std::filesystem::path(options.image_path) / t.first;
-		auto systems = System::get().getSystems(track_path);
-
-		for(auto const &s : systems)
-		{
-			std::stringstream ss;
-			s(ss);
-			if(ss.rdbuf()->in_avail())
-				LOG("{}", ss.str());
-		}
 	}
 }
 

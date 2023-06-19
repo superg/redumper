@@ -83,11 +83,11 @@ void normalize_options(Options &options)
 	bool generate_name = false;
 	for(auto const &p : options.commands)
 	{
-		if(p == "cd" || p == "dump" || p == "refine" || p == "verify")
-			drive_required = true;
-
-		if(p == "cd" || p == "dump")
+		if(p == "cd" || p == "sacd" || p == "dvd" || p == "bd" || p == "dump")
 			generate_name = true;
+
+		if(generate_name || p == "refine" || p == "verify")
+			drive_required = true;
 	}
 
 	// autodetect drive
@@ -384,6 +384,7 @@ void redumper_debug(Options &options)
 std::map<std::string, void (*)(Options &)> COMMAND_HANDLERS =
 {
 	{"cd", redumper_cd},
+	{"sacd", redumper_cd},
 	{"dvd", redumper_cd},
 	{"bd", redumper_cd},
 	{"dump", redumper_dump},

@@ -142,10 +142,13 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 
 	std::string indent(4, ' ');
 
-	uint32_t lba_start = endian_swap(layer_descriptor.data_start_sector);
-	uint32_t lba_end = endian_swap(layer_descriptor.data_end_sector) + 1;
-	LOG("{}data {{ LBA: {} .. {}, length: {}, hLBA: 0x{:08X} .. 0x{:08X} }}", indent, lba_start, lba_end, lba_end - lba_start, lba_start, lba_end);
-	auto layer0_last = endian_swap(layer_descriptor.layer0_end_sector);
+	int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
+	int32_t lba_last = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
+	int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
+
+	uint32_t length = layer_descriptor.track_path ? (layer0_last + 1 - lba_first) + (layer0_last + 1 + lba_last + 1) : lba_last + 1 - lba_first;
+
+	LOG("{}data {{ LBA: [{} .. {}], length: {}, hLBA: [0x{:08X} .. 0x{:08X}] }}", indent, lba_first, lba_last, length, lba_first, lba_last);
 	if(layer0_last)
 		LOG("{}data layer 0 last {{ LBA: {} .. hLBA: 0x{:08X} }}", indent, layer0_last, layer0_last);
 	LOG("{}book type: {}", indent, BOOK_TYPE[layer_descriptor.book_type]);
@@ -343,7 +346,12 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 			throw_line("invalid layer descriptor size (layer: {})", i);
 
 		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
-		sectors_count += endian_swap(layer_descriptor->data_end_sector) + 1 - endian_swap(layer_descriptor->data_start_sector);
+
+		int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
+		int32_t lba_last = sign_extend<24>(endian_swap(layer_descriptor->data_end_sector));
+		int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
+
+		sectors_count += layer_descriptor->track_path ? (layer0_last + 1 - lba_first) + (layer0_last + 1 + lba_last + 1) : lba_last + 1 - lba_first;
 	}
 
 	if(!sectors_count)

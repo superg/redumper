@@ -545,4 +545,12 @@ T digits_count(T value)
 	return (value ? log10(value) : 0) + 1;
 }
 
+
+export template<unsigned int bits, class T>
+T sign_extend(T value)
+{
+	T m = 1 << bits - 1;
+	return (value ^ m) - m;
+}
+
 }

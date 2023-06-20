@@ -40,7 +40,7 @@ public:
 		if(!reportASF())
 			throw_line("authentication failed, authentication success flag (ASF) is 0, region mismatch?");
 
-		decrypt(disc_keys.data(), disc_keys.size(), bus_key.data());
+		shuffle(disc_keys.data(), disc_keys.size(), bus_key.data());
 
 		for(unsigned int n = 0; n < countof(_PLAYER_KEYS) && disc_key.empty(); ++n)
 		{
@@ -72,7 +72,7 @@ public:
 
 		if(reportASF())
 		{
-			decrypt(encrypted_title_key.data(), _BLOCK_SIZE, bus_key.data());
+			shuffle(encrypted_title_key.data(), _BLOCK_SIZE, bus_key.data());
 
 			// omit zeroed key
 			if(!std::all_of(encrypted_title_key.begin(), encrypted_title_key.end(), [](uint8_t v) { return v == 0; }))
@@ -265,7 +265,7 @@ private:
 	}
 
 
-	void decrypt(uint8_t *data, uint32_t data_size, const uint8_t *key)
+	void shuffle(uint8_t *data, uint32_t data_size, const uint8_t *key)
 	{
 		for(uint32_t i = 0; i < data_size; ++i)
 			data[i] ^= key[(_BLOCK_SIZE - 1) - (i % _BLOCK_SIZE)];

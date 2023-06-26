@@ -36,15 +36,6 @@ import version;
 namespace gpsxre
 {
 
-enum class DiscType
-{
-	CD,
-	DVD,
-	BLURAY
-};
-
-
-
 std::string first_ready_drive()
 {
 	std::string drive;
@@ -239,6 +230,7 @@ void redumper_cd(Options &options)
 	else
 	{
 		auto dump_status = dump_dvd(options, DumpMode::DUMP);
+		redumper_dvdkey(options);
 		if(dump_status == DumpStatus::ERRORS)
 			dump_dvd(options, DumpMode::REFINE);
 		redumper_info(options);
@@ -330,7 +322,7 @@ void redumper_debug(Options &options)
 	if(0)
 	{
 		SPTD sptd(options.drive);
-		auto drive_config = drive_init(sptd, options);
+		auto drive_config = drive_init(sptd, DiscType::CD, options);
 
 		auto cache = asus_cache_read(sptd, drive_config.type);
 	}

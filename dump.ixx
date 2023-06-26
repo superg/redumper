@@ -21,6 +21,14 @@ import utils.logger;
 namespace gpsxre
 {
 
+export enum class DiscType
+{
+	CD,
+	DVD,
+	BLURAY
+};
+
+
 export enum class DumpMode
 {
 	DUMP,
@@ -37,10 +45,17 @@ export enum class DumpStatus
 };
 
 
-export DriveConfig drive_init(SPTD &sptd, const Options &options)
+export DriveConfig drive_init(SPTD &sptd, DiscType disc_type, const Options &options)
 {
 	// set drive speed
-	uint16_t speed = options.speed ? 150 * *options.speed : 0xFFFF;
+	float speed_modifier = 153.6;
+	if(disc_type == DiscType::DVD)
+		speed_modifier = 1385.0;
+	else if(disc_type == DiscType::BLURAY)
+		speed_modifier = 4500.0;
+
+	uint16_t speed = options.speed ? speed_modifier * *options.speed : 0xFFFF;
+
 	auto status = cmd_set_cd_speed(sptd, speed);
 	if(status.status_code)
 		LOG("drive set speed failed, SCSI ({})", SPTD::StatusMessage(status));

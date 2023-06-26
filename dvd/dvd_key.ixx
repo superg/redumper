@@ -163,7 +163,7 @@ export void dvd_key(const Options &options)
 {
 	SPTD sptd(options.drive);
 
-	auto drive_config = drive_init(sptd, options);
+	auto drive_config = drive_init(sptd, DiscType::DVD, options);
 
 	// protection
 	std::vector<uint8_t> copyright;
@@ -243,6 +243,7 @@ export void dvd_key(const Options &options)
 					LOG("    {}: {}", t.first, title_key);
 				}
 			}
+			LOG("");
 		}
 		else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
 		{

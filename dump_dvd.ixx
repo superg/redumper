@@ -216,7 +216,7 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 {
 	SPTD sptd(options.drive);
 
-	auto drive_config = drive_init(sptd, options);
+	auto drive_config = drive_init(sptd, DiscType::DVD, options);
 	auto image_prefix = image_init(options);
 
 	std::filesystem::path iso_path(image_prefix + ".iso");

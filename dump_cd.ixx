@@ -383,7 +383,7 @@ uint32_t percentage(int32_t value, uint32_t value_max)
 export bool redumper_dump_cd(const Options &options, bool refine)
 {
 	SPTD sptd(options.drive);
-	auto drive_config = drive_init(sptd, options);
+	auto drive_config = drive_init(sptd, DiscType::CD, options);
 	auto image_prefix = image_init(options);
 
 	// don't use .replace_extension() as it messes up paths with dot

@@ -428,9 +428,9 @@ private:
 
 						title_key[0] = i_try >> 8;
 						title_key[1] = i_try & 0xFF;
-						title_key[2] = t4 + t5 >> 0 & 0xFF;
-						title_key[3] = t4 + t5 >> 8 & 0xFF;
-						title_key[4] = t4 + t5 >> 16 & 0xFF;
+						title_key[2] = (t4 + t5) >> 0 & 0xFF;
+						title_key[3] = (t4 + t5) >> 8 & 0xFF;
+						title_key[4] = (t4 + t5) >> 16 & 0xFF;
 					}
 				}
 			}

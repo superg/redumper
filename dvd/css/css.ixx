@@ -8,6 +8,7 @@ module;
 export module dvd.css;
 
 import cd.cdrom;
+import readers.form1_reader;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -28,17 +29,17 @@ public:
 	}
 
 
-	std::vector<uint8_t> getDiscKey()
+	std::vector<uint8_t> getDiscKey(bool cprm)
 	{
 		std::vector<uint8_t> disc_key;
 
-		uint8_t agid = reportAGID(false);
-		auto bus_key = getBusKey(agid, false);
+		uint8_t agid = reportAGID(cprm);
+		auto bus_key = getBusKey(agid);
 
 		auto disc_keys = readDiscKey(agid);
 
 		if(!reportASF())
-			throw_line("authentication failed, authentication success flag (ASF) is 0, region mismatch?");
+			throw_line("authentication failed, authentication success flag (ASF) is 0");
 
 		shuffle(disc_keys.data(), disc_keys.size(), bus_key.data());
 
@@ -61,23 +62,66 @@ public:
 	}
 
 
-	std::vector<uint8_t> getTitleKey(const std::vector<uint8_t> &disc_key, uint32_t lba)
+	std::vector<uint8_t> getTitleKey(const std::vector<uint8_t> &disc_key, uint32_t lba, bool cprm)
 	{
 		std::vector<uint8_t> title_key;
 
-		uint8_t agid = reportAGID(false);
-		auto bus_key = getBusKey(agid, false);
+		uint8_t agid = reportAGID(cprm);
+		auto bus_key = getBusKey(agid);
 
 		auto encrypted_title_key = reportTitleKey(agid, lba);
 
 		if(reportASF())
 		{
-			shuffle(encrypted_title_key.data(), _BLOCK_SIZE, bus_key.data());
+			if(!encrypted_title_key.empty())
+			{
+				shuffle(encrypted_title_key.data(), encrypted_title_key.size(), bus_key.data());
 
-			// omit zeroed key
-			if(!std::all_of(encrypted_title_key.begin(), encrypted_title_key.end(), [](uint8_t v) { return v == 0; }))
-				title_key = decryptTitleKey(disc_key.data(), encrypted_title_key.data());
+				// only if not zeroed
+				if(!is_zeroed(encrypted_title_key.data(), encrypted_title_key.size()))
+					title_key = decryptTitleKey(disc_key.data(), encrypted_title_key.data());
+			}
 		}
+
+		return title_key;
+	}
+
+
+	static std::vector<uint8_t> crackTitleKey(uint32_t lba_start, uint32_t lba_end, Form1Reader &form1_reader)
+	{
+		std::vector<uint8_t> title_key;
+
+		bool encrypted = false;
+
+		std::vector<uint8_t> data(FORM1_DATA_SIZE);
+		for(uint32_t lba = lba_start; lba < lba_end; ++lba)
+		{
+			if(!form1_reader.read(data.data(), lba, 1))
+				continue;
+
+			// PES_scrambling_control does not exist in a system_header, a padding_stream or a private_stream2 (and others?)
+			if(data[0x14] & 0x30 && !(data[0x11] == 0xbb || data[0x11] == 0xbe || data[0x11] == 0xbf))
+			{
+				encrypted = true;
+
+				title_key = attackPattern(data.data());
+
+				//TODO: evaluate if this attack is useful for small vobs
+//				if(title_key.empty())
+//					title_key = attackPadding(data.data());
+
+				if(!title_key.empty())
+					break;
+			}
+
+			// stop after 2000 blocks if we haven't seen any encrypted blocks
+			if(!encrypted && lba >= lba_start + 2000)
+				break;
+
+		}
+
+		if(title_key.empty() && !encrypted)
+			title_key.resize(_BLOCK_SIZE);
 
 		return title_key;
 	}
@@ -91,7 +135,7 @@ private:
 		COUNT
 	};
 
-
+	constexpr static unsigned int _AGID_COUNT = 4;
 	constexpr static unsigned int _BLOCK_SIZE = 5;
 	constexpr static unsigned int _CHALLENGE_SIZE = _BLOCK_SIZE * 2;
 	constexpr static unsigned int _BLOCKS_COUNT = 6;
@@ -112,11 +156,10 @@ private:
 	static const uint8_t _SECRET[_BLOCK_SIZE];
 	static const uint8_t _PLAYER_KEYS[31][_BLOCK_SIZE];
 
-
 	SPTD &_sptd;
 
 
-	std::vector<uint8_t> getBusKey(uint8_t agid, bool cprm)
+	std::vector<uint8_t> getBusKey(uint8_t agid)
 	{
 		// setup a challenge, any values should work
 		std::vector<uint8_t> challenge(_CHALLENGE_SIZE);
@@ -265,10 +308,139 @@ private:
 	}
 
 
-	void shuffle(uint8_t *data, uint32_t data_size, const uint8_t *key)
+	static void shuffle(uint8_t *data, uint32_t data_size, const uint8_t *key)
 	{
 		for(uint32_t i = 0; i < data_size; ++i)
 			data[i] ^= key[(_BLOCK_SIZE - 1) - (i % _BLOCK_SIZE)];
+	}
+
+
+	static std::vector<uint8_t> attackPattern(const uint8_t *data)
+	{
+		std::vector<uint8_t> title_key;
+
+		// for all cycle length from 2 to 48
+		unsigned int best_plen = 0;
+		unsigned int best_p = 0;
+		for(unsigned int i = 2; i < 0x30; ++i)
+		{
+			// find the number of bytes that repeats in cycles
+			for(unsigned int j = i + 1; j < 0x80 && data[0x7F - j % i] == data[0x7F - j]; ++j)
+			{
+				// we have found j repeating bytes with a cycle length i
+				if(j > best_plen)
+				{
+					best_plen = j;
+					best_p = i;
+				}
+			}
+		}
+
+		// we need at most 10 plain text bytes, make sure that we have at least 20 repeated bytes and that they have cycled at least one time
+		if((best_plen > 3) && (best_plen / best_p >= 2))
+			title_key = recoverTitleKey(&data[0x80], &data[0x80 - (best_plen / best_p) * best_p], &data[0x54]);
+
+		return title_key;
+	}
+
+
+	static std::vector<uint8_t> recoverTitleKey(const uint8_t *encrypted, const uint8_t *decrypted, const uint8_t *sector_seed)
+	{
+		std::vector<uint8_t> title_key;
+
+		uint8_t scratch[10];
+		for(unsigned int i = 0; i < 10; ++i)
+			scratch[i] = _DECRYPT_TAB1[encrypted[i]] ^ decrypted[i];
+
+		for(unsigned int i_try = 0; i_try < 0x10000; ++i_try)
+		{
+			unsigned int t1 = i_try >> 8 | 0x100;
+			unsigned int t2 = i_try & 0xff;
+			unsigned int t3 = 0;
+			unsigned int t5 = 0;
+
+			// iterate cipher 4 times to reconstruct LFSR2
+			unsigned int i;
+			for(i = 0; i < 4; ++i)
+			{
+				// advance LFSR1 normally
+				unsigned int t4 = _DECRYPT_TAB2[t2] ^ _DECRYPT_TAB3[t1 % 8];
+				t2 = t1 >> 1;
+				t1 = (t1 & 1) << 8 ^ t4;
+				t4 = _DECRYPT_TAB5[t4];
+				// deduce t6 & t5
+				unsigned int t6 = scratch[i];
+				if(t5)
+					t6 = t6 + 0xff & 0x0ff;
+				if(t6 < t4)
+					t6 += 0x100;
+				t6 -= t4;
+				t5 += t6 + t4;
+				t6 = _DECRYPT_TAB4[t6];
+				// feed / advance t3 / t5
+				t3 = t3 << 8 | t6;
+				t5 >>= 8;
+			}
+
+			unsigned int candidate = t3;
+
+			// iterate 6 more times to validate candidate key
+			for(; i < 10; ++i)
+			{
+				unsigned int t4 = _DECRYPT_TAB2[t2] ^ _DECRYPT_TAB3[t1 % 8];
+				t2 = t1 >> 1;
+				t1 = (t1 & 1) << 8 ^ t4;
+				t4 = _DECRYPT_TAB5[t4];
+				unsigned int t6 = (((t3 >> 3 ^ t3) >> 1 ^ t3) >> 8 ^ t3) >> 5 & 0xff;
+				t3 = t3 << 8 | t6;
+				t6 = _DECRYPT_TAB4[t6];
+				t5 += t6 + t4;
+				if((t5 & 0xff) != scratch[i])
+					break;
+
+				t5 >>= 8;
+			}
+
+			if(i == 10)
+			{
+				// do 4 backwards steps of iterating t3 to deduce initial state
+				t3 = candidate;
+				for(i = 0; i < 4; ++i)
+				{
+					t1 = t3 & 0xff;
+					t3 = t3 >> 8;
+					// easy to code, and fast enough brute-force search for byte shifted in
+					for(unsigned int j = 0; j < 256; ++j)
+					{
+						t3 = t3 & 0x1ffff | j << 17;
+						unsigned int t6 = (((t3 >> 3 ^ t3) >> 1 ^ t3) >> 8 ^ t3) >> 5 & 0xff;
+						if(t6 == t1)
+							break;
+					}
+				}
+
+				unsigned int t4 = (t3 >> 1) - 4;
+				for(t5 = 0; t5 < 8; ++t5)
+				{
+					if((t4 + t5) * 2 + 8 - ((t4 + t5) & 7) == t3)
+					{
+						title_key.resize(_BLOCK_SIZE);
+
+						title_key[0] = i_try >> 8;
+						title_key[1] = i_try & 0xFF;
+						title_key[2] = t4 + t5 >> 0 & 0xFF;
+						title_key[3] = t4 + t5 >> 8 & 0xFF;
+						title_key[4] = t4 + t5 >> 16 & 0xFF;
+					}
+				}
+			}
+		}
+
+		if(!title_key.empty())
+			for(unsigned int i = 0; i < _BLOCK_SIZE; ++i)
+				title_key[i] ^= sector_seed[i];
+
+		return title_key;
 	}
 
 
@@ -276,9 +448,7 @@ private:
 	{
 		uint8_t agid;
 
-		constexpr unsigned int AGID_COUNT = 4;
-
-		for(unsigned int i = 0; i < AGID_COUNT + 1; ++i)
+		for(unsigned int i = 0; i < _AGID_COUNT + 1; ++i)
 		{
 			std::vector<uint8_t> response_data;
 			auto status = cmd_report_key(_sptd, response_data, 0, REPORT_KEY_KeyClass::DVD_CSS_CPPM_CPRM, 0, cprm ? REPORT_KEY_KeyFormat::AGID_CPRM : REPORT_KEY_KeyFormat::AGID);
@@ -289,7 +459,7 @@ private:
 				break;
 			}
 
-			if(i == AGID_COUNT)
+			if(i == _AGID_COUNT)
 				throw_line("failed to acquire AGID, SCSI ({})", SPTD::StatusMessage(status));
 			else
 				// incrementally invalidate all possible AGIDs before retrying
@@ -381,16 +551,21 @@ private:
 	}
 
 
-	std::vector<uint8_t> reportTitleKey(int agid, uint32_t lba)
+	std::vector<uint8_t> reportTitleKey(uint8_t agid, uint32_t lba)
 	{
+		std::vector<uint8_t> title_key;
+
 		std::vector<uint8_t> response_data;
 		auto status = cmd_report_key(_sptd, response_data, lba, REPORT_KEY_KeyClass::DVD_CSS_CPPM_CPRM, agid, REPORT_KEY_KeyFormat::TITLE_KEY);
-		if(status.status_code)
-			throw_line("failed to read title key, SCSI ({})", SPTD::StatusMessage(status));
-		strip_response_header(response_data);
-		auto title_key = (REPORT_KEY_TitleKey *)response_data.data();
+		if(!status.status_code)
+		{
+			strip_response_header(response_data);
+			auto key = (REPORT_KEY_TitleKey *)response_data.data();
 
-		return std::vector<uint8_t>(title_key->title_key, title_key->title_key + sizeof(title_key->title_key));
+			title_key.assign(key->title_key, key->title_key + sizeof(key->title_key));
+		}
+
+		return title_key;
 	}
 };
 

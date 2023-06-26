@@ -19,6 +19,7 @@ import drive;
 import dump;
 import dump_cd;
 import dump_dvd;
+import dvd.key;
 import info;
 import options;
 import scsi.cmd;
@@ -86,7 +87,7 @@ void normalize_options(Options &options)
 		if(p == "cd" || p == "sacd" || p == "dvd" || p == "bd" || p == "dump")
 			generate_name = true;
 
-		if(generate_name || p == "refine" || p == "verify")
+		if(generate_name || p == "refine" || p == "verify" || p == "dvdkey")
 			drive_required = true;
 	}
 
@@ -195,10 +196,20 @@ void redumper_verify(Options &options)
 
 	if(disc_type == DiscType::CD)
 		throw_line("verify is not supported for CD yet");
-	else
-		dump_dvd(options, DumpMode::VERIFY);
+
+	dump_dvd(options, DumpMode::VERIFY);
 }
 
+
+void redumper_dvdkey(Options &options)
+{
+	auto disc_type = query_disc_type(options.drive);
+
+	if(disc_type != DiscType::DVD)
+		throw_line("not a DVD disc");
+
+	dvd_key(options);
+}
 
 void redumper_protection(Options &options)
 {
@@ -390,6 +401,7 @@ std::map<std::string, void (*)(Options &)> COMMAND_HANDLERS =
 	{"dump", redumper_dump},
 	{"refine", redumper_refine},
 	{"verify", redumper_verify},
+	{"dvdkey", redumper_dvdkey},
 	{"protection", redumper_protection},
 	{"split", redumper_split},
 	{"info", redumper_info},

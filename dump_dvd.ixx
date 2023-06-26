@@ -203,111 +203,6 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
 }
 
 
-std::string region_string(uint8_t region_bits)
-{
-	std::string region;
-
-	for(uint32_t i = 0; i < CHAR_BIT; ++i)
-		if(!(region_bits & 1 << i))
-			region += std::to_string(i + 1) + " ";
-
-	if(!region.empty())
-		region.pop_back();
-
-	return region;
-}
-
-
-std::map<std::string, iso9660::DirectoryRecord> dr_list(SPTD &sptd, const iso9660::DirectoryRecord &dr)
-{
-	std::map<std::string, iso9660::DirectoryRecord> entries;
-
-	if(!(dr.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY))
-		return entries;
-
-	uint32_t sectors_count = scale_up(dr.data_length.lsb, FORM1_DATA_SIZE);
-	std::vector<uint8_t> buffer(sectors_count * FORM1_DATA_SIZE);
-	auto status = cmd_read(sptd, buffer.data(), FORM1_DATA_SIZE, dr.offset.lsb, sectors_count, false);
-	if(status.status_code)
-		throw_line("failed to read directory record, SCSI ({})", SPTD::StatusMessage(status));
-	buffer.resize(dr.data_length.lsb);
-
-	for(uint32_t i = 0, n = (uint32_t)buffer.size(); i < n;)
-	{
-		iso9660::DirectoryRecord &dr = *(iso9660::DirectoryRecord *)&buffer[i];
-
-		if(dr.length && dr.length <= FORM1_DATA_SIZE - i % FORM1_DATA_SIZE)
-		{
-			char b1 = (char)buffer[i + sizeof(dr)];
-			if(b1 != (char)iso9660::Characters::DIR_CURRENT && b1 != (char)iso9660::Characters::DIR_PARENT)
-			{
-				std::string identifier((const char *)&buffer[i + sizeof(dr)], dr.file_identifier_length);
-				auto s = identifier.find((char)iso9660::Characters::SEPARATOR2);
-				std::string name(s == std::string::npos ? identifier : identifier.substr(0, s));
-
-				entries[name] = dr;
-			}
-
-			i += dr.length;
-		}
-		// skip sector boundary
-		else
-			i = ((i / FORM1_DATA_SIZE) + 1) * FORM1_DATA_SIZE;
-	}
-
-	return entries;
-}
-
-
-//TODO: reimplement properly after ImageBrowser rewrite
-std::map<std::string, uint32_t> extract_vob_list(SPTD &sptd)
-{
-	std::map<std::string, uint32_t> titles;
-
-	SPTD::Status status;
-
-	// read PVD root directory record lba
-	iso9660::DirectoryRecord root_dr;
-	bool pvd_found = false;
-	for(uint32_t lba = iso9660::SYSTEM_AREA_SIZE; ; ++lba)
-	{
-		std::vector<uint8_t> sector(FORM1_DATA_SIZE);
-		status = cmd_read(sptd, sector.data(), FORM1_DATA_SIZE, lba, 1, false);
-		if(status.status_code)
-			throw_line("failed to read PVD, SCSI ({})", SPTD::StatusMessage(status));
-
-		auto vd = (iso9660::VolumeDescriptor *)sector.data();
-		if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
-			break;
-
-		if(vd->type == iso9660::VolumeDescriptor::Type::PRIMARY)
-		{
-			auto pvd = (iso9660::VolumeDescriptor *)vd;
-			root_dr = pvd->primary.root_directory_record;
-			pvd_found = true;
-			break;
-		}
-		else if(vd->type == iso9660::VolumeDescriptor::Type::SET_TERMINATOR)
-			break;
-	}
-
-	if(!pvd_found)
-		throw_line("PVD not found");
-
-	auto root_entries = dr_list(sptd, root_dr);
-	auto it = root_entries.find("VIDEO_TS");
-	if(it != root_entries.end())
-	{
-		auto video_entries = dr_list(sptd, it->second);
-		for(auto const &e : video_entries)
-			if(ends_with(e.first, ".VOB"))
-				titles[e.first] = e.second.offset.lsb;
-	}
-
-	return titles;
-}
-
-
 void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
 {
 	char animation = sector == sectors_count ? '*' : spinner_animation();
@@ -379,53 +274,32 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 		}
 		LOG("");
 
-		// protection
+		// authenticate CSS
 		if(readable_formats.find(READ_DVD_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
 		{
 			std::vector<uint8_t> copyright;
-			cmd_read_dvd_structure(sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
-			strip_response_header(copyright);
-
-			auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
-			auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
-
-			LOG("copyright: ");
-
-			//TODO: distinguish CSS/CPPM?
-			std::string protection("unknown");
-			if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::NONE)
-				protection = "none";
-			else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
-				protection = "CSS/CPPM";
-			else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
-				protection = "CPRM";
-			LOG("  protection system type: {}", protection);
-			LOG("  region management information: {}", region_string(ci->region_management_information));
-
-			if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
+			auto status = cmd_read_dvd_structure(sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
+			if(!status.status_code)
 			{
-				CSS css(sptd);
+				strip_response_header(copyright);
 
-				auto disc_key = css.getDiscKey();
-				if(!disc_key.empty())
+				auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
+				auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
+
+				//TODO: distinguish CPPM
+				bool cppm = false;
+
+				if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
 				{
-					LOG("  disc key: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}", disc_key[0], disc_key[1], disc_key[2], disc_key[3], disc_key[4]);
-					LOG("  title keys:");
-					auto titles = extract_vob_list(sptd);
-					for(auto const &t : titles)
-					{
-						auto title_key = css.getTitleKey(disc_key, t.second);
-						if(!title_key.empty())
-							LOG("    {}: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.first, title_key[0], title_key[1], title_key[2], title_key[3], title_key[4]);
-					}
+					CSS css(sptd);
+
+					// authenticate for reading
+					css.getDiscKey(cppm);
+
+					LOG("protection: CSS/CPPM");
+					LOG("");
 				}
 			}
-			else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
-			{
-				LOG("warning: CPRM protection is unsupported");
-			}
-
-			LOG("");
 		}
 	}
 	// compare physical structures to stored to make sure it's the same disc

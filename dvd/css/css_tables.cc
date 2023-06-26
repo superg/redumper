@@ -1,3 +1,5 @@
+// based on libdvdcss
+
 module;
 #include <cstdint>
 

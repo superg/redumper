@@ -1,11 +1,7 @@
 module;
 #include <cstdint>
-//#include <map>
-//#include <set>
 #include <string>
-//#include <vector>
 #include <filesystem>
-//#include <format>
 #include <fstream>
 #include <vector>
 #include "throw_line.hh"
@@ -13,26 +9,14 @@ module;
 export module debug;
 
 import cd.cd;
-//import cd.scrambler;
-//import cd.split;
 import cd.subcode;
 import cd.toc;
-//import drive;
+import drive;
 import dump;
-//import dump_cd;
-//import dump_dvd;
-//import dvd.key;
 import utils.file_io;
-//import info;
 import options;
-//import scsi.cmd;
-//import scsi.mmc;
 import scsi.sptd;
 import utils.logger;
-//import utils.misc;
-//import utils.signal;
-//import utils.strings;
-//import version;
 
 
 

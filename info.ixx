@@ -11,6 +11,7 @@ module;
 export module info;
 
 import cd.cdrom;
+import dump;
 import filesystem.iso9660;
 import options;
 import systems.system;
@@ -120,7 +121,7 @@ export void redumper_info(Options &options)
 				std::stringstream ss;
 				s(ss);
 				if(ss.rdbuf()->in_avail())
-					LOG("{}", ss.str());
+					LOG_F("{}", ss.str());
 			}
 		}
 	}

@@ -12,7 +12,7 @@ module;
 #include <vector>
 #include "throw_line.hh"
 
-export module dump_cd;
+export module cd.dump;
 
 import cd.cd;
 import cd.scrambler;
@@ -380,11 +380,12 @@ uint32_t percentage(int32_t value, uint32_t value_max)
 }
 
 
-export bool redumper_dump_cd(const Options &options, bool refine)
+export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 {
-	SPTD sptd(options.drive);
-	auto drive_config = drive_init(sptd, DiscType::CD, options);
-	auto image_prefix = image_init(options);
+	if(options.image_name.empty())
+		throw_line("image name is not provided");
+
+	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	// don't use .replace_extension() as it messes up paths with dot
 	std::filesystem::path scm_path(image_prefix + ".scram");
@@ -402,15 +403,15 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); //FIXME: transition to samples?
 	std::vector<std::pair<int32_t, int32_t>> error_ranges;
 
-	int32_t lba_start = drive_config.pregap_start;
+	int32_t lba_start = ctx.drive_config.pregap_start;
 	int32_t lba_end = MSF_to_LBA(MSF{74, 0, 0}); // default: 74min / 650Mb
 
 	// TOC
-	std::vector<uint8_t> toc_buffer = cmd_read_toc(sptd);
+	std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
 	TOC toc(toc_buffer, false);
 
 	// FULL TOC
-	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(sptd);
+	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
 	if(!full_toc_buffer.empty())
 	{
 		TOC toc_full(full_toc_buffer, true);
@@ -427,7 +428,6 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 	if(!refine)
 	{
-		LOG("");
 		LOG("disc TOC:");
 		print_toc(toc);
 		LOG("");
@@ -435,7 +435,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 	bool subcode = true;
 	{
-		auto layout = sector_order_layout(drive_config.sector_order);
+		auto layout = sector_order_layout(ctx.drive_config.sector_order);
 		if(layout.subcode_offset == CD_RAW_DATA_SIZE)
 		{
 			subcode = false;
@@ -447,7 +447,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 	// BE read mode
 	bool scrap = false;
-	if(drive_config.read_method == DriveConfig::ReadMethod::BE)
+	if(ctx.drive_config.read_method == DriveConfig::ReadMethod::BE)
 	{
 		bool data_tracks = false;
 		bool audio_tracks = false;
@@ -504,7 +504,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 	// multisession gaps
 	for(uint32_t i = 1; i < toc.sessions.size(); ++i)
-		error_ranges.emplace_back(toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start);
+		error_ranges.emplace_back(toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + ctx.drive_config.pregap_start);
 
 	// compare disc / file TOC to make sure it's the same disc
 	if(refine)
@@ -522,14 +522,14 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 		bool read_cdtext = !options.disable_cdtext;
 		// disable multisession CD-TEXT for certain drives that hang indefinitely
-		if(toc.sessions.size() > 1 && drive_config.vendor_id == "PLEXTOR" && drive_config.product_id == "CD-R PX-W4824A")
+		if(toc.sessions.size() > 1 && ctx.drive_config.vendor_id == "PLEXTOR" && ctx.drive_config.product_id == "CD-R PX-W4824A")
 			read_cdtext = false;
 
 		// CD-TEXT
 		std::vector<uint8_t> cd_text_buffer;
 		if(read_cdtext)
 		{
-			auto status = cmd_read_cd_text(sptd, cd_text_buffer);
+			auto status = cmd_read_cd_text(*ctx.sptd, cd_text_buffer);
 			if(status.status_code)
 				LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
 		}
@@ -541,7 +541,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 	}
 
 	// read lead-in early as it improves the chance of extracting both sessions at once
-	if(drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_leadin_skip)
+	if(ctx.drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_leadin_skip)
 	{
 		bool read = !refine;
 
@@ -552,11 +552,11 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 			session_lba_start.push_back(lba_start + MSF_LBA_SHIFT);
 
 			// check gaps in all sessions
-			read = read || refine_needed(fs_state, lba_start + MSF_LBA_SHIFT, lba_start + drive_config.pregap_start, drive_config.read_offset);
+			read = read || refine_needed(fs_state, lba_start + MSF_LBA_SHIFT, lba_start + ctx.drive_config.pregap_start, ctx.drive_config.read_offset);
 		}
 
 		if(read)
-			plextor_store_sessions_leadin(fs_scm, fs_sub, fs_state, sptd, session_lba_start, drive_config, options);
+			plextor_store_sessions_leadin(fs_scm, fs_sub, fs_state, *ctx.sptd, session_lba_start, ctx.drive_config, options);
 	}
 
 	// override using options
@@ -598,7 +598,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 			bool scsi_exists = false;
 			bool c2_exists = false;
-			read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
+			read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 			for(auto const &ss : sector_state)
 			{
 				if(ss == State::ERROR_SKIP)
@@ -641,10 +641,6 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 	uint32_t errors_q_last = errors_q;
 
-	LOG("{} started", refine ? "refine" : "dump");
-
-	auto dump_time_start = std::chrono::high_resolution_clock::now();
-
 	Signal::get().engage();
 	int signal_dummy = 0;
 	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&signal_dummy, [](int *)
@@ -671,7 +667,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 		bool store = false;
 
 		// mirror lead-out
-		if(drive_is_asus(drive_config) && !options.asus_skip_leadout)
+		if(drive_is_asus(ctx.drive_config) && !options.asus_skip_leadout)
 		{
 			// initial cache read
 			auto r = inside_range(lba, error_ranges);
@@ -681,15 +677,15 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 				if(refine)
 				{
 					std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
-					read_sector(sector_buffer.data(), sptd, drive_config, lba - 1);
+					read_sector(sector_buffer.data(), *ctx.sptd, ctx.drive_config, lba - 1);
 				}
 
 				LOG_R("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
 				{
-					auto cache = asus_cache_read(sptd, drive_config.type);
+					auto cache = asus_cache_read(*ctx.sptd, ctx.drive_config.type);
 					write_vector(asus_path, cache);
 
-					asus_leadout_buffer = asus_cache_extract(cache, lba, 100, drive_config.type);
+					asus_leadout_buffer = asus_cache_extract(cache, lba, 100, ctx.drive_config.type);
 				}
 
 				uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
@@ -730,7 +726,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 						}
 
 						//DEBUG
-//						debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, drive_config.read_offset);
+//						debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
 					}
 
 					store = true;
@@ -745,7 +741,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 			bool c2_exists = false;
 			bool skip_exists = false;
-			read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
+			read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
 			for(auto const &ss : sector_state)
 			{
 				if(ss == State::ERROR_C2)
@@ -812,17 +808,17 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 			std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 
 			if(flush)
-				cmd_read(sptd, nullptr, 0, lba, 0, true);
+				cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
-			auto status = read_sector(sector_buffer.data(), sptd, drive_config, lba);
+			auto status = read_sector(sector_buffer.data(), *ctx.sptd, ctx.drive_config, lba);
 			auto read_time_stop = std::chrono::high_resolution_clock::now();
 			bool slow = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
 
 			// PLEXTOR: multisession lead-out overread
 			// usually there are couple of slow sectors before SCSI error is generated
 			// some models (PX-708UF) exit on I/O semaphore timeout on such slow sectors
-			if(drive_config.type == DriveConfig::Type::PLEXTOR && slow && inside_range(lba, error_ranges) != nullptr)
+			if(ctx.drive_config.type == DriveConfig::Type::PLEXTOR && slow && inside_range(lba, error_ranges) != nullptr)
 			{
 				// skip sector in refine mode
 //				lba_next = lba + 1; //FIXME:
@@ -869,7 +865,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 					}
 
 					//DEBUG
-//					debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, drive_config.read_offset);
+//					debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
 				}
 
 				store = true;
@@ -903,8 +899,8 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 			{
 				std::vector<State> sector_state_file(CD_DATA_SIZE_SAMPLES);
 				std::vector<uint8_t> sector_data_file(CD_DATA_SIZE);
-				read_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
-				read_entry(fs_scm, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE, 0);
+				read_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
+				read_entry(fs_scm, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE, 0);
 
 				bool update = false;
 				bool scsi_exists_file = false;
@@ -937,8 +933,8 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 
 				if(update)
 				{
-					write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
-					write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset);
+					write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE);
+					write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset);
 
 					if(inside_range(lba, error_ranges) == nullptr && lba < lba_end)
 					{
@@ -974,7 +970,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 			}
 			else
 			{
-				write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
+				write_entry(fs_scm, sector_data.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE);
 
 				if(subcode)
 				{
@@ -992,7 +988,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 						// prevent this by flushing drive cache after C2 error range (flush cache on 5 consecutive Q errors)
 						if(errors_q - errors_q_last > 5)
 						{
-							cmd_read(sptd, nullptr, 0, lba, 0, true);
+							cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
 							errors_q_last = errors_q;
 						}
 
@@ -1000,7 +996,7 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 					}
 				}
 
-				write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset);
+				write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset);
 			}
 
 			// grow lead-out overread if we still can read
@@ -1036,20 +1032,15 @@ export bool redumper_dump_cd(const Options &options, bool refine)
 		}
 	}
 	LOGC_RF("");
-
-	auto dump_time_stop = std::chrono::high_resolution_clock::now();
-
-	LOG("{} complete (time: {}s)", refine ? "refine" : "dump", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count());
 	LOG("");
 
 	LOG("media errors: ");
 	LOG("  SCSI: {}", errors_scsi);
 	LOG("  C2: {}", errors_c2);
 	LOG("  Q: {}", errors_q);
-	LOG("");
 
 	// always refine once if LG/ASUS to improve chances of capturing enough lead-out sectors
-	return errors_scsi || errors_c2 || drive_is_asus(drive_config) && !options.asus_skip_leadout;
+	return errors_scsi || errors_c2 || drive_is_asus(ctx.drive_config) && !options.asus_skip_leadout;
 }
 
 

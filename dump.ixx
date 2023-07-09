@@ -2,6 +2,7 @@ module;
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include "throw_line.hh"
@@ -23,9 +24,25 @@ namespace gpsxre
 
 export enum class DiscType
 {
+	NONE,
 	CD,
 	DVD,
 	BLURAY
+};
+
+
+export struct Context
+{
+	DiscType disc_type;
+	std::unique_ptr<SPTD> sptd;
+	DriveConfig drive_config;
+
+	struct Dump
+	{
+		bool refine;
+		bool interrupted;
+	};
+	std::unique_ptr<Dump> dump;
 };
 
 
@@ -45,44 +62,33 @@ export enum class DumpStatus
 };
 
 
-export DriveConfig drive_init(SPTD &sptd, DiscType disc_type, const Options &options)
+export constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
+#if 1
+export constexpr int32_t LBA_START = -45150; //MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
+#else
+// easier debugging, LBA starts with 0, plextor lead-in and asus cache are disabled
+export constexpr int32_t LBA_START = 0;
+// GS2v3   13922 .. 17080-17090
+// GS2_1.1 12762 .. 17075
+// GS2_5.5 12859 .. 17130-17140
+// GS2_1.2 12739 .. 16930-16940
+// SC DISC  8546 .. 17100-17125
+// SC BOX  10547 .. 16940-16950
+// CB4 6407-7114 ..  9200- 9220
+// GS GCD   9162 .. 17000-17010  // F05 0004
+// XPLO FM  7770 .. 10700-10704
+//static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
+#endif
+
+
+export enum class State : uint8_t
 {
-	// set drive speed
-	float speed_modifier = 153.6;
-	if(disc_type == DiscType::DVD)
-		speed_modifier = 1385.0;
-	else if(disc_type == DiscType::BLURAY)
-		speed_modifier = 4500.0;
-
-	uint16_t speed = options.speed ? speed_modifier * *options.speed : 0xFFFF;
-
-	auto status = cmd_set_cd_speed(sptd, speed);
-	if(status.status_code)
-		LOG("drive set speed failed, SCSI ({})", SPTD::StatusMessage(status));
-
-	// query/override drive configuration
-	DriveConfig drive_config = drive_get_config(cmd_drive_query(sptd));
-	drive_override_config(drive_config, options.drive_type.get(), options.drive_read_offset.get(),
-		options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
-
-	LOG("drive path: {}", options.drive);
-	LOG("drive: {}", drive_info_string(drive_config));
-	LOG("drive configuration: {}", drive_config_string(drive_config));
-
-	return drive_config;
-}
-
-
-export std::string image_init(const Options &options)
-{
-	if(options.image_name.empty())
-		throw_line("image name is not provided");
-
-	LOG("image path: {}", options.image_path.empty() ? "." : options.image_path);
-	LOG("image name: {}", options.image_name);
-
-	return (std::filesystem::path(options.image_path) / options.image_name).string();
-}
+	ERROR_SKIP, // must be first to support random offset file writes
+	ERROR_C2,
+	SUCCESS_C2_OFF,
+	SUCCESS_SCSI_OFF,
+	SUCCESS
+};
 
 
 export void image_check_overwrite(std::filesystem::path state_path, const Options &options)
@@ -100,6 +106,18 @@ export void print_toc(const TOC &toc)
 	std::string line;
 	while(std::getline(ss, line))
 		LOG("{}", line);
+}
+
+
+export int32_t sample_offset_a2r(uint32_t absolute)
+{
+	return absolute + (LBA_START * CD_DATA_SIZE_SAMPLES);
+}
+
+
+export uint32_t sample_offset_r2a(int32_t relative)
+{
+	return relative - (LBA_START * CD_DATA_SIZE_SAMPLES);
 }
 
 }

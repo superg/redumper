@@ -1,40 +1,50 @@
 module;
+#include <chrono>
 #include <cstdint>
-#include <map>
-#include <string>
-#include <vector>
 #include <filesystem>
 #include <format>
-#include <fstream>
+#include <list>
+#include <map>
+#include <set>
+#include <string>
 #include "throw_line.hh"
 
 export module redumper;
 
-import cd.cd;
-import cd.scrambler;
-import cd.split;
-import cd.subcode;
-import cd.toc;
-import drive;
+import commands;
 import dump;
-import dump_cd;
-import dump_dvd;
-import dvd.key;
-import info;
 import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
-import utils.file_io;
 import utils.logger;
 import utils.misc;
 import utils.signal;
+import utils.strings;
 import version;
 
 
 
 namespace gpsxre
 {
+
+const std::set<std::string> CD_BATCH_COMMANDS { "cd", "sacd", "dvd", "bd" };
+
+
+const std::map<std::string, std::pair<bool, bool (*)(Context &, Options &)>> COMMAND_HANDLERS
+{
+	//COMMAND         DRIVE    HANDLER
+	{ "dump"      , { true ,   redumper_dump       }},
+	{ "refine"    , { true ,   redumper_refine     }},
+	{ "verify"    , { true ,   redumper_verify     }},
+	{ "dvdkey"    , { true ,   redumper_dvdkey     }},
+	{ "protection", { false,   redumper_protection }},
+	{ "split"     , { false,   redumper_split      }},
+	{ "info"      , { false,   redumper_info       }},
+	{ "subchannel", { false,   redumper_subchannel }},
+	{ "debug"     , { false,   redumper_debug      }}
+};
+
 
 std::string first_ready_drive()
 {
@@ -65,55 +75,9 @@ std::string first_ready_drive()
 }
 
 
-void normalize_options(Options &options)
-{
-	// default command
-	if(options.commands.empty())
-		options.commands.push_back("cd");
-
-	bool drive_required = false;
-	bool generate_name = false;
-	for(auto const &p : options.commands)
-	{
-		if(p == "cd" || p == "sacd" || p == "dvd" || p == "bd" || p == "dump")
-			generate_name = true;
-
-		if(generate_name || p == "refine" || p == "verify" || p == "dvdkey")
-			drive_required = true;
-	}
-
-	// autodetect drive
-	if(drive_required && options.drive.empty())
-	{
-		options.drive = first_ready_drive();
-
-		if(options.drive.empty())
-			throw_line("no ready drives detected on the system");
-	}
-
-	// add drive colon if unspecified
-#ifdef _WIN32
-	if(!options.drive.empty())
-	{
-		if(options.drive.back() != ':')
-			options.drive += ':';
-	}
-#endif
-
-	// autogenerate image name
-	if(generate_name && options.image_name.empty())
-	{
-		auto drive = options.drive;
-		drive.erase(remove(drive.begin(), drive.end(), ':'), drive.end());
-		drive.erase(remove(drive.begin(), drive.end(), '/'), drive.end());
-		options.image_name = std::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), drive);
-	}
-}
-
-
 DiscType query_disc_type(std::string drive)
 {
-	auto disc_type = DiscType::CD;
+	auto disc_type = DiscType::NONE;
 
 	SPTD sptd(drive);
 
@@ -159,273 +123,168 @@ DiscType query_disc_type(std::string drive)
 }
 
 
-void redumper_dump(Options &options)
+std::string generate_image_name(std::string drive)
 {
-	auto disc_type = query_disc_type(options.drive);
+	auto pos = drive.find_last_of('/');
+	std::string d(drive, pos == std::string::npos ? 0 : pos + 1);
+	erase_all_inplace(d, ':');
+
+	return std::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), d);
+}
+
+
+std::list<std::string> get_cd_batch_commands(DiscType disc_type)
+{
+	std::list<std::string> commands;
+
+	const std::list<std::string> CD_BATCH{"dump", "protection", "refine", "split", "info"};
+	const std::list<std::string> DVD_BATCH{"dump", "refine", "dvdkey", "info"};
+	const std::list<std::string> BD_BATCH{"dump", "refine", "info"};
 
 	if(disc_type == DiscType::CD)
-		redumper_dump_cd(options, false);
+		commands = CD_BATCH;
+	else if(disc_type == DiscType::DVD)
+		commands = DVD_BATCH;
+	else if(disc_type == DiscType::BLURAY)
+		commands = BD_BATCH;
 	else
-		dump_dvd(options, DumpMode::DUMP);
+		throw_line("unsupported disc type");
+
+	return commands;
 }
 
 
-void redumper_refine(Options &options)
+Context initialize(Options &options)
 {
-	auto disc_type = query_disc_type(options.drive);
+	Context ctx;
 
-	if(disc_type == DiscType::CD)
-		redumper_dump_cd(options, true);
-	else
-		dump_dvd(options, DumpMode::REFINE);
-}
+	if(options.commands.empty())
+		options.commands.push_back("cd");
 
-
-void redumper_verify(Options &options)
-{
-	auto disc_type = query_disc_type(options.drive);
-
-	if(disc_type == DiscType::CD)
-		throw_line("verify is not supported for CD yet");
-
-	dump_dvd(options, DumpMode::VERIFY);
-}
-
-
-void redumper_dvdkey(Options &options)
-{
-	auto disc_type = query_disc_type(options.drive);
-
-	if(disc_type != DiscType::DVD)
-		throw_line("not a DVD disc");
-
-	dvd_key(options);
-}
-
-void redumper_protection(Options &options)
-{
-	redumper_protection_cd(options);
-}
-
-
-void redumper_split(Options &options)
-{
-	redumper_split_cd(options);
-}
-
-
-void redumper_cd(Options &options)
-{
-	auto disc_type = query_disc_type(options.drive);
-
-	if(disc_type == DiscType::CD)
+	// validate commands and determine if drive is required
+	bool drive_required = false;
+	bool generate_name = false;
+	for(auto c : options.commands)
 	{
-		bool refine = redumper_dump_cd(options, false);
-		redumper_protection(options);
-		if(refine)
-			redumper_dump_cd(options, true);
-		redumper_split(options);
-		redumper_info(options);
+		if(CD_BATCH_COMMANDS.find(c) != CD_BATCH_COMMANDS.end())
+			c = "dump";
+
+		auto it = COMMAND_HANDLERS.find(c);
+		if(it == COMMAND_HANDLERS.end())
+			throw_line("unknown command (command: {})", c);
+
+		if(c == "dump")
+			generate_name = true;
+
+		if(it->second.first)
+			drive_required = true;
 	}
-	else
+
+	ctx.disc_type = DiscType::NONE;
+	if(drive_required)
 	{
-		auto dump_status = dump_dvd(options, DumpMode::DUMP);
-		redumper_dvdkey(options);
-		if(dump_status == DumpStatus::ERRORS)
-			dump_dvd(options, DumpMode::REFINE);
-		redumper_info(options);
+		// autoselect drive
+		if(options.drive.empty())
+			options.drive = first_ready_drive();
+		if(options.drive.empty())
+			throw_line("no ready drives detected on the system");
+
+		ctx.disc_type = query_disc_type(options.drive);
+		
+		ctx.sptd = std::make_unique<SPTD>(options.drive);
+
+		// set drive speed
+		float speed_modifier = 153.6;
+		if(ctx.disc_type == DiscType::DVD)
+			speed_modifier = 1385.0;
+		else if(ctx.disc_type == DiscType::BLURAY)
+			speed_modifier = 4500.0;
+
+		uint16_t speed = options.speed ? speed_modifier * *options.speed : 0xFFFF;
+
+		auto status = cmd_set_cd_speed(*ctx.sptd, speed);
+		if(status.status_code)
+			LOG("drive set speed failed, SCSI ({})", SPTD::StatusMessage(status));
+
+		// query/override drive configuration
+		ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
+		drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(),
+							  options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
 	}
-}
 
-
-void redumper_subchannel(Options &options)
-{
-	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-
-	std::filesystem::path sub_path(image_prefix + ".subcode");
-
-	uint32_t sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
-	std::fstream sub_fs(sub_path, std::fstream::in | std::fstream::binary);
-	if(!sub_fs.is_open())
-		throw_line("unable to open file ({})", sub_path.filename().string());
-
-	ChannelQ q_empty;
-	memset(&q_empty, 0, sizeof(q_empty));
-
-	bool empty = false;
-	std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
-	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
+	// substitute cd batch commands
+	std::list<std::string> commands;
+	commands.swap(options.commands);
+	for(auto c : commands)
 	{
-		read_entry(sub_fs, sub_buffer.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
-
-		ChannelQ Q;
-		subcode_extract_channel((uint8_t *)&Q, sub_buffer.data(), Subchannel::Q);
-
-		// Q is available
-		if(memcmp(&Q, &q_empty, sizeof(q_empty)))
+		if(CD_BATCH_COMMANDS.find(c) == CD_BATCH_COMMANDS.end())
+			options.commands.push_back(c);
+		else
 		{
-			int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
-
-			LOG("[LBA: {:6}, LBAQ: {:6}] {}", LBA_START + (int32_t)lba_index, lbaq, Q.Decode());
-			empty = false;
-		}
-		else if(!empty)
-		{
-			LOG("...");
-			empty = true;
-		}
-	}
-}
-
-
-void redumper_debug(Options &options)
-{
-	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-	std::filesystem::path state_path(image_prefix + ".state");
-	std::filesystem::path cache_path(image_prefix + ".asus");
-	std::filesystem::path toc_path(image_prefix + ".toc");
-	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
-	std::filesystem::path cue_path(image_prefix + ".cue");
-
-	/*
-		// popcnt test
-		if(1)
-		{
-			for(uint32_t i = 0; i < 0xffffffff; ++i)
-			{
-				uint32_t test = __popcnt(i);
-				uint32_t test2 = bits_count(i);
-
-				if(test != test2)
-					LOG("{} <=> {}", test, test2);
-			}
-		}
-	*/
-	// CD-TEXT debug
-	if(0)
-	{
-		std::vector<uint8_t> toc_buffer = read_vector(toc_path);
-		TOC toc(toc_buffer, false);
-
-		std::vector<uint8_t> cdtext_buffer = read_vector(cdtext_path);
-		toc.updateCDTEXT(cdtext_buffer);
-
-		std::fstream fs(cue_path, std::fstream::out);
-		if(!fs.is_open())
-			throw_line("unable to create file ({})", cue_path.string());
-		toc.printCUE(fs, options.image_name, 0);
-
-		LOG("");
-	}
-
-	// LG/ASUS cache read
-	if(0)
-	{
-		SPTD sptd(options.drive);
-		auto drive_config = drive_init(sptd, DiscType::CD, options);
-
-		auto cache = asus_cache_read(sptd, drive_config.type);
-	}
-
-	// LG/ASUS cache dump extract
-	if(1)
-	{
-		auto drive_type = DriveConfig::Type::LG_ASU3;
-		std::vector<uint8_t> cache = read_vector(cache_path);
-
-		asus_cache_print_subq(cache, drive_type);
-
-		//		auto asd = asus_cache_unroll(cache);
-		//		auto asd = asus_cache_extract(cache, 128224, 0);
-		auto asus_leadout_buffer = asus_cache_extract(cache, 292353, 100, drive_type);
-		uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
-
-		LOG("entries count: {}", entries_count);
-
-		std::ofstream ofs_data(image_prefix + ".asus.data", std::ofstream::binary);
-		std::ofstream ofs_c2(image_prefix + ".asus.c2", std::ofstream::binary);
-		std::ofstream ofs_sub(image_prefix + ".asus.sub", std::ofstream::binary);
-		for(uint32_t i = 0; i < entries_count; ++i)
-		{
-			uint8_t *entry = &asus_leadout_buffer[CD_RAW_DATA_SIZE * i];
-
-			ofs_data.write((char *)entry, CD_DATA_SIZE);
-			ofs_c2.write((char *)entry + CD_DATA_SIZE, CD_C2_SIZE);
-			ofs_sub.write((char *)entry + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
+			auto cd_batch_commands = get_cd_batch_commands(ctx.disc_type);
+			options.commands.insert(options.commands.end(), cd_batch_commands.begin(), cd_batch_commands.end());
 		}
 	}
 
+	// autogenerate image name
+	if(generate_name && options.image_name.empty())
+		options.image_name = generate_image_name(options.drive);
 
-	// convert old state file to new state file
-	if(0)
-	{
-		std::fstream fs_state(state_path, std::fstream::out | std::fstream::in | std::fstream::binary);
-		uint64_t states_count = std::filesystem::file_size(state_path) / sizeof(State);
-		std::vector<State> states((std::vector<State>::size_type)states_count);
-		fs_state.read((char *)states.data(), states.size() * sizeof(State));
-		for(auto &s : states)
-		{
-			uint8_t value = (uint8_t)s;
-			if(value == 0)
-				s = (State)4;
-			else if(value == 1)
-				s = (State)3;
-			else if(value == 3)
-				s = (State)1;
-			else if(value == 4)
-				s = (State)0;
-		}
+	// initialize log file early not to miss any messages
+	if(!options.image_name.empty())
+		Logger::get().setFile((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
-		fs_state.seekp(0);
-		fs_state.write((char *)states.data(), states.size() * sizeof(State));
-	}
-
-	LOG("");
+	return ctx;
 }
 
 
-std::map<std::string, void (*)(Options &)> COMMAND_HANDLERS =
+export int redumper(Options &options)
 {
-	{"cd", redumper_cd},
-	{"sacd", redumper_cd},
-	{"dvd", redumper_cd},
-	{"bd", redumper_cd},
-	{"dump", redumper_dump},
-	{"refine", redumper_refine},
-	{"verify", redumper_verify},
-	{"dvdkey", redumper_dvdkey},
-	{"protection", redumper_protection},
-	{"split", redumper_split},
-	{"info", redumper_info},
-	{"subchannel", redumper_subchannel},
-	{"debug", redumper_debug}
-};
+	int exit_code = 0;
 
-
-export void redumper(Options &options)
-{
 	Signal::get();
 
-	normalize_options(options);
+	auto ctx = initialize(options);
 
-	Logger::get().setFile((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
+	LOG("{}", redumper_version());
+	LOG("");
+	LOG("command line: {}", options.command_line);
 
-	LOG("{}\n", redumper_version());
-	LOG("command line: {}\n", options.command_line);
-
-	for(auto const &p : options.commands)
+	if(ctx.sptd)
 	{
-		LOG("*** COMMAND: {}", p);
-
-		auto it = COMMAND_HANDLERS.find(p);
-		if(it == COMMAND_HANDLERS.end())
-		{
-			LOG("warning: unknown command, skipping ({})", p);
-			continue;
-		}
-
-		it->second(options);
+		LOG("");
+		LOG("drive path: {}", options.drive);
+		LOG("drive: {}", drive_info_string(ctx.drive_config));
+		LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
 	}
+
+	if(!options.image_name.empty())
+	{
+		LOG("");
+		LOG("image path: {}", options.image_path.empty() ? "." : options.image_path);
+		LOG("image name: {}", options.image_name);
+	}
+
+	std::chrono::seconds time_check = std::chrono::seconds::zero();
+	for(auto const &c : options.commands)
+	{
+		auto it = COMMAND_HANDLERS.find(c);
+		if(it == COMMAND_HANDLERS.end())
+			throw_line("unknown command (command: {})", c);
+
+		LOG("");
+		LOG("*** {}{}", str_uppercase(c), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+		LOG("");
+		
+		auto time_start = std::chrono::high_resolution_clock::now();
+		bool complete = it->second.second(ctx, options);
+		auto time_stop = std::chrono::high_resolution_clock::now();
+		time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
+	}
+	LOG("");
+	LOG("*** END{}", time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+
+	return exit_code;
 }
 
 }

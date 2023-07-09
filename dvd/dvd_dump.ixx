@@ -1,6 +1,5 @@
 module;
 #include <algorithm>
-#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -8,7 +7,7 @@ module;
 #include <set>
 #include "throw_line.hh"
 
-export module dump_dvd;
+export module dvd.dump;
 
 import cd.cdrom;
 import drive;
@@ -212,12 +211,12 @@ void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
 }
 
 
-export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
+export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 {
-	SPTD sptd(options.drive);
+	if(options.image_name.empty())
+		throw_line("image name is not provided");
 
-	auto drive_config = drive_init(sptd, DiscType::DVD, options);
-	auto image_prefix = image_init(options);
+	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path iso_path(image_prefix + ".iso");
 	std::filesystem::path state_path(image_prefix + ".state");
@@ -227,12 +226,12 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 
 	// BD: cdb.reserved1 = 1, dump PIC area
 
-	auto readable_formats = get_readable_formats(sptd);
+	auto readable_formats = get_readable_formats(*ctx.sptd);
 
 	if(readable_formats.find(READ_DVD_STRUCTURE_Format::PHYSICAL) == readable_formats.end())
 		throw_line("disc physical structure not found");
 
-	auto physical_structures = read_physical_structures(sptd);
+	auto physical_structures = read_physical_structures(*ctx.sptd);
 
 	uint32_t sectors_count = 0;
 	for(uint32_t i = 0; i < physical_structures.size(); ++i)
@@ -265,7 +264,7 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 			if(readable_formats.find(READ_DVD_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
 			{
 				std::vector<uint8_t> manufacturer;
-				cmd_read_dvd_structure(sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
+				cmd_read_dvd_structure(*ctx.sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
 				strip_response_header(manufacturer);
 
 				if(!manufacturer.empty())
@@ -278,7 +277,7 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 		if(readable_formats.find(READ_DVD_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
 		{
 			std::vector<uint8_t> copyright;
-			auto status = cmd_read_dvd_structure(sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
+			auto status = cmd_read_dvd_structure(*ctx.sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
 			if(!status.status_code)
 			{
 				strip_response_header(copyright);
@@ -291,7 +290,7 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 
 				if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
 				{
-					CSS css(sptd);
+					CSS css(*ctx.sptd);
 
 					// authenticate for reading
 					css.getDiscKey(cppm);
@@ -335,9 +334,6 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 
 	ROMEntry rom_entry(iso_path.filename().string());
 
-	LOG("operation started");
-	auto dump_time_start = std::chrono::high_resolution_clock::now();
-
 	bool interrupted = false;
 	Signal::get().engage();
 	int signal_dummy = 0;
@@ -370,7 +366,7 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 		if(read)
 		{
 			std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
-			auto status = cmd_read(sptd, drive_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+			auto status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
 
 			if(status.status_code)
 			{
@@ -476,11 +472,7 @@ export DumpStatus dump_dvd(const Options &options, DumpMode dump_mode)
 	{
 		progress_output(sectors_count, sectors_count, errors_scsi);
 		LOG("");
-		LOG("");
 	}
-
-	auto dump_time_stop = std::chrono::high_resolution_clock::now();
-	LOG("operation complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(dump_time_stop - dump_time_start).count());
 	LOG("");
 
 	LOG("media errors: ");

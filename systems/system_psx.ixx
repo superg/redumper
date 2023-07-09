@@ -12,11 +12,13 @@ export module systems.psx;
 import cd.cd;
 import cd.cdrom;
 import cd.subcode;
+import dump;
 import filesystem.image_browser;
 import filesystem.iso9660;
 import utils.endian;
 import utils.file_io;
 import utils.misc;
+import utils.strings;
 
 
 

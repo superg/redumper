@@ -21,35 +21,6 @@ import cd.cd;
 namespace gpsxre
 {
 
-export constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
-#if 1
-export constexpr int32_t LBA_START = -45150; //MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
-#else
-// easier debugging, LBA starts with 0, plextor lead-in and asus cache are disabled
-export constexpr int32_t LBA_START = 0;
-// GS2v3   13922 .. 17080-17090
-// GS2_1.1 12762 .. 17075
-// GS2_5.5 12859 .. 17130-17140
-// GS2_1.2 12739 .. 16930-16940
-// SC DISC  8546 .. 17100-17125
-// SC BOX  10547 .. 16940-16950
-// CB4 6407-7114 ..  9200- 9220
-// GS GCD   9162 .. 17000-17010  // F05 0004
-// XPLO FM  7770 .. 10700-10704
-//static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
-#endif
-
-
-export enum class State : uint8_t
-{
-	ERROR_SKIP, // must be first to support random offset file writes
-	ERROR_C2,
-	SUCCESS_C2_OFF,
-	SUCCESS_SCSI_OFF,
-	SUCCESS
-};
-
-
 export template <typename T, size_t N>
 constexpr size_t countof(T(&)[N])
 {
@@ -408,15 +379,6 @@ export std::vector<std::string> tokenize(const std::string &str, const char *del
 }
 
 
-export std::string str_uppercase(const std::string &str)
-{
-	std::string str_uc;
-	std::transform(str.begin(), str.end(), std::back_inserter(str_uc), [](unsigned char c) { return std::toupper(c); });
-
-	return str_uc;
-}
-
-
 export long long stoll_strict(const std::string &str)
 {
 	size_t idx = 0;
@@ -524,18 +486,6 @@ export bool stoll_try(long long &value, const std::string &str)
 	}
 
 	return success;
-}
-
-
-export int32_t sample_offset_a2r(uint32_t absolute)
-{
-	return absolute + (LBA_START * CD_DATA_SIZE_SAMPLES);
-}
-
-
-export uint32_t sample_offset_r2a(int32_t relative)
-{
-	return relative - (LBA_START * CD_DATA_SIZE_SAMPLES);
 }
 
 

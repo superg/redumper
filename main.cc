@@ -14,7 +14,7 @@ using namespace gpsxre;
 
 int main(int argc, char *argv[])
 {
-	int exit_code(0);
+	int exit_code = 0;
 
 	try
 	{
@@ -26,18 +26,18 @@ int main(int argc, char *argv[])
 			LOG("{}", redumper_version());
 		else
 		{
-			redumper(options);
+			exit_code = redumper(options);
 		}
 	}
 	catch(const std::exception &e)
 	{
 		LOG("error: {}", e.what());
-		exit_code = 1;
+		exit_code = -1;
 	}
 	catch(...)
 	{
 		LOG("error: unhandled exception");
-		exit_code = 2;
+		exit_code = -2;
 	}
 
 	return exit_code;

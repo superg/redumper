@@ -47,7 +47,7 @@ public:
 	SPTD(const std::string &drive_path)
 	{
 #ifdef _WIN32
-		_handle = CreateFile(std::format("//./{}", drive_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+		_handle = CreateFile(std::format("//./{}:", drive_path[0]).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
 		if(_handle == INVALID_HANDLE_VALUE)
 #else
 		_handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);

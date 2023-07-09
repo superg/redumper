@@ -159,15 +159,12 @@ std::map<std::pair<uint32_t, uint32_t>, std::vector<uint8_t>> create_vts_groups(
 	return vts;
 }
 
-export void dvd_key(const Options &options)
+
+export void dvd_key(Context &ctx, const Options &options)
 {
-	SPTD sptd(options.drive);
-
-	auto drive_config = drive_init(sptd, DiscType::DVD, options);
-
 	// protection
 	std::vector<uint8_t> copyright;
-	auto status = cmd_read_dvd_structure(sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
+	auto status = cmd_read_dvd_structure(*ctx.sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
 	if(!status.status_code)
 	{
 		strip_response_header(copyright);
@@ -189,12 +186,12 @@ export void dvd_key(const Options &options)
 
 		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
 		{
-			CDForm1Reader reader(sptd, 0);
+			CDForm1Reader reader(*ctx.sptd, 0);
 			auto vobs = extract_vob_list(reader);
 			
 			bool cppm = false;
 
-			CSS css(sptd);
+			CSS css(*ctx.sptd);
 
 			auto disc_key = css.getDiscKey(cppm);
 			if(!disc_key.empty())
@@ -243,7 +240,6 @@ export void dvd_key(const Options &options)
 					LOG("    {}: {}", t.first, title_key);
 				}
 			}
-			LOG("");
 		}
 		else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
 		{

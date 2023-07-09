@@ -2,6 +2,7 @@ module;
 
 #include <algorithm>
 #include <cctype>
+#include <iterator>
 #include <string>
 
 export module utils.strings;
@@ -83,6 +84,18 @@ export bool ends_with(const std::string &s, const std::string &suffix)
         return false;
 
     return std::equal(suffix.rbegin(), suffix.rend(), s.rbegin());
+}
+
+
+export std::string str_uppercase(const std::string &s)
+{
+    std::string str_uc;
+    std::transform(s.begin(), s.end(), std::back_inserter(str_uc), [](unsigned char c)
+    {
+        return std::toupper(c);
+    });
+
+    return str_uc;
 }
 
 }

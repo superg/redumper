@@ -17,6 +17,7 @@ import cd.scrambler;
 import filesystem.iso9660;
 import utils.endian;
 import utils.misc;
+import utils.strings;
 
 
 

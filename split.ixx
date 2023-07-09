@@ -141,9 +141,6 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 	std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
-	LOG("checking tracks");
-
-	auto time_start = std::chrono::high_resolution_clock::now();
 	for(auto const &se : toc.sessions)
 	{
 		for(auto const &t : se.tracks)
@@ -153,8 +150,6 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 				continue;
 
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
-
-			LOG_F("track {}... ", toc.getTrackString(t.track_number));
 
 			uint32_t skip_samples = 0;
 			uint32_t c2_samples = 0;
@@ -195,17 +190,11 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 			if(skip_sectors && !optional_track(t.track_number) || c2_sectors)
 			{
-				LOG("failed, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", skip_sectors, c2_sectors, skip_samples, c2_samples);
+				LOG("errors detected, track: {}, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", toc.getTrackString(t.track_number), skip_sectors, c2_sectors, skip_samples, c2_samples);
 				no_errors = false;
 			}
-			else
-				LOG("passed");
 		}
 	}
-	auto time_stop = std::chrono::high_resolution_clock::now();
-
-	LOG("check complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
-	LOG("");
 
 	return no_errors;
 }
@@ -223,10 +212,7 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 	// discs with offset shift usually have some corruption in a couple of transitional sectors preventing normal descramble detection,
 	// as everything is scrambled in this case, force descrambling
 	bool force_descramble = offset_manager->isVariable();
-
-	LOG("splitting tracks");
-
-	auto time_start = std::chrono::high_resolution_clock::now();
+	
 	for(auto &s : toc.sessions)
 	{
 		for(auto &t : s.tracks)
@@ -246,7 +232,6 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 				track_string = std::format("{}.{}", track_string, s.session_number);
 
 			std::string track_name = std::format("{}{}.bin", options.image_name, toc.getTracksCount() > 1 || lilo ? std::format(" (Track {})", track_string) : "");
-			LOG("writing \"{}\"", track_name);
 
 			if(std::filesystem::exists(std::filesystem::path(options.image_path) / track_name) && !options.overwrite)
 				throw_line("file already exists ({})", track_name);
@@ -348,10 +333,6 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 			xml_lines.emplace_back(rom_entry.xmlLine());
 		}
 	}
-	auto time_stop = std::chrono::high_resolution_clock::now();
-
-	LOG("split complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start).count());
-	LOG("");
 
 	return xml_lines;
 }
@@ -872,7 +853,10 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 
 export void redumper_protection_cd(Options &options)
 {
-	auto image_prefix = image_init(options);
+	if(options.image_name.empty())
+		throw_line("image name is not provided");
+
+	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
 	std::filesystem::path scp_path(image_prefix + ".scrap");
@@ -927,10 +911,6 @@ export void redumper_protection_cd(Options &options)
 		throw_line("unable to open file ({})", state_path.filename().string());
 
 	std::string protection("N/A");
-
-	LOG("scan started");
-
-	auto scan_time_start = std::chrono::high_resolution_clock::now();
 
 	// PS2 Datel DATA.DAT / BIG.DAT
 	// only one track
@@ -1031,16 +1011,15 @@ export void redumper_protection_cd(Options &options)
 	}
 
 	LOG("protection: {}", protection);
-
-	auto scan_time_stop = std::chrono::high_resolution_clock::now();
-	LOG("scan complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(scan_time_stop - scan_time_start).count());
-	LOG("");
 }
 
 
 export void redumper_split_cd(const Options &options)
 {
-	auto image_prefix = image_init(options);
+	if(options.image_name.empty())
+		throw_line("image name is not provided");
+
+	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	std::filesystem::path scm_path(image_prefix + ".scram");
 	std::filesystem::path scp_path(image_prefix + ".scrap");
@@ -1159,11 +1138,11 @@ export void redumper_split_cd(const Options &options)
 	auto sync_analyzer = std::make_shared<SyncAnalyzer>(scrap);
 	analyzers.emplace_back(sync_analyzer);
 
-	LOG("analysis started");
+	LOG_F("analyzing... ");
 	auto analysis_time_start = std::chrono::high_resolution_clock::now();
 	analyze_scram_samples(scm_fs, state_fs, std::filesystem::file_size(scra_path), CD_DATA_SIZE_SAMPLES, analyzers);
 	auto analysis_time_stop = std::chrono::high_resolution_clock::now();
-	LOG("analysis complete (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(analysis_time_stop - analysis_time_start).count());
+	LOG("done (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(analysis_time_stop - analysis_time_start).count());
 	LOG("");
 
 	auto silence_ranges = silence_analyzer->ranges();
@@ -1511,15 +1490,20 @@ export void redumper_split_cd(const Options &options)
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
 
 	// check tracks
+	LOG("checking tracks");
 	if(!check_tracks(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options) && !options.force_split)
 		throw_line("data errors detected, unable to continue");
+	LOG("done");
+	LOG("");
 
 	// write tracks
+	LOG("writing tracks");
 	auto xml_lines = write_tracks(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
+	LOG("done");
+	LOG("");
 
 	// write CUE-sheet
 	std::vector<std::string> cue_sheets;
-	LOG("writing CUE-sheet");
 	if(toc.cd_text_lang.size() > 1)
 	{
 		cue_sheets.resize(toc.cd_text_lang.size());

@@ -3,20 +3,33 @@ module;
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <list>
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 #include "throw_line.hh"
 
 export module redumper;
 
+import cd.cd;
+import cd.dump;
+import cd.scrambler;
+import cd.split;
+import cd.subcode;
+import cd.toc;
 import commands;
+import drive;
 import dump;
+import dvd.dump;
+import dvd.key;
+import info;
 import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
+import utils.file_io;
 import utils.logger;
 import utils.misc;
 import utils.signal;

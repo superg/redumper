@@ -87,7 +87,7 @@ void iso_info(const std::filesystem::path &track_path)
 			if(!volume_identifier.empty())
 				LOG("  volume identifier: {}", volume_identifier);
 			LOG("  PVD:");
-			LOG("{}", hexdump((uint8_t *)pvd, 0x320, 96));
+			LOG_F("{}", hexdump((uint8_t *)pvd, 0x320, 96));
 
 			pvd_found = true;
 			break;

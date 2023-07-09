@@ -125,6 +125,21 @@ static const std::string TRACK_DENSITY[] =
 };
 
 
+uint32_t get_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor)
+{
+	int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
+	int32_t lba_last = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
+	int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
+
+	// for opposite layout the initial length is a difference between two layers (negative value)
+	int32_t length = lba_last + 1 - lba_first;
+	if(layer_descriptor.track_path)
+		length += 2 * (layer0_last + 1);
+
+	return length;
+}
+
+
 void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor, uint32_t layer)
 {
 	std::string types;
@@ -145,7 +160,7 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 	int32_t lba_last = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
 	int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
 
-	uint32_t length = layer_descriptor.track_path ? (layer0_last + 1 - lba_first) + (layer0_last + 1 + lba_last + 1) : lba_last + 1 - lba_first;
+	uint32_t length = get_layer_length(layer_descriptor);
 
 	LOG("{}data {{ LBA: [{} .. {}], length: {}, hLBA: [0x{:08X} .. 0x{:08X}] }}", indent, lba_first, lba_last, length, lba_first, lba_last);
 	if(layer0_last)
@@ -233,6 +248,7 @@ export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_m
 
 	auto physical_structures = read_physical_structures(*ctx.sptd);
 
+	uint32_t layer_break = 0;
 	uint32_t sectors_count = 0;
 	for(uint32_t i = 0; i < physical_structures.size(); ++i)
 	{
@@ -241,11 +257,21 @@ export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_m
 
 		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
 
-		int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
-		int32_t lba_last = sign_extend<24>(endian_swap(layer_descriptor->data_end_sector));
-		int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
+		uint32_t length = get_layer_length(*layer_descriptor);
 
-		sectors_count += layer_descriptor->track_path ? (layer0_last + 1 - lba_first) + (layer0_last + 1 + lba_last + 1) : lba_last + 1 - lba_first;
+		// opposite
+		if(layer_descriptor->track_path)
+		{
+			int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
+			int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
+
+			layer_break = layer0_last + 1 - lba_first;
+		}
+		// parallel
+		else if(!i && physical_structures.size() > 1)
+			layer_break = length;
+
+		sectors_count += length;
 	}
 
 	if(!sectors_count)
@@ -271,6 +297,12 @@ export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_m
 			}
 		}
 		LOG("");
+
+		if(layer_break)
+		{
+			LOG("layer break: {}", layer_break);
+			LOG("");
+		}
 
 		// authenticate CSS
 		if(readable_formats.find(READ_DVD_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())

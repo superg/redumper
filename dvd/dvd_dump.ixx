@@ -253,7 +253,6 @@ export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_m
 
 	if(dump_mode == DumpMode::DUMP)
 	{
-		LOG("");
 		LOG("disc structure:");
 		for(uint32_t i = 0; i < physical_structures.size(); ++i)
 		{

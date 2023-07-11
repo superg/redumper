@@ -2,6 +2,7 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <string>
 #include <vector>

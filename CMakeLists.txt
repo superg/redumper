@@ -146,6 +146,7 @@ target_sources(redumper
 	"readers/block_reader.ixx"
 	"readers/cd_form1_reader.ixx"
 	"readers/form1_reader.ixx"
+	"readers/iso_form1_reader.ixx"
 	"scsi/cmd.ixx"
 	"scsi/mmc.ixx"
 	"scsi/sptd.ixx"

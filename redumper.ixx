@@ -51,9 +51,11 @@ const std::map<std::string, std::pair<bool, bool (*)(Context &, Options &)>> COM
 	{ "refine"    , { true ,   redumper_refine     }},
 	{ "verify"    , { true ,   redumper_verify     }},
 	{ "dvdkey"    , { true ,   redumper_dvdkey     }},
+	{ "dvdisokey" , { false,   redumper_dvdisokey  }},
 	{ "protection", { false,   redumper_protection }},
 	{ "split"     , { false,   redumper_split      }},
 	{ "info"      , { false,   redumper_info       }},
+
 	{ "subchannel", { false,   redumper_subchannel }},
 	{ "debug"     , { false,   redumper_debug      }}
 };

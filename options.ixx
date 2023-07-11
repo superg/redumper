@@ -249,10 +249,13 @@ export struct Options
 		LOG("");
 
 		LOG("COMMANDS:");
-		LOG("\tcd        \taggregate mode {{dump => protection => refine => split => info}} (default)");
+		LOG("\t<empty>   \tor cd/sacd/dvd/bd, aggregate mode that does everything (default)");
 		LOG("\tdump      \tdumps disc to primary dump files");
-		LOG("\tprotection\tscans dump files for protections");
 		LOG("\trefine    \trefines dump files by re-reading the disc");
+		LOG("\tverify    \tverifies dump files from the disc and marks any mismatch in state for the subsequent refine");
+		LOG("\tdvdkey    \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
+		LOG("\tdvdisokey \tcracks DVD CSS keys directly from iso dump, no drive required");
+		LOG("\tprotection\tscans dump files for protections");
 		LOG("\tsplit     \tgenerates BIN/CUE track split from dump files");
 		LOG("\tinfo      \toutputs basic information from BIN/CUE track split");
 		LOG("");

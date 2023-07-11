@@ -70,7 +70,7 @@ export bool redumper_verify(Context &ctx, Options &options)
 export bool redumper_dvdkey(Context &ctx, Options &options)
 {
 	bool complete = false;
-	
+
 	if(ctx.disc_type == DiscType::DVD)
 	{
 		dvd_key(ctx, options);
@@ -79,6 +79,15 @@ export bool redumper_dvdkey(Context &ctx, Options &options)
 
 	return complete;
 }
+
+
+export bool redumper_dvdisokey(Context &ctx, Options &options)
+{
+	dvd_isokey(ctx, options);
+
+	return true;
+}
+
 
 export bool redumper_protection(Context &ctx, Options &options)
 {

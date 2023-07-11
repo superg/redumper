@@ -105,11 +105,6 @@ public:
 				encrypted = true;
 
 				title_key = attackPattern(data.data());
-
-				//TODO: evaluate if this attack is useful for small vobs
-//				if(title_key.empty())
-//					title_key = attackPadding(data.data());
-
 				if(!title_key.empty())
 					break;
 			}

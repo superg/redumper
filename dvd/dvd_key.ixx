@@ -1,6 +1,7 @@
 module;
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@ import filesystem.iso9660;
 import options;
 import readers.form1_reader;
 import readers.cd_form1_reader;
+import readers.iso_form1_reader;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -212,7 +214,7 @@ export void dvd_key(Context &ctx, const Options &options)
 				// crack remaining title keys (region lock)
 				for(auto &v : vts)
 					if(v.second.empty())
-						v.second = css.crackTitleKey(v.first.first, v.first.second, reader);
+						v.second = CSS::crackTitleKey(v.first.first, v.first.second, reader);
 
 				// assign keys from VTS groups to individual files
 				std::map<std::string, std::vector<uint8_t>> title_keys;
@@ -244,6 +246,53 @@ export void dvd_key(Context &ctx, const Options &options)
 		else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
 		{
 			LOG("warning: CPRM protection is unsupported");
+		}
+	}
+}
+
+
+export void dvd_isokey(Context &ctx, const Options &options)
+{
+	if(options.image_name.empty())
+		throw_line("image name is not provided");
+
+	std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
+
+	ISOForm1Reader reader(scm_path);
+	auto vobs = extract_vob_list(reader);
+	if(!vobs.empty())
+	{
+		// determine continuous VTS groups
+		auto vts = create_vts_groups(vobs);
+
+		// crack title keys
+		for(auto &v : vts)
+			v.second = CSS::crackTitleKey(v.first.first, v.first.second, reader);
+
+		// assign keys from VTS groups to individual files
+		std::map<std::string, std::vector<uint8_t>> title_keys;
+		for(auto const &v : vobs)
+		{
+			for(auto const &vv : vts)
+				if(v.second.first >= vv.first.first && v.second.second <= vv.first.second)
+				{
+					title_keys[v.first] = vv.second;
+					break;
+				}
+		}
+
+		LOG("title keys:");
+		for(auto const &t : title_keys)
+		{
+			std::string title_key;
+			if(t.second.empty())
+				title_key = "<error>";
+			else if(is_zeroed(t.second.data(), t.second.size()))
+				title_key = "<none>";
+			else
+				title_key = std::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.second[0], t.second[1], t.second[2], t.second[3], t.second[4]);
+
+			LOG("  {}: {}", t.first, title_key);
 		}
 	}
 }

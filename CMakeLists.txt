@@ -106,6 +106,7 @@ set(sources
 	"main.cc"
 	"driveoffsets.txt"
 	"utils/throw_line.hh"
+	"redumper.manifest"
 	${DRIVEOFFSETS_FN}
 )
 
@@ -175,7 +176,6 @@ target_sources(redumper
 	"rom_entry.ixx"
 	"split.ixx"
     "version.ixx"
-	"redumper.manifest"
 )
 target_include_directories(redumper PUBLIC ${includes})
 

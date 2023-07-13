@@ -9,10 +9,11 @@ module;
 #include <string>
 #include "throw_line.hh"
 
-#ifdef _WIN32
+#if defined(_WIN32)
 #include <windows.h>
 #include <ntddscsi.h>
 #include <scsi.h>
+#elif defined(__APPLE__)
 #else
 #include <errno.h>
 #include <fcntl.h>
@@ -46,9 +47,11 @@ public:
 
 	SPTD(const std::string &drive_path)
 	{
-#ifdef _WIN32
+#if defined(_WIN32)
 		_handle = CreateFile(std::format("//./{}:", drive_path[0]).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
 		if(_handle == INVALID_HANDLE_VALUE)
+#elif defined(__APPLE__)
+		if(0)
 #else
 		_handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
 		if(_handle < 0)
@@ -60,8 +63,10 @@ public:
 	~SPTD()
 	{
 		bool success;
-#ifdef _WIN32
+#if defined(_WIN32)
 		success = CloseHandle(_handle) == TRUE;
+#elif defined(__APPLE__)
+		success = false;
 #else
 		success = close(_handle) == 0;
 #endif
@@ -74,7 +79,7 @@ public:
 	{
 		Status status = {};
 
-#ifdef _WIN32
+#if defined(_WIN32)
 		//FIXME: simplify and reuse common SenseData
 		SPTD_SD sptd_sd = {};
 		sptd_sd.sptd.Length = sizeof(sptd_sd.sptd);
@@ -99,6 +104,8 @@ public:
 			status.asc = sptd_sd.sd.AdditionalSenseCode;
 			status.ascq = sptd_sd.sd.AdditionalSenseCodeQualifier;
 		}
+#elif defined(__APPLE__)
+		status.status_code = 1;
 #else
 		SenseData sense_data;
 
@@ -134,7 +141,7 @@ public:
 	{
 		std::set<std::string> drives;
 
-#ifdef _WIN32
+#if defined(_WIN32)
 		DWORD drive_mask = GetLogicalDrives();
 		if(!drive_mask)
 			throw_line("SYSTEM ({})", getLastError());
@@ -149,6 +156,8 @@ public:
 				;
 			}
 		}
+#elif defined(__APPLE__)
+		;
 #else
 		// detect available drives using sysfs
 		// according to sysfs kernel rules, it's planned to merge all 3 classification directories
@@ -244,7 +253,7 @@ private:
 	static const std::map<uint8_t, std::string> _SCSI_SENSE_STRINGS;
 	static const std::map<uint8_t, std::string> _SCSI_ADSENSE_STRINGS;
 
-#ifdef _WIN32
+#if defined(_WIN32)
 	struct SPTD_SD
 	{
 		SCSI_PASS_THROUGH_DIRECT sptd;
@@ -252,6 +261,8 @@ private:
 	};
 
 	HANDLE _handle;
+#elif defined(__APPLE__)
+	;
 #else
 	int _handle;
 #endif
@@ -260,7 +271,7 @@ private:
 	{
 		std::string message;
 
-#ifdef _WIN32
+#if defined(_WIN32)
 		LPSTR buffer = nullptr;
 			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
 					nullptr, ::GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buffer, 0, nullptr);
@@ -270,6 +281,8 @@ private:
 		message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
 
 		LocalFree(buffer);
+#elif defined(__APPLE__)
+		;
 #else
 		message = strerror(errno);
 #endif

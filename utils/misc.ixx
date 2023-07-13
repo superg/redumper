@@ -499,7 +499,7 @@ T digits_count(T value)
 export template<unsigned int bits, class T>
 T sign_extend(T value)
 {
-	T m = 1 << bits - 1;
+	T m = 1 << (bits - 1);
 	return (value ^ m) - m;
 }
 

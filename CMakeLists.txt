@@ -56,15 +56,25 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	if(REDUMPER_TARGET_LINUX)
+		# build complete static executable for linux
+		set(extra_link_options "-static")
+	elseif(REDUMPER_TARGET_MACOSX)
+		# use experimental-library from brew llvm@16
+		set(extra_link_options "-L/usr/local/opt/llvm/lib/c++")
+	endif()
+
 	# -fexperimental-library is required for clang-16 as std::format is defined there
 	add_compile_options(-stdlib=libc++ -fexperimental-library)
-	add_link_options(-stdlib=libc++ -static -fexperimental-library)
+	add_link_options(-stdlib=libc++ ${extra_link_options} -fexperimental-library)
 
 	# silence implicit modules use warning
 	# TL;DR, this will be taken cared of by listing module dependencies explicitly (cmake)
 	# more information:
 	# https://github.com/llvm/llvm-project/issues/62707
-	add_compile_options(-Wno-read-modules-implicitly)
+	if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 17)
+		add_compile_options(-Wno-read-modules-implicitly)
+	endif()
 endif()
 if(MSVC)
 	# disable modules inlining
@@ -132,7 +142,7 @@ target_sources(redumper
 	"cd/edc.ixx"
 	"cd/scrambler.ixx"
 	"cd/subcode.ixx"
-    "cd/toc.ixx"
+	"cd/toc.ixx"
 	"crc/crc.ixx"
 	"crc/crc16_gsm.ixx"
 	"crc/crc32.ixx"
@@ -175,7 +185,7 @@ target_sources(redumper
 	"redumper.ixx"
 	"rom_entry.ixx"
 	"split.ixx"
-    "version.ixx"
+	"version.ixx"
 )
 target_include_directories(redumper PUBLIC ${includes})
 

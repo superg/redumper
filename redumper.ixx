@@ -61,20 +61,20 @@ const std::map<std::string, std::pair<bool, bool (*)(Context &, Options &)>> COM
 };
 
 
-std::string first_ready_drive()
+std::shared_ptr<SPTD> first_ready_drive(std::string &drive)
 {
-	std::string drive;
+	std::shared_ptr<SPTD> sptd;
 
-	auto drives = SPTD::listDrives();
-	for(const auto &d : drives)
+	for(const auto &d : SPTD::listDrives())
 	{
 		try
 		{
-			SPTD sptd(d);
+			auto s = std::make_shared<SPTD>(d);
 
-			auto status = cmd_drive_ready(sptd);
+			auto status = cmd_drive_ready(*s);
 			if(!status.status_code)
 			{
+				sptd = s;
 				drive = d;
 				break;
 			}
@@ -86,23 +86,16 @@ std::string first_ready_drive()
 		}
 	}
 
-	return drive;
+	return sptd;
 }
 
 
-DiscType query_disc_type(std::string drive)
+DiscType query_disc_type(Context &ctx)
 {
 	auto disc_type = DiscType::NONE;
 
-	SPTD sptd(drive);
-
-	// test unit ready
-	SPTD::Status status = cmd_drive_ready(sptd);
-	if(status.status_code)
-		throw_line("drive not ready, SCSI ({})", SPTD::StatusMessage(status));
-
 	GET_CONFIGURATION_FeatureCode_ProfileList current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
-	status = cmd_get_configuration_current_profile(sptd, current_profile);
+	auto status = cmd_get_configuration_current_profile(*ctx.sptd, current_profile);
 	if(status.status_code)
 		throw_line("failed to query disc type, SCSI ({})", SPTD::StatusMessage(status));
 
@@ -200,13 +193,21 @@ Context initialize(Options &options)
 	{
 		// autoselect drive
 		if(options.drive.empty())
-			options.drive = first_ready_drive();
+			ctx.sptd = first_ready_drive(options.drive);
+		else
+		{
+			ctx.sptd = std::make_shared<SPTD>(options.drive);
+
+			// test unit ready
+			SPTD::Status status = cmd_drive_ready(*ctx.sptd);
+			if(status.status_code)
+				throw_line("drive not ready, SCSI ({})", SPTD::StatusMessage(status));
+		}
+
 		if(options.drive.empty())
 			throw_line("no ready drives detected on the system");
 
-		ctx.disc_type = query_disc_type(options.drive);
-
-		ctx.sptd = std::make_unique<SPTD>(options.drive);
+		ctx.disc_type = query_disc_type(ctx);
 
 		// set drive speed
 		float speed_modifier = 153.6;

@@ -35,7 +35,7 @@ export enum class DiscType
 export struct Context
 {
 	DiscType disc_type;
-	std::unique_ptr<SPTD> sptd;
+	std::shared_ptr<SPTD> sptd;
 	DriveConfig drive_config;
 
 	struct Dump

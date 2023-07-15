@@ -13,10 +13,13 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [windows-2022, ubuntu-22.04]
+        os: [windows-2022, ubuntu-22.04, macos-12]
         platform: [32, 64]
         exclude:
           - os: ubuntu-22.04
+            platform: 32
+
+          - os: macos-12
             platform: 32
 
     runs-on: ${{matrix.os}}
@@ -34,6 +37,13 @@ jobs:
         wget http://mirrors.kernel.org/ubuntu/pool/universe/n/ninja-build/ninja-build_1.11.1-1_amd64.deb
         sudo dpkg -i ninja-build_1.11.1-1_amd64.deb
         sudo snap install cmake --classic
+
+    - name: Customize Software (macOS)
+      if: ${{ matrix.os == 'macos-12' }}
+      run: |
+        brew install llvm@16
+        brew install ninja
+        brew install cmake
 
     - name: Checkout
       uses: actions/checkout@v3
@@ -53,6 +63,12 @@ jobs:
       env:
         CXX: clang++-17
       run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+
+    - name: CMake Configure (macos64)
+      if: ${{ matrix.os == 'macos-12' }}
+      env:
+        CXX: /usr/local/Cellar/llvm/16.0.6/bin/clang++
+      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}}

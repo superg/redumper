@@ -205,7 +205,7 @@ Context initialize(Options &options)
 			throw_line("no ready drives detected on the system");
 
 		ctx.disc_type = query_disc_type(options.drive);
-		
+
 		ctx.sptd = std::make_unique<SPTD>(options.drive);
 
 		// set drive speed
@@ -290,7 +290,7 @@ export int redumper(Options &options)
 		LOG("");
 		LOG("*** {}{}", str_uppercase(c), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
 		LOG("");
-		
+
 		auto time_start = std::chrono::high_resolution_clock::now();
 		bool complete = it->second.second(ctx, options);
 		auto time_stop = std::chrono::high_resolution_clock::now();

@@ -189,6 +189,12 @@ target_sources(redumper
 )
 target_include_directories(redumper PUBLIC ${includes})
 
+if(REDUMPER_TARGET_MACOSX)
+	find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
+	find_library(IO_KIT IOKit REQUIRED)
+	target_link_libraries(redumper ${CORE_FOUNDATION} ${IO_KIT})
+endif()
+
 install(TARGETS redumper DESTINATION "bin")
 
 # Windows 7 requires administrative access in order to access the disc drive

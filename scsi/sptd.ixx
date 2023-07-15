@@ -7,6 +7,7 @@ module;
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 #include "throw_line.hh"
 
 #if defined(_WIN32)
@@ -14,6 +15,9 @@ module;
 #include <ntddscsi.h>
 #include <scsi.h>
 #elif defined(__APPLE__)
+#include <mach/mach_error.h>
+#include <IOKit/scsi/SCSITaskLib.h>
+#include <IOKit/IOBSD.h>
 #else
 #include <errno.h>
 #include <fcntl.h>
@@ -50,28 +54,98 @@ public:
 #if defined(_WIN32)
 		_handle = CreateFile(std::format("//./{}:", drive_path[0]).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
 		if(_handle == INVALID_HANDLE_VALUE)
+			throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
 #elif defined(__APPLE__)
-		if(0)
+		// returns IOCDMedia class, but we want IODVDServices, figure out how to specify filter on class and on device name
+//		auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, drive_path.c_str()), &iterator);
+
+		CFMutableDictionaryRef authoring_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
+		if(authoring_dictionary == nullptr)
+			throw_line("failed to create authoring dictionary");
+		CFDictionarySetValue(authoring_dictionary, CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
+
+		CFMutableDictionaryRef matching_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
+		if(matching_dictionary == nullptr)
+			throw_line("failed to create matching dictionary");
+		CFDictionarySetValue(matching_dictionary, CFSTR(kIOPropertyMatchKey), authoring_dictionary);
+
+		io_iterator_t iterator = 0;
+		auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary, &iterator);
+		if(kret != KERN_SUCCESS)
+			throw_line("failed to get matching services, MACH ({})", mach_error_string(kret));
+
+		if(iterator)
+		{
+			for(io_service_t service = IOIteratorNext(iterator); service; service = IOIteratorNext(iterator))
+			{
+				auto bsd_name = (CFStringRef)IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively);
+				if(bsd_name != nullptr && CFStringToString(bsd_name) == drive_path)
+				{
+					_service = service;
+
+					kern_return_t kret;
+
+					SInt32 score;
+					kret = IOCreatePlugInInterfaceForService(service, kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &_plugInInterface, &score);
+					if(kret != KERN_SUCCESS)
+						throw_line("failed to create service plugin interface, MACH ({})", mach_error_string(kret));
+
+					HRESULT herr = (*_plugInInterface)->QueryInterface(_plugInInterface, CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface);
+					if(herr != S_OK)
+						throw_line("failed to get MMC interface (error: {})", herr);
+
+					_scsiTaskDeviceInterface = (*_mmcDeviceInterface)->GetSCSITaskDeviceInterface(_mmcDeviceInterface);
+					if(_scsiTaskDeviceInterface == nullptr)
+						throw_line("failed to get SCSI task device interface");
+
+					kret = (*_scsiTaskDeviceInterface)->ObtainExclusiveAccess(_scsiTaskDeviceInterface);
+					if(kret != KERN_SUCCESS)
+						throw_line("failed to obtain exclusive access, MACH ({})", mach_error_string(kret));
+
+					break;
+				}
+				kret = IOObjectRelease(service);
+				if(kret != KERN_SUCCESS)
+					throw_line("failed to release service, MACH ({})", mach_error_string(kret));
+			}
+
+			IOObjectRelease(iterator);
+			if(kret != KERN_SUCCESS)
+				throw_line("failed to release iterator, MACH ({})", mach_error_string(kret));
+		}
+
 #else
 		_handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
 		if(_handle < 0)
-#endif
 			throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
+#endif
 	}
 
 
 	~SPTD()
 	{
-		bool success;
 #if defined(_WIN32)
-		success = CloseHandle(_handle) == TRUE;
-#elif defined(__APPLE__)
-		success = false;
-#else
-		success = close(_handle) == 0;
-#endif
-		if(!success)
+		if(CloseHandle(_handle) != TRUE)
 			LOG("warning: unable to close drive (SYSTEM: {})", getLastError());
+#elif defined(__APPLE__)
+		kern_return_t kret;
+
+		(*_scsiTaskDeviceInterface)->ReleaseExclusiveAccess(_scsiTaskDeviceInterface);
+
+		(*_scsiTaskDeviceInterface)->Release(_scsiTaskDeviceInterface);
+		(*_mmcDeviceInterface)->Release(_mmcDeviceInterface);
+
+		kret = IODestroyPlugInInterface(_plugInInterface);
+		if(kret != KERN_SUCCESS)
+			LOG("warning: failed to destroy service plugin interface, MACH ({})", mach_error_string(kret));
+
+		kret = IOObjectRelease(_service);
+		if(kret != KERN_SUCCESS)
+			LOG("warning: failed to release service, MACH ({})", mach_error_string(kret));
+#else
+		if(close(_handle));
+			LOG("warning: unable to close drive (SYSTEM: {})", getLastError());
+#endif
 	}
 
 
@@ -91,7 +165,7 @@ public:
 		sptd_sd.sptd.DataBuffer = buffer;
 		sptd_sd.sptd.SenseInfoOffset = offsetof(SPTD_SD, sd);
 		memcpy(sptd_sd.sptd.Cdb, cdb, cdb_length);
-		
+
 		DWORD bytes_returned;
 		BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
 		if(success != TRUE)
@@ -105,7 +179,47 @@ public:
 			status.ascq = sptd_sd.sd.AdditionalSenseCodeQualifier;
 		}
 #elif defined(__APPLE__)
-		status.status_code = 1;
+		SCSITaskInterface **task = (*_scsiTaskDeviceInterface)->CreateSCSITask(_scsiTaskDeviceInterface);
+		if(task != nullptr)
+		{
+			kern_return_t kret;
+
+			kret = (*task)->SetCommandDescriptorBlock(task, (UInt8 *)cdb, cdb_length);
+			if(kret != KERN_SUCCESS)
+				throw_line("failed to set CDB, MACH ({})", mach_error_string(kret));
+
+			auto range = std::make_unique<IOVirtualRange>();
+			if(buffer_length)
+			{
+				range->address = (IOVirtualAddress)buffer;
+				range->length = buffer_length;
+
+				kret = (*task)->SetScatterGatherEntries(task, range.get(), 1, buffer_length, out ? kSCSIDataTransfer_FromInitiatorToTarget : kSCSIDataTransfer_FromTargetToInitiator);
+				if(kret != KERN_SUCCESS)
+					throw_line("failed to set scatter gather entries, MACH ({})", mach_error_string(kret));
+			}
+
+			kret = (*task)->SetTimeoutDuration(task, timeout);
+			if(kret != KERN_SUCCESS)
+				throw_line("failed to set timeout duration, MACH ({})", mach_error_string(kret));
+
+			UInt64 transferCount = 0;
+			SCSITaskStatus taskStatus;
+			SCSI_Sense_Data senseData = {};
+			kret = (*task)->ExecuteTaskSync(task, &senseData, &taskStatus, &transferCount);
+			if(kret != KERN_SUCCESS)
+				throw_line("failed to execute task, MACH ({})", mach_error_string(kret));
+
+			if(taskStatus != kSCSITaskStatus_GOOD)
+			{
+				status.status_code = taskStatus;
+				status.sense_key = senseData.SENSE_KEY & 0x0F;
+				status.asc = senseData.ADDITIONAL_SENSE_CODE;
+				status.ascq = senseData.ADDITIONAL_SENSE_CODE_QUALIFIER;
+			}
+
+			(*task)->Release(task);
+		}
 #else
 		SenseData sense_data;
 
@@ -157,7 +271,38 @@ public:
 			}
 		}
 #elif defined(__APPLE__)
-		;
+		//TODO: RAII
+		CFMutableDictionaryRef authoring_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
+		if(authoring_dictionary == nullptr)
+			throw_line("failed to create authoring dictionary");
+		CFDictionarySetValue(authoring_dictionary, CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
+
+		CFMutableDictionaryRef matching_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
+		if(matching_dictionary == nullptr)
+			throw_line("failed to create matching dictionary");
+		CFDictionarySetValue(matching_dictionary, CFSTR(kIOPropertyMatchKey), authoring_dictionary);
+
+		io_iterator_t iterator = 0;
+		auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary, &iterator);
+		if(kret != KERN_SUCCESS)
+			throw_line("failed to get matching services, MACH ({})", mach_error_string(kret));
+
+		if(iterator)
+		{
+			for(io_service_t service = IOIteratorNext(iterator); service; service = IOIteratorNext(iterator))
+			{
+				auto bsd_name = (CFStringRef)IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively);
+				drives.emplace(CFStringToString(bsd_name));
+
+				kret = IOObjectRelease(service);
+				if(kret != KERN_SUCCESS)
+					throw_line("failed to release service, MACH ({})", mach_error_string(kret));
+			}
+
+			IOObjectRelease(iterator);
+			if(kret != KERN_SUCCESS)
+				throw_line("failed to release iterator, MACH ({})", mach_error_string(kret));
+		}
 #else
 		// detect available drives using sysfs
 		// according to sysfs kernel rules, it's planned to merge all 3 classification directories
@@ -262,7 +407,13 @@ private:
 
 	HANDLE _handle;
 #elif defined(__APPLE__)
-	;
+	//TODO: RAII
+	io_service_t _service;
+	IOCFPlugInInterface **_plugInInterface;
+	MMCDeviceInterface **_mmcDeviceInterface;
+	SCSITaskDeviceInterface **_scsiTaskDeviceInterface;
+
+	SCSITaskInterface **_handle;
 #else
 	int _handle;
 #endif
@@ -289,6 +440,21 @@ private:
 
 		return message;
 	}
+
+
+#if defined(__APPLE__)
+	static std::string CFStringToString(CFStringRef cf_string)
+	{
+		std::string s;
+
+		CFIndex size = CFStringGetMaximumSizeForEncoding(CFStringGetLength(cf_string), kCFStringEncodingUTF8) + 1;
+		std::vector<char> buffer(size, '\0');
+		if(CFStringGetCString(cf_string, buffer.data(), size, kCFStringEncodingUTF8))
+			s = std::string(buffer.data());
+
+		return s;
+	}
+#endif
 };
 
 

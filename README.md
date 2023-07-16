@@ -15,22 +15,29 @@ https://prytulafoundation.org/en
 Preservation is not important if people are denied their right to exist. Слава Україні!
 
 ## Intro
-A fresh take on a CD dumper utility. The main goals are to develop a portable, byte perfect CD dumper which supports incremental dumps, advanced SCSI/C2 repair and is future proof. Everything is written from scratch in C++. Available for both Windows and Linux, MacOSX version is planned.
+redumper is an advanced byte perfect disc dumper. It supports incremental dumps, advanced SCSI/C2 repair, intelligent audio CD offset detection and a lot of other features. Everything is written from scratch in C++.
+
+## Disc Support
+CD and DVD support is implemented, HD-DVD and BluRay support is planned.
+
+## Operating Systems Support
+Available for Windows, Linux and macOS.
 
 ## General
-The dumper operates using modes. The current modes are "dump", "protection", "refine", "split" and "info" but for the convenience sake, the aggregate mode "cd" does it all in a row and covers most of the use cases.
+redumper operates using commands.
+The preferred way is to run it without command (equivalent to running `redumper cd`). This is the most common use case that will dump the disc and generate the dump files. Everything that can be automated, is automated. If `--drive` option is not specified, the first available drive with the inserted disc will be used. If `--image-name` option is not specified, it will be generated based on the current date and drive used.
 
-**dump**: Dumps cd and stores it in a set of files.
+The updated command list is always available by running `redumper --help`.
 
-**protection**: Scans dump for protections.
+## Windows
+Drive is specified using drive letter: `--drive=E:` or `--drive=E`.
 
-**refine**: Improves the dump, tries to correct found SCSI/C2 errors and fill missing sectors based on a drive features, example: refining an initial LG/ASUS dump on PLEXTOR will add missing lead-in and possibly more lead-out sectors based on what originally was extracted from LG/ASUS cache. You can refine as many times as you want. You can refine the same disc on a different (but supported) drive. If you have two identical discs with different damage, you can refine from both (TOC has to be identical).
+## Linux
+Drive is specified using full path: `--drive=/dev/sr0`. The disc has to be unmounted before running redumper. I suggest to disable removable drives automount.
+At the time of writing, drive autodetection doesn't work for some Linux distributions. Autodetection is based on kernel sysfs guidelines but some distributions deviate from that (or I didn't implement it right). This will be fixed at some point and the current suggested workaround is to specify the drive directly. One thing to mention is that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). 
 
-**split**: Performs track split and generates a CUE-sheet, disc is not required at this point.
-
-**info**: Generates an info file with the specific information tailored for redump.org.
-
-Everything is being actively developed so modes / options may change, always use --help to see the latest information.
+## macOS
+Drive is specified using BSD name, for /dev/disk2 that will be: `--drive=disk2`, that's how it's internally represented in macOS. Same as Linux, the disc has to be unmounted before running redumper. Insert the disc, use `diskutil list` to see a list of all disks in the system. Identify your disc drive and execute `diskutil unmountDisk /dev/disk2`. After redumper finishes executing, macOS takes over and mounts the disc again, very annoying. Also my Mac Mini seems to scan a disc before mounting, I haven't found a way how to disable that, this will be blocking the disc access until done. 
 
 ## Supported Drives
 Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommended for the perfect dump, the full list is [HERE](drive.ixx#L130).
@@ -141,18 +148,7 @@ Force generation of track split with track errors, just because you really want 
 
 ## Building from Source
 
-[OUTDATED]
-
-Some users may wish to build the software from source, particularly Linux users who may not have the same system configuration as was used to generate the Release versions. This process is fairly simple.
-
-1. Ensure you have the `cmake` and `build-essentials` packages on your system.
-2. Clone this repository. Because this repository includes `fmt` as a submodule, you will need to include this in your clone command. Therefore it should look like: `git clone --recurse-submodules git@github.com:superg/redumper.git`
-3. `cd redumper`
-4. This is optional, but it is preferred to created a dedicated `build` directory separate from the source code. Therefore, `mkdir build` followed by `cd build`.
-5. `cmake ..`
-6. `cmake --build . --target redumper`
-
-This should create the `redumper` executable within your `build` directory. You can then move the executable anywhere you please.
+redumper requires bleeding edge C++ compiler. C++20 features such as modules and std::format are relied on extensively. Currently that limits compiler selection to latest MSVC and LLVM/Clang 16 with supported libc++. Also you will need latest CMake and ninja. Please check my GitHub Actions workflow [HERE](.github/workflows/cmake.yml) for the latest tools needed for the build.
 
 
 ## Contacts

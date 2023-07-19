@@ -1,18 +1,6 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct-single.svg)](https://stand-with-ukraine.pp.ua)
 # redumper
 Copyright 2021-2023 Hennadiy Brych
-
-## Ukraine
-![alt text](https://github.com/superg/redumper/blob/main/ukraine.jpg)
-
-Support Ukrainian Army in fighting back russian aggression. 
-
-https://bank.gov.ua/en/news/all/natsionalniy-bank-vidkriv-spetsrahunok-dlya-zboru-koshtiv-na-potrebi-armiyi
-
-https://savelife.in.ua/en
-
-https://prytulafoundation.org/en
-
-Preservation is not important if people are denied their right to exist. Слава Україні!
 
 ## Intro
 redumper is an advanced byte perfect disc dumper. It supports incremental dumps, advanced SCSI/C2 repair, intelligent audio CD offset detection and a lot of other features. Everything is written from scratch in C++.

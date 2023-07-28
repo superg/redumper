@@ -191,7 +191,7 @@ void SystemCDROM::operator()(std::ostream &os) const
 	if(edc_errors)
 		os << std::format("  EDC errors: {}", edc_errors) << std::endl;
 	if(subheader_mismatches)
-		os << std::format("  CD-XA subbeader mismatches: {}", subheader_mismatches) << std::endl;
+		os << std::format("  CD-XA subheader mismatches: {}", subheader_mismatches) << std::endl;
 	os << std::endl;
 	os << std::format("  REDUMP.ORG errors: {}", redump_errors) << std::endl;
 }

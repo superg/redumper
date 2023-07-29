@@ -143,7 +143,7 @@ public:
 		if(kret != KERN_SUCCESS)
 			LOG("warning: failed to release service, MACH ({})", mach_error_string(kret));
 #else
-		if(close(_handle));
+		if(close(_handle))
 			LOG("warning: unable to close drive (SYSTEM: {})", getLastError());
 #endif
 	}

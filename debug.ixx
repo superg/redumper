@@ -72,6 +72,27 @@ export void debug(Options &options)
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
 	std::filesystem::path cue_path(image_prefix + ".cue");
 
+/*
+	// DVD sectors count
+	if(1)
+	{
+		READ_DVD_STRUCTURE_LayerDescriptor layer_descriptor;
+		layer_descriptor.data_start_sector = endian_swap<uint32_t>(0x30000);
+		layer_descriptor.data_end_sector = endian_swap<uint32_t>(0xfff648e8);
+		layer_descriptor.layer0_end_sector = endian_swap<uint32_t>(1569279);
+		layer_descriptor.track_path = 1;
+
+		int32_t test = 0xfff648e8;
+
+		int32_t test2 = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
+
+		uint32_t sectors_count = get_layer_length(layer_descriptor);
+		LOG("DVD sectors count: {}", sectors_count);
+
+		LOG("");
+	}
+*/
+
 	/*
 		// popcnt test
 		if(1)

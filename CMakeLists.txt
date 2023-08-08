@@ -10,6 +10,8 @@ project(${REDUMPER_PROJECT_NAME}
 	LANGUAGES CXX
 	VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
 
+set(REDUMPER_CLANG_LINK_OPTIONS "-static" CACHE STRING "Extra LLVM/Clang linker options")
+
 # build type
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the build type" FORCE)
@@ -60,17 +62,9 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	if(REDUMPER_TARGET_LINUX)
-		# build complete static executable for linux
-		set(extra_link_options "-static")
-	elseif(REDUMPER_TARGET_MACOSX)
-		# use experimental-library from brew llvm@16
-		set(extra_link_options "-L/usr/local/opt/llvm/lib/c++")
-	endif()
-
 	# -fexperimental-library is required for clang-16 as std::format is defined there
 	add_compile_options(-stdlib=libc++ -fexperimental-library)
-	add_link_options(-stdlib=libc++ ${extra_link_options} -fexperimental-library)
+	add_link_options(-stdlib=libc++ ${REDUMPER_CLANG_LINK_OPTIONS} -fexperimental-library)
 
 	# silence implicit modules use warning
 	# TL;DR, this will be taken cared of by listing module dependencies explicitly (cmake)

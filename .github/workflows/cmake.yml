@@ -62,13 +62,13 @@ jobs:
       if: ${{ matrix.os == 'ubuntu-22.04' }}
       env:
         CXX: clang++-17
-      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}} -DREDUMPER_CLANG_LINK_OPTIONS="-static"
 
     - name: CMake Configure (macos64)
       if: ${{ matrix.os == 'macos-12' }}
       env:
-        CXX: /usr/local/Cellar/llvm/16.0.6/bin/clang++
-      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+        CXX: /usr/local/opt/llvm/bin/clang++
+      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}} -DREDUMPER_CLANG_LINK_OPTIONS="-L/usr/local/opt/llvm/lib/c++"
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}}

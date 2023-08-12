@@ -8,6 +8,7 @@ module;
 export module systems.iso;
 
 import filesystem.image_browser;
+import systems.system;
 import utils.hex_bin;
 import utils.strings;
 
@@ -16,7 +17,7 @@ import utils.strings;
 namespace gpsxre
 {
 
-export class SystemISO
+export class SystemISO : public SystemT<SystemISO>
 {
 public:
 	SystemISO(const std::filesystem::path &track_path)
@@ -26,8 +27,12 @@ public:
 		;
 	}
 
+	static std::string name()
+	{
+		return "ISO9660";
+	}
 
-	void operator()(std::ostream &os) const;
+	void printInfo(std::ostream &os) const override;
 
 private:
 	std::filesystem::path _trackPath;
@@ -35,14 +40,12 @@ private:
 };
 
 
-void SystemISO::operator()(std::ostream &os) const
+void SystemISO::printInfo(std::ostream &os) const
 {
 	if(ImageBrowser::IsDataTrack(_trackPath))
 	{
 		ImageBrowser browser(_trackPath, 0, _trackSize, false);
 		
-		os << std::format("ISO9660 [{}]:", _trackPath.filename().string()) << std::endl;
-
 		auto pvd = browser.GetPVD();
 
 		auto volume_identifier = trim(pvd.primary.volume_identifier);

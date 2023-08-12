@@ -12,6 +12,7 @@ module;
 export module systems.mcd;
 
 import filesystem.image_browser;
+import systems.system;
 import utils.hex_bin;
 import utils.misc;
 import utils.strings;
@@ -21,7 +22,7 @@ import utils.strings;
 namespace gpsxre
 {
 
-export class SystemMCD
+export class SystemMCD : public SystemT<SystemMCD>
 {
 public:
 	SystemMCD(const std::filesystem::path &track_path)
@@ -31,8 +32,12 @@ public:
 		;
 	}
 
+	static std::string name()
+	{
+		return "MCD";
+	}
 
-	void operator()(std::ostream &os) const;
+	void printInfo(std::ostream &os) const override;
 
 private:
 	static constexpr std::string_view _SYSTEM_MAGIC = "SEGADISCSYSTEM";
@@ -167,7 +172,7 @@ const std::map<char, std::string> SystemMCD::_ROM_REGIONS_NEW =
 };
 
 
-void SystemMCD::operator()(std::ostream &os) const
+void SystemMCD::printInfo(std::ostream &os) const
 {
 	if(!ImageBrowser::IsDataTrack(_trackPath))
 		return;
@@ -177,8 +182,6 @@ void SystemMCD::operator()(std::ostream &os) const
 	auto system_area = browser.getSystemArea();
 	if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))
 		return;
-
-	os << std::format("MCD [{}]:", _trackPath.filename().string()) << std::endl;
 
 	auto rom_header = (ROMHeader *)(system_area.data() + _ROM_HEADER_OFFSET);
 

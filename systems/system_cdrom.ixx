@@ -12,6 +12,7 @@ import cd.cd;
 import cd.cdrom;
 import cd.ecc;
 import cd.edc;
+import systems.system;
 import utils.file_io;
 
 
@@ -19,7 +20,7 @@ import utils.file_io;
 namespace gpsxre
 {
 
-export class SystemCDROM
+export class SystemCDROM : public SystemT<SystemCDROM>
 {
 public:
 	SystemCDROM(const std::filesystem::path &track_path)
@@ -28,14 +29,19 @@ public:
 		;
 	}
 
-	void operator()(std::ostream &os) const;
+	static std::string name()
+	{
+		return "CD-ROM";
+	}
+
+	void printInfo(std::ostream &os) const override;
 
 private:
 	std::filesystem::path _trackPath;
 };
 
 
-void SystemCDROM::operator()(std::ostream &os) const
+void SystemCDROM::printInfo(std::ostream &os) const
 {
 	std::fstream fs(_trackPath, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
@@ -169,7 +175,6 @@ void SystemCDROM::operator()(std::ostream &os) const
 		}
 	}
 
-	os << std::format("CD-ROM [{}]:", _trackPath.filename().string()) << std::endl;
 	os << std::format("  sectors count: {}", sectors_count) << std::endl;
 	for(uint32_t i = 0; i < modes.size(); ++i)
 		if(modes[i])

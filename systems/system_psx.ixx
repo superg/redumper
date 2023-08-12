@@ -15,6 +15,7 @@ import cd.subcode;
 import dump;
 import filesystem.image_browser;
 import filesystem.iso9660;
+import systems.system;
 import utils.endian;
 import utils.file_io;
 import utils.misc;
@@ -25,7 +26,7 @@ import utils.strings;
 namespace gpsxre
 {
 
-export class SystemPSX
+export class SystemPSX : public SystemT<SystemPSX>
 {
 public:
 	SystemPSX(const std::filesystem::path &track_path)
@@ -35,8 +36,12 @@ public:
 		;
 	}
 
+	static std::string name()
+	{
+		return "PSX";
+	}
 
-	void operator()(std::ostream &os) const;
+	void printInfo(std::ostream &os) const override;
 
 private:
 	static const std::string _EXE_MAGIC;
@@ -294,7 +299,7 @@ const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_COUNT =
 };
 
 
-void SystemPSX::operator()(std::ostream &os) const
+void SystemPSX::printInfo(std::ostream &os) const
 {
 	if(!ImageBrowser::IsDataTrack(_trackPath))
 		return;
@@ -313,7 +318,6 @@ void SystemPSX::operator()(std::ostream &os) const
 	if(exe.size() < _EXE_MAGIC.length() || std::string((char *)exe.data(), _EXE_MAGIC.length()) != _EXE_MAGIC)
 		return;
 
-	os << std::format("PSX [{}]:", _trackPath.filename().string()) << std::endl;
 	os << std::format("  EXE: {}", exe_path) << std::endl;
 
 	{

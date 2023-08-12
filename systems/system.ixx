@@ -2,16 +2,11 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <functional>
-#include <list>
+#include <map>
+#include <memory>
 #include <ostream>
 
 export module systems.system;
-
-import systems.cdrom;
-import systems.iso;
-import systems.mcd;
-import systems.psx;
-import systems.ss;
 
 
 
@@ -21,29 +16,50 @@ namespace gpsxre
 export class System
 {
 public:
-	static System &get()
+	virtual ~System() = default;
+
+	virtual void printInfo(std::ostream &os) const = 0;
+};
+
+
+export class Systems
+{
+public:
+	using Creator = std::function<std::unique_ptr<System>(const std::filesystem::path &track_path)>;
+
+	Systems() = delete;
+
+	static std::map<std::string, Creator> &get()
 	{
-		return _system;
-	}
-
-	typedef std::function<void(std::ostream &os)> Callback;
-	std::list<Callback> getSystems(const std::filesystem::path &track_path) const
-	{
-		std::list<std::function<void(std::ostream &os)>> systems;
-
-		systems.emplace_back(SystemCDROM(track_path));
-		systems.emplace_back(SystemISO(track_path));
-		systems.emplace_back(SystemMCD(track_path));
-		systems.emplace_back(SystemPSX(track_path));
-		systems.emplace_back(SystemSS(track_path));
-
+		static std::map<std::string, Creator> systems;
 		return systems;
 	}
 
-private:
-	static System _system;
+	static void registerCreator(std::string name, Creator creator)
+	{
+		get().emplace(name, creator);
+	}
 };
 
-System System::_system;
+
+export template<typename T>
+class SystemT : public System
+{
+public:
+	SystemT()
+	{
+		reg;
+	}
+	
+private:
+	static bool reg;
+	static bool init()
+	{
+		Systems::registerCreator(T::name(), [](const std::filesystem::path &track_path){ return std::make_unique<T>(track_path); });
+		return true;
+	}
+};
+template<class T>
+bool SystemT<T>::reg = SystemT<T>::init();
 
 }

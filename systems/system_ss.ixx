@@ -10,6 +10,7 @@ module;
 export module systems.ss;
 
 import filesystem.image_browser;
+import systems.system;
 import utils.hex_bin;
 
 
@@ -17,7 +18,7 @@ import utils.hex_bin;
 namespace gpsxre
 {
 
-export class SystemSS
+export class SystemSS : public SystemT<SystemSS>
 {
 public:
 	SystemSS(const std::filesystem::path &track_path)
@@ -27,8 +28,12 @@ public:
 		;
 	}
 
+	static std::string name()
+	{
+		return "SS";
+	}
 
-	void operator()(std::ostream &os) const;
+	void printInfo(std::ostream &os) const override;
 
 private:
 	static constexpr std::string_view _SYSTEM_MAGIC = "SEGA SEGASATURN";
@@ -40,7 +45,7 @@ private:
 };
 
 
-void SystemSS::operator()(std::ostream &os) const
+void SystemSS::printInfo(std::ostream &os) const
 {
 	if(!ImageBrowser::IsDataTrack(_trackPath))
 		return;
@@ -51,7 +56,6 @@ void SystemSS::operator()(std::ostream &os) const
 	if(system_area.size() < _SYSTEM_MAGIC.size() || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))
 		return;
 
-	os << std::format("SS [{}]:", _trackPath.filename().string()) << std::endl;
 	os << "  header:" << std::endl;
 	os << std::format("{}", hexdump(system_area.data(), _HEADER_OFFSET, _HEADER_SIZE));
 }

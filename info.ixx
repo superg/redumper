@@ -111,17 +111,26 @@ export void redumper_info(Options &options)
 	{
 		auto tracks = cue_get_entries(image_prefix + ".cue");
 
+		bool separate_nl = false;
 		for(auto const &t : tracks)
 		{
 			auto track_path = std::filesystem::path(options.image_path) / t.first;
-			auto systems = System::get().getSystems(track_path);
-
-			for(auto const &s : systems)
+			for(auto const &s : Systems::get())
 			{
+				auto system = s.second(track_path);
+
 				std::stringstream ss;
-				s(ss);
+				system->printInfo(ss);
+
 				if(ss.rdbuf()->in_avail())
+				{
+					if(separate_nl)
+						LOG("");
+					separate_nl = true;
+
+					LOG("{} [{}]:", s.first, track_path.filename().string());
 					LOG_F("{}", ss.str());
+				}
 			}
 		}
 	}

@@ -34,6 +34,11 @@ public:
 		return "CD-ROM";
 	}
 
+	Type getType() override
+	{
+		return Type::RAW_DATA;
+	}
+
 	void printInfo(std::ostream &os) const override;
 
 private:

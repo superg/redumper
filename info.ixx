@@ -14,6 +14,7 @@ import cd.cdrom;
 import dump;
 import filesystem.iso9660;
 import options;
+import readers.form1_reader;
 import systems.system;
 import utils.hex_bin;
 import utils.logger;
@@ -24,6 +25,14 @@ import utils.strings;
 
 namespace gpsxre
 {
+
+enum class TrackType
+{
+	DATA,
+	AUDIO,
+	ISO
+};
+
 
 std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::path &cue_path)
 {
@@ -54,7 +63,7 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 	return entries;
 }
 
-
+/*
 //TODO: rewrite after image browser rework
 void iso_info(const std::filesystem::path &track_path)
 {
@@ -99,7 +108,7 @@ void iso_info(const std::filesystem::path &track_path)
 	if(!pvd_found)
 		throw_line("PVD not found");
 }
-
+*/
 
 export void redumper_info(Options &options)
 {
@@ -107,6 +116,46 @@ export void redumper_info(Options &options)
 		throw_line("image name is not provided");
 
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+
+	std::list<std::pair<std::filesystem::path, TrackType>> tracks;
+	if(std::filesystem::exists(image_prefix + ".cue"))
+	{
+		for(auto const &t : cue_get_entries(image_prefix + ".cue"))
+			tracks.emplace_back(std::filesystem::path(options.image_path) / t.first, t.second ? TrackType::DATA : TrackType::AUDIO);
+	}
+	else if(std::filesystem::exists(image_prefix + ".iso"))
+	{
+		tracks.emplace_back(image_prefix + ".iso", TrackType::ISO);
+	}
+
+	bool separate_nl = false;
+	for(auto const &t : tracks)
+	{
+		std::shared_ptr<Form1Reader> raw_reader;
+//		if(t.second != TrackType::ISO)
+//			raw_reader = std::make_shared<>();
+
+		for(auto const &s : Systems::get())
+		{
+			auto system = s.second(t.first);
+
+			std::stringstream ss;
+			system->printInfo(ss);
+
+			if(ss.rdbuf()->in_avail())
+			{
+				if(separate_nl)
+					LOG("");
+				separate_nl = true;
+
+				LOG("{} [{}]:", s.first, t.first.filename().string());
+				LOG_F("{}", ss.str());
+			}
+		}
+	}
+
+	LOG("");
+/*
 	if(std::filesystem::exists(image_prefix + ".cue"))
 	{
 		auto tracks = cue_get_entries(image_prefix + ".cue");
@@ -143,6 +192,7 @@ export void redumper_info(Options &options)
 		else
 			throw_line("unable to detect input file");
 	}
+*/
 }
 
 }

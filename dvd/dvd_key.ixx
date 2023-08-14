@@ -16,8 +16,8 @@ import dvd.css;
 import filesystem.iso9660;
 import options;
 import readers.form1_reader;
-import readers.cd_form1_reader;
-import readers.iso_form1_reader;
+import readers.disc_read_form1_reader;
+import readers.image_iso_form1_reader;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -189,7 +189,7 @@ export void dvd_key(Context &ctx, const Options &options)
 
 		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
 		{
-			CDForm1Reader reader(*ctx.sptd, 0);
+			Disc_READ_Form1Reader reader(*ctx.sptd, 0);
 			auto vobs = extract_vob_list(reader);
 			
 			bool cppm = false;
@@ -259,7 +259,7 @@ export void dvd_isokey(Context &ctx, const Options &options)
 
 	std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
 
-	ISOForm1Reader reader(scm_path);
+	Image_ISO_Form1Reader reader(scm_path);
 	auto vobs = extract_vob_list(reader);
 	if(!vobs.empty())
 	{

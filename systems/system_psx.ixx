@@ -41,6 +41,11 @@ public:
 		return "PSX";
 	}
 
+	Type getType() override
+	{
+		return Type::ISO;
+	}
+
 	void printInfo(std::ostream &os) const override;
 
 private:

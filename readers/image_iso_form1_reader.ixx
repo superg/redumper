@@ -3,7 +3,7 @@ module;
 #include <filesystem>
 #include <fstream>
 
-export module readers.iso_form1_reader;
+export module readers.image_iso_form1_reader;
 
 import readers.form1_reader;
 
@@ -12,10 +12,10 @@ import readers.form1_reader;
 namespace gpsxre
 {
 
-export class ISOForm1Reader : public Form1Reader
+export class Image_ISO_Form1Reader : public Form1Reader
 {
 public:
-	ISOForm1Reader(const std::filesystem::path &image_path)
+	Image_ISO_Form1Reader(const std::filesystem::path &image_path)
 		: _fs(image_path, std::fstream::in | std::fstream::binary)
 		, _blocksCount(std::filesystem::file_size(image_path) / blockSize())
 	{

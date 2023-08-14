@@ -1,7 +1,7 @@
 module;
 #include <cstdint>
 
-export module readers.cd_form1_reader;
+export module readers.disc_read_form1_reader;
 
 import readers.form1_reader;
 import scsi.cmd;
@@ -12,10 +12,10 @@ import scsi.sptd;
 namespace gpsxre
 {
 
-export class CDForm1Reader : public Form1Reader
+export class Disc_READ_Form1Reader : public Form1Reader
 {
 public:
-	CDForm1Reader(SPTD &sptd, uint32_t blocks_count)
+	Disc_READ_Form1Reader(SPTD &sptd, uint32_t blocks_count)
 		: _sptd(sptd)
 		, _blocksCount(blocks_count)
 	{

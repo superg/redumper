@@ -16,8 +16,16 @@ namespace gpsxre
 export class System
 {
 public:
+	enum class Type
+	{
+		RAW_DATA,
+		RAW_AUDIO,
+		ISO
+	};
+
 	virtual ~System() = default;
 
+	virtual Type getType() = 0;
 	virtual void printInfo(std::ostream &os) const = 0;
 };
 

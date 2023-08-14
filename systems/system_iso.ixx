@@ -17,17 +17,10 @@ import utils.strings;
 namespace gpsxre
 {
 
-export class SystemISO : public SystemT<SystemISO>
+export class SystemISO : public System
 {
 public:
-	SystemISO(const std::filesystem::path &track_path)
-		: _trackPath(track_path)
-		, _trackSize(std::filesystem::file_size(track_path))
-	{
-		;
-	}
-
-	static std::string name()
+	std::string getName() override
 	{
 		return "ISO9660";
 	}
@@ -37,19 +30,15 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os) const override;
-
-private:
-	std::filesystem::path _trackPath;
-	uint64_t _trackSize;
+	void printInfo(std::ostream &os, const std::filesystem::path &track_path) const override;
 };
 
 
-void SystemISO::printInfo(std::ostream &os) const
+void SystemISO::printInfo(std::ostream &os, const std::filesystem::path &track_path) const
 {
-	if(ImageBrowser::IsDataTrack(_trackPath))
+	if(ImageBrowser::IsDataTrack(track_path))
 	{
-		ImageBrowser browser(_trackPath, 0, _trackSize, false);
+		ImageBrowser browser(track_path, 0, std::filesystem::file_size(track_path), false);
 		
 		auto pvd = browser.GetPVD();
 

@@ -20,16 +20,10 @@ import utils.file_io;
 namespace gpsxre
 {
 
-export class SystemCDROM : public SystemT<SystemCDROM>
+export class SystemCDROM : public System
 {
 public:
-	SystemCDROM(const std::filesystem::path &track_path)
-		: _trackPath(track_path)
-	{
-		;
-	}
-
-	static std::string name()
+	std::string getName() override
 	{
 		return "CD-ROM";
 	}
@@ -39,19 +33,16 @@ public:
 		return Type::RAW_DATA;
 	}
 
-	void printInfo(std::ostream &os) const override;
-
-private:
-	std::filesystem::path _trackPath;
+	void printInfo(std::ostream &os, const std::filesystem::path &track_path) const override;
 };
 
 
-void SystemCDROM::printInfo(std::ostream &os) const
+void SystemCDROM::printInfo(std::ostream &os, const std::filesystem::path &track_path) const
 {
-	std::fstream fs(_trackPath, std::fstream::in | std::fstream::binary);
+	std::fstream fs(track_path, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
-		throw_line("unable to open file ({})", _trackPath.filename().string());
-	auto track_size = std::filesystem::file_size(_trackPath);
+		throw_line("unable to open file ({})", track_path.filename().string());
+	auto track_size = std::filesystem::file_size(track_path);
 	uint32_t sectors_count = track_size / CD_DATA_SIZE;
 
 	uint32_t invalid_sync = 0;

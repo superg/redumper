@@ -26,17 +26,10 @@ import utils.strings;
 namespace gpsxre
 {
 
-export class SystemPSX : public SystemT<SystemPSX>
+export class SystemPSX : public System
 {
 public:
-	SystemPSX(const std::filesystem::path &track_path)
-		: _trackPath(track_path)
-		, _trackSize(std::filesystem::file_size(track_path))
-	{
-		;
-	}
-
-	static std::string name()
+	std::string getName() override
 	{
 		return "PSX";
 	}
@@ -46,7 +39,7 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os) const override;
+	void printInfo(std::ostream &os, const std::filesystem::path &track_path) const override;
 
 private:
 	static const std::string _EXE_MAGIC;
@@ -54,9 +47,6 @@ private:
 	static const uint32_t _LIBCRYPT_SECTORS_PAIR_SHIFT = 5;
 	static const std::set<uint32_t> _LIBCRYPT_SECTORS_MEDIEVIL;
 	static const std::set<uint32_t> _LIBCRYPT_SECTORS_COUNT;
-
-	std::filesystem::path _trackPath;
-	uint64_t _trackSize;
 
 	std::string findEXE(ImageBrowser &browser) const
 	{
@@ -198,15 +188,15 @@ private:
 	}
 
 
-	bool detectEdcFast() const
+	bool detectEdcFast(const std::filesystem::path &track_path, uint64_t track_size) const
 	{
 		bool edc = false;
 
-		std::fstream fs(_trackPath, std::fstream::in | std::fstream::binary);
+		std::fstream fs(track_path, std::fstream::in | std::fstream::binary);
 		if(!fs.is_open())
-			throw_line("unable to open file ({})", _trackPath.filename().string());
+			throw_line("unable to open file ({})", track_path.filename().string());
 
-		uint32_t sectors_count = _trackSize / CD_DATA_SIZE;
+		uint32_t sectors_count = track_size / CD_DATA_SIZE;
 		if(sectors_count >= iso9660::SYSTEM_AREA_SIZE)
 		{
 			Sector sector;
@@ -220,7 +210,7 @@ private:
 	}
 
 
-	bool detectLibCrypt(std::ostream &os, std::filesystem::path sub_path) const
+	bool detectLibCrypt(std::ostream &os, std::filesystem::path sub_path, uint64_t track_size) const
 	{
 		bool libcrypt = false;
 
@@ -232,7 +222,7 @@ private:
 		std::vector<int32_t> candidates_medievil;
 
 		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
-		int32_t lba_end = _trackSize / CD_DATA_SIZE;
+		int32_t lba_end = track_size / CD_DATA_SIZE;
 		for(auto lba : _LIBCRYPT_SECTORS_BASE)
 		{
 			int32_t lba_pair = lba + _LIBCRYPT_SECTORS_PAIR_SHIFT;
@@ -304,12 +294,14 @@ const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_COUNT =
 };
 
 
-void SystemPSX::printInfo(std::ostream &os) const
+void SystemPSX::printInfo(std::ostream &os, const std::filesystem::path &track_path) const
 {
-	if(!ImageBrowser::IsDataTrack(_trackPath))
+	if(!ImageBrowser::IsDataTrack(track_path))
 		return;
 
-	ImageBrowser browser(_trackPath, 0, _trackSize, false);
+	uint64_t track_size = std::filesystem::file_size(track_path);
+
+	ImageBrowser browser(track_path, 0, track_size, false);
 
 	auto exe_path = findEXE(browser);
 	if(exe_path.empty())
@@ -340,7 +332,7 @@ void SystemPSX::printInfo(std::ostream &os) const
 	if(!region.empty())
 		os << std::format("  region: {}", region) << std::endl;
 
-	bool edc = detectEdcFast();
+	bool edc = detectEdcFast(track_path, track_size);
 	os << std::format("  EDC: {}", edc ? "yes" : "no") << std::endl;
 
 	{
@@ -351,11 +343,11 @@ void SystemPSX::printInfo(std::ostream &os) const
 			os << ss.str() << std::endl;
 	}
 
-	std::filesystem::path sub_path = track_extract_basename(_trackPath.string()) + ".subcode";
+	std::filesystem::path sub_path = track_extract_basename(track_path.string()) + ".subcode";
 	if(std::filesystem::exists(sub_path))
 	{
 		std::stringstream ss;
-		bool libcrypt = detectLibCrypt(ss, sub_path);
+		bool libcrypt = detectLibCrypt(ss, sub_path, track_size);
 		os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
 		if(libcrypt)
 			os << ss.str() << std::endl;

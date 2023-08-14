@@ -14,8 +14,13 @@ import cd.cdrom;
 import dump;
 import filesystem.iso9660;
 import options;
+import readers.block_reader;
 import readers.form1_reader;
-import systems.system;
+import readers.image_bin_form1_reader;
+import readers.image_iso_form1_reader;
+import readers.image_raw_reader;
+import readers.raw_reader;
+import systems.systems;
 import utils.hex_bin;
 import utils.logger;
 import utils.misc;
@@ -131,16 +136,31 @@ export void redumper_info(Options &options)
 	bool separate_nl = false;
 	for(auto const &t : tracks)
 	{
-		std::shared_ptr<Form1Reader> raw_reader;
-//		if(t.second != TrackType::ISO)
-//			raw_reader = std::make_shared<>();
+		std::shared_ptr<BlockReader32> raw_reader;
+		std::shared_ptr<BlockReader32> form1_reader;
+		if(t.second == TrackType::ISO)
+		{
+			form1_reader = std::make_shared<Image_ISO_Form1Reader>(t.first);
+		}
+		else
+		{
+			raw_reader = std::make_shared<Image_RawReader>(t.first);
+
+			if(t.second == TrackType::DATA)
+				form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);
+		}
 
 		for(auto const &s : Systems::get())
 		{
-			auto system = s.second(t.first);
+			auto system = s();
+
+			auto reader = system->getType() == System::Type::ISO ? form1_reader : raw_reader;
+			if(!reader)
+				continue;
 
 			std::stringstream ss;
-			system->printInfo(ss);
+			//FIXME: pass image_prefix
+			system->printInfo(ss, t.first);
 
 			if(ss.rdbuf()->in_avail())
 			{
@@ -148,7 +168,7 @@ export void redumper_info(Options &options)
 					LOG("");
 				separate_nl = true;
 
-				LOG("{} [{}]:", s.first, t.first.filename().string());
+				LOG("{} [{}]:", system->getName(), t.first.filename().string());
 				LOG_F("{}", ss.str());
 			}
 		}

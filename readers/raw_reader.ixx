@@ -1,9 +1,9 @@
 module;
 #include <cstdint>
 
-export module readers.form1_reader;
+export module readers.raw_reader;
 
-import cd.cdrom;
+import cd.cd;
 import readers.block_reader;
 
 
@@ -11,12 +11,12 @@ import readers.block_reader;
 namespace gpsxre
 {
 
-export class Form1Reader : public BlockReader<uint32_t>
+export class RawReader : public BlockReader<uint32_t>
 {
 public:
 	uint32_t blockSize() const override
 	{
-		return FORM1_DATA_SIZE;
+		return CD_DATA_SIZE;
 	}
 };
 

@@ -22,17 +22,10 @@ import utils.strings;
 namespace gpsxre
 {
 
-export class SystemMCD : public SystemT<SystemMCD>
+export class SystemMCD : public System
 {
 public:
-	SystemMCD(const std::filesystem::path &track_path)
-		: _trackPath(track_path)
-		, _trackSize(std::filesystem::file_size(track_path))
-	{
-		;
-	}
-
-	static std::string name()
+	std::string getName() override
 	{
 		return "MCD";
 	}
@@ -42,7 +35,7 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os) const override;
+	void printInfo(std::ostream &os, const std::filesystem::path &track_path) const override;
 
 private:
 	static constexpr std::string_view _SYSTEM_MAGIC = "SEGADISCSYSTEM";
@@ -94,9 +87,6 @@ private:
 		char regions[3];
 		char reserved2[13];
 	};
-
-	std::filesystem::path _trackPath;
-	uint64_t _trackSize;
 
 
 	std::string extractDate(std::string header_date) const
@@ -177,12 +167,12 @@ const std::map<char, std::string> SystemMCD::_ROM_REGIONS_NEW =
 };
 
 
-void SystemMCD::printInfo(std::ostream &os) const
+void SystemMCD::printInfo(std::ostream &os, const std::filesystem::path &track_path) const
 {
-	if(!ImageBrowser::IsDataTrack(_trackPath))
+	if(!ImageBrowser::IsDataTrack(track_path))
 		return;
 
-	ImageBrowser browser(_trackPath, 0, _trackSize, false);
+	ImageBrowser browser(track_path, 0, std::filesystem::file_size(track_path), false);
 
 	auto system_area = browser.getSystemArea();
 	if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))

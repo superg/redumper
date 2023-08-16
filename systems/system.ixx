@@ -5,6 +5,8 @@ module;
 
 export module systems.system;
 
+import readers.sector_reader;
+
 
 
 namespace gpsxre
@@ -24,7 +26,7 @@ public:
 
 	virtual std::string getName() = 0;
 	virtual Type getType() = 0;
-	virtual void printInfo(std::ostream &os, const std::filesystem::path &track_path) const = 0;
+	virtual void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const = 0;
 };
 
 }

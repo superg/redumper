@@ -4,17 +4,17 @@ module;
 export module readers.raw_reader;
 
 import cd.cd;
-import readers.block_reader;
+import readers.sector_reader;
 
 
 
 namespace gpsxre
 {
 
-export class RawReader : public BlockReader<uint32_t>
+export class RawReader : public SectorReader
 {
 public:
-	uint32_t blockSize() const override
+	uint32_t getSectorSize() const override
 	{
 		return CD_DATA_SIZE;
 	}

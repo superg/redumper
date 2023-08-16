@@ -39,7 +39,7 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os, const std::filesystem::path &track_path) const override;
+	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override;
 
 private:
 	static const std::string _EXE_MAGIC;
@@ -294,7 +294,7 @@ const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_COUNT =
 };
 
 
-void SystemPSX::printInfo(std::ostream &os, const std::filesystem::path &track_path) const
+void SystemPSX::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const
 {
 	if(!ImageBrowser::IsDataTrack(track_path))
 		return;

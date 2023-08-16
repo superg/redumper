@@ -16,7 +16,7 @@ class Image_SimpleReader : public T
 public:
 	Image_SimpleReader(const std::filesystem::path &image_path)
 		: _fs(image_path, std::fstream::in | std::fstream::binary)
-		, _blocksCount(std::filesystem::file_size(image_path) / T::blockSize())
+		, _blocksCount(std::filesystem::file_size(image_path) / T::getSectorSize())
 	{
 		;
 	}
@@ -26,12 +26,12 @@ public:
 	{
 		bool success = false;
 
-		_fs.seekg(index * T::blockSize());
+		_fs.seekg(index * T::getSectorSize());
 		if(_fs.fail())
 			_fs.clear();
 		else
 		{
-			_fs.read((char *)block, count * T::blockSize());
+			_fs.read((char *)block, count * T::getSectorSize());
 			if(_fs.fail())
 				_fs.clear();
 			else
@@ -42,7 +42,7 @@ public:
 	}
 
 
-	uint32_t blocksCount() const override
+	uint32_t getSectorsCount() const override
 	{
 		return _blocksCount;
 	}

@@ -4,17 +4,17 @@ module;
 export module readers.form1_reader;
 
 import cd.cdrom;
-import readers.block_reader;
+import readers.sector_reader;
 
 
 
 namespace gpsxre
 {
 
-export class Form1Reader : public BlockReader<uint32_t>
+export class Form1Reader : public SectorReader
 {
 public:
-	uint32_t blockSize() const override
+	uint32_t getSectorSize() const override
 	{
 		return FORM1_DATA_SIZE;
 	}

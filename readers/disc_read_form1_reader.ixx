@@ -15,9 +15,9 @@ namespace gpsxre
 export class Disc_READ_Form1Reader : public Form1Reader
 {
 public:
-	Disc_READ_Form1Reader(SPTD &sptd, uint32_t blocks_count)
+	Disc_READ_Form1Reader(SPTD &sptd, uint32_t sectors_count)
 		: _sptd(sptd)
-		, _blocksCount(blocks_count)
+		, _sectorsCount(sectors_count)
 	{
 		;
 	}
@@ -25,20 +25,20 @@ public:
 
 	bool read(uint8_t *block, uint32_t index, uint32_t count) override
 	{
-		auto status = cmd_read(_sptd, block, blockSize(), index, count, false);
+		auto status = cmd_read(_sptd, block, getSectorSize(), index, count, false);
 
 		return !status.status_code;
 	}
 	
 	
-	uint32_t blocksCount() const override
+	uint32_t getSectorsCount() const override
 	{
-		return _blocksCount;
+		return _sectorsCount;
 	}
 	
 private:
 	SPTD &_sptd;
-	uint32_t _blocksCount;
+	uint32_t _sectorsCount;
 };
 
 }

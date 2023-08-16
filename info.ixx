@@ -14,7 +14,7 @@ import cd.cdrom;
 import dump;
 import filesystem.iso9660;
 import options;
-import readers.block_reader;
+import readers.sector_reader;
 import readers.form1_reader;
 import readers.image_bin_form1_reader;
 import readers.image_iso_form1_reader;
@@ -136,8 +136,8 @@ export void redumper_info(Options &options)
 	bool separate_nl = false;
 	for(auto const &t : tracks)
 	{
-		std::shared_ptr<BlockReader32> raw_reader;
-		std::shared_ptr<BlockReader32> form1_reader;
+		std::shared_ptr<SectorReader> raw_reader;
+		std::shared_ptr<SectorReader> form1_reader;
 		if(t.second == TrackType::ISO)
 		{
 			form1_reader = std::make_shared<Image_ISO_Form1Reader>(t.first);
@@ -160,7 +160,7 @@ export void redumper_info(Options &options)
 
 			std::stringstream ss;
 			//FIXME: pass image_prefix
-			system->printInfo(ss, t.first);
+			system->printInfo(ss, reader.get(), t.first);
 
 			if(ss.rdbuf()->in_avail())
 			{
@@ -173,46 +173,6 @@ export void redumper_info(Options &options)
 			}
 		}
 	}
-
-	LOG("");
-/*
-	if(std::filesystem::exists(image_prefix + ".cue"))
-	{
-		auto tracks = cue_get_entries(image_prefix + ".cue");
-
-		bool separate_nl = false;
-		for(auto const &t : tracks)
-		{
-			auto track_path = std::filesystem::path(options.image_path) / t.first;
-			for(auto const &s : Systems::get())
-			{
-				auto system = s.second(track_path);
-
-				std::stringstream ss;
-				system->printInfo(ss);
-
-				if(ss.rdbuf()->in_avail())
-				{
-					if(separate_nl)
-						LOG("");
-					separate_nl = true;
-
-					LOG("{} [{}]:", s.first, track_path.filename().string());
-					LOG_F("{}", ss.str());
-				}
-			}
-		}
-	}
-	else
-	{
-		if(std::filesystem::exists(image_prefix + ".iso"))
-		{
-			iso_info(image_prefix + ".iso");
-		}
-		else
-			throw_line("unable to detect input file");
-	}
-*/
 }
 
 }

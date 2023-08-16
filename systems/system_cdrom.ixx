@@ -33,17 +33,13 @@ public:
 		return Type::RAW_DATA;
 	}
 
-	void printInfo(std::ostream &os, const std::filesystem::path &track_path) const override;
+	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override;
 };
 
 
-void SystemCDROM::printInfo(std::ostream &os, const std::filesystem::path &track_path) const
+void SystemCDROM::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const
 {
-	std::fstream fs(track_path, std::fstream::in | std::fstream::binary);
-	if(!fs.is_open())
-		throw_line("unable to open file ({})", track_path.filename().string());
-	auto track_size = std::filesystem::file_size(track_path);
-	uint32_t sectors_count = track_size / CD_DATA_SIZE;
+	uint32_t sectors_count = sector_reader->getSectorsCount();
 
 	uint32_t invalid_sync = 0;
 	uint32_t mode2_form1 = 0;
@@ -60,7 +56,8 @@ void SystemCDROM::printInfo(std::ostream &os, const std::filesystem::path &track
 	Sector sector;
 	for(int32_t i = 0; i < sectors_count; ++i)
 	{
-		read_entry(fs, (uint8_t *)&sector, CD_DATA_SIZE, i, 1, 0, 0);
+		if(!sector_reader->read((uint8_t *)&sector, i, 1))
+			throw_line("read failed (sector: {})", i);
 
 		if(memcmp(sector.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
 		{

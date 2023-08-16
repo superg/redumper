@@ -7,7 +7,7 @@ module;
 
 export module systems.iso;
 
-import filesystem.image_browser;
+import filesystem.iso9660_browser;
 import systems.system;
 import utils.hex_bin;
 import utils.strings;
@@ -30,19 +30,16 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os, const std::filesystem::path &track_path) const override;
+	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override;
 };
 
 
-void SystemISO::printInfo(std::ostream &os, const std::filesystem::path &track_path) const
+void SystemISO::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const
 {
-	if(ImageBrowser::IsDataTrack(track_path))
+	ISO9660::PrimaryVolumeDescriptor pvd;
+	if(ISO9660::Browser::findDescriptor((ISO9660::VolumeDescriptor &)pvd, sector_reader, ISO9660::VolumeDescriptorType::PRIMARY))
 	{
-		ImageBrowser browser(track_path, 0, std::filesystem::file_size(track_path), false);
-		
-		auto pvd = browser.GetPVD();
-
-		auto volume_identifier = trim(pvd.primary.volume_identifier);
+		auto volume_identifier = trim(pvd.volume_identifier);
 		if(!volume_identifier.empty())
 			os << std::format("  volume identifier: {}", volume_identifier) << std::endl;
 		os << "  PVD:" << std::endl;

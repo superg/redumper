@@ -15,7 +15,7 @@ import cd.cd;
 //import cd.cdrom;
 //import cd.scrambler;
 //import filesystem.iso9660;
-import readers.block_reader;
+import readers.sector_reader;
 //import utils.endian;
 //import utils.misc;
 //import utils.strings;
@@ -164,13 +164,13 @@ public:
 			;
 		}
 
-		static bool findDescriptor(VolumeDescriptor &descriptor, BlockReader32 *block_reader, VolumeDescriptorType type)
+		static bool findDescriptor(VolumeDescriptor &descriptor, SectorReader *sector_reader, VolumeDescriptorType type)
 		{
 			bool found = false;
 
 			// find primary volume descriptor
 			VolumeDescriptor *pvd = nullptr;
-			for(uint32_t s = SYSTEM_AREA_SIZE; block_reader->read((uint8_t *)&descriptor, s, 1); ++s)
+			for(uint32_t s = SYSTEM_AREA_SIZE; sector_reader->read((uint8_t *)&descriptor, s, 1); ++s)
 			{
 				if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier)) &&
 				   memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))

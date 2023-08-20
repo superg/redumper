@@ -14,7 +14,7 @@ namespace gpsxre
 export class Form1Reader : public SectorReader
 {
 public:
-	uint32_t getSectorSize() const override
+	uint32_t sectorSize() const override
 	{
 		return FORM1_DATA_SIZE;
 	}

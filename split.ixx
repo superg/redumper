@@ -123,7 +123,7 @@ int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &s
 uint32_t iso9660_volume_size(std::fstream &scm_fs, uint64_t scm_offset, bool scrap)
 {
 	ImageBrowser browser(scm_fs, scm_offset, 0, !scrap);
-	auto volume_size = browser.GetPVD().primary.volume_space_size.lsb;
+	auto volume_size = browser.GetPVD().volume_space_size.lsb;
 	return volume_size;
 }
 
@@ -1383,7 +1383,7 @@ export void redumper_split_cd(const Options &options)
 
 					auto pvd = browser.GetPVD();
 
-					if(!memcmp(pvd.standard_identifier, iso9660::CDI_STANDARD_IDENTIFIER, sizeof(pvd.standard_identifier)))
+					if(!memcmp(pvd.standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(pvd.standard_identifier)))
 						t.cdi = true;
 				}
 				catch(...)

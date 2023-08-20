@@ -68,52 +68,6 @@ std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::p
 	return entries;
 }
 
-/*
-//TODO: rewrite after image browser rework
-void iso_info(const std::filesystem::path &track_path)
-{
-	std::fstream fs(track_path, std::fstream::in | std::fstream::binary);
-	if(!fs.is_open())
-		throw_line("unable to open file ({})", track_path.filename().string());
-
-	bool pvd_found = false;
-	for(uint32_t lba = iso9660::SYSTEM_AREA_SIZE; ; ++lba)
-	{
-		std::vector<uint8_t> sector(FORM1_DATA_SIZE);
-		fs.seekg(lba * FORM1_DATA_SIZE);
-		if(fs.fail())
-			throw_line("seek failed");
-		fs.read((char *)sector.data(), FORM1_DATA_SIZE);
-		if(fs.fail())
-			throw_line("read failed");
-
-		auto vd = (iso9660::VolumeDescriptor *)sector.data();
-		if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
-			break;
-
-		if(vd->type == iso9660::VolumeDescriptor::Type::PRIMARY)
-		{
-			auto pvd = (iso9660::VolumeDescriptor *)vd;
-
-			LOG("ISO9660 [{}]:", track_path.filename().string());
-
-			auto volume_identifier = trim(pvd->primary.volume_identifier);
-			if(!volume_identifier.empty())
-				LOG("  volume identifier: {}", volume_identifier);
-			LOG("  PVD:");
-			LOG_F("{}", hexdump((uint8_t *)pvd, 0x320, 96));
-
-			pvd_found = true;
-			break;
-		}
-		else if(vd->type == iso9660::VolumeDescriptor::Type::SET_TERMINATOR)
-			break;
-	}
-
-	if(!pvd_found)
-		throw_line("PVD not found");
-}
-*/
 
 export void redumper_info(Options &options)
 {

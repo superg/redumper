@@ -103,14 +103,14 @@ std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(Form1Reade
 		if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
 			break;
 
-		if(vd->type == iso9660::VolumeDescriptor::Type::PRIMARY)
+		if(vd->type == iso9660::VolumeDescriptorType::PRIMARY)
 		{
-			auto pvd = (iso9660::VolumeDescriptor *)vd;
-			root_dr = pvd->primary.root_directory_record;
+			auto pvd = (iso9660::PrimaryVolumeDescriptor *)vd;
+			root_dr = pvd->root_directory_record;
 			pvd_found = true;
 			break;
 		}
-		else if(vd->type == iso9660::VolumeDescriptor::Type::SET_TERMINATOR)
+		else if(vd->type == iso9660::VolumeDescriptorType::SET_TERMINATOR)
 			break;
 	}
 

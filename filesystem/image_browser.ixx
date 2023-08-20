@@ -353,7 +353,7 @@ public:
 			return false;
 
 		// find primary volume descriptor
-		iso9660::VolumeDescriptor *pvd = nullptr;
+		iso9660::PrimaryVolumeDescriptor *pvd = nullptr;
 		for(;;)
 		{
 			Sector sector;
@@ -377,15 +377,15 @@ public:
 			}
 
 			if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)) &&
-			   memcmp(vd->standard_identifier, iso9660::CDI_STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
+			   memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(vd->standard_identifier)))
 				break;
 
-			if(vd->type == iso9660::VolumeDescriptor::Type::PRIMARY)
+			if(vd->type == iso9660::VolumeDescriptorType::PRIMARY)
 			{
-				pvd = vd;
+				pvd = (iso9660::PrimaryVolumeDescriptor *)vd;
 				break;
 			}
-			else if(vd->type == iso9660::VolumeDescriptor::Type::SET_TERMINATOR)
+			else if(vd->type == iso9660::VolumeDescriptorType::SET_TERMINATOR)
 				break;
 		}
 
@@ -416,11 +416,11 @@ public:
 
 	std::shared_ptr<Entry> RootDirectory()
 	{
-		return std::shared_ptr<Entry>(new Entry(*this, std::string(""), 1, _pvd.primary.root_directory_record));
+		return std::shared_ptr<Entry>(new Entry(*this, std::string(""), 1, _pvd.root_directory_record));
 	}
 
 	
-	const iso9660::VolumeDescriptor &GetPVD() const
+	const iso9660::PrimaryVolumeDescriptor &GetPVD() const
 	{
 		return _pvd;
 	}
@@ -467,7 +467,7 @@ private:
 	uint64_t _fileStartOffset;
 	uint64_t _fileEndOffset;
 	bool _scrambled;
-	iso9660::VolumeDescriptor _pvd;
+	iso9660::PrimaryVolumeDescriptor _pvd;
 	uint32_t _trackLBA;
 	
 	void Init()
@@ -497,7 +497,7 @@ private:
 			throw_line("seek failure");
 
 		// find primary volume descriptor
-		iso9660::VolumeDescriptor *pvd = nullptr;
+		iso9660::PrimaryVolumeDescriptor *pvd = nullptr;
 		for(;;)
 		{
 			Sector sector;
@@ -527,15 +527,15 @@ private:
 			}
 
 			if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)) &&
-			   memcmp(vd->standard_identifier, iso9660::CDI_STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
+			   memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(vd->standard_identifier)))
 				break;
 
-			if(vd->type == iso9660::VolumeDescriptor::Type::PRIMARY)
+			if(vd->type == iso9660::VolumeDescriptorType::PRIMARY)
 			{
-				pvd = vd;
+				pvd = (iso9660::PrimaryVolumeDescriptor *)vd;
 				break;
 			}
-			else if(vd->type == iso9660::VolumeDescriptor::Type::SET_TERMINATOR)
+			else if(vd->type == iso9660::VolumeDescriptorType::SET_TERMINATOR)
 				break;
 		}
 
@@ -548,7 +548,7 @@ private:
 		// for some PSX discs where dummy files are present
 		// this value includes all following audio tracks
 		if(!_fileEndOffset)
-			_fileEndOffset = _fileStartOffset + _pvd.primary.volume_space_size.lsb * sizeof(Sector);
+			_fileEndOffset = _fileStartOffset + _pvd.volume_space_size.lsb * sizeof(Sector);
 	}
 
 

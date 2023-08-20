@@ -39,7 +39,7 @@ public:
 
 void SystemCDROM::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const
 {
-	uint32_t sectors_count = sector_reader->getSectorsCount();
+	uint32_t sectors_count = sector_reader->count();
 
 	uint32_t invalid_sync = 0;
 	uint32_t mode2_form1 = 0;

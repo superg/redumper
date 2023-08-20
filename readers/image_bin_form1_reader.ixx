@@ -2,6 +2,7 @@ module;
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include "utils/throw_line.hh"
 
 export module readers.image_bin_form1_reader;
 
@@ -19,13 +20,17 @@ export class Image_BIN_Form1Reader : public Form1Reader
 public:
 	Image_BIN_Form1Reader(const std::filesystem::path &image_path)
 		: _fs(image_path, std::fstream::in | std::fstream::binary)
-		, _sectorsCount(std::filesystem::file_size(image_path) / CD_DATA_SIZE)
+		, _count(std::filesystem::file_size(image_path) / CD_DATA_SIZE)
 	{
-		;
+		Sector sector;
+		if(!read((uint8_t *)&sector, 0, 1))
+			throw_line("unable to establish base LBA");
+
+		_baseLBA = BCDMSF_to_LBA(sector.header.address);
 	}
 
 
-	bool read(uint8_t *block, uint32_t index, uint32_t count) override
+	bool read(uint8_t *sectors, uint32_t index, uint32_t count) override
 	{
 		bool success = true;
 
@@ -68,22 +73,30 @@ public:
 					break;
 				}
 
-				memcpy(block + s * getSectorSize(), user_data, getSectorSize());
+				memcpy(sectors + s * sectorSize(), user_data, sectorSize());
 			}
 		}
 
 		return success;
 	}
-	
-	
-	uint32_t getSectorsCount() const override
+
+
+	bool readLBA(uint8_t *sectors, uint32_t lba, uint32_t count) override
 	{
-		return _sectorsCount;
+		return read(sectors, lba - _baseLBA, count);
+	};
+	
+
+	uint32_t count() const override
+	{
+		return _count;
 	}
 	
 private:
 	std::fstream _fs;
-	uint32_t _sectorsCount;
+	uint32_t _count;
+
+	uint32_t _baseLBA;
 };
 
 }

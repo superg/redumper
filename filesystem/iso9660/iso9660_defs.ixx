@@ -7,10 +7,7 @@ export module filesystem.iso9660:defs;
 
 
 
-namespace gpsxre
-{
-
-export namespace iso9660
+export namespace gpsxre::iso9660
 {
 
 constexpr uint32_t SYSTEM_AREA_SIZE = 16;
@@ -226,8 +223,6 @@ time_t convert_time(const RecordingDateTime &date_time)
 	//FIXME: GMT offset
 
 	return mktime(&time_info);
-}
-
 }
 
 }

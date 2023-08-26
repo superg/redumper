@@ -20,39 +20,26 @@ export class Image_BIN_Form1Reader : public Form1Reader
 public:
 	Image_BIN_Form1Reader(const std::filesystem::path &image_path)
 		: _fs(image_path, std::fstream::in | std::fstream::binary)
-		, _count(std::filesystem::file_size(image_path) / CD_DATA_SIZE)
 	{
 		Sector sector;
-		if(!read((uint8_t *)&sector, 0, 1))
+		if(!seek(0) || !read((uint8_t *)&sector))
 			throw_line("unable to establish base LBA");
 
 		_baseLBA = BCDMSF_to_LBA(sector.header.address);
 	}
 
 
-	bool read(uint8_t *sectors, uint32_t index, uint32_t count) override
+	uint32_t read(uint8_t *sectors, uint32_t index, uint32_t count) override
 	{
-		bool success = true;
+		uint32_t sectors_read = 0;
 
-		_fs.seekg(index * CD_DATA_SIZE);
-		if(_fs.fail())
-		{
-			_fs.clear();
-			success = false;
-		}
-		else
+		if(seek(index))
 		{
 			for(uint32_t s = 0; s < count; ++s)
 			{
 				Sector sector;
-				_fs.read((char *)&sector, sizeof(sector));
-
-				if(_fs.fail() || memcmp(sector.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
-				{
-					_fs.clear();
-					success = false;
+				if(!read((uint8_t *)&sector) || memcmp(sector.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
 					break;
-				}
 
 				uint8_t *user_data = nullptr;
 				if(sector.header.mode == 1)
@@ -67,36 +54,54 @@ public:
 					}
 				}
 
-				if(user_data == nullptr)
+				if(user_data != nullptr)
 				{
-					success = false;
-					break;
+					memcpy(sectors + sectors_read * sectorSize(), user_data, sectorSize());
+					++sectors_read;
 				}
 
-				memcpy(sectors + s * sectorSize(), user_data, sectorSize());
 			}
 		}
+
+		return sectors_read;
+	}
+
+
+	uint32_t readLBA(uint8_t *sectors, uint32_t lba, uint32_t count) override
+	{
+		return read(sectors, lba - _baseLBA, count);
+	};
+	
+private:
+	std::fstream _fs;
+	uint32_t _baseLBA;
+
+	bool seek(uint32_t index)
+	{
+		bool success = false;
+
+		_fs.seekg(index * CD_DATA_SIZE);
+		if(_fs.fail())
+			_fs.clear();
+		else
+			success = true;
 
 		return success;
 	}
 
 
-	bool readLBA(uint8_t *sectors, uint32_t lba, uint32_t count) override
+	bool read(uint8_t *sector)
 	{
-		return read(sectors, lba - _baseLBA, count);
-	};
-	
+		bool success = false;
 
-	uint32_t count() const override
-	{
-		return _count;
+		_fs.read((char *)sector, CD_DATA_SIZE);
+		if(_fs.fail())
+			_fs.clear();
+		else
+			success = true;
+
+		return success;
 	}
-	
-private:
-	std::fstream _fs;
-	uint32_t _count;
-
-	uint32_t _baseLBA;
 };
 
 }

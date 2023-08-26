@@ -96,7 +96,7 @@ public:
 		std::vector<uint8_t> data(FORM1_DATA_SIZE);
 		for(uint32_t lba = lba_start; lba < lba_end; ++lba)
 		{
-			if(!form1_reader.read(data.data(), lba, 1))
+			if(form1_reader.read(data.data(), lba, 1) != 1)
 				continue;
 
 			// PES_scrambling_control does not exist in a system_header, a padding_stream or a private_stream2 (and others?)

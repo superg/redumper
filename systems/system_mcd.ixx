@@ -11,7 +11,7 @@ module;
 
 export module systems.mcd;
 
-import filesystem.image_browser;
+import filesystem.iso9660;
 import systems.system;
 import utils.hex_bin;
 import utils.misc;
@@ -35,7 +35,7 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override;
+	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override;
 
 private:
 	static constexpr std::string_view _SYSTEM_MAGIC = "SEGADISCSYSTEM";
@@ -167,14 +167,9 @@ const std::map<char, std::string> SystemMCD::_ROM_REGIONS_NEW =
 };
 
 
-void SystemMCD::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const
+void SystemMCD::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const
 {
-	if(!ImageBrowser::IsDataTrack(track_path))
-		return;
-
-	ImageBrowser browser(track_path, 0, std::filesystem::file_size(track_path), false);
-
-	auto system_area = browser.getSystemArea();
+	auto system_area = iso9660::Browser::readSystemArea(sector_reader);
 	if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))
 		return;
 

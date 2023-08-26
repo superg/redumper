@@ -13,7 +13,6 @@ import cd.cd;
 import cd.cdrom;
 import cd.subcode;
 import dump;
-import filesystem.image_browser;
 import filesystem.iso9660;
 import systems.system;
 import utils.endian;
@@ -48,14 +47,14 @@ private:
 	static const std::set<uint32_t> _LIBCRYPT_SECTORS_MEDIEVIL;
 	static const std::set<uint32_t> _LIBCRYPT_SECTORS_COUNT;
 
-	std::string findEXE(ImageBrowser &browser) const
+	std::string findEXE(std::shared_ptr<iso9660::Entry> root_directory) const
 	{
 		std::string exe_path;
 
-		auto system_cnf = browser.RootDirectory()->SubEntry("SYSTEM.CNF");
+		auto system_cnf = root_directory->subEntry("SYSTEM.CNF");
 		if(system_cnf)
 		{
-			auto data = system_cnf->Read();
+			auto data = system_cnf->read();
 			std::string data_str(data.begin(), data.end());
 			std::stringstream ss(data_str);
 
@@ -80,9 +79,9 @@ private:
 		}
 		else
 		{
-			auto psx_exe = browser.RootDirectory()->SubEntry("PSX.EXE");
+			auto psx_exe = root_directory->subEntry("PSX.EXE");
 			if(psx_exe)
-				exe_path = psx_exe->Name();
+				exe_path = psx_exe->name();
 		}
 
 		return exe_path;
@@ -135,7 +134,7 @@ private:
 	}
 
 
-	bool findAntiModchipStrings(std::ostream &os, ImageBrowser &browser) const
+	bool findAntiModchipStrings(std::ostream &os, std::shared_ptr<iso9660::Entry> root_directory) const
 	{
 		std::vector<std::string> entries;
 
@@ -152,30 +151,27 @@ private:
 			0x82, 0xa8, 0x82, 0xbb, 0x82, 0xea, 0x82, 0xaa, 0x82, 0xa0, 0x82, 0xe8, 0x82, 0xdc, 0x82, 0xb7, 0x81, 0x42
 		};
 
-		browser.Iterate([&](const std::string &path, std::shared_ptr<ImageBrowser::Entry> d)
+		iso9660::Browser::iterate(root_directory, [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
 		{
 			bool exit = false;
 
-			auto fp((path.empty() ? "" : path + "/") + d->Name());
+			auto fp((path.empty() ? "" : path + "/") + d->name());
 
-			if(!d->IsDummy() && !d->IsInterleaved())
+			auto data = d->read();
+
+			auto it_en = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_EN), std::end(ANTIMOD_MESSAGE_EN));
+			if(it_en != data.end())
 			{
-				auto data = d->Read(false, false);
-
-				auto it_en = search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_EN), std::end(ANTIMOD_MESSAGE_EN));
-				if(it_en != data.end())
-				{
-					std::stringstream ss;
-					ss << fp << " @ 0x" << std::hex << it_en - data.begin() << ": EN";
-					entries.emplace_back(ss.str());
-				}
-				auto it_jp = search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_JP), std::end(ANTIMOD_MESSAGE_JP));
-				if(it_jp != data.end())
-				{
-					std::stringstream ss;
-					ss << fp << " @ 0x" << std::hex << it_jp - data.begin() << ": JP";
-					entries.emplace_back(ss.str());
-				}
+				std::stringstream ss;
+				ss << fp << " @ 0x" << std::hex << it_en - data.begin() << ": EN";
+				entries.emplace_back(ss.str());
+			}
+			auto it_jp = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_JP), std::end(ANTIMOD_MESSAGE_JP));
+			if(it_jp != data.end())
+			{
+				std::stringstream ss;
+				ss << fp << " @ 0x" << std::hex << it_jp - data.begin() << ": JP";
+				entries.emplace_back(ss.str());
 			}
 
 			return exit;
@@ -188,29 +184,7 @@ private:
 	}
 
 
-	bool detectEdcFast(const std::filesystem::path &track_path, uint64_t track_size) const
-	{
-		bool edc = false;
-
-		std::fstream fs(track_path, std::fstream::in | std::fstream::binary);
-		if(!fs.is_open())
-			throw_line("unable to open file ({})", track_path.filename().string());
-
-		uint32_t sectors_count = track_size / CD_DATA_SIZE;
-		if(sectors_count >= iso9660::SYSTEM_AREA_SIZE)
-		{
-			Sector sector;
-			read_entry(fs, (uint8_t *)&sector, CD_DATA_SIZE, iso9660::SYSTEM_AREA_SIZE - 1, 1, 0, 0);
-
-			if(sector.header.mode == 2 && sector.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
-				edc = sector.mode2.xa.form2.edc;
-		}
-
-		return edc;
-	}
-
-
-	bool detectLibCrypt(std::ostream &os, std::filesystem::path sub_path, uint64_t track_size) const
+	bool detectLibCrypt(std::ostream &os, std::filesystem::path sub_path) const
 	{
 		bool libcrypt = false;
 
@@ -222,7 +196,7 @@ private:
 		std::vector<int32_t> candidates_medievil;
 
 		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
-		int32_t lba_end = track_size / CD_DATA_SIZE;
+		int32_t lba_end = std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE + LBA_START;
 		for(auto lba : _LIBCRYPT_SECTORS_BASE)
 		{
 			int32_t lba_pair = lba + _LIBCRYPT_SECTORS_PAIR_SHIFT;
@@ -296,29 +270,27 @@ const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_COUNT =
 
 void SystemPSX::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const
 {
-	if(!ImageBrowser::IsDataTrack(track_path))
+	iso9660::PrimaryVolumeDescriptor pvd;
+	if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
 		return;
+	auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
 
-	uint64_t track_size = std::filesystem::file_size(track_path);
-
-	ImageBrowser browser(track_path, 0, track_size, false);
-
-	auto exe_path = findEXE(browser);
+	auto exe_path = findEXE(root_directory);
 	if(exe_path.empty())
 		return;
 
-	auto exe_file = browser.RootDirectory()->SubEntry(exe_path);
+	auto exe_file = root_directory->subEntry(exe_path);
 	if(!exe_file)
 		return;
 
-	auto exe = exe_file->Read();
+	auto exe = exe_file->read();
 	if(exe.size() < _EXE_MAGIC.length() || std::string((char *)exe.data(), _EXE_MAGIC.length()) != _EXE_MAGIC)
 		return;
 
 	os << std::format("  EXE: {}", exe_path) << std::endl;
 
 	{
-		time_t t = exe_file->DateTime();
+		time_t t = exe_file->dateTime();
 		std::stringstream ss;
 		ss << std::put_time(localtime(&t), "%Y-%m-%d");
 		os << std::format("  EXE date: {}", ss.str()) << std::endl;
@@ -332,12 +304,9 @@ void SystemPSX::printInfo(std::ostream &os, SectorReader *sector_reader, const s
 	if(!region.empty())
 		os << std::format("  region: {}", region) << std::endl;
 
-	bool edc = detectEdcFast(track_path, track_size);
-	os << std::format("  EDC: {}", edc ? "yes" : "no") << std::endl;
-
 	{
 		std::stringstream ss;
-		bool antimod = findAntiModchipStrings(ss, browser);
+		bool antimod = findAntiModchipStrings(ss, root_directory);
 		os << std::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
 		if(antimod)
 			os << ss.str() << std::endl;
@@ -347,7 +316,7 @@ void SystemPSX::printInfo(std::ostream &os, SectorReader *sector_reader, const s
 	if(std::filesystem::exists(sub_path))
 	{
 		std::stringstream ss;
-		bool libcrypt = detectLibCrypt(ss, sub_path, track_size);
+		bool libcrypt = detectLibCrypt(ss, sub_path);
 		os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
 		if(libcrypt)
 			os << ss.str() << std::endl;

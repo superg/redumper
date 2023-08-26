@@ -30,11 +30,11 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override;
+	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override;
 };
 
 
-void SystemISO::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const
+void SystemISO::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const
 {
 	iso9660::PrimaryVolumeDescriptor pvd;
 	if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))

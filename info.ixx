@@ -92,16 +92,13 @@ export void redumper_info(Options &options)
 	{
 		std::shared_ptr<SectorReader> raw_reader;
 		std::shared_ptr<SectorReader> form1_reader;
+
 		if(t.second == TrackType::ISO)
-		{
 			form1_reader = std::make_shared<Image_ISO_Form1Reader>(t.first);
-		}
-		else
+		else if(t.second == TrackType::DATA)
 		{
 			raw_reader = std::make_shared<Image_RawReader>(t.first);
-
-			if(t.second == TrackType::DATA)
-				form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);
+			form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);
 		}
 
 		for(auto const &s : Systems::get())
@@ -113,7 +110,6 @@ export void redumper_info(Options &options)
 				continue;
 
 			std::stringstream ss;
-			//FIXME: pass image_prefix
 			system->printInfo(ss, reader.get(), t.first);
 
 			if(ss.rdbuf()->in_avail())

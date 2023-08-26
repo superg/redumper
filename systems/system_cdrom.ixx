@@ -39,8 +39,6 @@ public:
 
 void SystemCDROM::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const
 {
-	uint32_t sectors_count = sector_reader->count();
-
 	uint32_t invalid_sync = 0;
 	uint32_t mode2_form1 = 0;
 	uint32_t mode2_form2 = 0;
@@ -54,17 +52,11 @@ void SystemCDROM::printInfo(std::ostream &os, SectorReader *sector_reader, const
 	uint32_t invalid_modes = 0;
 
 	Sector sector;
-	for(int32_t i = 0; i < sectors_count; ++i)
+	uint32_t s = 0;
+	for(; sector_reader->read((uint8_t *)&sector, s, 1) == 1; ++s)
 	{
-		if(!sector_reader->read((uint8_t *)&sector, i, 1))
-			throw_line("read failed (sector: {})", i);
-
 		if(memcmp(sector.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
 		{
-			// not a data track
-			if(!i)
-				return;
-
 			++invalid_sync;
 			continue;
 		}
@@ -168,7 +160,7 @@ void SystemCDROM::printInfo(std::ostream &os, SectorReader *sector_reader, const
 		}
 	}
 
-	os << std::format("  sectors count: {}", sectors_count) << std::endl;
+	os << std::format("  sectors count: {}", s) << std::endl;
 	for(uint32_t i = 0; i < modes.size(); ++i)
 		if(modes[i])
 			os << std::format("  mode{} sectors: {}", i, modes[i]) << std::endl;

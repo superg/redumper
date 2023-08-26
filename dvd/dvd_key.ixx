@@ -54,7 +54,7 @@ std::map<std::string, iso9660::DirectoryRecord> dr_list(Form1Reader &form1_reade
 
 	uint32_t sectors_count = scale_up(dr.data_length.lsb, FORM1_DATA_SIZE);
 	std::vector<uint8_t> buffer(sectors_count * FORM1_DATA_SIZE);
-	if(!form1_reader.read(buffer.data(), dr.offset.lsb, sectors_count))
+	if(form1_reader.read(buffer.data(), dr.offset.lsb, sectors_count) != sectors_count)
 		throw_line("failed to read directory record");
 	buffer.resize(dr.data_length.lsb);
 
@@ -96,7 +96,7 @@ std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(Form1Reade
 	for(uint32_t lba = iso9660::SYSTEM_AREA_SIZE; ; ++lba)
 	{
 		std::vector<uint8_t> sector(FORM1_DATA_SIZE);
-		if(!form1_reader.read(sector.data(), lba, 1))
+		if(form1_reader.read(sector.data(), lba, 1) != 1)
 			throw_line("failed to read PVD");
 
 		auto vd = (iso9660::VolumeDescriptor *)sector.data();
@@ -189,7 +189,7 @@ export void dvd_key(Context &ctx, const Options &options)
 
 		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
 		{
-			Disc_READ_Form1Reader reader(*ctx.sptd, 0);
+			Disc_READ_Form1Reader reader(*ctx.sptd);
 			auto vobs = extract_vob_list(reader);
 			
 			bool cppm = false;

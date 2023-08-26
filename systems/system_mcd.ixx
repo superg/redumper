@@ -12,6 +12,7 @@ module;
 export module systems.mcd;
 
 import filesystem.iso9660;
+import readers.sector_reader;
 import systems.system;
 import utils.hex_bin;
 import utils.misc;

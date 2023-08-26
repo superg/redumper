@@ -20,6 +20,7 @@ import readers.image_bin_form1_reader;
 import readers.image_iso_form1_reader;
 import readers.image_raw_reader;
 import readers.raw_reader;
+import systems.system;
 import systems.systems;
 import utils.hex_bin;
 import utils.logger;

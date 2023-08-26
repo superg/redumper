@@ -12,6 +12,7 @@ import cd.cd;
 import cd.cdrom;
 import cd.ecc;
 import cd.edc;
+import readers.sector_reader;
 import systems.system;
 import utils.file_io;
 

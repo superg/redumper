@@ -28,11 +28,11 @@ public:
 	{
 		std::list<Creator> systems;
 		
-		systems.push_back([](){ return std::unique_ptr<System>(new SystemCDROM()); });
-		systems.push_back([](){ return std::unique_ptr<System>(new SystemISO()); });
-		systems.push_back([](){ return std::unique_ptr<System>(new SystemMCD()); });
-		systems.push_back([](){ return std::unique_ptr<System>(new SystemPSX()); });
-		systems.push_back([](){ return std::unique_ptr<System>(new SystemSS()); });
+		systems.push_back([](){ return std::make_unique<SystemCDROM>(); });
+		systems.push_back([](){ return std::make_unique<SystemISO>(); });
+		systems.push_back([](){ return std::make_unique<SystemMCD>(); });
+		systems.push_back([](){ return std::make_unique<SystemPSX>(); });
+		systems.push_back([](){ return std::make_unique<SystemSS>(); });
 
 		return systems;
 	}

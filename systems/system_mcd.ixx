@@ -36,7 +36,63 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override;
+	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override
+	{
+		auto system_area = iso9660::Browser::readSystemArea(sector_reader);
+		if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))
+			return;
+
+		auto rom_header = (ROMHeader *)(system_area.data() + _ROM_HEADER_OFFSET);
+
+		//TODO:
+		// http://redump.org/disc/3157/
+		// http://redump.org/disc/42139/
+		// review if ISO9660 PVD has the same dates in all cases
+
+		std::string date = extractDate(std::string(rom_header->date, sizeof(rom_header->date)));
+		if(!date.empty())
+			os << std::format("  build date: {}", date) << std::endl;
+
+		// MCD often reuse checksum field for serial
+		std::string serial(rom_header->checksum == 1 ? std::string(rom_header->serial, sizeof(rom_header->serial)) : std::string(rom_header->serial_long, sizeof(rom_header->serial_long)));
+		// erase software type if specified
+		if(serial[2] == ' ')
+			serial.erase(serial.begin(), serial.begin() + 2);
+		erase_all_inplace(serial, ' ');
+		if(!serial.empty())
+			os << std::format("  serial: {}", serial) << std::endl;
+
+		std::string regions(rom_header->regions, sizeof(rom_header->regions));
+		erase_all_inplace(regions, ' ');
+
+		// new style
+		if(regions.length() == 1)
+		{
+			auto it = _ROM_REGIONS_NEW.find(regions.front());
+			if(it != _ROM_REGIONS_NEW.end())
+				regions = it->second;
+		}
+
+		std::set<std::string> unique_regions;
+		for(auto r : regions)
+		{
+			auto it = _ROM_REGIONS.find(r);
+			if(it != _ROM_REGIONS.end())
+				unique_regions.insert(it->second);
+		}
+
+		os << (unique_regions.size() == 1 ? "  region: " : "  regions: ");
+		bool comma = false;
+		for(auto r : unique_regions)
+		{
+			os << (comma ? ", " : "") << r;
+			comma = true;
+		}
+		os << std::endl;
+
+		os << "  header:" << std::endl;
+		os << std::format("{}", hexdump(system_area.data(), _ROM_HEADER_OFFSET, sizeof(ROMHeader)));
+	}
 
 private:
 	static constexpr std::string_view _SYSTEM_MAGIC = "SEGADISCSYSTEM";
@@ -166,64 +222,5 @@ const std::map<char, std::string> SystemMCD::_ROM_REGIONS_NEW =
 //	 'E' - reserved for Europe, prioritize old style
 	{'F', "JUE"}
 };
-
-
-void SystemMCD::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const
-{
-	auto system_area = iso9660::Browser::readSystemArea(sector_reader);
-	if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))
-		return;
-
-	auto rom_header = (ROMHeader *)(system_area.data() + _ROM_HEADER_OFFSET);
-
-	//TODO:
-	// http://redump.org/disc/3157/
-	// http://redump.org/disc/42139/
-	// review if ISO9660 PVD has the same dates in all cases
-
-	std::string date = extractDate(std::string(rom_header->date, sizeof(rom_header->date)));
-	if(!date.empty())
-		os << std::format("  build date: {}", date) << std::endl;
-
-	// MCD often reuse checksum field for serial
-	std::string serial(rom_header->checksum == 1 ? std::string(rom_header->serial, sizeof(rom_header->serial)) : std::string(rom_header->serial_long, sizeof(rom_header->serial_long)));
-	// erase software type if specified
-	if(serial[2] == ' ')
-		serial.erase(serial.begin(), serial.begin() + 2);
-	erase_all_inplace(serial, ' ');
-	if(!serial.empty())
-		os << std::format("  serial: {}", serial) << std::endl;
-
-	std::string regions(rom_header->regions, sizeof(rom_header->regions));
-	erase_all_inplace(regions, ' ');
-
-	// new style
-	if(regions.length() == 1)
-	{
-		auto it = _ROM_REGIONS_NEW.find(regions.front());
-		if(it != _ROM_REGIONS_NEW.end())
-			regions = it->second;
-	}
-
-	std::set<std::string> unique_regions;
-	for(auto r : regions)
-	{
-		auto it = _ROM_REGIONS.find(r);
-		if(it != _ROM_REGIONS.end())
-			unique_regions.insert(it->second);
-	}
-
-	os << (unique_regions.size() == 1 ? "  region: " : "  regions: ");
-	bool comma = false;
-	for(auto r : unique_regions)
-	{
-		os << (comma ? ", " : "") << r;
-		comma = true;
-	}
-	os << std::endl;
-	
-	os << "  header:" << std::endl;
-	os << std::format("{}", hexdump(system_area.data(), _ROM_HEADER_OFFSET, sizeof(ROMHeader)));
-}
 
 }

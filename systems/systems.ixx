@@ -27,7 +27,7 @@ public:
 	static std::list<Creator> get()
 	{
 		std::list<Creator> systems;
-		
+
 		systems.push_back([](){ return std::make_unique<SystemCDROM>(); });
 		systems.push_back([](){ return std::make_unique<SystemISO>(); });
 		systems.push_back([](){ return std::make_unique<SystemMCD>(); });

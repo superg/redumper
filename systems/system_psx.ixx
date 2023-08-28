@@ -39,7 +39,60 @@ public:
 		return Type::ISO;
 	}
 
-	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override;
+	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override
+	{
+		iso9660::PrimaryVolumeDescriptor pvd;
+		if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
+			return;
+		auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
+
+		auto exe_path = findEXE(root_directory);
+		if(exe_path.empty())
+			return;
+
+		auto exe_file = root_directory->subEntry(exe_path);
+		if(!exe_file)
+			return;
+
+		auto exe = exe_file->read();
+		if(exe.size() < _EXE_MAGIC.length() || std::string((char *)exe.data(), _EXE_MAGIC.length()) != _EXE_MAGIC)
+			return;
+
+		os << std::format("  EXE: {}", exe_path) << std::endl;
+
+		{
+			time_t t = exe_file->dateTime();
+			std::stringstream ss;
+			ss << std::put_time(localtime(&t), "%Y-%m-%d");
+			os << std::format("  EXE date: {}", ss.str()) << std::endl;
+		}
+
+		auto serial = deduceSerial(exe_path);
+		if(!serial.first.empty() && !serial.second.empty())
+			os << std::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
+
+		auto region = detectRegion(serial.first);
+		if(!region.empty())
+			os << std::format("  region: {}", region) << std::endl;
+
+		{
+			std::stringstream ss;
+			bool antimod = findAntiModchipStrings(ss, root_directory);
+			os << std::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
+			if(antimod)
+				os << ss.str() << std::endl;
+		}
+
+		std::filesystem::path sub_path = track_extract_basename(track_path.string()) + ".subcode";
+		if(std::filesystem::exists(sub_path))
+		{
+			std::stringstream ss;
+			bool libcrypt = detectLibCrypt(ss, sub_path);
+			os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
+			if(libcrypt)
+				os << ss.str() << std::endl;
+		}
+	}
 
 private:
 	static const std::string _EXE_MAGIC;
@@ -267,61 +320,5 @@ const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_COUNT =
 	16,
 	32
 };
-
-
-void SystemPSX::printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const
-{
-	iso9660::PrimaryVolumeDescriptor pvd;
-	if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
-		return;
-	auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
-
-	auto exe_path = findEXE(root_directory);
-	if(exe_path.empty())
-		return;
-
-	auto exe_file = root_directory->subEntry(exe_path);
-	if(!exe_file)
-		return;
-
-	auto exe = exe_file->read();
-	if(exe.size() < _EXE_MAGIC.length() || std::string((char *)exe.data(), _EXE_MAGIC.length()) != _EXE_MAGIC)
-		return;
-
-	os << std::format("  EXE: {}", exe_path) << std::endl;
-
-	{
-		time_t t = exe_file->dateTime();
-		std::stringstream ss;
-		ss << std::put_time(localtime(&t), "%Y-%m-%d");
-		os << std::format("  EXE date: {}", ss.str()) << std::endl;
-	}
-
-	auto serial = deduceSerial(exe_path);
-	if(!serial.first.empty() && !serial.second.empty())
-		os << std::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
-
-	auto region = detectRegion(serial.first);
-	if(!region.empty())
-		os << std::format("  region: {}", region) << std::endl;
-
-	{
-		std::stringstream ss;
-		bool antimod = findAntiModchipStrings(ss, root_directory);
-		os << std::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
-		if(antimod)
-			os << ss.str() << std::endl;
-	}
-
-	std::filesystem::path sub_path = track_extract_basename(track_path.string()) + ".subcode";
-	if(std::filesystem::exists(sub_path))
-	{
-		std::stringstream ss;
-		bool libcrypt = detectLibCrypt(ss, sub_path);
-		os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
-		if(libcrypt)
-			os << ss.str() << std::endl;
-	}
-}
 
 }

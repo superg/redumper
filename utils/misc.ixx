@@ -379,16 +379,47 @@ export std::vector<std::string> tokenize(const std::string &str, const char *del
 }
 
 
-export long long stoll_strict(const std::string &str)
+export bool str_to_int(int64_t &value, const std::string &str)
 {
-	size_t idx = 0;
-	long long number = std::stoll(str, &idx);
+	size_t start = 0;
+	size_t end = str.length();
 
-	// suboptimal but at least something
-	if(idx != str.length())
-		throw std::invalid_argument("invalid stol argument");
+	// empty string
+	if(!end)
+		return false;
 
-	return number;
+	bool negative = false;
+	if(str[start] == '+')
+		++start;
+	else if(str[start] == '-')
+	{
+		negative = true;
+		++start;
+	}
+
+	value = 0;
+	for(size_t i = start; i < end; ++i)
+	{
+		if(std::isdigit(str[i]))
+			value = (value * 10) + (str[i] - '0');
+		else
+			return false;
+	}
+
+	if(negative)
+		value = -value;
+
+	return start != end;
+}
+
+
+export int64_t str_to_int(const std::string &s)
+{
+	int64_t v;
+	if(!str_to_int(v, s))
+		throw_line("string is not a number ({})", s);
+
+	return v;
 }
 
 
@@ -400,16 +431,15 @@ export std::vector<std::pair<int32_t, int32_t>> string_to_ranges(const std::stri
 	for(std::string range; std::getline(iss, range, ':'); )
 	{
 		std::istringstream range_ss(range);
-
-		std::pair<int32_t, int32_t> r;
-
 		std::string s;
-		std::getline(range_ss, s, '-');
-		r.first = stoll_strict(s);
-		std::getline(range_ss, s, '-');
-		r.second = stoll_strict(s) + 1;
 
-		ranges.push_back(r);
+		std::getline(range_ss, s, '-');
+		uint32_t lba_start = str_to_int(s);
+
+		std::getline(range_ss, s, '-');
+		uint32_t lba_end = str_to_int(s) + 1;
+
+		ranges.emplace_back(lba_start, lba_end);
 	}
 
 	return ranges;
@@ -472,23 +502,6 @@ export std::string track_extract_basename(std::string str)
 }
 
 
-export bool stoll_try(long long &value, const std::string &str)
-{
-	bool success = true;
-
-	try
-	{
-		value = stoll_strict(str);
-	}
-	catch(...)
-	{
-		success = false;
-	}
-
-	return success;
-}
-
-
 export template<typename T>
 T digits_count(T value)
 {
@@ -505,5 +518,19 @@ T sign_extend(T value)
 	T m = (T)1 << bits - 1;
 	return (v ^ m) - m;
 }
+
+
+export bool number_is_year(uint32_t year)
+{
+	// reasonable unixtime range
+	return year >= 1970 && year < 2038;
+}
+
+
+export bool number_is_month(uint32_t month)
+{
+	return month >= 1 && month <= 12;
+}
+
 
 }

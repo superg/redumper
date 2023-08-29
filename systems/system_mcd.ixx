@@ -1,5 +1,6 @@
 module;
 
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -8,6 +9,7 @@ module;
 #include <ostream>
 #include <set>
 #include <string_view>
+#include <vector>
 
 export module systems.mcd;
 
@@ -42,14 +44,19 @@ public:
 		if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))
 			return;
 
-		auto rom_header = (ROMHeader *)(system_area.data() + _ROM_HEADER_OFFSET);
+		std::vector<uint8_t> rom_header_data(system_area.data() + _ROM_HEADER_OFFSET, system_area.data() + _ROM_HEADER_OFFSET + sizeof(ROMHeader));
 
-		//TODO:
-		// http://redump.org/disc/3157/
-		// http://redump.org/disc/42139/
-		// review if ISO9660 PVD has the same dates in all cases
+		// Power Factory (USA)
+		// data is shifted due to one space character missing between serial and device support
+		if(rom_header_data.back() == '\0')
+		{
+			rom_header_data.pop_back();
+			rom_header_data.insert(rom_header_data.begin() + offsetof(struct ROMHeader, device_support) - 1, ' ');
+		}
 
-		std::string date = extractDate(std::string(rom_header->date, sizeof(rom_header->date)));
+		auto rom_header = (ROMHeader *)rom_header_data.data();
+
+		std::string date = extractDate(std::string(rom_header->publisher_date_title, sizeof(rom_header->publisher_date_title)));
 		if(!date.empty())
 			os << std::format("  build date: {}", date) << std::endl;
 
@@ -68,27 +75,30 @@ public:
 		// new style
 		if(regions.length() == 1)
 		{
-			auto it = _ROM_REGIONS_NEW.find(regions.front());
-			if(it != _ROM_REGIONS_NEW.end())
+			auto it = _REGIONS_NEW.find(regions.front());
+			if(it != _REGIONS_NEW.end())
 				regions = it->second;
 		}
 
 		std::set<std::string> unique_regions;
 		for(auto r : regions)
 		{
-			auto it = _ROM_REGIONS.find(r);
-			if(it != _ROM_REGIONS.end())
+			auto it = _REGIONS.find(r);
+			if(it != _REGIONS.end())
 				unique_regions.insert(it->second);
 		}
 
-		os << (unique_regions.size() == 1 ? "  region: " : "  regions: ");
-		bool comma = false;
-		for(auto r : unique_regions)
+		if(!unique_regions.empty())
 		{
-			os << (comma ? ", " : "") << r;
-			comma = true;
+			os << (unique_regions.size() == 1 ? "  region: " : "  regions: ");
+			bool comma = false;
+			for(auto r : unique_regions)
+			{
+				os << (comma ? ", " : "") << r;
+				comma = true;
+			}
+			os << std::endl;
 		}
-		os << std::endl;
 
 		os << "  header:" << std::endl;
 		os << std::format("{}", hexdump(system_area.data(), _ROM_HEADER_OFFSET, sizeof(ROMHeader)));
@@ -97,16 +107,18 @@ public:
 private:
 	static constexpr std::string_view _SYSTEM_MAGIC = "SEGADISCSYSTEM";
 	static constexpr uint32_t _ROM_HEADER_OFFSET = 0x100;
-	static const std::map<std::string, uint32_t> _ROM_MONTHS;
-	static const std::map<char, std::string> _ROM_REGIONS;
-	static const std::map<char, std::string> _ROM_REGIONS_NEW;
+	static constexpr uint32_t _DATE_OFFSET = 8;
+	static constexpr uint32_t _YEAR_SYMBOLS = 4;
+	static constexpr uint32_t _MONTH_SYMBOLS = 3;
+	static const std::map<std::string, long long> _MONTHS;
+	static const std::map<char, std::string> _REGIONS;
+	static const std::map<char, std::string> _REGIONS_NEW;
+	static const std::set<char> _DATE_DELIMITERS;
 
 	struct ROMHeader
 	{
 		char system_name[16];
-		char publisher[8];
-		char date[8];
-		char title[48];
+		char publisher_date_title[64];
 		char title_international[48];
 
 		union
@@ -146,39 +158,75 @@ private:
 	};
 
 
-	std::string extractDate(std::string header_date) const
+	std::string extractDate(std::string publisher_date_title) const
 	{
-		std::string date;
-
-		uint32_t month_start = 5;
-
-		// account for no delimiter
-		if(header_date.back() == ' ')
+		// check the usual date location
+		auto date = decodeDate(std::string(publisher_date_title, _DATE_OFFSET));
+		if(!date.first)
 		{
-			header_date.pop_back();
-			month_start = 4;
+			// find potential date
+			for(size_t i = 0; i < publisher_date_title.length(); ++i)
+			{
+				auto d = decodeDate(std::string(publisher_date_title, i));
+				if(number_is_year(d.first))
+				{
+					date = d;
+					break;
+				}
+			}
 		}
 
-		long long year = 0;
-		stoll_try(year, std::string(header_date, 0, 4));
-		if(year && year < 100)
-			year += 1900;
+		return date.first ? std::format("{:04}-{:02}", date.first, date.second) : "";
+	}
 
-		std::string month(header_date, month_start);
-		uint32_t month_index = 0;
-		auto it = _ROM_MONTHS.find(month);
-		if(it != _ROM_MONTHS.end())
-			month_index = it->second;
 
-		if(year || month_index)
-			date = std::format("{:04}-{:02}", year, month_index);
+	std::pair<uint32_t, uint32_t> decodeDate(std::string header_date) const
+	{
+		std::pair<uint32_t, uint32_t> date;
+
+		if(header_date.length() >= _YEAR_SYMBOLS)
+		{
+			int64_t year_index;
+
+			// 4-digit year
+			if(str_to_int(year_index, std::string(header_date, 0, _YEAR_SYMBOLS)) && year_index >= 0)
+				date.first = year_index;
+			// 2-digit year
+			else if(header_date[0] == ' ' && header_date[1] == ' ')
+			{
+				if(str_to_int(year_index, std::string(header_date, 2, _YEAR_SYMBOLS - 2)) && year_index >= 0)
+					date.first = year_index + 1900;
+			}
+
+			// extract month
+			if(header_date.length() > _YEAR_SYMBOLS)
+			{
+				size_t month_start = _YEAR_SYMBOLS;
+
+				// skip delimiter if used
+				if(_DATE_DELIMITERS.find(header_date[_YEAR_SYMBOLS]) != _DATE_DELIMITERS.end())
+					++month_start;
+
+				std::string month(header_date, month_start, _MONTH_SYMBOLS);
+				auto it = _MONTHS.find(str_uppercase(month));
+				if(it == _MONTHS.end())
+				{
+					// attempt to decode numeric month value
+					int64_t month_index;
+					if(str_to_int(month_index, std::string(month, 0, month.find(' '))) && month_index >= 0 && number_is_month(month_index))
+						date.second = month_index;
+				}
+				else
+					date.second = it->second;
+			}
+		}
 
 		return date;
 	}
 };
 
 
-const std::map<std::string, uint32_t> SystemMCD::_ROM_MONTHS =
+const std::map<std::string, long long> SystemMCD::_MONTHS =
 {
 	{"JAN",  1},
 	{"FEB",  2},
@@ -195,7 +243,7 @@ const std::map<std::string, uint32_t> SystemMCD::_ROM_MONTHS =
 };
 
 
-const std::map<char, std::string> SystemMCD::_ROM_REGIONS =
+const std::map<char, std::string> SystemMCD::_REGIONS =
 {
 	{'J', "Japan" },
 	{'U', "USA"   },
@@ -203,7 +251,7 @@ const std::map<char, std::string> SystemMCD::_ROM_REGIONS =
 };
 
 
-const std::map<char, std::string> SystemMCD::_ROM_REGIONS_NEW =
+const std::map<char, std::string> SystemMCD::_REGIONS_NEW =
 {
 	{'0', ""   },
 	{'1', "J"  },
@@ -221,6 +269,12 @@ const std::map<char, std::string> SystemMCD::_ROM_REGIONS_NEW =
 	{'D', "JUE"},
 //	 'E' - reserved for Europe, prioritize old style
 	{'F', "JUE"}
+};
+
+
+const std::set<char> SystemMCD::_DATE_DELIMITERS =
+{
+	'.', ' ', ',', '_'
 };
 
 }

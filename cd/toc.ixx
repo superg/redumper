@@ -642,8 +642,8 @@ export struct TOC
 
 		// make sure to prepend 0 to 12-digit MCN, total length should always be 13 digits
 		{
-			long long mcn_value;
-			if(mcn_print.length() == 12 && stoll_try(mcn_value, mcn_print))
+			int64_t mcn_value;
+			if(mcn_print.length() == 12 && str_to_int(mcn_value, mcn_print))
 				mcn_print = std::format("{:013}", mcn_value);
 		}
 

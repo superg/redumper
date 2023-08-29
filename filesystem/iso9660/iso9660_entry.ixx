@@ -192,7 +192,8 @@ private:
 	{
 		auto s = identifier.find((char)iso9660::Characters::SEPARATOR2);
 
-		version = (s == std::string::npos ? 0 : stoll_strict(identifier.substr(s + 1)));
+		version = (s == std::string::npos ? 0 : str_to_int(identifier.substr(s + 1)));
+
 		return identifier.substr(0, s);
 	}
 };

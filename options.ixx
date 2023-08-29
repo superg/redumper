@@ -233,7 +233,7 @@ export struct Options
 				}
 				else if(i_value != nullptr)
 				{
-					*i_value = stoll_strict(o);
+					*i_value = str_to_int(o);
 					i_value = nullptr;
 				}
 				else

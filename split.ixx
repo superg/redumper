@@ -1089,7 +1089,7 @@ export void redumper_split_cd(const Options &options)
 		toc.generateIndex0();
 	}
 	else
-		toc.updateQ(subq.data(), sectors_count, LBA_START);
+		toc.updateQ(subq.data(), sectors_count, LBA_START, options.legacy_subs);
 
 	LOG("final TOC:");
 	print_toc(toc);

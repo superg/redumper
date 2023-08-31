@@ -185,7 +185,7 @@ export struct TOC
 	}
 
 
-	void updateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
+	void updateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start, bool legacy_subs)
 	{
 		// pre-gap
 		for(uint32_t i = 0; i < sessions.size(); ++i)
@@ -273,11 +273,14 @@ export struct TOC
 						uint8_t tno = bcd_decode(Q.mode1.tno);
 						if(tno == s.tracks[i].track_number)
 						{
-							uint8_t index = bcd_decode(Q.mode1.point_index);
+							if(!legacy_subs || tno == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+							{
+								uint8_t index = bcd_decode(Q.mode1.point_index);
 
-							// no gap, preserve TOC configuration
-							if(index)
-								lba = s.tracks[i].lba_start;
+								// no gap, preserve TOC configuration
+								if(index)
+									lba = s.tracks[i].lba_start;
+							}
 
 							break;
 						}

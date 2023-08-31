@@ -45,6 +45,7 @@ export struct Options
 	std::unique_ptr<int> lba_start;
 	std::unique_ptr<int> lba_end;
 	bool force_qtoc;
+	bool legacy_subs;
 	std::string skip;
 	int skip_fill;
 	bool iso9660_trim;
@@ -70,6 +71,7 @@ export struct Options
 		, retries(0)
 		, refine_subchannel(false)
 		, force_qtoc(false)
+		, legacy_subs(false)
 		, skip_fill(0x55)
 		, iso9660_trim(false)
 		, plextor_leadin_skip(false)
@@ -187,6 +189,8 @@ export struct Options
 					}
 					else if(key == "--force-qtoc")
 						force_qtoc = true;
+					else if(key == "--legacy-subs")
+						legacy_subs = true;
 					else if(key == "--skip")
 						s_value = &skip;
 					else if(key == "--skip-fill")
@@ -296,6 +300,7 @@ export struct Options
 		LOG("\t--force-split                  \tforce track split with errors");
 		LOG("\t--leave-unchanged              \tdon't replace erroneous sectors with generated ones");
 		LOG("\t--force-qtoc                   \tForce QTOC based track split");
+		LOG("\t--legacy-subs                  \tReplicate DIC style subchannel based track split");
 		LOG("\t--skip-fill=VALUE              \tfill byte value for skipped sectors (default: 0x{:02X})", skip_fill);
 		LOG("\t--iso9660-trim                 \ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
 		LOG("");

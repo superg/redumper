@@ -641,12 +641,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 
 	uint32_t errors_q_last = errors_q;
 
-	Signal::get().engage();
-	int signal_dummy = 0;
-	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&signal_dummy, [](int *)
-	{
-		Signal::get().disengage();
-	});
+	SignalINT signal;
 
 	int32_t lba_next = 0;
 	int32_t lba_overread = lba_end;
@@ -1013,7 +1008,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 				lba_next = r->second;
 		}
 
-		if(Signal::get().interrupt())
+		if(signal.interrupt())
 		{
 			LOG_R("[LBA: {:6}] forced stop ", lba);
 			lba_overread = lba;
@@ -1038,6 +1033,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 	LOG("  SCSI: {}", errors_scsi);
 	LOG("  C2: {}", errors_c2);
 	LOG("  Q: {}", errors_q);
+
+	if(signal.interrupt())
+		signal.raiseDefault();
 
 	// always refine once if LG/ASUS to improve chances of capturing enough lead-out sectors
 	return errors_scsi || errors_c2 || drive_is_asus(ctx.drive_config) && !options.asus_skip_leadout;

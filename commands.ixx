@@ -25,7 +25,7 @@ export bool redumper_dump(Context &ctx, Options &options)
 	if(ctx.disc_type == DiscType::CD)
 		ctx.dump->refine = redumper_dump_cd(ctx, options, false);
 	else
-		ctx.dump->refine = dump_dvd(ctx, options, DumpMode::DUMP) == DumpStatus::ERRORS;
+		ctx.dump->refine = dump_dvd(ctx, options, DumpMode::DUMP);
 
 	return true;
 }

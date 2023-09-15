@@ -55,14 +55,6 @@ export enum class DumpMode
 };
 
 
-export enum class DumpStatus
-{
-	SUCCESS,
-	ERRORS,
-	INTERRUPTED
-};
-
-
 export constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
 #if 1
 export constexpr int32_t LBA_START = -45150; //MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150

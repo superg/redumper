@@ -226,7 +226,7 @@ void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
 }
 
 
-export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
+export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 {
 	if(options.image_name.empty())
 		throw_line("image name is not provided");
@@ -365,13 +365,7 @@ export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_m
 
 	ROMEntry rom_entry(iso_path.filename().string());
 
-	bool interrupted = false;
-	Signal::get().engage();
-	int signal_dummy = 0;
-	std::unique_ptr<int, std::function<void(int *)>> signal_guard(&signal_dummy, [](int *)
-	{
-		Signal::get().disengage();
-	});
+	SignalINT signal;
 	
 	for(uint32_t s = 0; s < sectors_count;)
 	{
@@ -488,10 +482,9 @@ export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_m
 
 		rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
 
-		if(Signal::get().interrupt())
+		if(signal.interrupt())
 		{
 			LOG_R("[sector: {:6}] forced stop ", s);
-			interrupted = true;
 			break;
 		}
 
@@ -499,7 +492,7 @@ export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_m
 			s += sectors_at_once;
 	}
 
-	if(!interrupted)
+	if(!signal.interrupt())
 	{
 		progress_output(sectors_count, sectors_count, errors_scsi);
 		LOG("");
@@ -510,14 +503,17 @@ export DumpStatus dump_dvd(Context &ctx, const Options &options, DumpMode dump_m
 	LOG("  SCSI: {}", errors_scsi);
 	LOG("");
 
-	if(!errors_scsi && !interrupted)
+	if(signal.interrupt())
+		signal.raiseDefault();
+
+	if(!errors_scsi)
 	{
 		LOG("dat:");
 		LOG("{}", rom_entry.xmlLine());
 		LOG("");
 	}
 
-	return interrupted ? DumpStatus::INTERRUPTED : (errors_scsi ? DumpStatus::ERRORS : DumpStatus::SUCCESS);
+	return errors_scsi;
 }
 
 }

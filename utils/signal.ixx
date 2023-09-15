@@ -1,43 +1,55 @@
 module;
 #include <signal.h>
+#include "throw_line.hh"
 
 export module utils.signal;
-
-
-
-static volatile sig_atomic_t g_sigint_flag = 0;
 
 
 
 namespace gpsxre
 {
 
-export class Signal
+template<int S>
+class Signal
 {
 public:
-	static Signal &get()
+	Signal()
 	{
-		static Signal instance;
+		setHandler();
+		engage();
+	}
 
-		return instance;
+
+	~Signal()
+	{
+		disengage();
+		resetHandler();
 	}
 
 
 	void engage()
 	{
-		g_sigint_flag = 2;
+		_flag = 2;
 	}
 
 
 	void disengage()
 	{
-		g_sigint_flag = 0;
+		_flag = 0;
 	}
 
 
 	bool interrupt()
 	{
-		return g_sigint_flag == 1;
+		return _flag == 1;
+	}
+
+
+	static void raiseDefault()
+	{
+		resetHandler();
+		::raise(S);
+		setHandler();
 	}
 
 
@@ -45,22 +57,37 @@ public:
 	void operator=(Signal const &) = delete;
 
 private:
-	Signal()
+	static volatile sig_atomic_t _flag;
+
+	static void setHandler()
 	{
-		signal(SIGINT, handler);
+		auto old_handler = signal(S, handler);
+		if(old_handler != SIG_DFL)
+		{
+			signal(S, old_handler);
+			throw_line("signal handler already set (signal: {})", S);
+		}
 	}
 
 
-	static void handler(int sig)
+	static void resetHandler()
 	{
-		if(!g_sigint_flag)
-		{
-			signal(sig, SIG_DFL);
-			raise(sig);
-		}
-		else if(g_sigint_flag == 2)
-			g_sigint_flag = 1;
+		signal(S, SIG_DFL);
+	}
+
+
+	static void handler(int)
+	{
+		if(!_flag)
+			raiseDefault();
+		else if(_flag == 2)
+			_flag = 1;
 	}
 };
+
+template<int S>
+volatile sig_atomic_t Signal<S>::_flag;
+
+export using SignalINT = Signal<SIGINT>;
 
 }

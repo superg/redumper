@@ -258,8 +258,6 @@ export int redumper(Options &options)
 {
 	int exit_code = 0;
 
-	Signal::get();
-
 	auto ctx = initialize(options);
 
 	LOG("{}", redumper_version());

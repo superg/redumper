@@ -946,6 +946,8 @@ export void redumper_protection_cd(Options &options)
 
 				if(candidate)
 				{
+					constexpr int32_t first_file_offset = 23;
+
 					std::string protected_filename;
 					{
 						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, 0, !scrap);
@@ -964,14 +966,14 @@ export void redumper_protection_cd(Options &options)
 							protection_dat = big_dat;
 
 						// first file on disc and starts from LBA 23
-						if(protection_dat->SectorOffset() == 23)
+						if(protection_dat->SectorOffset() == first_file_offset)
 							protected_filename = protection_dat->Name();
 					}
 
 					if(!protected_filename.empty())
 					{
 						std::pair<int32_t, int32_t> range(0, 0);
-						for(int32_t lba = 25, lba_end = std::min(track_lba_end, 5000); lba < lba_end; ++lba)
+						for(int32_t lba = first_file_offset, lba_end = std::min(track_lba_end, 5000); lba < lba_end; ++lba)
 						{
 							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 

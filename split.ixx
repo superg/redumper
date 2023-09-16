@@ -1375,7 +1375,7 @@ export void redumper_split_cd(const Options &options)
 	// identify CD-I tracks, needed for CUE-sheet generation
 	for(auto &s : toc.sessions)
 		for(auto &t : s.tracks)
-			if(t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty())
+			if(t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty() && t.track_number != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 			{
 				// CDI
 				try

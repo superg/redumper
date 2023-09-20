@@ -138,7 +138,7 @@ export void debug(Options &options)
 	// LG/ASUS cache dump extract
 	if(1)
 	{
-		auto drive_type = DriveConfig::Type::LG_ASU3;
+		auto drive_type = DriveConfig::Type::LG_ASU83;
 		std::vector<uint8_t> cache = read_vector(cache_path);
 
 		asus_cache_print_subq(cache, drive_type);

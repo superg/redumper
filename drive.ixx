@@ -67,6 +67,7 @@ export struct DriveConfig
 		GENERIC,
 		PLEXTOR,
 		LG_ASU8,
+		LG_ASU83,
 		LG_ASU3,
 		LG_ASU2
 	} type;
@@ -174,6 +175,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 
 	// LG/ASUS (8Mb/3Mb/2Mb cache)
 	{"ATAPI"   , "iHBS112 2"      , "PL06", "2012/09/17 10:50"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // CHECKED: LITE-ON
+	{"HL-DT-ST", "BD-RE BU40N"    , "1.00", "N003103MOAL36D3653" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU83},// RibShark
 	{"ASUS"    , "BW-16D1HT"      , "3.02", "W000800KL8J9NJ3134" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3}, // CHECKED
 	{"HL-DT-ST", "BD-RE BP50NB40" , "1.00", "N005505MD8F8BD0700" , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU3}, // olofolleola4
 	{"Slimtype", "BD E DS4E1S"    , "EA2B", "2009/11/13 15:21"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU2}, // olofolleola4
@@ -209,6 +211,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"HL-DT-ST", "DVDRAM GH24NSC0" , "LY00", "C010101 KMIJ8O50256",    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC},
 	{"LITE-ON" , "DVD SOHD-167T"   , "9S1B", "2005/03/31 16:41"   ,   +12, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
 	{"QPS"     , "CD-W524E"        , "1.5A", "10/23/01"           ,  +685, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC}, // TEAC
+	{"ASUS"    , "DRW-24D5MT"      , "1.00", "O01790C K82G7MG1309",    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // Silent
 //	{"hp"      , "DVD-RAM SW810"   , "HA05", "1228TP0310"         ,    +6, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC},
 };
 
@@ -247,6 +250,7 @@ constexpr uint32_t ASUS_CACHE_ENTRY_SIZE = 0xB00;
 static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG =
 {
 	{DriveConfig::Type::LG_ASU8, {8, 2806}},
+	{DriveConfig::Type::LG_ASU83, {8, 1079}},
 	{DriveConfig::Type::LG_ASU3, {3, 1070}},
 	{DriveConfig::Type::LG_ASU2, {2,  586}}
 };

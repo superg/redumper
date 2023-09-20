@@ -100,6 +100,7 @@ static const std::map<DriveConfig::Type, std::string> TYPE_STRING =
 	{DriveConfig::Type::GENERIC, "GENERIC"},
 	{DriveConfig::Type::PLEXTOR, "PLEXTOR"},
 	{DriveConfig::Type::LG_ASU8, "LG_ASU8"},
+	{DriveConfig::Type::LG_ASU83, "LG_ASU83"},
 	{DriveConfig::Type::LG_ASU3, "LG_ASU3"},
 	{DriveConfig::Type::LG_ASU2, "LG_ASU2"}
 };

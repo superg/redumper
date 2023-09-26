@@ -6,6 +6,9 @@ module;
 #include <list>
 #include <map>
 #include <set>
+#include <string>
+#include <string_view>
+#include <vector>
 #include "throw_line.hh"
 
 export module cd.split;
@@ -89,7 +92,7 @@ int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &s
 }
 
 
-int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs, const std::string &magic)
+int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs, const std::vector<uint8_t> &magic)
 {
 	int32_t write_offset = std::numeric_limits<int32_t>::max();
 
@@ -1253,13 +1256,46 @@ export void redumper_split_cd(const Options &options)
 
 		if(!t.indices.empty())
 		{
-			int32_t byte_offset = byte_offset_by_magic(t.indices.front() - 1, t.indices.front() + 1, state_fs, scm_fs, std::string("TAIRTAIR"));
+			constexpr std::string_view atari_magic("TAIRTAIR");
+			int32_t byte_offset = byte_offset_by_magic(t.indices.front() - 1, t.indices.front() + 1, state_fs, scm_fs, std::vector<uint8_t>(atari_magic.begin(), atari_magic.end()));
 			if(byte_offset != std::numeric_limits<int32_t>::max())
 			{
 				byte_offset -= sizeof(uint16_t);
 				offsets.emplace_back(0, byte_offset / CD_SAMPLE_SIZE - CD_DATA_SIZE_SAMPLES);
 				LOG("Atari Jaguar disc detected");
 			}
+		}
+	}
+
+	// VideoNow
+	if(offsets.empty() && toc.sessions.size() == 1)
+	{
+		auto &t = toc.sessions.front().tracks.front();
+
+		int32_t lba_start = scale_left(nonzero_data_range.first, CD_DATA_SIZE_SAMPLES);
+
+		static const std::vector<uint8_t> videonow_magic = {0xE1, 0xE1, 0xE1, 0x01, 0xE1, 0xE1, 0xE1, 0x00};
+		int32_t byte_offset = byte_offset_by_magic(lba_start, t.lba_end, state_fs, scm_fs, videonow_magic);
+		if(byte_offset != std::numeric_limits<int32_t>::max())
+		{
+			offsets.emplace_back(0, byte_offset / CD_SAMPLE_SIZE + CD_DATA_SIZE_SAMPLES * lba_start);
+			LOG("VideoNow disc detected");
+		}
+	}
+
+	// VideoNow Color
+	if(offsets.empty() && toc.sessions.size() == 1)
+	{
+		auto &t = toc.sessions.front().tracks.front();
+
+		int32_t lba_start = scale_left(nonzero_data_range.first, CD_DATA_SIZE_SAMPLES);
+
+		static const std::vector<uint8_t> videonow_magic_color = { 0x81, 0xE3, 0xE3, 0xC7, 0xC7, 0x81, 0x81, 0xE3 };
+		int32_t byte_offset = byte_offset_by_magic(lba_start, t.lba_end, state_fs, scm_fs, videonow_magic_color);
+		if(byte_offset != std::numeric_limits<int32_t>::max())
+		{
+			offsets.emplace_back(0, byte_offset / CD_SAMPLE_SIZE + CD_DATA_SIZE_SAMPLES * lba_start);
+			LOG("VideoNow Color (Color / Jr. / XP / Color FX) disc detected");
 		}
 	}
 

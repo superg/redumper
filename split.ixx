@@ -956,21 +956,21 @@ export void redumper_protection_cd(Options &options)
 						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, 0, !scrap);
 						auto root_dir = browser.RootDirectory();
 
-						// protection file exists
-						auto data_dat = root_dir->SubEntry("DATA.DAT");
-						auto big_dat = root_dir->SubEntry("BIG.DAT");
+						static const std::string datel_files[] = {"DATA.DAT", "BIG.DAT", "DUMMY.ZIP"};
+						for(auto const &f : datel_files)
+						{
+							// protection file exists
+							auto entry = root_dir->SubEntry(f);
+							if(!entry)
+								continue;
 
-						std::shared_ptr<ImageBrowser::Entry> protection_dat;
-						if(data_dat && big_dat)
-							protection_dat = data_dat->SectorOffset() < big_dat->SectorOffset() ? data_dat : big_dat;
-						else if(data_dat)
-							protection_dat = data_dat;
-						else if(big_dat)
-							protection_dat = big_dat;
-
-						// first file on disc and starts from LBA 23
-						if(protection_dat->SectorOffset() == first_file_offset)
-							protected_filename = protection_dat->Name();
+							// first file on disc and starts from LBA 23
+							if(entry->SectorOffset() == first_file_offset)
+							{
+								protected_filename = entry->Name();
+								break;
+							}
+						}
 					}
 
 					if(!protected_filename.empty())

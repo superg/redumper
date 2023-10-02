@@ -63,7 +63,7 @@ export void debug_subchannel(Options &options)
 }
 
 
-export void debug(Options &options)
+export void debug(Context &ctx, Options &options)
 {
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 	std::filesystem::path state_path(image_prefix + ".state");
@@ -135,8 +135,14 @@ export void debug(Options &options)
 		*/
 	}
 
-	// LG/ASUS cache dump extract
 	if(1)
+	{
+		auto cache = asus_cache_read(*ctx.sptd, DriveConfig::Type::LG_ASU3);
+		LOG("");
+	}
+
+	// LG/ASUS cache dump extract
+	if(0)
 	{
 		auto drive_type = DriveConfig::Type::LG_ASU83;
 		std::vector<uint8_t> cache = read_vector(cache_path);

@@ -123,7 +123,7 @@ export bool redumper_subchannel(Context &ctx, Options &options)
 
 export bool redumper_debug(Context &ctx, Options &options)
 {
-	debug(options);
+	debug(ctx, options);
 
 	return true;
 }

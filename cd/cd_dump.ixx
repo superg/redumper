@@ -995,7 +995,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 			}
 
 			// grow lead-out overread if we still can read
-			if(lba + 1 == lba_overread && !options.lba_end)
+			if(lba + 1 == lba_overread && !options.lba_end && (lba_overread - lba_end <= 100 || options.overread_leadout))
 				++lba_overread;
 		}
 		else

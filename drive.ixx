@@ -197,6 +197,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"ATAPI"  , "iHBS312 2"       , "PL17", "2012/10/31 13:50"   , +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::LG_ASU8}, // olofolleola4
 
 	// OTHER
+	{"ASUS"    , "BW-16D1HT"       , "3.10", "WM01601KLZL4TG5625" ,    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC}, // default or RibShark FW definition
 	{"ASUS"    , "SDRW-08D2S-U"    , "B901", "2015/03/03 15:29"   ,    +6, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // internal model: DU-8A6NH11B
 	{"ASUS"    , "SDRW-08U9M-U"    , "A112", "M045600 K0QL92H5616",    +6, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC},
 	{"Lite-On" , "LTN483S 48x Max" , "PD03", ""                   , -1164, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_C2    , DriveConfig::Type::GENERIC},

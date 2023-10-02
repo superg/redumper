@@ -57,7 +57,7 @@ const std::map<std::string, std::pair<bool, bool (*)(Context &, Options &)>> COM
 	{ "info"      , { false,   redumper_info       }},
 
 	{ "subchannel", { false,   redumper_subchannel }},
-	{ "debug"     , { false,   redumper_debug      }}
+	{ "debug"     , { true ,   redumper_debug      }}
 };
 
 

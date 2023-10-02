@@ -58,6 +58,7 @@ export struct Options
 	std::unique_ptr<int> force_offset;
 	int audio_silence_threshold;
 	int dump_read_size;
+	bool overread_leadout;
 
 
 	Options(int argc, const char *argv[])
@@ -82,6 +83,7 @@ export struct Options
 		, offset_shift_relocate(false)
 		, audio_silence_threshold(32)
 		, dump_read_size(32)
+		, overread_leadout(false)
 	{
 		for(int i = 0; i < argc; ++i)
 		{
@@ -218,6 +220,8 @@ export struct Options
 						i_value = &audio_silence_threshold;
 					else if(key == "--dump-read-size")
 						i_value = &dump_read_size;
+					else if(key == "--overread-leadout")
+						overread_leadout = true;
 					// unknown option
 					else
 					{
@@ -299,17 +303,18 @@ export struct Options
 		LOG("\t(split)");
 		LOG("\t--force-split                  \tforce track split with errors");
 		LOG("\t--leave-unchanged              \tdon't replace erroneous sectors with generated ones");
-		LOG("\t--force-qtoc                   \tForce QTOC based track split");
-		LOG("\t--legacy-subs                  \tReplicate DIC style subchannel based track split");
+		LOG("\t--force-qtoc                   \tforce QTOC based track split");
+		LOG("\t--legacy-subs                  \treplicate DIC style subchannel based track split");
 		LOG("\t--skip-fill=VALUE              \tfill byte value for skipped sectors (default: 0x{:02X})", skip_fill);
 		LOG("\t--iso9660-trim                 \ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
 		LOG("");
 		LOG("\t(miscellaneous)");
 		LOG("\t--lba-start=VALUE              \tLBA to start dumping from");
 		LOG("\t--lba-end=VALUE                \tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
-		LOG("\t--refine-subchannel            \tIn addition to SCSI/C2, refine subchannel");
+		LOG("\t--refine-subchannel            \tin addition to SCSI/C2, refine subchannel");
 		LOG("\t--skip=VALUE                   \tLBA ranges of sectors to skip");
 		LOG("\t--dump-read-size=VALUE         \tnumber of sectors to read at once on initial dump, DVD only (default: {})", dump_read_size);
+		LOG("\t--overread-leadout             \tdo not limit lead-out to the first hundred sectors, read until drive returns SCSI error");
 	}
 };
 

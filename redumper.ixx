@@ -210,7 +210,7 @@ Context initialize(Options &options)
 		ctx.disc_type = query_disc_type(ctx);
 
 		// set drive speed
-		float speed_modifier = 153.6;
+		float speed_modifier = 176.4;
 		if(ctx.disc_type == DiscType::DVD)
 			speed_modifier = 1385.0;
 		else if(ctx.disc_type == DiscType::BLURAY)

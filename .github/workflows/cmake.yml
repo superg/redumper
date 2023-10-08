@@ -103,7 +103,7 @@ jobs:
       - name: 'Create Release'
         shell: bash
         run: |
-          for f in redumper-*.zip; do FILES+=" -a $f"; done
+          for f in redumper-*.zip; do FILES+=" $f"; done
           gh release create --generate-notes ${{ env.release_name }} $FILES
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

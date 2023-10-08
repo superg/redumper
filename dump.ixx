@@ -10,6 +10,7 @@ module;
 export module dump;
 
 import cd.cd;
+import cd.subcode;
 import cd.toc;
 import drive;
 import options;

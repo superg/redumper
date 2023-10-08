@@ -6,7 +6,6 @@ module;
 #include <iostream>
 #include <map>
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <vector>
 #include "throw_line.hh"

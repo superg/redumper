@@ -1068,17 +1068,7 @@ export void redumper_split_cd(const Options &options)
 	std::vector<ChannelQ> subq;
 	if(std::filesystem::exists(sub_path))
 	{
-		std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
-		if(!fs.is_open())
-			throw_line("unable to open file ({})", sub_path.filename().string());
-
-		subq.resize(sectors_count);
-		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
-		for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
-		{
-			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba_index, 1, 0, 0);
-			subcode_extract_channel((uint8_t *)&subq[lba_index], sub_buffer.data(), Subchannel::Q);
-		}
+		subq = load_subq(sub_path);
 
 		// correct Q
 		LOG_F("correcting Q... ");

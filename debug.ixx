@@ -3,6 +3,8 @@ module;
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <map>
+#include <set>
 #include <vector>
 #include "throw_line.hh"
 
@@ -63,6 +65,26 @@ export void debug_subchannel(Options &options)
 }
 
 
+#pragma pack(push, 1)
+struct SBIEntry
+{
+	MSF msf;
+	uint8_t one;
+
+	struct Q
+	{
+		uint8_t adr :4;
+		uint8_t control :4;
+		uint8_t tno;
+		uint8_t point_index;
+		MSF msf;
+		uint8_t zero;
+		MSF a_msf;
+	} q;
+};
+#pragma pack(pop)
+
+
 export void debug(Context &ctx, Options &options)
 {
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -71,7 +93,54 @@ export void debug(Context &ctx, Options &options)
 	std::filesystem::path toc_path(image_prefix + ".toc");
 	std::filesystem::path cdtext_path(image_prefix + ".cdtext");
 	std::filesystem::path cue_path(image_prefix + ".cue");
+//	std::filesystem::path sbi_path(image_prefix + ".sbi");
 
+	// SBI
+	if(1)
+	{
+		std::vector<std::pair<std::vector<std::string>, std::set<int32_t>>> dictionary;
+
+		for(auto &entry : std::filesystem::directory_iterator(options.image_path))
+		{
+			LOG("{}", entry.path().string());
+
+			std::ifstream ifs(entry.path(), std::ifstream::binary);
+			if(ifs.is_open())
+			{
+				char magic[4];
+
+				uint32_t entries_count = (std::filesystem::file_size(entry.path()) - sizeof(magic)) / sizeof(SBIEntry);
+				std::vector<SBIEntry> entries(entries_count);
+
+				ifs.read(magic, sizeof(magic));
+				for(auto &e : entries)
+					ifs.read((char *)&e, sizeof(e));
+
+				std::set<int32_t> values;
+				for(auto const &e : entries)
+					values.insert(BCDMSF_to_LBA(e.msf));
+
+				bool add = true;
+				for(auto &d : dictionary)
+					if(d.second == values)
+					{
+						d.first.push_back(entry.path().filename().string());
+						add = false;
+						break;
+					}
+				if(add)
+				{
+					std::vector<std::string> names;
+					names.push_back(entry.path().filename().string());
+					dictionary.emplace_back(names, values);
+				}
+
+				LOG("");
+			}
+		}
+
+		LOG("");
+	}
 /*
 	// DVD sectors count
 	if(1)
@@ -135,7 +204,7 @@ export void debug(Context &ctx, Options &options)
 		*/
 	}
 
-	if(1)
+	if(0)
 	{
 		auto cache = asus_cache_read(*ctx.sptd, DriveConfig::Type::LG_ASU3);
 		LOG("");

@@ -16,6 +16,8 @@ import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
+import utils.endian;
+import utils.file_io;
 import utils.logger;
 
 
@@ -111,6 +113,35 @@ export int32_t sample_offset_a2r(uint32_t absolute)
 export uint32_t sample_offset_r2a(int32_t relative)
 {
 	return relative - (LBA_START * CD_DATA_SIZE_SAMPLES);
+}
+
+
+export std::vector<ChannelQ> load_subq(const std::filesystem::path &sub_path)
+{
+	std::vector<ChannelQ> subq(std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE);
+
+	std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
+	if(!fs.is_open())
+		throw_line("unable to open file ({})", sub_path.filename().string());
+
+	std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
+	for(uint32_t lba_index = 0; lba_index < subq.size(); ++lba_index)
+	{
+		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba_index, 1, 0, 0);
+		subcode_extract_channel((uint8_t *)&subq[lba_index], sub_buffer.data(), Subchannel::Q);
+	}
+
+	return subq;
+}
+
+
+export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const ChannelQ &Q)
+{
+	MSF msf = LBA_to_MSF(lba);
+	os << std::format("MSF: {:02}:{:02}:{:02} Q-Data: {:X}{:X}{:02X}{:02X} {:02X}:{:02X}:{:02X} {:02X} {:02X}:{:02X}:{:02X} {:04X}",
+					  msf.m, msf.s, msf.f, (uint8_t)Q.control, (uint8_t)Q.adr, Q.mode1.tno, Q.mode1.point_index, Q.mode1.msf.m, Q.mode1.msf.s, Q.mode1.msf.f, Q.mode1.zero, Q.mode1.a_msf.m, Q.mode1.a_msf.s, Q.mode1.a_msf.f, endian_swap<uint16_t>(Q.crc)) << std::endl;
+	
+	return os;
 }
 
 }

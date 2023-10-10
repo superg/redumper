@@ -10,7 +10,6 @@ export module cd.subcode;
 import cd.cd;
 import crc.crc16_gsm;
 import utils.endian;
-import utils.misc;
 
 
 
@@ -80,6 +79,16 @@ export struct ChannelQ
 		return CRC16_GSM().update(raw, sizeof(raw)).final() == endian_swap(crc);
 	}
 
+	
+	bool isValid(int32_t lba)
+	{
+		bool valid = isValid();
+
+		if(valid && adr == 1 && mode1.tno && lba != BCDMSF_to_LBA(mode1.a_msf))
+			valid = false;
+
+		return valid;
+	}
 
 	std::string Decode() const
 	{
@@ -155,122 +164,6 @@ export void subcode_extract_channel(uint8_t *subchannel, const uint8_t *subcode,
 		else
 			sc &= ~mask;
 	}
-}
-
-
-export bool subcode_correct_subq(ChannelQ *subq, uint32_t sectors_count)
-{
-	uint32_t mcn = sectors_count;
-	std::map<uint8_t, uint32_t> isrc;
-	ChannelQ q_empty;
-	memset(&q_empty, 0, sizeof(q_empty));
-
-	bool invalid_subq = true;
-	uint8_t tno = 0;
-	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
-	{
-		if(!subq[lba_index].isValid())
-			continue;
-
-		invalid_subq = false;
-
-		if(subq[lba_index].adr == 1)
-			tno = subq[lba_index].mode1.tno;
-		else if(subq[lba_index].adr == 2 && mcn == sectors_count)
-			mcn = lba_index;
-		else if(subq[lba_index].adr == 3 && tno && isrc.find(tno) == isrc.end())
-			isrc[tno] = lba_index;
-	}
-
-	if(invalid_subq)
-		return false;
-
-	uint32_t q_prev = sectors_count;
-	uint32_t q_next = 0;
-	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
-	{
-		if(!memcmp(&subq[lba_index], &q_empty, sizeof(q_empty)))
-			continue;
-
-		if(subq[lba_index].isValid())
-		{
-			if(subq[lba_index].adr == 1)
-			{
-				if(subq[lba_index].mode1.tno)
-					q_prev = lba_index;
-				else
-					q_prev = sectors_count;
-			}
-		}
-		else
-		{
-			// find next valid Q
-			if(lba_index >= q_next && q_next != sectors_count)
-			{
-				q_next = lba_index + 1;
-				for(; q_next < sectors_count; ++q_next)
-					if(subq[q_next].isValid())
-					{
-						if(subq[q_next].adr == 1)
-						{
-							if(!subq[q_next].mode1.tno)
-								q_next = 0;
-
-							break;
-						}
-					}
-			}
-
-			std::vector<ChannelQ> candidates;
-			if(q_prev < lba_index)
-			{
-				// mode 1
-				candidates.emplace_back(subq[q_prev].generateMode1(lba_index - q_prev));
-
-				// mode 2
-				if(mcn != sectors_count)
-					candidates.emplace_back(subq[q_prev].generateMode23(subq[mcn], lba_index - q_prev));
-
-				// mode 3
-				if(!isrc.empty())
-				{
-					auto it = isrc.find(subq[q_prev].mode1.tno);
-					if(it != isrc.end())
-						candidates.emplace_back(subq[q_prev].generateMode23(subq[it->second], lba_index - q_prev));
-				}
-			}
-
-			if(q_next > lba_index && q_next != sectors_count)
-			{
-				// mode 1
-				candidates.emplace_back(subq[q_next].generateMode1(lba_index - q_next));
-
-				// mode 2
-				if(mcn != sectors_count)
-					candidates.emplace_back(subq[q_next].generateMode23(subq[mcn], lba_index - q_next));
-
-				// mode 3
-				if(!isrc.empty())
-				{
-					auto it = isrc.find(subq[q_next].mode1.tno);
-					if(it != isrc.end())
-						candidates.emplace_back(subq[q_next].generateMode23(subq[it->second], lba_index - q_next));
-				}
-			}
-
-			if(!candidates.empty())
-			{
-				uint32_t c = 0;
-				for(uint32_t j = 0; j < (uint32_t)candidates.size(); ++j)
-					if(bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[j], sizeof(ChannelQ) / sizeof(uint32_t)) < bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[c], sizeof(ChannelQ) / sizeof(uint32_t)))
-						c = j;
-
-				subq[lba_index] = candidates[c];
-			}
-		}
-	}
-
-	return true;
 }
 
 }

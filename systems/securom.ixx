@@ -53,19 +53,24 @@ public:
 
 		for(uint32_t lba_index = 0; lba_index < subq_fixed.size(); ++lba_index)
 		{
-			if(!subq_fixed[lba_index].isValid() || subq[lba_index].isValid())
-				continue;
-
 			int32_t lba = lba_index + LBA_START;
 
-			uint16_t crc_current = endian_swap(subq[lba_index].crc);
-			uint16_t crc_expected = CRC16_GSM().update(subq[lba_index].raw, sizeof(subq[lba_index].raw)).final();
-			uint16_t crc_fixed = endian_swap(subq_fixed[lba_index].crc);
+			if(subq[lba_index].isValid())
+			{
+				if(!subq[lba_index].isValid(lba))
+					candidates_8001.push_back(lba);
+			}
+			else if(subq_fixed[lba_index].isValid())
+			{
+				uint16_t crc_current = endian_swap(subq[lba_index].crc);
+				uint16_t crc_expected = CRC16_GSM().update(subq[lba_index].raw, sizeof(subq[lba_index].raw)).final();
+				uint16_t crc_fixed = endian_swap(subq_fixed[lba_index].crc);
 
-			if((crc_current ^ 0x0080) == crc_expected)
-				candidates.push_back(lba);
-			else if((crc_current ^ 0x8001) == crc_fixed)
-				candidates_8001.push_back(lba);
+				if((crc_current ^ 0x0080) == crc_expected)
+					candidates.push_back(lba);
+				else if((crc_current ^ 0x8001) == crc_fixed)
+					candidates_8001.push_back(lba);
+			}
 		}
 
 		uint32_t version = 0;
@@ -74,6 +79,11 @@ public:
 		{
 			candidates.swap(candidates_8001);
 			version = 4;
+		}
+		else if(candidates_8001.size() == 98 || candidates_8001.size() == 99 && candidates_8001.front() == -1)
+		{
+			candidates.swap(candidates_8001);
+			version = 3;
 		}
 
 		if(version)

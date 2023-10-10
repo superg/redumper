@@ -44,6 +44,8 @@ struct LeadInEntry
 	bool verified;
 };
 
+constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
+
 
 uint32_t plextor_leadin_compare(const std::vector<uint8_t> &leadin1, const std::vector<uint8_t> &leadin2)
 {
@@ -756,7 +758,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 			// refine subchannel (based on Q crc)
 			if(options.refine_subchannel && subcode && !read)
 			{
-				read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0, 0);
+				read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 				ChannelQ Q;
 				subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
 				if(!Q.isValid())
@@ -951,12 +953,12 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 					if(Q.isValid())
 					{
 						std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
-						read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0, 0);
+						read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 						ChannelQ Q_file;
 						subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
 						if(!Q_file.isValid())
 						{
-							write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0);
+							write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
 							if(inside_range(lba, error_ranges) == nullptr)
 								--errors_q;
 						}
@@ -969,7 +971,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 
 				if(subcode)
 				{
-					write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index + subcode_shift, 1, 0);
+					write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
 
 					ChannelQ Q;
 					subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);

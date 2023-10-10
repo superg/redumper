@@ -2,6 +2,7 @@ module;
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -20,6 +21,7 @@ import scsi.sptd;
 import utils.endian;
 import utils.file_io;
 import utils.logger;
+import utils.misc;
 
 
 
@@ -58,23 +60,7 @@ export enum class DumpMode
 };
 
 
-export constexpr uint32_t SLOW_SECTOR_TIMEOUT = 5;
-#if 1
 export constexpr int32_t LBA_START = -45150; //MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
-#else
-// easier debugging, LBA starts with 0, plextor lead-in and asus cache are disabled
-export constexpr int32_t LBA_START = 0;
-// GS2v3   13922 .. 17080-17090
-// GS2_1.1 12762 .. 17075
-// GS2_5.5 12859 .. 17130-17140
-// GS2_1.2 12739 .. 16930-16940
-// SC DISC  8546 .. 17100-17125
-// SC BOX  10547 .. 16940-16950
-// CB4 6407-7114 ..  9200- 9220
-// GS GCD   9162 .. 17000-17010  // F05 0004
-// XPLO FM  7770 .. 10700-10704
-//static constexpr int32_t LBA_START = MSF_to_LBA(MSF_LEADIN_START);
-#endif
 
 
 export enum class State : uint8_t
@@ -133,6 +119,123 @@ export std::vector<ChannelQ> load_subq(const std::filesystem::path &sub_path)
 	}
 
 	return subq;
+}
+
+
+export bool subcode_correct_subq(ChannelQ *subq, uint32_t sectors_count)
+{
+	uint32_t mcn = sectors_count;
+	std::map<uint8_t, uint32_t> isrc;
+	ChannelQ q_empty;
+	memset(&q_empty, 0, sizeof(q_empty));
+
+	bool invalid_subq = true;
+	uint8_t tno = 0;
+	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
+	{
+		if(!subq[lba_index].isValid())
+			continue;
+
+		invalid_subq = false;
+
+		if(subq[lba_index].adr == 1)
+			tno = subq[lba_index].mode1.tno;
+		else if(subq[lba_index].adr == 2 && mcn == sectors_count)
+			mcn = lba_index;
+		else if(subq[lba_index].adr == 3 && tno && isrc.find(tno) == isrc.end())
+			isrc[tno] = lba_index;
+	}
+
+	if(invalid_subq)
+		return false;
+
+	uint32_t q_prev = sectors_count;
+	uint32_t q_next = 0;
+	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
+	{
+		if(!memcmp(&subq[lba_index], &q_empty, sizeof(q_empty)))
+			continue;
+
+		// treat unexpected MSF as invalid (SecuROM)
+		if(subq[lba_index].isValid(lba_index + LBA_START))
+		{
+			if(subq[lba_index].adr == 1)
+			{
+				if(subq[lba_index].mode1.tno)
+					q_prev = lba_index;
+				else
+					q_prev = sectors_count;
+			}
+		}
+		else
+		{
+			// find next valid Q
+			if(lba_index >= q_next && q_next != sectors_count)
+			{
+				q_next = lba_index + 1;
+				for(; q_next < sectors_count; ++q_next)
+					if(subq[q_next].isValid(q_next + LBA_START))
+					{
+						if(subq[q_next].adr == 1)
+						{
+							if(!subq[q_next].mode1.tno)
+								q_next = 0;
+
+							break;
+						}
+					}
+			}
+
+			std::vector<ChannelQ> candidates;
+			if(q_prev < lba_index)
+			{
+				// mode 1
+				candidates.emplace_back(subq[q_prev].generateMode1(lba_index - q_prev));
+
+				// mode 2
+				if(mcn != sectors_count)
+					candidates.emplace_back(subq[q_prev].generateMode23(subq[mcn], lba_index - q_prev));
+
+				// mode 3
+				if(!isrc.empty())
+				{
+					auto it = isrc.find(subq[q_prev].mode1.tno);
+					if(it != isrc.end())
+						candidates.emplace_back(subq[q_prev].generateMode23(subq[it->second], lba_index - q_prev));
+				}
+			}
+
+			if(q_next > lba_index && q_next != sectors_count)
+			{
+				// mode 1
+				candidates.emplace_back(subq[q_next].generateMode1(lba_index - q_next));
+
+				// mode 2
+				if(mcn != sectors_count)
+					candidates.emplace_back(subq[q_next].generateMode23(subq[mcn], lba_index - q_next));
+
+				// mode 3
+				if(!isrc.empty())
+				{
+					auto it = isrc.find(subq[q_next].mode1.tno);
+					if(it != isrc.end())
+						candidates.emplace_back(subq[q_next].generateMode23(subq[it->second], lba_index - q_next));
+				}
+			}
+
+			if(!candidates.empty())
+			{
+				uint32_t c = 0;
+				for(uint32_t j = 0; j < (uint32_t)candidates.size(); ++j)
+					if(bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[j], sizeof(ChannelQ) / sizeof(uint32_t)) < bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[c], sizeof(ChannelQ) / sizeof(uint32_t)))
+						c = j;
+
+				subq[lba_index] = candidates[c];
+			}
+		}
+	}
+
+	return true;
 }
 
 

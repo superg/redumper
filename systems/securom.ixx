@@ -85,6 +85,11 @@ public:
 			candidates.swap(candidates_8001);
 			version = 3;
 		}
+		else if(candidates_8001.size() == 90)
+		{
+			candidates.swap(candidates_8001);
+			version = 2;
+		}
 
 		if(version)
 		{

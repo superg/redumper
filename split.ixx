@@ -915,6 +915,73 @@ export void redumper_protection_cd(Options &options)
 
 	std::string protection("N/A");
 
+	// SafeDisc
+	if(toc.sessions.size() == 1)
+	{
+		// data track
+		auto &t = toc.sessions.front().tracks.front();
+		int32_t track_lba_start = t.indices.front();
+		int32_t track_lba_end = toc.sessions.front().tracks.back().lba_end;
+
+		if(t.control & (uint8_t)ChannelQ::Control::DATA)
+		{
+			int32_t write_offset = track_offset_by_sync(track_lba_start, track_lba_end, state_fs, scm_fs);
+			if(write_offset != std::numeric_limits<int32_t>::max())
+			{
+				ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, 0, !scrap);
+				auto root_dir = browser.RootDirectory();
+				auto entry = root_dir->SubEntry("00000001.TMP");
+				if(entry)
+				{
+					std::vector<State> state(CD_DATA_SIZE_SAMPLES);
+
+					int32_t lba_start = entry->SectorOffset() + entry->SectorSize();
+					int32_t lba_end = lba_start;
+					auto entries = root_dir->Entries();
+					for(auto &e : entries)
+					{
+						if(e->IsDirectory())
+							continue;
+
+						auto entry_offset = e->SectorOffset();
+						if(entry_offset <= lba_start)
+							continue;
+
+						if(lba_end == lba_start || entry_offset < lba_end)
+							lba_end = entry_offset;
+					}
+
+					const std::set<uint32_t> safedisc_c2_samples = { 60, 66, 72, 78 };
+
+					std::vector<int32_t> errors;
+					for(int32_t lba = lba_start; lba < lba_end; ++lba)
+					{
+						read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
+						
+						uint32_t error_count = 0;
+						for(auto const &s : state)
+							if(s == State::ERROR_C2)
+								++error_count;
+
+						if(safedisc_c2_samples.find(error_count) != safedisc_c2_samples.end())
+							errors.push_back(lba);
+					}
+
+					if(!errors.empty())
+					{
+						protection = std::format("SafeDisc {}, C2: {}, gap range: {}-{}", entry->Name(), errors.size(), lba_start, lba_end - 1);
+
+						auto skip_ranges = string_to_ranges(options.skip);
+						for(auto e : errors)
+							skip_ranges.emplace_back(e, e + 1);
+						options.skip = ranges_to_string(skip_ranges);
+					}
+				}
+
+			}
+		}
+	}
+
 	// PS2 Datel DATA.DAT / BIG.DAT
 	// only one track
 	if(toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 2)

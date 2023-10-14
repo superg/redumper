@@ -6,6 +6,8 @@ module;
 #include <vector>
 #include "throw_line.hh"
 
+
+
 export module systems.securom;
 
 import cd.cd;
@@ -49,7 +51,9 @@ public:
 		if(!subcode_correct_subq(subq_fixed.data(), subq_fixed.size()))
 			return;
 
-		std::vector<int32_t> candidates, candidates_8001;
+		std::vector<int32_t> candidates;
+		uint32_t sequence_counter = 0;
+		bool sequence_active = false;
 
 		for(uint32_t lba_index = 0; lba_index < subq_fixed.size(); ++lba_index)
 		{
@@ -57,8 +61,21 @@ public:
 
 			if(subq[lba_index].isValid())
 			{
+				// version 1, 2
 				if(!subq[lba_index].isValid(lba))
-					candidates_8001.push_back(lba);
+				{
+					if(!sequence_active)
+					{
+						candidates.clear();
+						sequence_active = true;
+					}
+
+					if(candidates.empty() || candidates.back() + 1 != lba)
+						sequence_counter = 0;
+
+					candidates.push_back(lba);
+					++sequence_counter;
+				}
 			}
 			else if(subq_fixed[lba_index].isValid())
 			{
@@ -66,30 +83,36 @@ public:
 				uint16_t crc_expected = CRC16_GSM().update(subq[lba_index].raw, sizeof(subq[lba_index].raw)).final();
 				uint16_t crc_fixed = endian_swap(subq_fixed[lba_index].crc);
 
-				if((crc_current ^ 0x0080) == crc_expected)
-					candidates.push_back(lba);
-				else if((crc_current ^ 0x8001) == crc_fixed)
-					candidates_8001.push_back(lba);
+				// version 2, 3, 4
+				if((crc_current ^ 0x8001) == crc_fixed)
+				{
+					if(!sequence_active || sequence_counter == 8)
+					{
+						candidates.push_back(lba);
+						sequence_counter = 0;
+					}
+				}
+				// version 1
+				else if((crc_current ^ 0x0080) == crc_expected)
+				{
+					if(sequence_active && sequence_counter == 8)
+					{
+						candidates.push_back(lba);
+						sequence_counter = 0;
+					}
+				}
 			}
 		}
 
 		uint32_t version = 0;
-
-		if(candidates_8001.size() == 10 || candidates_8001.size() == 11 && candidates_8001.front() == -1)
-		{
-			candidates.swap(candidates_8001);
-			version = 4;
-		}
-		else if(candidates_8001.size() == 98 || candidates_8001.size() == 99 && candidates_8001.front() == -1)
-		{
-			candidates.swap(candidates_8001);
-			version = 3;
-		}
-		else if(candidates_8001.size() == 90)
-		{
-			candidates.swap(candidates_8001);
+		if(candidates.size() == 216)
+			version = 1;
+		else if(candidates.size() == 90)
 			version = 2;
-		}
+		else if(candidates.size() == 98 || candidates.size() == 99 && candidates.front() == -1)
+			version = 3;
+		else if(candidates.size() == 10 || candidates.size() == 11 && candidates.front() == -1)
+			version = 4;
 
 		if(version)
 		{

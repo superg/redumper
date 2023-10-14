@@ -951,6 +951,7 @@ export void redumper_protection_cd(Options &options)
 							lba_end = entry_offset;
 					}
 
+					// verified: 78
 					const std::set<uint32_t> safedisc_c2_samples = { 60, 66, 72, 78 };
 
 					std::vector<int32_t> errors;

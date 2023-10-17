@@ -21,9 +21,9 @@ export class SyncAnalyzer : public Analyzer
 public:
 	struct Record
 	{
-		std::pair<int32_t, int32_t> range;
-		int32_t sample_offset;
+		int32_t lba;
 		uint32_t count;
+		int32_t sample_offset;
 	};
 
 
@@ -66,7 +66,7 @@ public:
 				else
 					_scrambler.process((uint8_t *)&msf, (uint8_t *)&samples[i], sizeof(CD_DATA_SYNC), sizeof(msf));
 
-				Record record{{BCDMSF_to_LBA(msf), BCDMSF_to_LBA(msf)}, sample_offset_a2r(offset + i - SYNC_SIZE_SAMPLES), 1};
+				Record record{BCDMSF_to_LBA(msf), 1, sample_offset_a2r(offset + i - SYNC_SIZE_SAMPLES)};
 
 				if(_records.empty())
 					_records.push_back(record);
@@ -75,12 +75,9 @@ public:
 					auto &b = _records.back();
 
 					uint32_t offset_diff = record.sample_offset - b.sample_offset;
-					int32_t range_diff = record.range.first - b.range.first;
+					int32_t range_diff = record.lba - b.lba;
 					if(range_diff * CD_DATA_SIZE_SAMPLES == offset_diff)
-					{
-						++b.count;
-						b.range.second = record.range.first;
-					}
+						b.count = range_diff + 1;
 					else
 						_records.push_back(record);
 				}

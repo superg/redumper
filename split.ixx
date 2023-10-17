@@ -759,10 +759,9 @@ int32_t sample_offset_to_write_offset(int32_t scram_sample_offset, int32_t lba)
 }
 
 
-void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
+void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
 {
 	// correct lead-in lba
-	uint32_t lba0_offset = -LBA_START * CD_DATA_SIZE_SAMPLES;
 	for(uint32_t i = 0; i < records.size(); ++i)
 	{
 		if(records[i].sample_offset <= 0 && (int32_t)(records[i].sample_offset + records[i].count * CD_DATA_SIZE_SAMPLES) > 0)
@@ -772,9 +771,7 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 				auto &p = records[j - 1];
 
 				uint32_t count = scale_up(records[j].sample_offset - p.sample_offset, CD_DATA_SIZE_SAMPLES);
-				uint32_t length = p.range.second - p.range.first;
-				p.range.first = records[j].range.first - count;
-				p.range.second = p.range.first + length;
+				p.lba = records[j].lba - count;
 			}
 
 			break;
@@ -801,7 +798,7 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 			bool m = false;
 			if(options.offset_shift_relocate)
 			{
-				int32_t range_diff = records[i + 1].range.first - records[i].range.first;
+				int32_t range_diff = records[i + 1].lba - records[i].lba;
 				m = range_diff * CD_DATA_SIZE_SAMPLES == offset_diff;
 			}
 			else
@@ -811,7 +808,6 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 
 			if(m)
 			{
-				records[i].range.second = records[i + 1].range.second;
 				records[i].count += records[i + 1].count;
 				records.erase(records.begin() + i + 1);
 
@@ -833,9 +829,9 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 		if(!(offset_diff % CD_DATA_SIZE_SAMPLES))
 			continue;
 
-		int32_t offset = sample_offset_to_write_offset(r.sample_offset, r.range.first);
+		int32_t offset = sample_offset_to_write_offset(r.sample_offset, r.lba);
 		uint32_t count = 0;
-		for(int32_t lba = r.range.first - 1; lba > l.range.second; --lba)
+		for(int32_t lba = r.lba - 1; lba >= l.lba + l.count; --lba)
 		{
 			read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offset * CD_SAMPLE_SIZE, 0);
 			auto sync_diff = diff_bytes_count(data.data(), CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
@@ -847,7 +843,7 @@ void disc_offset_filter_records(std::vector<SyncAnalyzer::Record> &records, std:
 
 		if(count)
 		{
-			r.range.first -= count;
+			r.lba -= count;
 			r.sample_offset -= count * CD_DATA_SIZE_SAMPLES;
 		}
 	}
@@ -1220,36 +1216,43 @@ export void redumper_split_cd(const Options &options)
 	{
 		auto sync_records = sync_analyzer->getRecords();
 
-		uint32_t count = 0;
+		bool data_track = false;
 		for(auto const &o : sync_records)
-			count += o.count;
-
-		if(count >= CD_PREGAP_SIZE)
+			if(o.count >= CD_PREGAP_SIZE)
+			{
+				data_track = true;
+				break;
+			}
+		
+		if(data_track)
 		{
-			LOG("data disc detected, track offset statistics: ");
+			LOG("data disc detected, offset configuration: ");
 			for(auto const &o : sync_records)
-				LOG("  LBA: [{:6} .. {:6}], count: {:6}, sample offset: {:+9}", o.range.first, o.range.second, o.count, o.sample_offset);
+			{
+				MSF msf = LBA_to_BCDMSF(o.lba);
+				LOG("  LBA: {:6}, MSF: {:02X}:{:02X}:{:02X}, count: {:6}, offset: {:+}", o.lba, msf.m, msf.s, msf.f, o.count, sample_offset_to_write_offset(o.sample_offset, o.lba));
+			}
 			LOG("");
 
-			disc_offset_filter_records(sync_records, scm_fs, state_fs, options);
+			disc_offset_normalize_records(sync_records, scm_fs, state_fs, options);
+
+			for(auto const &r : sync_records)
+				offsets.emplace_back(r.lba, sample_offset_to_write_offset(r.sample_offset, r.lba));
 
 			// align non-zero data range to data sector boundary and truncate leading / trailing empty sectors
 			{
 				auto const &f = sync_records.front();
 				if(f.sample_offset - nonzero_data_range.first < CD_DATA_SIZE_SAMPLES)
 				{
-					int32_t sample_offset_end = f.sample_offset + (f.range.second - f.range.first) * CD_DATA_SIZE_SAMPLES;
+					int32_t sample_offset_end = f.sample_offset + f.count * CD_DATA_SIZE_SAMPLES;
 					nonzero_data_range.first = find_non_zero_data_offset(scm_fs, state_fs, f.sample_offset, sample_offset_end, scrap);
 				}
 
 				auto const &b = sync_records.back();
-				int32_t sample_offset_start = b.sample_offset + (b.range.second - b.range.first) * CD_DATA_SIZE_SAMPLES;
+				int32_t sample_offset_start = b.sample_offset + b.count * CD_DATA_SIZE_SAMPLES;
 				if(nonzero_data_range.second - sample_offset_start < CD_DATA_SIZE_SAMPLES)
 					nonzero_data_range.second = find_non_zero_data_offset(scm_fs, state_fs, sample_offset_start, b.sample_offset, scrap);
 			}
-
-			for(auto const &r : sync_records)
-				offsets.emplace_back(r.range.first, sample_offset_to_write_offset(r.sample_offset, r.range.first));
 		}
 	}
 
@@ -1464,6 +1467,7 @@ export void redumper_split_cd(const Options &options)
 		LOG("offset shift correction applied: ");
 		for(auto const &o : offsets)
 			LOG("  LBA: {:6}, offset: {:+}", o.first, o.second);
+		LOG("");
 	}
 
 	// identify CD-I tracks, needed for CUE-sheet generation

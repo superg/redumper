@@ -63,25 +63,35 @@ bool test_scale()
 }
 
 
-bool test_cd()
+bool test_lbamsf()
 {
 	bool success = true;
 
 	std::vector<std::pair<MSF, int32_t>> cases =
 	{
-		{{ 0,  0,  0},   -150},
-		{{ 0,  0,  1},   -149},
-		{{ 0,  0, 73},    -77},
-		{{ 0,  0, 74},    -76},
-		{{ 0,  1,  0},    -75},
-		{{ 0,  2,  0},      0},
-		{{79, 59, 74}, 359849},
-		{{80,  0,  0}, 359850},
-		{{89, 59, 74}, 404849},
-		{{90,  0,  0}, -45150},
-		{{90,  0,  1}, -45149},
-		{{90,  1,  0}, -45075},
-		{{99, 59, 74},   -151}
+		{{  0,  0,  0},   -150},
+		{{  0,  0,  1},   -149},
+		{{  0,  0, 73},    -77},
+		{{  0,  0, 74},    -76},
+		{{  0,  1,  0},    -75},
+		{{  0,  2,  0},      0},
+		{{ 79, 59, 74}, 359849},
+		{{ 80,  0,  0}, 359850},
+		{{ 89, 59, 74}, 404849},
+		{{ 90,  0,  0}, 404850},
+		{{ 90,  0,  1}, 404851},
+		{{ 90,  1,  0}, 404925},
+		{{ 99, 59, 74}, 449849},
+		{{100,  0,  0}, 449850},
+		{{160,  0,  0}, -45150},
+		{{160,  0,  1}, -45149},
+		{{160,  1,  0}, -45075},
+		{{169, 59, 74},   -151},
+		// LEGACY:
+//		{{90,  0,  0}, -45150},
+//		{{90,  0,  1}, -45149},
+//		{{90,  1,  0}, -45075},
+//		{{99, 59, 74},   -151}
 	};
 
 	for(size_t i = 0; i < cases.size(); ++i)
@@ -114,6 +124,64 @@ bool test_cd()
 		std::cout << std::endl;
 	}
 
+	return success;
+}
+
+
+bool test_bcd()
+{
+	bool success = true;
+
+	std::vector<std::pair<uint8_t, uint8_t>> cases =
+	{
+		{0x00,   0},
+		{0x01,   1},
+		{0x09,   9},
+		{0x10,  10},
+		{0x11,  11},
+		{0x15,  15},
+		{0x19,  19},
+		{0x55,  55},
+		{0x99,  99},
+		{0xA0, 100},
+		{0xA1, 101},
+		{0xA6, 106},
+		{0xA9, 109},
+		{0xB0, 110},
+		{0xF0, 150},
+		{0xF9, 159}
+	};
+
+	for(size_t i = 0; i < cases.size(); ++i)
+	{
+		std::cout << std::format("bcd_decode: {:02X} -> {:3}... ", cases[i].first, cases[i].second) << std::flush;
+		auto value = bcd_decode(cases[i].first);
+		if(value == cases[i].second)
+			std::cout << "success";
+		else
+		{
+			std::cout << std::format("failure, value: {:3}", value);
+			success = false;
+		}
+
+		std::cout << std::endl;
+	}
+	
+	for(size_t i = 0; i < cases.size(); ++i)
+	{
+		std::cout << std::format("bcd_encode: {:3} -> {:02X}... ", cases[i].second, cases[i].first) << std::flush;
+		auto value = bcd_encode(cases[i].second);
+		if(value == cases[i].first)
+			std::cout << "success";
+		else
+		{
+			std::cout << std::format("failure, value: {:02X}", value);
+			success = false;
+		}
+
+		std::cout << std::endl;
+	}
+	
 	return success;
 }
 
@@ -214,7 +282,9 @@ int main(int argc, char *argv[])
 
 	success |= (int)!test_scale();
 	std::cout << std::endl;
-	success |= (int)!test_cd();
+	success |= (int)!test_bcd();
+	std::cout << std::endl;
+	success |= (int)!test_lbamsf();
 	std::cout << std::endl;
 	success |= (int)!test_unscramble();
 	std::cout << std::endl;

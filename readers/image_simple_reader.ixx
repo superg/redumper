@@ -16,6 +16,7 @@ class Image_SimpleReader : public T
 public:
 	Image_SimpleReader(const std::filesystem::path &image_path)
 		: _fs(image_path, std::fstream::in | std::fstream::binary)
+		, _sectorsCount(std::filesystem::file_size(image_path) / T::sectorSize())
 	{
 		;
 	}
@@ -40,8 +41,15 @@ public:
 		return sectors_read;
 	}
 
+
+	uint32_t sectorsCount() const override
+	{
+		return _sectorsCount;
+	}
+
 private:
 	std::fstream _fs;
+	uint32_t _sectorsCount;
 };
 
 }

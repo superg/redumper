@@ -11,6 +11,7 @@ module;
 export module systems.securom;
 
 import cd.cd;
+import cd.cdrom;
 import cd.subcode;
 import crc.crc16_gsm;
 import dump;
@@ -42,6 +43,18 @@ public:
 
 	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override
 	{
+		// SecuROM mode1 data track has one mode2 sector close to the track end
+		bool securom_candidate = false;
+		static constexpr uint32_t flip_offset = 4;
+		auto sectors_count = sector_reader->sectorsCount();
+		if(sectors_count >= flip_offset)
+		{
+			Sector sector[2];
+			sector_reader->read((uint8_t *)&sector, sectors_count - flip_offset, countof(sector));
+
+			securom_candidate = sector[0].header.mode != sector[1].header.mode;
+		}
+
 		std::filesystem::path sub_path = track_extract_basename(track_path.string()) + ".subcode";
 		if(!std::filesystem::exists(sub_path))
 			return;
@@ -61,7 +74,7 @@ public:
 
 			if(subq[lba_index].isValid())
 			{
-				// version 1, 2
+				// scheme 1, 2
 				if(!subq[lba_index].isValid(lba))
 				{
 					if(!sequence_active)
@@ -83,7 +96,7 @@ public:
 				uint16_t crc_expected = CRC16_GSM().update(subq[lba_index].raw, sizeof(subq[lba_index].raw)).final();
 				uint16_t crc_fixed = endian_swap(subq_fixed[lba_index].crc);
 
-				// version 2, 3, 4
+				// scheme 2, 3, 4
 				if((crc_current ^ 0x8001) == crc_fixed)
 				{
 					if(!sequence_active || sequence_counter == 8)
@@ -92,7 +105,7 @@ public:
 						sequence_counter = 0;
 					}
 				}
-				// version 1
+				// scheme 1
 				else if((crc_current ^ 0x0080) == crc_expected)
 				{
 					if(sequence_active && sequence_counter == 8)
@@ -104,19 +117,19 @@ public:
 			}
 		}
 
-		uint32_t version = 0;
+		uint32_t scheme = 0;
 		if(candidates.size() == 216)
-			version = 1;
+			scheme = 1;
 		else if(candidates.size() == 90)
-			version = 2;
+			scheme = 2;
 		else if(candidates.size() == 98 || candidates.size() == 99 && candidates.front() == -1)
-			version = 3;
+			scheme = 3;
 		else if(candidates.size() == 10 || candidates.size() == 11 && candidates.front() == -1)
-			version = 4;
+			scheme = 4;
 
-		if(version)
+		if(scheme || (securom_candidate && !candidates.empty()))
 		{
-			os << std::format("  version: {}", version) << std::endl;
+			os << std::format("  scheme: {}", scheme ? std::to_string(scheme) : "unknown") << std::endl;
 			for(auto const &c : candidates)
 				redump_print_subq(os, c, subq[c - LBA_START]);
 		}

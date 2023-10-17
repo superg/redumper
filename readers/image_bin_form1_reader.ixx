@@ -20,6 +20,7 @@ export class Image_BIN_Form1Reader : public Form1Reader
 public:
 	Image_BIN_Form1Reader(const std::filesystem::path &image_path)
 		: _fs(image_path, std::fstream::in | std::fstream::binary)
+		, _sectorsCount(std::filesystem::file_size(image_path) / CD_DATA_SIZE)
 	{
 		Sector sector;
 		if(!seek(0) || !read((uint8_t *)&sector))
@@ -71,10 +72,17 @@ public:
 	{
 		return read(sectors, lba - _baseLBA, count);
 	};
-	
+
+
+	uint32_t sectorsCount() const override
+	{
+		return _sectorsCount;
+	}
+
 private:
 	std::fstream _fs;
 	uint32_t _baseLBA;
+	uint32_t _sectorsCount;
 
 	bool seek(uint32_t index)
 	{

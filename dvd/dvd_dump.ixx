@@ -205,7 +205,10 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
 	for(uint32_t i = 0; !layers_count || i < layers_count; ++i)
 	{
 		auto &structure = structures.emplace_back();
-		cmd_read_dvd_structure(sptd, structure, 0, i, READ_DVD_STRUCTURE_Format::PHYSICAL, 0);
+		auto status = cmd_read_dvd_structure(sptd, structure, 0, i, READ_DVD_STRUCTURE_Format::PHYSICAL, 0);
+		if(status.status_code)
+			throw_line("disc physical structure not found");
+
 		strip_response_header(structure);
 
 		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)structure.data();
@@ -243,9 +246,7 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 	auto readable_formats = get_readable_formats(*ctx.sptd);
 
-	if(readable_formats.find(READ_DVD_STRUCTURE_Format::PHYSICAL) == readable_formats.end())
-		throw_line("disc physical structure not found");
-
+	// physical structure must exist
 	auto physical_structures = read_physical_structures(*ctx.sptd);
 
 	uint32_t layer_break = 0;

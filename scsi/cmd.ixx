@@ -122,6 +122,27 @@ export SPTD::Status cmd_inquiry(SPTD &sptd, uint8_t *data, uint32_t data_size, I
 }
 
 
+export SPTD::Status cmd_read_capacity(SPTD &sptd, uint32_t &lba, uint32_t &block_length, bool rel_adr, uint32_t address, bool pmi)
+{
+	CDB10_ReadCapacity cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_CAPACITY;
+	cdb.rel_adr = rel_adr ? 1 : 0;
+	*(uint32_t *)cdb.address = endian_swap(address);
+	cdb.pmi = pmi ? 1 : 0;
+
+	READ_CAPACITY_Response response;
+
+	auto status = sptd.sendCommand(&cdb, sizeof(cdb), &response, sizeof(response));
+	if(!status.status_code)
+	{
+		lba = endian_swap(response.address);
+		block_length = endian_swap(response.block_length);
+	}
+
+	return status;
+}
+
+
 export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> toc;

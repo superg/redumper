@@ -207,7 +207,7 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
 		auto &structure = structures.emplace_back();
 		auto status = cmd_read_dvd_structure(sptd, structure, 0, i, READ_DVD_STRUCTURE_Format::PHYSICAL, 0);
 		if(status.status_code)
-			throw_line("disc physical structure not found");
+			throw_line("failed to read disc physical structure");
 
 		strip_response_header(structure);
 
@@ -244,104 +244,108 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 	// BD: cdb.reserved1 = 1, dump PIC area
 
+	// get sectors count
+	uint32_t sector_last, block_length;
+	auto status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
+	if(status.status_code)
+		throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
+	if(block_length != FORM1_DATA_SIZE)
+		throw_line("unsupported block size (block size: {})", block_length);
+	uint32_t sectors_count = sector_last + 1;
+
 	auto readable_formats = get_readable_formats(*ctx.sptd);
 
-	// physical structure must exist
-	auto physical_structures = read_physical_structures(*ctx.sptd);
-
-	uint32_t layer_break = 0;
-	uint32_t sectors_count = 0;
-	for(uint32_t i = 0; i < physical_structures.size(); ++i)
+	if(readable_formats.find(READ_DVD_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
 	{
-		if(physical_structures[i].size() < sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-			throw_line("invalid layer descriptor size (layer: {})", i);
+		auto physical_structures = read_physical_structures(*ctx.sptd);
 
-		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
-
-		uint32_t length = get_layer_length(*layer_descriptor);
-
-		// opposite
-		if(layer_descriptor->track_path)
+		if(dump_mode == DumpMode::DUMP)
 		{
-			int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
-			int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
-
-			layer_break = layer0_last + 1 - lba_first;
-		}
-		// parallel
-		else if(!i && physical_structures.size() > 1)
-			layer_break = length;
-
-		sectors_count += length;
-	}
-
-	if(!sectors_count)
-		throw_line("disc physical structure invalid");
-
-	if(dump_mode == DumpMode::DUMP)
-	{
-		LOG("disc structure:");
-		for(uint32_t i = 0; i < physical_structures.size(); ++i)
-		{
-			write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), physical_structures[i]);
-
-			print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data(), i);
-
-			if(readable_formats.find(READ_DVD_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
+			// calculate layer break
+			uint32_t layer_break = 0;
+			for(uint32_t i = 0; i < physical_structures.size(); ++i)
 			{
-				std::vector<uint8_t> manufacturer;
-				cmd_read_dvd_structure(*ctx.sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
-				strip_response_header(manufacturer);
+				if(physical_structures[i].size() < sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+					throw_line("invalid layer descriptor size (layer: {})", i);
 
-				if(!manufacturer.empty())
-					write_vector(std::format("{}{}.manufacturer", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), manufacturer);
-			}
-		}
-		LOG("");
+				auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
 
-		if(layer_break)
-		{
-			LOG("layer break: {}", layer_break);
-			LOG("");
-		}
-
-		// authenticate CSS
-		if(readable_formats.find(READ_DVD_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
-		{
-			std::vector<uint8_t> copyright;
-			auto status = cmd_read_dvd_structure(*ctx.sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
-			if(!status.status_code)
-			{
-				strip_response_header(copyright);
-
-				auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
-				auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
-
-				//TODO: distinguish CPPM
-				bool cppm = false;
-
-				if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
+				// opposite
+				if(layer_descriptor->track_path)
 				{
-					CSS css(*ctx.sptd);
+					int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
+					int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
 
-					// authenticate for reading
-					css.getDiscKey(cppm);
+					layer_break = layer0_last + 1 - lba_first;
+				}
+				// parallel
+				else if(!i && physical_structures.size() > 1)
+					layer_break = get_layer_length(*layer_descriptor);
+			}
 
-					LOG("protection: CSS/CPPM");
-					LOG("");
+			LOG("disc structure:");
+			for(uint32_t i = 0; i < physical_structures.size(); ++i)
+			{
+				write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), physical_structures[i]);
+
+				print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data(), i);
+
+				if(readable_formats.find(READ_DVD_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
+				{
+					std::vector<uint8_t> manufacturer;
+					cmd_read_dvd_structure(*ctx.sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
+					strip_response_header(manufacturer);
+
+					if(!manufacturer.empty())
+						write_vector(std::format("{}{}.manufacturer", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), manufacturer);
 				}
 			}
+			LOG("");
+
+			if(layer_break)
+			{
+				LOG("layer break: {}", layer_break);
+				LOG("");
+			}
+		}
+		// compare physical structures to stored to make sure it's the same disc
+		else
+		{
+			for(uint32_t i = 0; i < physical_structures.size(); ++i)
+			{
+				auto structure_fn = std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : "");
+
+				if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != physical_structures[i])
+					throw_line("disc / file physical structure doesn't match, refining from a different disc?");
+			}
 		}
 	}
-	// compare physical structures to stored to make sure it's the same disc
-	else
-	{
-		for(uint32_t i = 0; i < physical_structures.size(); ++i)
-		{
-			auto structure_fn = std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : "");
 
-			if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != physical_structures[i])
-				throw_line("disc / file physical structure doesn't match, refining from a different disc?");
+	// authenticate CSS
+	if(dump_mode == DumpMode::DUMP && readable_formats.find(READ_DVD_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
+	{
+		std::vector<uint8_t> copyright;
+		auto status = cmd_read_dvd_structure(*ctx.sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
+		if(!status.status_code)
+		{
+			strip_response_header(copyright);
+
+			auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
+			auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
+
+			//TODO: distinguish CPPM
+			bool cppm = false;
+
+			if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
+			{
+				CSS css(*ctx.sptd);
+
+				// authenticate for reading
+				css.getDiscKey(cppm);
+
+				LOG("protection: CSS/CPPM");
+				LOG("");
+			}
 		}
 	}
 

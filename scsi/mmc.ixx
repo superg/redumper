@@ -12,6 +12,7 @@ export enum class CDB_OperationCode : uint8_t
 {
 	TEST_UNIT_READY    = 0x00,
 	INQUIRY            = 0x12,
+	READ_CAPACITY      = 0x25,
 	SYNCHRONIZE_CACHE  = 0x35,
 	READ_TOC           = 0x43,
 	GET_CONFIGURATION  = 0x46,
@@ -465,6 +466,13 @@ export struct INQUIRY_VPDBlockLimits
 };
 
 
+export struct READ_CAPACITY_Response
+{
+	uint32_t address;
+	uint32_t block_length;
+};
+
+
 export struct CDB6_Generic
 {
 	uint8_t  operation_code;
@@ -487,6 +495,21 @@ export struct CDB6_Inquiry
 	uint8_t reserved1                 :6;
 	uint8_t page_code;
 	uint8_t allocation_length[2];     // unaligned
+	uint8_t control;
+};
+
+
+export struct CDB10_ReadCapacity
+{
+	uint8_t operation_code;
+	uint8_t rel_adr         :1;
+	uint8_t reserved2       :4;
+	uint8_t reserved1       :3;
+	uint8_t address[4];
+	uint8_t reserved3;
+	uint8_t reserved4;
+	uint8_t pmi             :1;
+	uint8_t reserved5       :7;
 	uint8_t control;
 };
 

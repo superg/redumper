@@ -173,8 +173,8 @@ private:
 		std::string region;
 
 		const std::set<std::string> REGION_J {"ESPM", "PAPX", "PCPX", "PDPX", "SCPM", "SCPS", "SCZS", "SIPS", "SLKA", "SLPM", "SLPS"};
-		const std::set<std::string> REGION_U {"LSP", "PEPX", "SCUS", "SLUS", "SLUSP"};
-		const std::set<std::string> REGION_E {"PUPX", "SCED", "SCES", "SLED", "SLES"};
+		const std::set<std::string> REGION_U {"LSP", "PUPX", "SCUS", "SLUS", "SLUSP"};
+		const std::set<std::string> REGION_E {"PEPX", "SCED", "SCES", "SLED", "SLES"};
 		// multi: "DTL", "PBPX"
 
 		if(REGION_J.find(prefix) != REGION_J.end())

@@ -132,14 +132,21 @@ private:
 	{
 		std::string region;
 
-		//FIXME: review all possible values
-		const std::set<std::string> REGION_J {"ESPM", "PAPX", "PCPX", "PDPX", "SCPM", "SCPS", "SCZS", "SIPS", "SLKA", "SLPM", "SLPS"};
-		const std::set<std::string> REGION_U {"LSP", "PEPX", "SCUS", "SLUS", "SLUSP"};
-		const std::set<std::string> REGION_E {"PUPX", "SCED", "SCES", "SLED", "SLES"};
-		// multi: "DTL", "PBPX"
+		// All Internal serials currently in redump.org
+		const std::set<std::string> REGION_J {"PAPX", "PCPX", "PDPX", "PSXC", "SCAJ", "SCPM", "SCPN", "SCPS", "SLAJ", "SLPM", "SLPS", "SRPM"};
+		const std::set<std::string> REGION_K {"SCKA", "SLKA"};
+		const std::set<std::string> REGION_C {"SCCS"};
+		const std::set<std::string> REGION_U {"PUPX", "SCUS", "SLUS"};
+		const std::set<std::string> REGION_E {"SCED", "SCES", "SLED", "SLES", "TCES"};
+		// multi region: "PBPX"
+		// preprod only: "ABCD", "XXXX"
 
 		if(REGION_J.find(prefix) != REGION_J.end())
 			region = "Japan";
+		else if(REGION_K.find(prefix) != REGION_K.end())
+			region = "South Korea";
+		else if(REGION_C.find(prefix) != REGION_C.end())
+			region = "China";
 		else if(REGION_U.find(prefix) != REGION_U.end())
 			region = "USA";
 		else if(REGION_E.find(prefix) != REGION_E.end())

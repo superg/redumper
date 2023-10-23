@@ -226,6 +226,12 @@ Context initialize(Options &options)
 		ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
 		drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(),
 							  options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
+
+		LOG("");
+		LOG("drive path: {}", options.drive);
+		LOG("drive: {}", drive_info_string(ctx.drive_config));
+		LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
+		LOG("drive read speed: {}", std::string(speed == 0xFFFF ? "optimal" : std::format("{} KB", speed)));
 	}
 
 	// substitute cd batch commands
@@ -258,19 +264,11 @@ export int redumper(Options &options)
 {
 	int exit_code = 0;
 
-	auto ctx = initialize(options);
-
 	LOG("{}", redumper_version());
 	LOG("");
 	LOG("command line: {}", options.command_line);
 
-	if(ctx.sptd)
-	{
-		LOG("");
-		LOG("drive path: {}", options.drive);
-		LOG("drive: {}", drive_info_string(ctx.drive_config));
-		LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
-	}
+	auto ctx = initialize(options);
 
 	if(!options.image_name.empty())
 	{

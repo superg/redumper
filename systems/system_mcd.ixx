@@ -189,13 +189,15 @@ private:
 			int64_t year_index;
 
 			// 4-digit year
-			if(str_to_int(year_index, std::string(header_date, 0, _YEAR_SYMBOLS)) && year_index >= 0)
-				date.first = year_index;
+			if(auto year_index = str_to_uint64(std::string(header_date, 0, _YEAR_SYMBOLS)))
+			{
+				date.first = *year_index;
+			}
 			// 2-digit year
 			else if(header_date[0] == ' ' && header_date[1] == ' ')
 			{
-				if(str_to_int(year_index, std::string(header_date, 2, _YEAR_SYMBOLS - 2)) && year_index >= 0)
-					date.first = year_index + 1900;
+				if(auto year_index = str_to_uint64(std::string(header_date, 2, _YEAR_SYMBOLS - 2)))
+					date.first = *year_index + 1900;
 			}
 
 			// extract month
@@ -212,9 +214,8 @@ private:
 				if(it == _MONTHS.end())
 				{
 					// attempt to decode numeric month value
-					int64_t month_index;
-					if(str_to_int(month_index, std::string(month, 0, month.find(' '))) && month_index >= 0 && number_is_month(month_index))
-						date.second = month_index;
+					if(auto month_index = str_to_uint64(std::string(month, 0, month.find(' '))); number_is_month(*month_index))
+						date.second = *month_index;
 				}
 				else
 					date.second = it->second;

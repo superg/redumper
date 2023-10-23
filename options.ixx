@@ -39,7 +39,7 @@ export struct Options
 	std::unique_ptr<int> drive_pregap_start;
 	std::unique_ptr<std::string> drive_read_method;
 	std::unique_ptr<std::string> drive_sector_order;
-	std::unique_ptr<int> speed;
+	std::unique_ptr<double> speed;
 	int retries;
 	bool refine_subchannel;
 	std::unique_ptr<int> lba_start;
@@ -98,6 +98,7 @@ export struct Options
 
 		std::string *s_value = nullptr;
 		int *i_value = nullptr;
+		double *d_value = nullptr;
 		for(int i = 1; i < argc; ++i)
 		{
 			std::string o(argv[i]);
@@ -172,8 +173,8 @@ export struct Options
 					}
 					else if(key == "--speed")
 					{
-						speed = std::make_unique<int>();
-						i_value = speed.get();
+						speed = std::make_unique<double>();
+						d_value = speed.get();
 					}
 					else if(key == "--retries")
 						i_value = &retries;
@@ -243,6 +244,11 @@ export struct Options
 				{
 					*i_value = str_to_int(o);
 					i_value = nullptr;
+				}
+				else if(d_value != nullptr)
+				{
+					*d_value = str_to_double(o);
+					d_value = nullptr;
 				}
 				else
 					commands.emplace_back(o);

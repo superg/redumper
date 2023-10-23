@@ -644,10 +644,11 @@ export struct TOC
 		std::string mcn_print(getMCN(mcn, cd_text, cd_text_index));
 
 		// make sure to prepend 0 to 12-digit MCN, total length should always be 13 digits
+		if(mcn_print.length() == 12)
 		{
-			int64_t mcn_value;
-			if(mcn_print.length() == 12 && str_to_int(mcn_value, mcn_print))
-				mcn_print = std::format("{:013}", mcn_value);
+			auto mcn_value = str_to_uint64(mcn_print);
+			if(mcn_value)
+				mcn_print = std::format("{:013}", *mcn_value);
 		}
 
 		if(!mcn_print.empty())

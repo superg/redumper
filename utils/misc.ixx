@@ -7,6 +7,7 @@ module;
 #include <functional>
 #include <iomanip>
 #include <map>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -287,6 +288,13 @@ T diff_bytes_count(const uint8_t *data1, const uint8_t *data2, T size)
 
 
 export template<typename T>
+T digits_count(T value)
+{
+	return (value ? log10(value) : 0) + 1;
+}
+
+
+export template<typename T>
 bool batch_process_range(const std::pair<T, T> &range, T batch_size, const std::function<bool(T, T)> &func)
 {
 	bool interrupted = false;
@@ -379,47 +387,119 @@ export std::vector<std::string> tokenize(const std::string &str, const char *del
 }
 
 
-export bool str_to_int(int64_t &value, const std::string &str)
+export std::optional<uint64_t> str_to_uint64(std::string::const_iterator str_begin, std::string::const_iterator str_end)
 {
-	size_t start = 0;
-	size_t end = str.length();
+	uint64_t value = 0;
 
-	// empty string
-	if(!end)
-		return false;
-
-	bool negative = false;
-	if(str[start] == '+')
-		++start;
-	else if(str[start] == '-')
+	bool valid = false;
+	for(auto it = str_begin; it != str_end; ++it)
 	{
-		negative = true;
-		++start;
-	}
-
-	value = 0;
-	for(size_t i = start; i < end; ++i)
-	{
-		if(std::isdigit(str[i]))
-			value = (value * 10) + (str[i] - '0');
+		if(std::isdigit(*it))
+		{
+			value = (value * 10) + (*it - '0');
+			valid = true;
+		}
 		else
-			return false;
+		{
+			valid = false;
+			break;
+		}
 	}
 
-	if(negative)
-		value = -value;
-
-	return start != end;
+	return valid ? std::make_optional(value) : std::nullopt;
 }
 
 
-export int64_t str_to_int(const std::string &s)
+export std::optional<uint64_t> str_to_uint64(const std::string &str)
 {
-	int64_t v;
-	if(!str_to_int(v, s))
-		throw_line("string is not a number ({})", s);
+	return str_to_uint64(str.cbegin(), str.cend());
+}
 
-	return v;
+
+export std::optional<int64_t> str_to_int64(std::string::const_iterator str_begin, std::string::const_iterator str_end)
+{
+	// empty string
+	auto it = str_begin;
+	if(it == str_end)
+		return std::nullopt;
+
+	// preserve sign
+	int64_t negative = 1;
+	if(*it == '+')
+		++it;
+	else if(*it == '-')
+	{
+		negative = -1;
+		++it;
+	}
+
+	if(auto value = str_to_uint64(it, str_end))
+		return std::make_optional(negative * *value);
+
+	return std::nullopt;
+}
+
+
+export std::optional<uint64_t> str_to_int64(const std::string &str)
+{
+	return str_to_int64(str.cbegin(), str.cend());
+}
+
+
+export int64_t str_to_int(const std::string &str)
+{
+	auto value = str_to_int64(str);
+	if(!value)
+		throw_line("string is not an integer number ({})", str);
+
+	return *value;
+}
+
+
+export std::optional<double> str_to_double(std::string::const_iterator str_begin, std::string::const_iterator str_end)
+{
+	// empty string
+	auto it = str_begin;
+	if(it == str_end)
+		return std::nullopt;
+
+	// preserve sign
+	double negative = 1;
+	if(*it == '+')
+		++it;
+	else if(*it == '-')
+	{
+		negative = -1;
+		++it;
+	}
+
+	auto dot = std::find(it, str_end, '.');
+
+	if(auto whole = str_to_uint64(it, dot))
+	{
+		if(dot == str_end)
+			return std::make_optional(negative * *whole);
+		else
+		{
+			if(auto decimal = str_to_uint64(dot + 1, str_end))
+			{
+				auto fraction = *decimal / pow(10, digits_count(*decimal));
+
+				return std::make_optional(negative * (*whole + fraction));
+			}
+		}
+	}
+
+	return std::nullopt;
+}
+
+export double str_to_double(const std::string &str)
+{
+	auto value = str_to_double(str.cbegin(), str.cend());
+	if(!value)
+		throw_line("string is not a double number ({})", str);
+
+	return *value;
 }
 
 
@@ -499,13 +579,6 @@ export std::string track_extract_basename(std::string str)
 	}
 
 	return basename;
-}
-
-
-export template<typename T>
-T digits_count(T value)
-{
-	return (value ? log10(value) : 0) + 1;
 }
 
 

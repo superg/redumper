@@ -245,6 +245,13 @@ Context initialize(Options &options)
 		LOG("drive read speed: {}", std::string(speed == 0xFFFF ? "optimal" : std::format("{} KB", speed)));
 	}
 
+	if(!options.image_name.empty())
+	{
+		LOG("");
+		LOG("image path: {}", options.image_path.empty() ? "." : options.image_path);
+		LOG("image name: {}", options.image_name);
+	}
+
 	// substitute cd batch commands
 	std::list<std::string> commands;
 	commands.swap(options.commands);
@@ -272,13 +279,6 @@ export int redumper(Options &options)
 	LOG("command line: {}", options.command_line);
 
 	auto ctx = initialize(options);
-
-	if(!options.image_name.empty())
-	{
-		LOG("");
-		LOG("image path: {}", options.image_path.empty() ? "." : options.image_path);
-		LOG("image name: {}", options.image_name);
-	}
 
 	std::chrono::seconds time_check = std::chrono::seconds::zero();
 	for(auto const &c : options.commands)

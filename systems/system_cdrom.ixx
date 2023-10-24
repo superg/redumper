@@ -158,7 +158,7 @@ public:
 		}
 
 		os << std::format("  sectors count: {}", s) << std::endl;
-		for(uint32_t i = 0; i < modes.size(); ++i)
+		for(uint32_t i = 0; i + 1 < modes.size(); ++i)
 			if(modes[i])
 				os << std::format("  mode{} sectors: {}", i, modes[i]) << std::endl;
 

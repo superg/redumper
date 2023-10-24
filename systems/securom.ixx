@@ -43,8 +43,7 @@ public:
 
 	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override
 	{
-		// SecuROM mode1 data track has one mode2 sector close to the track end
-		bool securom_candidate = false;
+		// SecuROM data track has one sector with flipped mode
 		static constexpr uint32_t flip_offset = 4;
 		auto sectors_count = sector_reader->sectorsCount();
 		if(sectors_count >= flip_offset)
@@ -52,7 +51,8 @@ public:
 			Sector sector[2];
 			sector_reader->read((uint8_t *)&sector, sectors_count - flip_offset, countof(sector));
 
-			securom_candidate = sector[0].header.mode != sector[1].header.mode;
+			if(sector[0].header.mode == sector[1].header.mode)
+				return;
 		}
 
 		std::filesystem::path sub_path = track_extract_basename(track_path.string()) + ".subcode";
@@ -127,7 +127,7 @@ public:
 		else if(candidates.size() == 10 || candidates.size() == 11 && candidates.front() == -1)
 			scheme = 4;
 
-		if(scheme || (securom_candidate && !candidates.empty()))
+		if(!candidates.empty())
 		{
 			os << std::format("  scheme: {}", scheme ? std::to_string(scheme) : "unknown") << std::endl;
 			for(auto const &c : candidates)

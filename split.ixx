@@ -225,7 +225,9 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 				continue;
 
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
-			bool data_mode_set = false;
+			const uint8_t data_mode_invalid = 3;
+			uint8_t data_mode = data_mode_invalid;
+			uint8_t data_mode_index1 = data_mode_invalid;
 
 			std::string track_string = toc.getTrackString(t.track_number);
 			bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
@@ -298,11 +300,14 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 
 						if(success)
 						{
-							auto data_mode = ((Sector *)sector.data())->header.mode;
-							if(!data_mode_set && data_mode < 3)
+							auto mode = ((Sector *)sector.data())->header.mode;
+							if(mode < data_mode_invalid)
 							{
-								t.data_mode = data_mode;
-								data_mode_set = true;
+								if(data_mode == data_mode_invalid)
+									data_mode = mode;
+
+								if(data_mode_index1 == data_mode_invalid && !t.indices.empty() && lba >= t.indices.front())
+									data_mode_index1 = mode;
 							}
 						}
 						else
@@ -321,6 +326,12 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 				if(fs_bin.fail())
 					throw_line("write failed ({})", track_name);
 			}
+
+			// some systems have mixed mode gaps (SS), prioritize index1 mode
+			if(data_mode_index1 != data_mode_invalid)
+				t.data_mode = data_mode_index1;
+			else if(data_mode != data_mode_invalid)
+				t.data_mode = data_mode;
 
 			for(auto const &d : descramble_errors)
 			{

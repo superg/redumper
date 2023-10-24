@@ -98,4 +98,12 @@ export std::string str_uppercase(const std::string &s)
     return str_uc;
 }
 
+export std::string str_quoted_if_space(const std::string &s)
+{
+    const std::string quote("\"");
+
+    return s.find(' ') == std::string::npos ? s : quote + s + quote;
+}
+
+
 }

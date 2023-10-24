@@ -192,7 +192,12 @@ Context initialize(Options &options)
 	{
 		// autoselect drive
 		if(options.drive.empty())
+		{
 			ctx.sptd = first_ready_drive(options.drive);
+
+			if(options.drive.empty())
+				throw_line("no ready drives detected on the system");
+		}
 		else
 		{
 			ctx.sptd = std::make_shared<SPTD>(options.drive);
@@ -202,9 +207,6 @@ Context initialize(Options &options)
 			if(status.status_code)
 				throw_line("drive not ready, SCSI ({})", SPTD::StatusMessage(status));
 		}
-
-		if(options.drive.empty())
-			throw_line("no ready drives detected on the system");
 	}
 
 	// autogenerate image name
@@ -220,36 +222,10 @@ Context initialize(Options &options)
 	{
 		ctx.disc_type = query_disc_type(ctx);
 
-		// set drive speed
-		float speed_modifier = 176.4;
-		if(ctx.disc_type == DiscType::DVD)
-			speed_modifier = 1385.0;
-		else if(ctx.disc_type == DiscType::BLURAY)
-			speed_modifier = 4500.0;
-
-		uint16_t speed = options.speed ? speed_modifier * *options.speed : 0xFFFF;
-
-		auto status = cmd_set_cd_speed(*ctx.sptd, speed);
-		if(status.status_code)
-			LOG("drive set speed failed, SCSI ({})", SPTD::StatusMessage(status));
-
 		// query/override drive configuration
 		ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
 		drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(),
 							  options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
-
-		LOG("");
-		LOG("drive path: {}", options.drive);
-		LOG("drive: {}", drive_info_string(ctx.drive_config));
-		LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
-		LOG("drive read speed: {}", std::string(speed == 0xFFFF ? "optimal" : std::format("{} KB", speed)));
-	}
-
-	if(!options.image_name.empty())
-	{
-		LOG("");
-		LOG("image path: {}", options.image_path.empty() ? "." : options.image_path);
-		LOG("image name: {}", options.image_name);
 	}
 
 	// substitute cd batch commands
@@ -274,11 +250,51 @@ export int redumper(Options &options)
 {
 	int exit_code = 0;
 
-	LOG("{}", redumper_version());
-	LOG("");
-	LOG("command line: {}", options.command_line);
-
 	auto ctx = initialize(options);
+
+	LOG("{}", redumper_version());
+
+	if(!options.arguments.empty())
+	{
+		LOG("");
+		LOG("arguments: {}", options.arguments);
+	}
+
+	if(ctx.sptd)
+	{
+		LOG("");
+		LOG("drive path: {}", options.drive);
+		LOG("drive: {}", drive_info_string(ctx.drive_config));
+		LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
+
+		// set drive speed
+		uint16_t speed = 0xFFFF;
+		std::string speed_str("<optimal>");
+		if(options.speed)
+		{
+			float speed_modifier = 176.4;
+			if(ctx.disc_type == DiscType::DVD)
+				speed_modifier = 1385.0;
+			else if(ctx.disc_type == DiscType::BLURAY)
+				speed_modifier = 4500.0;
+
+			speed = speed_modifier * *options.speed;
+			speed_str = std::format("{} KB", speed);
+		}
+
+		auto status = cmd_set_cd_speed(*ctx.sptd, speed);
+		if(status.status_code)
+			speed_str = std::format("<setting failed, SCSI ({})>", SPTD::StatusMessage(status));
+
+		LOG("drive read speed: {}", speed_str);
+	}
+
+	if(!options.image_name.empty())
+	{
+		LOG("");
+		LOG("image path: {}", str_quoted_if_space(options.image_path.empty() ? "." : options.image_path));
+		LOG("image name: {}", str_quoted_if_space(options.image_name));
+	}
 
 	std::chrono::seconds time_check = std::chrono::seconds::zero();
 	for(auto const &c : options.commands)

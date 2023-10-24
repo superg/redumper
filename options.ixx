@@ -9,6 +9,7 @@ export module options;
 
 import utils.logger;
 import utils.misc;
+import utils.strings;
 
 
 
@@ -17,7 +18,7 @@ namespace gpsxre
 
 export struct Options
 {
-	std::string command_line;
+	std::string arguments;
 
 	std::list<std::string> commands;
 
@@ -85,16 +86,10 @@ export struct Options
 		, dump_read_size(32)
 		, overread_leadout(false)
 	{
-		for(int i = 0; i < argc; ++i)
-		{
-			std::string argument = argv[i];
-
-			bool quoted = false;
-			if(argument.find(' ') != std::string::npos)
-				quoted = true;
-
-			command_line += std::format("{}{}{}{}", quoted ? "\"" : "", argument, quoted ? "\"" : "", i + 1 == argc ? "" : " ");
-		}
+		for(int i = 1; i < argc; ++i)
+			arguments += str_quoted_if_space(argv[i]) + " ";
+		if(!arguments.empty())
+			arguments.pop_back();
 
 		std::string *s_value = nullptr;
 		int *i_value = nullptr;

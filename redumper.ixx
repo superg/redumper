@@ -188,7 +188,6 @@ Context initialize(Options &options)
 			drive_required = true;
 	}
 
-	ctx.disc_type = DiscType::NONE;
 	if(drive_required)
 	{
 		// autoselect drive
@@ -206,7 +205,19 @@ Context initialize(Options &options)
 
 		if(options.drive.empty())
 			throw_line("no ready drives detected on the system");
+	}
 
+	// autogenerate image name
+	if(generate_name && options.image_name.empty())
+		options.image_name = generate_image_name(options.drive);
+
+	// initialize log file early not to miss any messages
+	if(!options.image_name.empty())
+		Logger::get().setFile((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
+
+	ctx.disc_type = DiscType::NONE;
+	if(drive_required)
+	{
 		ctx.disc_type = query_disc_type(ctx);
 
 		// set drive speed
@@ -247,14 +258,6 @@ Context initialize(Options &options)
 			options.commands.insert(options.commands.end(), cd_batch_commands.begin(), cd_batch_commands.end());
 		}
 	}
-
-	// autogenerate image name
-	if(generate_name && options.image_name.empty())
-		options.image_name = generate_image_name(options.drive);
-
-	// initialize log file early not to miss any messages
-	if(!options.image_name.empty())
-		Logger::get().setFile((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
 	return ctx;
 }

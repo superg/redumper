@@ -45,86 +45,27 @@ std::string region_string(uint8_t region_bits)
 }
 
 
-std::map<std::string, iso9660::DirectoryRecord> dr_list(Form1Reader &form1_reader, const iso9660::DirectoryRecord &dr)
-{
-	std::map<std::string, iso9660::DirectoryRecord> entries;
-
-	if(!(dr.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY))
-		return entries;
-
-	uint32_t sectors_count = scale_up(dr.data_length.lsb, FORM1_DATA_SIZE);
-	std::vector<uint8_t> buffer(sectors_count * FORM1_DATA_SIZE);
-	if(form1_reader.read(buffer.data(), dr.offset.lsb, sectors_count) != sectors_count)
-		throw_line("failed to read directory record");
-	buffer.resize(dr.data_length.lsb);
-
-	for(uint32_t i = 0, n = (uint32_t)buffer.size(); i < n;)
-	{
-		iso9660::DirectoryRecord &dr = *(iso9660::DirectoryRecord *)&buffer[i];
-
-		if(dr.length && dr.length <= FORM1_DATA_SIZE - i % FORM1_DATA_SIZE)
-		{
-			char b1 = (char)buffer[i + sizeof(dr)];
-			if(b1 != (char)iso9660::Characters::DIR_CURRENT && b1 != (char)iso9660::Characters::DIR_PARENT)
-			{
-				std::string identifier((const char *)&buffer[i + sizeof(dr)], dr.file_identifier_length);
-				auto s = identifier.find((char)iso9660::Characters::SEPARATOR2);
-				std::string name(s == std::string::npos ? identifier : identifier.substr(0, s));
-
-				entries[name] = dr;
-			}
-
-			i += dr.length;
-		}
-		// skip sector boundary
-		else
-			i = ((i / FORM1_DATA_SIZE) + 1) * FORM1_DATA_SIZE;
-	}
-
-	return entries;
-}
-
-
-//TODO: reimplement properly after ImageBrowser rewrite
-std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(Form1Reader &form1_reader)
+std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(Form1Reader *form1_reader)
 {
 	std::map<std::string, std::pair<uint32_t, uint32_t>> titles;
 
-	// read PVD root directory record lba
-	iso9660::DirectoryRecord root_dr;
-	bool pvd_found = false;
-	for(uint32_t lba = iso9660::SYSTEM_AREA_SIZE; ; ++lba)
+	iso9660::PrimaryVolumeDescriptor pvd;
+	if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader, iso9660::VolumeDescriptorType::PRIMARY))
+		return titles;
+
+	auto root_directory = iso9660::Browser::rootDirectory(form1_reader, pvd);
+	auto video_ts = root_directory->subEntry("VIDEO_TS");
+	if(!video_ts)
+		return titles;
+
+	auto entries = video_ts->entries();
+	for(auto e : entries)
 	{
-		std::vector<uint8_t> sector(FORM1_DATA_SIZE);
-		if(form1_reader.read(sector.data(), lba, 1) != 1)
-			throw_line("failed to read PVD");
+		if(e->isDirectory())
+			continue;
 
-		auto vd = (iso9660::VolumeDescriptor *)sector.data();
-		if(memcmp(vd->standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(vd->standard_identifier)))
-			break;
-
-		if(vd->type == iso9660::VolumeDescriptorType::PRIMARY)
-		{
-			auto pvd = (iso9660::PrimaryVolumeDescriptor *)vd;
-			root_dr = pvd->root_directory_record;
-			pvd_found = true;
-			break;
-		}
-		else if(vd->type == iso9660::VolumeDescriptorType::SET_TERMINATOR)
-			break;
-	}
-
-	if(!pvd_found)
-		throw_line("PVD not found");
-
-	auto root_entries = dr_list(form1_reader, root_dr);
-	auto it = root_entries.find("VIDEO_TS");
-	if(it != root_entries.end())
-	{
-		auto video_entries = dr_list(form1_reader, it->second);
-		for(auto const &e : video_entries)
-			if(ends_with(e.first, ".VOB"))
-				titles[e.first] = std::pair(e.second.offset.lsb, e.second.offset.lsb + scale_up(e.second.data_length.lsb, FORM1_DATA_SIZE));
+		if(ends_with(e->name(), ".VOB"))
+			titles[e->name()] = std::pair(e->sectorOffset(), e->sectorOffset() + scale_up(e->sectorSize(), FORM1_DATA_SIZE));
 	}
 
 	return titles;
@@ -190,7 +131,7 @@ export void dvd_key(Context &ctx, const Options &options)
 		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
 		{
 			Disc_READ_Form1Reader reader(*ctx.sptd);
-			auto vobs = extract_vob_list(reader);
+			auto vobs = extract_vob_list(&reader);
 			
 			bool cppm = false;
 
@@ -260,7 +201,7 @@ export void dvd_isokey(Context &ctx, const Options &options)
 	std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
 
 	Image_ISO_Form1Reader reader(scm_path);
-	auto vobs = extract_vob_list(reader);
+	auto vobs = extract_vob_list(&reader);
 	if(!vobs.empty())
 	{
 		// determine continuous VTS groups

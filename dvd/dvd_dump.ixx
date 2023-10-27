@@ -156,15 +156,19 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 
 	std::string indent(4, ' ');
 
-	int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
-	int32_t lba_last = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
-	int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
+	uint32_t lba_first_raw = endian_swap(layer_descriptor.data_start_sector);
+	uint32_t lba_last_raw = endian_swap(layer_descriptor.data_end_sector);
+	uint32_t layer0_last_raw = endian_swap(layer_descriptor.layer0_end_sector);
+
+	int32_t lba_first = sign_extend<24>(lba_first_raw);
+	int32_t lba_last = sign_extend<24>(lba_last_raw);
+	int32_t layer0_last = sign_extend<24>(layer0_last_raw);
 
 	uint32_t length = get_layer_length(layer_descriptor);
 
-	LOG("{}data {{ LBA: [{} .. {}], length: {}, hLBA: [0x{:08X} .. 0x{:08X}] }}", indent, lba_first, lba_last, length, lba_first, lba_last);
+	LOG("{}data {{ LBA: [{} .. {}], length: {}, hLBA: [0x{:06X} .. 0x{:06X}] }}", indent, lba_first, lba_last, length, lba_first_raw, lba_last_raw);
 	if(layer0_last)
-		LOG("{}data layer 0 last {{ LBA: {} .. hLBA: 0x{:08X} }}", indent, layer0_last, layer0_last);
+		LOG("{}data layer 0 last {{ LBA: {} .. hLBA: 0x{:06X} }}", indent, layer0_last, layer0_last_raw);
 	LOG("{}book type: {}", indent, BOOK_TYPE[layer_descriptor.book_type]);
 	LOG("{}part version: {}", indent, layer_descriptor.part_version);
 	if(layer_descriptor.disc_size < 2)

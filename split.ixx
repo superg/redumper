@@ -1295,7 +1295,9 @@ export void redumper_split_cd(const Options &options)
 			{
 				// try to detect positive offset based on scrambled data track overlap into audio
 				write_offset_audio = disc_offset_by_overlap(toc, scm_fs, write_offset_data);
-				if(write_offset_audio != std::numeric_limits<int32_t>::max())
+				if(write_offset_audio == std::numeric_limits<int32_t>::max())
+					write_offset_audio = 0;
+				else
 					LOG("overlap offset detected");
 			}
 

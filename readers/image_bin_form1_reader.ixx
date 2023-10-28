@@ -8,6 +8,7 @@ export module readers.image_bin_form1_reader;
 
 import cd.cd;
 import cd.cdrom;
+import cd.scrambler;
 import readers.form1_reader;
 
 
@@ -19,14 +20,26 @@ export class Image_BIN_Form1Reader : public Form1Reader
 {
 public:
 	Image_BIN_Form1Reader(const std::filesystem::path &image_path)
-		: _fs(image_path, std::fstream::in | std::fstream::binary)
+		: _fs(_fsProxy)
+		, _fileOffset(0)
 		, _sectorsCount(std::filesystem::file_size(image_path) / CD_DATA_SIZE)
+		, _scrambled(false)
 	{
-		Sector sector;
-		if(!seek(0) || !read((uint8_t *)&sector))
-			throw_line("unable to establish base LBA");
+		_fs.open(image_path, std::fstream::in | std::fstream::binary);
+		if(!_fs.is_open())
+			throw_line("unable to open image file (path: {})", image_path.string());
 
-		_baseLBA = BCDMSF_to_LBA(sector.header.address);
+		setBaseLBA();
+	}
+
+
+	Image_BIN_Form1Reader(std::fstream &fs, uint32_t file_offset, uint32_t sectors_count, bool scrambled)
+		: _fs(fs)
+		, _fileOffset(file_offset)
+		, _sectorsCount(sectors_count)
+		, _scrambled(scrambled)
+	{
+		setBaseLBA();
 	}
 
 
@@ -34,7 +47,7 @@ public:
 	{
 		uint32_t sectors_read = 0;
 
-		if(seek(index))
+		if(index + count <= _sectorsCount && seek(index))
 		{
 			for(uint32_t s = 0; s < count; ++s)
 			{
@@ -80,15 +93,23 @@ public:
 	}
 
 private:
-	std::fstream _fs;
-	uint32_t _baseLBA;
+	std::fstream &_fs;
+	std::fstream _fsProxy;
+
+	uint32_t _fileOffset;
 	uint32_t _sectorsCount;
+
+	Scrambler _scrambler;
+	bool _scrambled;
+
+	uint32_t _baseLBA;
+
 
 	bool seek(uint32_t index)
 	{
 		bool success = false;
 
-		_fs.seekg(index * CD_DATA_SIZE);
+		_fs.seekg(_fileOffset + index * CD_DATA_SIZE);
 		if(_fs.fail())
 			_fs.clear();
 		else
@@ -108,7 +129,20 @@ private:
 		else
 			success = true;
 
+		if(_scrambled)
+			_scrambler.process(sector, sector, 0, CD_DATA_SIZE);
+
 		return success;
+	}
+
+
+	void setBaseLBA()
+	{
+		Sector sector;
+		if(!seek(0) || !read((uint8_t *)&sector))
+			throw_line("unable to establish base LBA");
+
+		_baseLBA = BCDMSF_to_LBA(sector.header.address);
 	}
 };
 

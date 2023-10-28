@@ -151,7 +151,6 @@ target_sources(redumper
 	"filesystem/iso9660/iso9660_browser.ixx"
 	"filesystem/iso9660/iso9660_defs.ixx"
 	"filesystem/iso9660/iso9660_entry.ixx"
-	"filesystem/image_browser.ixx"
 	"hash/block_hasher.ixx"
 	"hash/md5.ixx"
 	"hash/sha1.ixx"

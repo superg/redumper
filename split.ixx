@@ -5,6 +5,7 @@ module;
 #include <limits>
 #include <list>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <string_view>
@@ -24,11 +25,11 @@ import cd.scrambler;
 import cd.subcode;
 import cd.toc;
 import dump;
-import filesystem.image_browser;
 import filesystem.iso9660;
 import hash.sha1;
 import offset_manager;
 import options;
+import readers.image_bin_form1_reader;
 import rom_entry;
 import utils.file_io;
 import utils.logger;
@@ -123,11 +124,21 @@ int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &s
 }
 
 
-uint32_t iso9660_volume_size(std::fstream &scm_fs, uint64_t scm_offset, bool scrap)
+int32_t iso9660_trim_if_needed(const TOC::Session::Track &t, std::fstream &scm_fs, bool scrap, std::shared_ptr<const OffsetManager> offset_manager, const Options &options)
 {
-	ImageBrowser browser(scm_fs, scm_offset, 0, !scrap);
-	auto volume_size = browser.GetPVD().volume_space_size.lsb;
-	return volume_size;
+	int32_t lba_end = t.lba_end;
+
+	if(options.iso9660_trim && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty())
+	{
+		uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE;
+		auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), !scrap);
+
+		iso9660::PrimaryVolumeDescriptor pvd;
+		if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
+			lba_end = t.indices.front() + pvd.volume_space_size.lsb;
+	}
+
+	return lba_end;
 }
 
 
@@ -159,10 +170,9 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 			uint32_t skip_sectors = 0;
 			uint32_t c2_sectors = 0;
 
-			//FIXME: omit iso9660 volume size if the filesystem is different
+			auto lba_end = iso9660_trim_if_needed(t, scm_fs, scrap, offset_manager, options);
 
-			uint32_t track_length = options.iso9660_trim && data_track && !t.indices.empty() ? iso9660_volume_size(scm_fs, (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE, scrap) : t.lba_end - t.lba_start;
-			for(int32_t lba = t.lba_start; lba < t.lba_start + (int32_t)track_length; ++lba)
+			for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
 			{
 				if(inside_range(lba, skip_ranges) != nullptr)
 					continue;
@@ -249,9 +259,7 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 
 			std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
-			int32_t lba_end = t.lba_end;
-			if(options.iso9660_trim && data_track && !t.indices.empty())
-				lba_end = t.lba_start + iso9660_volume_size(scm_fs, (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE, scrap);
+			auto lba_end = iso9660_trim_if_needed(t, scm_fs, scrap, offset_manager, options);
 
 			for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
 			{
@@ -923,94 +931,98 @@ export void redumper_protection_cd(Options &options)
 	std::string protection("N/A");
 
 	// SafeDisc
-	if(toc.sessions.size() == 1)
+	// first track is data
+	if(toc.sessions.size() == 1 && toc.sessions.front().tracks.size() >= 2)
 	{
-		// data track
-		auto &t = toc.sessions.front().tracks.front();
-		int32_t track_lba_start = t.indices.front();
-		int32_t track_lba_end = toc.sessions.front().tracks.back().lba_end;
+		auto &t = toc.sessions.front().tracks[0];
+		auto &t_next = toc.sessions.front().tracks[1];
 
 		if(t.control & (uint8_t)ChannelQ::Control::DATA)
 		{
-			int32_t write_offset = track_offset_by_sync(track_lba_start, track_lba_end, state_fs, scm_fs);
+			int32_t write_offset = track_offset_by_sync(t.lba_start, t_next.lba_start, state_fs, scm_fs);
+
 			if(write_offset != std::numeric_limits<int32_t>::max())
 			{
-				ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, 0, !scrap);
-				auto root_dir = browser.RootDirectory();
-				auto entry = root_dir->SubEntry("00000001.TMP");
-				if(entry)
+				uint32_t file_offset = (t.lba_start - LBA_START) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE;
+				auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t_next.lba_start - t.lba_start, !scrap);
+
+				iso9660::PrimaryVolumeDescriptor pvd;
+				if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
 				{
-					std::vector<State> state(CD_DATA_SIZE_SAMPLES);
-
-					int32_t lba_start = entry->SectorOffset() + entry->SectorSize();
-					int32_t lba_end = lba_start;
-					auto entries = root_dir->Entries();
-					for(auto &e : entries)
+					auto root_directory = iso9660::Browser::rootDirectory(form1_reader.get(), pvd);
+					auto entry = root_directory->subEntry("00000001.TMP");
+					if(entry)
 					{
-						if(e->IsDirectory())
-							continue;
+						std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
-						auto entry_offset = e->SectorOffset();
-						if(entry_offset <= lba_start)
-							continue;
+						int32_t lba_start = entry->sectorsOffset() + entry->sectorsSize();
+						int32_t lba_end = lba_start;
+						auto entries = root_directory->entries();
+						for(auto &e : entries)
+						{
+							if(e->isDirectory())
+								continue;
 
-						if(lba_end == lba_start || entry_offset < lba_end)
-							lba_end = entry_offset;
-					}
+							auto entry_offset = e->sectorsOffset();
+							if(entry_offset <= lba_start)
+								continue;
 
-					// verified: 78
-					const std::set<uint32_t> safedisc_c2_samples = { 60, 66, 72, 78 };
+							if(lba_end == lba_start || entry_offset < lba_end)
+								lba_end = entry_offset;
+						}
 
-					std::vector<int32_t> errors;
-					for(int32_t lba = lba_start; lba < lba_end; ++lba)
-					{
-						read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
-						
-						uint32_t error_count = 0;
-						for(auto const &s : state)
-							if(s == State::ERROR_C2)
-								++error_count;
+						// verified: 78
+						const std::set<uint32_t> safedisc_c2_samples = { 60, 66, 72, 78 };
 
-						if(safedisc_c2_samples.find(error_count) != safedisc_c2_samples.end())
-							errors.push_back(lba);
-					}
+						std::vector<int32_t> errors;
+						for(int32_t lba = lba_start; lba < lba_end; ++lba)
+						{
+							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 
-					if(!errors.empty())
-					{
-						protection = std::format("SafeDisc {}, C2: {}, gap range: {}-{}", entry->Name(), errors.size(), lba_start, lba_end - 1);
+							uint32_t error_count = 0;
+							for(auto const &s : state)
+								if(s == State::ERROR_C2)
+									++error_count;
 
-						auto skip_ranges = string_to_ranges(options.skip);
-						for(auto e : errors)
-							skip_ranges.emplace_back(e, e + 1);
-						options.skip = ranges_to_string(skip_ranges);
+							if(safedisc_c2_samples.find(error_count) != safedisc_c2_samples.end())
+								errors.push_back(lba);
+						}
+
+						if(!errors.empty())
+						{
+							protection = std::format("SafeDisc {}, C2: {}, gap range: {}-{}", entry->name(), errors.size(), lba_start, lba_end - 1);
+
+							auto skip_ranges = string_to_ranges(options.skip);
+							for(auto e : errors)
+								skip_ranges.emplace_back(e, e + 1);
+							options.skip = ranges_to_string(skip_ranges);
+						}
 					}
 				}
-
 			}
 		}
 	}
 
-	// PS2 Datel DATA.DAT / BIG.DAT
-	// only one track
+
+	// PS2 Datel
+	// only one data track
 	if(toc.sessions.size() == 1 && toc.sessions.front().tracks.size() == 2)
 	{
-		// data track
-		auto &t = toc.sessions.front().tracks.front();
-		int32_t track_lba_start = t.indices.front();
-		int32_t track_lba_end = toc.sessions.front().tracks.back().lba_end;
+		auto &t = toc.sessions.front().tracks[0];
+		auto &t_next = toc.sessions.front().tracks[1];
 
 		if(t.control & (uint8_t)ChannelQ::Control::DATA)
 		{
 			std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
-			int32_t write_offset = track_offset_by_sync(track_lba_start, track_lba_end, state_fs, scm_fs);
+			int32_t write_offset = track_offset_by_sync(t.lba_start, t_next.lba_start, state_fs, scm_fs);
 			if(write_offset != std::numeric_limits<int32_t>::max())
 			{
 				// preliminary check
 				bool candidate = false;
 				{
 					constexpr int32_t lba_check = 50;
-					if(lba_check >= track_lba_start && lba_check < track_lba_end)
+					if(lba_check >= t.lba_start && lba_check < t_next.lba_start)
 					{
 						read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba_check - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 						for(auto const &s : state)
@@ -1028,22 +1040,28 @@ export void redumper_protection_cd(Options &options)
 
 					std::string protected_filename;
 					{
-						ImageBrowser browser(scm_fs, -LBA_START * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE, 0, !scrap);
-						auto root_dir = browser.RootDirectory();
+						uint32_t file_offset = (t.lba_start - LBA_START) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE;
+						auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t_next.lba_start - t.lba_start, !scrap);
 
-						static const std::string datel_files[] = {"DATA.DAT", "BIG.DAT", "DUMMY.ZIP"};
-						for(auto const &f : datel_files)
+						iso9660::PrimaryVolumeDescriptor pvd;
+						if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
 						{
-							// protection file exists
-							auto entry = root_dir->SubEntry(f);
-							if(!entry)
-								continue;
+							auto root_directory = iso9660::Browser::rootDirectory(form1_reader.get(), pvd);
 
-							// first file on disc and starts from LBA 23
-							if(entry->SectorOffset() == first_file_offset)
+							static const std::string datel_files[] = { "DATA.DAT", "BIG.DAT", "DUMMY.ZIP" };
+							for(auto const &f : datel_files)
 							{
-								protected_filename = entry->Name();
-								break;
+								// protection file exists
+								auto entry = root_directory->subEntry(f);
+								if(!entry)
+									continue;
+
+								// first file on disc and starts from LBA 23
+								if(entry->sectorsOffset() == first_file_offset)
+								{
+									protected_filename = entry->name();
+									break;
+								}
 							}
 						}
 					}
@@ -1051,7 +1069,7 @@ export void redumper_protection_cd(Options &options)
 					if(!protected_filename.empty())
 					{
 						std::pair<int32_t, int32_t> range(0, 0);
-						for(int32_t lba = first_file_offset, lba_end = std::min(track_lba_end, 5000); lba < lba_end; ++lba)
+						for(int32_t lba = first_file_offset, lba_end = std::min(t_next.lba_start, 5000); lba < lba_end; ++lba)
 						{
 							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
 
@@ -1488,22 +1506,13 @@ export void redumper_split_cd(const Options &options)
 		for(auto &t : s.tracks)
 			if(t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty() && t.track_number != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 			{
-				// CDI
-				try
-				{
-					int32_t lba = t.indices.front();
-					ImageBrowser browser(scm_fs, (lba - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(lba) * CD_SAMPLE_SIZE, 0, !scrap);
+				uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE;
+				auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), !scrap);
 
-					auto pvd = browser.GetPVD();
-
-					if(!memcmp(pvd.standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(pvd.standard_identifier)))
-						t.cdi = true;
-				}
-				catch(...)
-				{
-					//FIXME: be verbose
-					;
-				}
+				iso9660::PrimaryVolumeDescriptor pvd;
+				if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY) &&
+				   !memcmp(pvd.standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(pvd.standard_identifier)))
+					t.cdi = true;
 			}
 
 	// check if pre-gap is complete

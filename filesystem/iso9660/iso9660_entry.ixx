@@ -56,15 +56,15 @@ public:
 	}
 
 
-	uint32_t sectorOffset() const
+	uint32_t sectorsOffset() const
 	{
 		return _directoryRecord.offset.lsb;
 	}
 
 
-	uint32_t sectorSize() const
+	uint32_t sectorsSize() const
 	{
-		return round_up(_directoryRecord.data_length.lsb, FORM1_DATA_SIZE);
+		return scale_up(_directoryRecord.data_length.lsb, FORM1_DATA_SIZE);
 	}
 
 
@@ -168,9 +168,9 @@ public:
 
 	std::vector<uint8_t> read()
 	{
-		std::vector<uint8_t> sectors(sectorSize());
+		std::vector<uint8_t> sectors(sectorsSize() * FORM1_DATA_SIZE);
 		
-		uint32_t sectors_read = _sectorReader->readLBA(sectors.data(), sectorOffset(), scale_up(_directoryRecord.data_length.lsb, FORM1_DATA_SIZE));
+		uint32_t sectors_read = _sectorReader->readLBA(sectors.data(), sectorsOffset(), sectorsSize());
 		sectors.resize(sectors_read * FORM1_DATA_SIZE);
 
 		return sectors;

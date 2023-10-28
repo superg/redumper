@@ -65,7 +65,7 @@ std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(Form1Reade
 			continue;
 
 		if(ends_with(e->name(), ".VOB"))
-			titles[e->name()] = std::pair(e->sectorOffset(), e->sectorOffset() + scale_up(e->sectorSize(), FORM1_DATA_SIZE));
+			titles[e->name()] = std::pair(e->sectorsOffset(), e->sectorsOffset() + e->sectorsSize());
 	}
 
 	return titles;

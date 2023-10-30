@@ -481,7 +481,7 @@ private:
 	{
 		std::vector<uint8_t> disc_key;
 
-		auto status = cmd_read_dvd_structure(_sptd, disc_key, 0, 0, READ_DVD_STRUCTURE_Format::DISC_KEY, agid);
+		auto status = cmd_read_disc_structure(_sptd, disc_key, 0, 0, 0, READ_DISC_STRUCTURE_Format::DISC_KEY, agid);
 		if(status.status_code)
 			throw_line("failed to read disc key, SCSI ({})", SPTD::StatusMessage(status));
 		strip_response_header(disc_key);

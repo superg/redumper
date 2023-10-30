@@ -182,12 +182,12 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 }
 
 
-std::set<READ_DVD_STRUCTURE_Format> get_readable_formats(SPTD &sptd)
+std::set<READ_DISC_STRUCTURE_Format> get_readable_formats(SPTD &sptd)
 {
-	std::set<READ_DVD_STRUCTURE_Format> readable_formats;
+	std::set<READ_DISC_STRUCTURE_Format> readable_formats;
 
 	std::vector<uint8_t> structure;
-	cmd_read_dvd_structure(sptd, structure, 0, 0, READ_DVD_STRUCTURE_Format::STRUCTURE_LIST, 0);
+	cmd_read_disc_structure(sptd, structure, 0, 0, 0, READ_DISC_STRUCTURE_Format::STRUCTURE_LIST, 0);
 	strip_response_header(structure);
 
 	auto structures_count = (uint16_t)(structure.size() / sizeof(READ_DVD_STRUCTURE_StructureListEntry));
@@ -195,7 +195,7 @@ std::set<READ_DVD_STRUCTURE_Format> get_readable_formats(SPTD &sptd)
 
 	for(uint16_t i = 0; i < structures_count; ++i)
 		if(structures[i].rds)
-			readable_formats.insert((READ_DVD_STRUCTURE_Format)structures[i].format_code);
+			readable_formats.insert((READ_DISC_STRUCTURE_Format)structures[i].format_code);
 
 	return readable_formats;
 }
@@ -209,9 +209,9 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
 	for(uint32_t i = 0; !layers_count || i < layers_count; ++i)
 	{
 		auto &structure = structures.emplace_back();
-		auto status = cmd_read_dvd_structure(sptd, structure, 0, i, READ_DVD_STRUCTURE_Format::PHYSICAL, 0);
+		auto status = cmd_read_disc_structure(sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
 		if(status.status_code)
-			throw_line("failed to read disc physical structure");
+			throw_line("failed to read disc physical structure, SCSI ({})", SPTD::StatusMessage(status));
 
 		strip_response_header(structure);
 
@@ -259,7 +259,7 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 	auto readable_formats = get_readable_formats(*ctx.sptd);
 
-	if(readable_formats.find(READ_DVD_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
+	if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
 	{
 		auto physical_structures = read_physical_structures(*ctx.sptd);
 
@@ -294,10 +294,10 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 				print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data(), i);
 
-				if(readable_formats.find(READ_DVD_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
+				if(readable_formats.find(READ_DISC_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
 				{
 					std::vector<uint8_t> manufacturer;
-					cmd_read_dvd_structure(*ctx.sptd, manufacturer, 0, i, READ_DVD_STRUCTURE_Format::MANUFACTURER, 0);
+					cmd_read_disc_structure(*ctx.sptd, manufacturer, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
 					strip_response_header(manufacturer);
 
 					if(!manufacturer.empty())
@@ -326,10 +326,10 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 	}
 
 	// authenticate CSS
-	if(dump_mode == DumpMode::DUMP && readable_formats.find(READ_DVD_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
+	if(dump_mode == DumpMode::DUMP && readable_formats.find(READ_DISC_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
 	{
 		std::vector<uint8_t> copyright;
-		auto status = cmd_read_dvd_structure(*ctx.sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
+		auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
 		if(!status.status_code)
 		{
 			strip_response_header(copyright);

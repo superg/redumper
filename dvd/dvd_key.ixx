@@ -108,7 +108,7 @@ export void dvd_key(Context &ctx, const Options &options)
 {
 	// protection
 	std::vector<uint8_t> copyright;
-	auto status = cmd_read_dvd_structure(*ctx.sptd, copyright, 0, 0, READ_DVD_STRUCTURE_Format::COPYRIGHT, 0);
+	auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
 	if(!status.status_code)
 	{
 		strip_response_header(copyright);

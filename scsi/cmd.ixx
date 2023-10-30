@@ -234,14 +234,15 @@ export SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 }
 
 
-export SPTD::Status cmd_read_dvd_structure(SPTD &sptd, std::vector<uint8_t> &response_data, uint32_t address, uint8_t layer_number, READ_DVD_STRUCTURE_Format format, uint8_t agid)
+export SPTD::Status cmd_read_disc_structure(SPTD &sptd, std::vector<uint8_t> &response_data, uint8_t media_type, uint32_t address, uint8_t layer_number, READ_DISC_STRUCTURE_Format format, uint8_t agid)
 {
 	SPTD::Status status;
 
 	response_data.clear();
 
-	CDB12_ReadDVDStructure cdb = {};
-	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_DVD_STRUCTURE;
+	CDB12_ReadDiscStructure cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_DISC_STRUCTURE;
+	cdb.media_type = media_type;
 	*(uint32_t *)cdb.address = endian_swap(address);
 	cdb.layer_number = layer_number;
 	cdb.format = (uint8_t)format;

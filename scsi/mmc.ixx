@@ -10,21 +10,21 @@ namespace gpsxre
 
 export enum class CDB_OperationCode : uint8_t
 {
-	TEST_UNIT_READY    = 0x00,
-	INQUIRY            = 0x12,
-	READ_CAPACITY      = 0x25,
-	SYNCHRONIZE_CACHE  = 0x35,
-	READ_TOC           = 0x43,
-	GET_CONFIGURATION  = 0x46,
-	SEND_KEY           = 0xA3,
-	REPORT_KEY         = 0xA4,
-	READ12             = 0xA8,
-	READ_DVD_STRUCTURE = 0xAD,
-	SET_CD_SPEED       = 0xBB,
-	READ_CD            = 0xBE,
-	READ_CDDA          = 0xD8,
-	PLEXTOR_RESET      = 0xEE,
-	ASUS_READ_CACHE    = 0xF1
+	TEST_UNIT_READY     = 0x00,
+	INQUIRY             = 0x12,
+	READ_CAPACITY       = 0x25,
+	SYNCHRONIZE_CACHE   = 0x35,
+	READ_TOC            = 0x43,
+	GET_CONFIGURATION   = 0x46,
+	SEND_KEY            = 0xA3,
+	REPORT_KEY          = 0xA4,
+	READ12              = 0xA8,
+	READ_DISC_STRUCTURE = 0xAD,
+	SET_CD_SPEED        = 0xBB,
+	READ_CD             = 0xBE,
+	READ_CDDA           = 0xD8,
+	PLEXTOR_RESET       = 0xEE,
+	ASUS_READ_CACHE     = 0xF1
 };
 
 
@@ -161,9 +161,9 @@ export enum class READ_CDDA_SubCode : uint8_t
 };
 
 
-export enum class READ_DVD_STRUCTURE_Format : uint8_t
+export enum class READ_DISC_STRUCTURE_Format : uint8_t
 {
-	PHYSICAL,
+	PHYSICAL, // DI
 	COPYRIGHT,
 	DISC_KEY,
 	BCA,
@@ -172,7 +172,7 @@ export enum class READ_DVD_STRUCTURE_Format : uint8_t
 	MEDIA_IDENTIFIER,
 	MEDIA_KEY_BLOCK,
 	DDS,
-	DVD_RAM_MEDIUM_STATUS,
+	DVD_RAM_MEDIUM_STATUS, // CARTRIDGE STATUS
 	SPARE_AREA_INFORMATION,
 	RESERVED1,
 	RMD_LAST_BO,
@@ -181,10 +181,12 @@ export enum class READ_DVD_STRUCTURE_Format : uint8_t
 	UNIQUE_DISC_IDENTIFIER,
 	PHYSICAL_LI,
 	RESERVED2,
-	DISC_CONTROL_BLOCKS = 0x30,
+	RAW_DFL,
 	RESERVED3,
-	WRITE_PROTECTION = 0xC0,
+	DISC_CONTROL_BLOCKS = 0x30, // PAC
 	RESERVED4,
+	WRITE_PROTECTION = 0xC0,
+	RESERVED5,
 	STRUCTURE_LIST = 0xFF
 };
 
@@ -557,16 +559,16 @@ export struct CDB10_GetConfiguration
 };
 
 
-export struct CDB12_ReadDVDStructure
+export struct CDB12_ReadDiscStructure
 {
 	uint8_t operation_code;
-	uint8_t reserved1             :5;
-	uint8_t lun                   :3;
+	uint8_t media_type            :4;
+	uint8_t reserved1             :4;
 	uint8_t address[4];
 	uint8_t layer_number;
 	uint8_t format;
 	uint8_t allocation_length[2];
-	uint8_t reserved3             :6;
+	uint8_t reserved2             :6;
 	uint8_t agid                  :2;
 	uint8_t control;
 };

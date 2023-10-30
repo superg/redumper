@@ -88,7 +88,7 @@ SPTD::Status cdb_send_receive(SPTD &sptd, std::vector<uint8_t> &response, T &cdb
 			*(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(response_size);
 
 			status = sptd.sendCommand(&cdb, sizeof(cdb), response.data(), (uint32_t)response.size());
-			if(!status.status_code)
+			if(status.status_code)
 				response_size = 0;
 		}
 

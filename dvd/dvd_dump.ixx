@@ -182,12 +182,12 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 }
 
 
-std::set<READ_DISC_STRUCTURE_Format> get_readable_formats(SPTD &sptd)
+std::set<READ_DISC_STRUCTURE_Format> get_readable_formats(SPTD &sptd, bool bluray)
 {
 	std::set<READ_DISC_STRUCTURE_Format> readable_formats;
 
 	std::vector<uint8_t> structure;
-	cmd_read_disc_structure(sptd, structure, 0, 0, 0, READ_DISC_STRUCTURE_Format::STRUCTURE_LIST, 0);
+	cmd_read_disc_structure(sptd, structure, bluray ? 1 : 0, 0, 0, READ_DISC_STRUCTURE_Format::STRUCTURE_LIST, 0);
 	strip_response_header(structure);
 
 	auto structures_count = (uint16_t)(structure.size() / sizeof(READ_DVD_STRUCTURE_StructureListEntry));
@@ -201,7 +201,7 @@ std::set<READ_DISC_STRUCTURE_Format> get_readable_formats(SPTD &sptd)
 }
 
 
-std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
+std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool bluray)
 {
 	std::vector<std::vector<uint8_t>> structures;
 
@@ -209,7 +209,7 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd)
 	for(uint32_t i = 0; !layers_count || i < layers_count; ++i)
 	{
 		auto &structure = structures.emplace_back();
-		auto status = cmd_read_disc_structure(sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
+		auto status = cmd_read_disc_structure(sptd, structure, bluray ? 1 : 0, 0, i, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
 		if(status.status_code)
 			throw_line("failed to read disc physical structure, SCSI ({})", SPTD::StatusMessage(status));
 
@@ -246,8 +246,6 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 	if(dump_mode == DumpMode::DUMP)
 		image_check_overwrite(state_path, options);
 
-	// BD: cdb.reserved1 = 1, dump PIC area
-
 	// get sectors count
 	uint32_t sector_last, block_length;
 	auto status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
@@ -257,11 +255,11 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 		throw_line("unsupported block size (block size: {})", block_length);
 	uint32_t sectors_count = sector_last + 1;
 
-	auto readable_formats = get_readable_formats(*ctx.sptd);
+	auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY);
 
 	if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
 	{
-		auto physical_structures = read_physical_structures(*ctx.sptd);
+		auto physical_structures = read_physical_structures(*ctx.sptd, ctx.disc_type == DiscType::BLURAY);
 
 		if(dump_mode == DumpMode::DUMP)
 		{

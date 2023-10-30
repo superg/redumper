@@ -263,34 +263,10 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 		if(dump_mode == DumpMode::DUMP)
 		{
-			// calculate layer break
-			uint32_t layer_break = 0;
-			for(uint32_t i = 0; i < physical_structures.size(); ++i)
-			{
-				if(physical_structures[i].size() < sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-					throw_line("invalid layer descriptor size (layer: {})", i);
-
-				auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
-
-				// opposite
-				if(layer_descriptor->track_path)
-				{
-					int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
-					int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
-
-					layer_break = layer0_last + 1 - lba_first;
-				}
-				// parallel
-				else if(!i && physical_structures.size() > 1)
-					layer_break = get_layer_length(*layer_descriptor);
-			}
-
-			LOG("disc structure:");
+			// store structure files
 			for(uint32_t i = 0; i < physical_structures.size(); ++i)
 			{
 				write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), physical_structures[i]);
-
-				print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data(), i);
 
 				if(readable_formats.find(READ_DISC_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
 				{
@@ -302,12 +278,46 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 						write_vector(std::format("{}{}.manufacturer", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), manufacturer);
 				}
 			}
-			LOG("");
 
-			if(layer_break)
+			if(ctx.disc_type == DiscType::BLURAY)
 			{
-				LOG("layer break: {}", layer_break);
+				//TODO: output some BluRay disc info
+				;
+			}
+			else
+			{
+				// calculate layer break
+				uint32_t layer_break = 0;
+				for(uint32_t i = 0; i < physical_structures.size(); ++i)
+				{
+					if(physical_structures[i].size() < sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+						throw_line("invalid layer descriptor size (layer: {})", i);
+
+					auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
+
+					// opposite
+					if(layer_descriptor->track_path)
+					{
+						int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
+						int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
+
+						layer_break = layer0_last + 1 - lba_first;
+					}
+					// parallel
+					else if(!i && physical_structures.size() > 1)
+						layer_break = get_layer_length(*layer_descriptor);
+				}
+
+				LOG("disc structure:");
+				for(uint32_t i = 0; i < physical_structures.size(); ++i)
+					print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data(), i);
 				LOG("");
+
+				if(layer_break)
+				{
+					LOG("layer break: {}", layer_break);
+					LOG("");
+				}
 			}
 		}
 		// compare physical structures to stored to make sure it's the same disc

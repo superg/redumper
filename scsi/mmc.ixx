@@ -86,22 +86,41 @@ export enum class GET_CONFIGURATION_FeatureCode_ProfileList : uint16_t
 	MO_ERASABLE,
 	MO_WRITE_ONCE,
 	AS_MO,
+	
 	CD_ROM = 0x08,
 	CD_R,
 	CD_RW,
+	
 	DVD_ROM = 0x10,
 	DVD_R,
 	DVD_RAM,
-	DVD_RW_RO,
 	DVD_RW,
+	DVD_RW_SEQ,
+	DVD_DASH_R_DL,
+	DVD_DASH_R_LJ,
 	DVD_PLUS_RW = 0x1A,
+	DVD_PLUS_R,
+	
 	DDCD_ROM = 0x20,
 	DDCD_R,
 	DDCD_RW,
+	
+	DVD_PLUS_RW_DL = 0x2A,
+	DVD_PLUS_R_DL,
+	
 	BD_ROM = 0x40,
-	BD_R,
+	BD_R_SRM,
 	BD_R_RRM,
-	BD_RE
+	BD_RW,
+	
+	HDDVD_ROM = 0x50,
+	HDDVD_R,
+	HDDVD_RAM,
+	HDDVD_RW,
+	HDDVD_R_DL = 0x58,
+	HDDVD_RW_DL = 0x5A,
+
+	NON_STANDARD = 0xFFFF
 };
 
 

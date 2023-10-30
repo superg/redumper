@@ -213,9 +213,8 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool blur
 		if(status.status_code)
 			throw_line("failed to read disc physical structure, SCSI ({})", SPTD::StatusMessage(status));
 
-		strip_response_header(structure);
-
-		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)structure.data();
+		//FIXME: bluray
+		auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)&structure[sizeof(CMD_ParameterListHeader)];
 		if(!layers_count)
 			layers_count = (layer_descriptor->track_path ? 0 : layer_descriptor->layers_number) + 1;
 	}
@@ -272,7 +271,6 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 				{
 					std::vector<uint8_t> manufacturer;
 					cmd_read_disc_structure(*ctx.sptd, manufacturer, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
-					strip_response_header(manufacturer);
 
 					if(!manufacturer.empty())
 						write_vector(std::format("{}{}.manufacturer", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i + 1) : ""), manufacturer);
@@ -290,10 +288,12 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 				uint32_t layer_break = 0;
 				for(uint32_t i = 0; i < physical_structures.size(); ++i)
 				{
-					if(physical_structures[i].size() < sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+					auto &structure = physical_structures[i];
+
+					if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
 						throw_line("invalid layer descriptor size (layer: {})", i);
 
-					auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data();
+					auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)&structure[sizeof(CMD_ParameterListHeader)];
 
 					// opposite
 					if(layer_descriptor->track_path)
@@ -310,7 +310,11 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 				LOG("disc structure:");
 				for(uint32_t i = 0; i < physical_structures.size(); ++i)
-					print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)physical_structures[i].data(), i);
+				{
+					auto &structure = physical_structures[i];
+
+					print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)&structure[sizeof(CMD_ParameterListHeader)], i);
+				}
 				LOG("");
 
 				if(layer_break)

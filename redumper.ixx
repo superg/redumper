@@ -110,21 +110,35 @@ DiscType query_disc_type(Context &ctx)
 	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM:
 	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R:
 	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO:
 	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_SEQ:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_DASH_R_DL:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_DASH_R_LJ:
 	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL:
 		disc_type = DiscType::DVD;
 		break;
 
 	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_R:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_SRM:
 	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_RE:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW:
 		disc_type = DiscType::BLURAY;
 		break;
 
+	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL:
+	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL:
+		disc_type = DiscType::HDDVD;
+		break;
+
 	default:
-		throw_line("unsupported disc type (profile: {})", (uint16_t)current_profile);
+		throw_line("unsupported disc type (profile: {:02X})", (uint16_t)current_profile);
 	}
 
 	return disc_type;
@@ -147,12 +161,15 @@ std::list<std::string> get_cd_batch_commands(DiscType disc_type)
 
 	const std::list<std::string> CD_BATCH{"dump", "protection", "refine", "split", "info"};
 	const std::list<std::string> DVD_BATCH{"dump", "refine", "dvdkey", "info"};
+	const std::list<std::string> HDDVD_BATCH{"dump", "refine", "dvdkey", "info"};
 	const std::list<std::string> BD_BATCH{"dump", "refine", "info"};
 
 	if(disc_type == DiscType::CD)
 		commands = CD_BATCH;
 	else if(disc_type == DiscType::DVD)
 		commands = DVD_BATCH;
+	else if(disc_type == DiscType::HDDVD)
+		commands = HDDVD_BATCH;
 	else if(disc_type == DiscType::BLURAY)
 		commands = BD_BATCH;
 	else
@@ -274,6 +291,8 @@ export int redumper(Options &options)
 		{
 			float speed_modifier = 176.4;
 			if(ctx.disc_type == DiscType::DVD)
+				speed_modifier = 1385.0;
+			else if(ctx.disc_type == DiscType::HDDVD)
 				speed_modifier = 1385.0;
 			else if(ctx.disc_type == DiscType::BLURAY)
 				speed_modifier = 4500.0;

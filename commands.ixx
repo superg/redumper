@@ -57,7 +57,7 @@ export bool redumper_verify(Context &ctx, Options &options)
 	{
 		LOG("warning: CD verify is unsupported");
 	}
-	else if(ctx.disc_type == DiscType::DVD)
+	else
 	{
 		dump_dvd(ctx, options, DumpMode::VERIFY);
 		complete = true;

@@ -33,6 +33,7 @@ export enum class DiscType
 	NONE,
 	CD,
 	DVD,
+	HDDVD,
 	BLURAY
 };
 

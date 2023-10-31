@@ -44,6 +44,38 @@ namespace gpsxre
 const std::set<std::string> CD_BATCH_COMMANDS { "cd", "sacd", "dvd", "bd" };
 
 
+const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_STRING =
+{
+	{GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM, "CD-ROM"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::CD_R, "CD-R"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW, "CD-RW"},
+
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM, "DVD-ROM"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R, "DVD-R"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM, "DVD-RAM"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO, "DVD-RW RO"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW, "DVD-RW"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL, "DVD-R DL"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR, "DVD-R DL LJR"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW, "DVD+RW"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R, "DVD+R"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL, "DVD+RW DL"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL, "DVD+R DL"},
+
+	{GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM, "BD-ROM"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::BD_R, "BD-R"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM, "BD-R RRM"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW, "BD-RW"},
+
+	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM, "HD DVD-ROM"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R, "HD DVD-R"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM, "HD DVD-RAM"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW, "HD DVD-RW"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL, "HD DVD-R DL"},
+	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL, "HD DVD-RW DL"}
+};
+
+
 const std::map<std::string, std::pair<bool, bool (*)(Context &, Options &)>> COMMAND_HANDLERS
 {
 	//COMMAND         DRIVE    HANDLER
@@ -90,61 +122,6 @@ std::shared_ptr<SPTD> first_ready_drive(std::string &drive)
 }
 
 
-DiscType query_disc_type(Context &ctx)
-{
-	auto disc_type = DiscType::NONE;
-
-	GET_CONFIGURATION_FeatureCode_ProfileList current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
-	auto status = cmd_get_configuration_current_profile(*ctx.sptd, current_profile);
-	if(status.status_code)
-		throw_line("failed to query disc type, SCSI ({})", SPTD::StatusMessage(status));
-
-	switch(current_profile)
-	{
-	case GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::CD_R:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW:
-		disc_type = DiscType::CD;
-		break;
-
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_SEQ:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_DASH_R_DL:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_DASH_R_LJ:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL:
-		disc_type = DiscType::DVD;
-		break;
-
-	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_SRM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW:
-		disc_type = DiscType::BLURAY;
-		break;
-
-	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL:
-	case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL:
-		disc_type = DiscType::HDDVD;
-		break;
-
-	default:
-		throw_line("unsupported disc type (profile: 0x{:02X})", (uint16_t)current_profile);
-	}
-
-	return disc_type;
-}
-
-
 std::string generate_image_name(std::string drive)
 {
 	auto pos = drive.find_last_of('/');
@@ -155,27 +132,18 @@ std::string generate_image_name(std::string drive)
 }
 
 
-std::list<std::string> get_cd_batch_commands(DiscType disc_type)
+std::list<std::string> get_cd_batch_commands(Context &ctx)
 {
-	std::list<std::string> commands;
-
-	const std::list<std::string> CD_BATCH{"dump", "protection", "refine", "split", "info"};
-	const std::list<std::string> DVD_BATCH{"dump", "refine", "dvdkey", "info"};
-	const std::list<std::string> HDDVD_BATCH{"dump", "refine", "dvdkey", "info"};
-	const std::list<std::string> BD_BATCH{"dump", "refine", "info"};
-
-	if(disc_type == DiscType::CD)
-		commands = CD_BATCH;
-	else if(disc_type == DiscType::DVD)
-		commands = DVD_BATCH;
-	else if(disc_type == DiscType::HDDVD)
-		commands = HDDVD_BATCH;
-	else if(disc_type == DiscType::BLURAY)
-		commands = BD_BATCH;
+	if(profile_is_cd(ctx.current_profile))
+		return std::list<std::string>{ "dump", "protection", "refine", "split", "info" };
+	else if(profile_is_dvd(ctx.current_profile))
+		return std::list<std::string>{ "dump", "refine", "dvdkey", "info" };
+	else if(profile_is_bluray(ctx.current_profile))
+		return std::list<std::string>{ "dump", "refine", "info" };
+	else if(profile_is_hddvd(ctx.current_profile))
+		return std::list<std::string>{ "dump", "refine", "info" };
 	else
-		throw_line("unsupported disc type");
-
-	return commands;
+		return std::list<std::string>{};
 }
 
 
@@ -220,7 +188,7 @@ Context initialize(Options &options)
 			ctx.sptd = std::make_shared<SPTD>(options.drive);
 
 			// test unit ready
-			SPTD::Status status = cmd_drive_ready(*ctx.sptd);
+			auto status = cmd_drive_ready(*ctx.sptd);
 			if(status.status_code)
 				throw_line("drive not ready, SCSI ({})", SPTD::StatusMessage(status));
 		}
@@ -230,14 +198,22 @@ Context initialize(Options &options)
 	if(generate_name && options.image_name.empty())
 		options.image_name = generate_image_name(options.drive);
 
-	// initialize log file early not to miss any messages
+	// init log file early not to miss any messages
 	if(!options.image_name.empty())
 		Logger::get().setFile((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
-	ctx.disc_type = DiscType::NONE;
+	ctx.current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
 	if(drive_required)
 	{
-		ctx.disc_type = query_disc_type(ctx);
+		auto status = cmd_get_configuration_current_profile(*ctx.sptd, ctx.current_profile);
+		if(status.status_code)
+			throw_line("failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
+
+		if(!profile_is_cd(ctx.current_profile) &&
+		   !profile_is_dvd(ctx.current_profile) &&
+		   !profile_is_bluray(ctx.current_profile) &&
+		   !profile_is_hddvd(ctx.current_profile))
+			throw_line("unsupported disc type (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);
 
 		// query/override drive configuration
 		ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
@@ -254,7 +230,7 @@ Context initialize(Options &options)
 			options.commands.push_back(c);
 		else
 		{
-			auto cd_batch_commands = get_cd_batch_commands(ctx.disc_type);
+			auto cd_batch_commands = get_cd_batch_commands(ctx);
 			options.commands.insert(options.commands.end(), cd_batch_commands.begin(), cd_batch_commands.end());
 		}
 	}
@@ -290,11 +266,11 @@ export int redumper(Options &options)
 		if(options.speed)
 		{
 			float speed_modifier = 176.4;
-			if(ctx.disc_type == DiscType::DVD)
+			if(profile_is_dvd(ctx.current_profile))
 				speed_modifier = 1385.0;
-			else if(ctx.disc_type == DiscType::HDDVD)
-				speed_modifier = 1385.0;
-			else if(ctx.disc_type == DiscType::BLURAY)
+			else if(profile_is_bluray(ctx.current_profile))
+				speed_modifier = 4500.0;
+			else if(profile_is_hddvd(ctx.current_profile))
 				speed_modifier = 4500.0;
 
 			speed = speed_modifier * *options.speed;
@@ -306,6 +282,9 @@ export int redumper(Options &options)
 			speed_str = std::format("<setting failed, SCSI ({})>", SPTD::StatusMessage(status));
 
 		LOG("drive read speed: {}", speed_str);
+
+		LOG("");
+		LOG("current profile: {}", enum_to_string(ctx.current_profile, PROFILE_STRING));
 	}
 
 	if(!options.image_name.empty())

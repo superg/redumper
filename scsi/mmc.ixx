@@ -94,10 +94,10 @@ export enum class GET_CONFIGURATION_FeatureCode_ProfileList : uint16_t
 	DVD_ROM = 0x10,
 	DVD_R,
 	DVD_RAM,
+	DVD_RW_RO,
 	DVD_RW,
-	DVD_RW_SEQ,
-	DVD_DASH_R_DL,
-	DVD_DASH_R_LJ,
+	DVD_R_DL,
+	DVD_R_DL_LJR,
 	DVD_PLUS_RW = 0x1A,
 	DVD_PLUS_R,
 	
@@ -109,7 +109,7 @@ export enum class GET_CONFIGURATION_FeatureCode_ProfileList : uint16_t
 	DVD_PLUS_R_DL,
 	
 	BD_ROM = 0x40,
-	BD_R_SRM,
+	BD_R,
 	BD_R_RRM,
 	BD_RW,
 	

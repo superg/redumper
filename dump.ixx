@@ -28,19 +28,9 @@ import utils.misc;
 namespace gpsxre
 {
 
-export enum class DiscType
-{
-	NONE,
-	CD,
-	DVD,
-	HDDVD,
-	BLURAY
-};
-
-
 export struct Context
 {
-	DiscType disc_type;
+	GET_CONFIGURATION_FeatureCode_ProfileList current_profile;
 	std::shared_ptr<SPTD> sptd;
 	DriveConfig drive_config;
 
@@ -247,6 +237,48 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 					  msf.m, msf.s, msf.f, (uint8_t)Q.control, (uint8_t)Q.adr, Q.mode1.tno, Q.mode1.point_index, Q.mode1.msf.m, Q.mode1.msf.s, Q.mode1.msf.f, Q.mode1.zero, Q.mode1.a_msf.m, Q.mode1.a_msf.s, Q.mode1.a_msf.f, endian_swap<uint16_t>(Q.crc)) << std::endl;
 	
 	return os;
+}
+
+
+export bool profile_is_cd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
+{
+	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_R
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW;
+}
+
+
+export bool profile_is_dvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
+{
+	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R;
+}
+
+
+export bool profile_is_bluray(GET_CONFIGURATION_FeatureCode_ProfileList profile)
+{
+	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW;
+}
+
+
+export bool profile_is_hddvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
+{
+	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL;
 }
 
 }

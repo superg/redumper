@@ -22,7 +22,7 @@ export bool redumper_dump(Context &ctx, Options &options)
 {
 	ctx.dump = std::make_unique<Context::Dump>();
 
-	if(ctx.disc_type == DiscType::CD)
+	if(profile_is_cd(ctx.current_profile))
 		ctx.dump->refine = redumper_dump_cd(ctx, options, false);
 	else
 		ctx.dump->refine = dump_dvd(ctx, options, DumpMode::DUMP);
@@ -37,7 +37,7 @@ export bool redumper_refine(Context &ctx, Options &options)
 
 	if(options.retries && (!ctx.dump || ctx.dump->refine))
 	{
-		if(ctx.disc_type == DiscType::CD)
+		if(profile_is_cd(ctx.current_profile))
 			redumper_dump_cd(ctx, options, true);
 		else
 			dump_dvd(ctx, options, DumpMode::REFINE);
@@ -53,7 +53,7 @@ export bool redumper_verify(Context &ctx, Options &options)
 {
 	bool complete = false;
 
-	if(ctx.disc_type == DiscType::CD)
+	if(profile_is_cd(ctx.current_profile))
 	{
 		LOG("warning: CD verify is unsupported");
 	}
@@ -71,7 +71,7 @@ export bool redumper_dvdkey(Context &ctx, Options &options)
 {
 	bool complete = false;
 
-	if(ctx.disc_type == DiscType::DVD)
+	if(profile_is_dvd(ctx.current_profile))
 	{
 		dvd_key(ctx, options);
 		complete = true;

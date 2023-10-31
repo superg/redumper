@@ -47,18 +47,18 @@ static const std::string BOOK_TYPE[] =
 	"DVD-RAM",
 	"DVD-R",
 	"DVD-RW",
-	"RESERVED",
-	"RESERVED",
-	"RESERVED",
-	"RESERVED",
-	"RESERVED",
+	"HD DVD-ROM",
+	"HD DVD-RAM",
+	"HD DVD-R",
+	"RESERVED1",
+	"RESERVED2",
 	"DVD+RW",
-	"RESERVED",
-	"RESERVED",
-	"RESERVED",
-	"RESERVED",
-	"RESERVED",
-	"RESERVED"
+	"DVD+R",
+	"RESERVED3",
+	"RESERVED4",
+	"DVD+RW DL",
+	"DVD+R DL",
+	"RESERVED5"
 };
 
 
@@ -67,18 +67,18 @@ static const std::string MAXIMUM_RATE[] =
 	"2.52 mbps",
 	"5.04 mbps",
 	"10.08 mbps",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
+	"20.16 mbps",
+	"30.24 mpbs",
+	"reserved1",
+	"reserved2",
+	"reserved3",
+	"reserved4",
+	"reserved5",
+	"reserved6",
+	"reserved7",
+	"reserved8",
+	"reserved9",
+	"reserved10",
 	"not specified"
 };
 
@@ -88,19 +88,19 @@ static const std::string LINEAR_DENSITY[] =
 	"0.267 um/bit",
 	"0.293 um/bit",
 	"0.409 to 0.435 um/bit",
-	"reserved",
+	"reserved1",
 	"0.280 to 0.291 um/bit",
-	"reserved",
-	"reserved",
-	"reserved",
+	"0.153 um/bit",
+	"0.130 to 0.140 um/bit",
+	"reserved2",
 	"0.353 um/bit",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved"
+	"reserved3",
+	"reserved4",
+	"reserved5",
+	"reserved6",
+	"reserved7",
+	"reserved8",
+	"reserved9"
 };
 
 
@@ -109,19 +109,19 @@ static const std::string TRACK_DENSITY[] =
 	"0.74 um/track",
 	"0.80 um/track",
 	"0.615 um/track",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved"
+	"0.40 um/track",
+	"0.34 um/track",
+	"reserved1",
+	"reserved2",
+	"reserved3",
+	"reserved4",
+	"reserved5",
+	"reserved6",
+	"reserved7",
+	"reserved8",
+	"reserved9",
+	"reserved10",
+	"reserved11"
 };
 
 
@@ -254,11 +254,11 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 		throw_line("unsupported block size (block size: {})", block_length);
 	uint32_t sectors_count = sector_last + 1;
 
-	auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY);
+	auto readable_formats = get_readable_formats(*ctx.sptd, profile_is_bluray(ctx.current_profile));
 
 	if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
 	{
-		auto physical_structures = read_physical_structures(*ctx.sptd, ctx.disc_type == DiscType::BLURAY);
+		auto physical_structures = read_physical_structures(*ctx.sptd, profile_is_bluray(ctx.current_profile));
 
 		if(dump_mode == DumpMode::DUMP)
 		{
@@ -277,7 +277,7 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 				}
 			}
 
-			if(ctx.disc_type == DiscType::BLURAY)
+			if(profile_is_bluray(ctx.current_profile))
 			{
 				//TODO: output some BluRay disc info
 				;

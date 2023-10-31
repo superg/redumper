@@ -138,7 +138,7 @@ DiscType query_disc_type(Context &ctx)
 		break;
 
 	default:
-		throw_line("unsupported disc type (profile: {:02X})", (uint16_t)current_profile);
+		throw_line("unsupported disc type (profile: 0x{:02X})", (uint16_t)current_profile);
 	}
 
 	return disc_type;

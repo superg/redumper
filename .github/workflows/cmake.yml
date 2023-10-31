@@ -41,7 +41,7 @@ jobs:
     - name: Customize Software (macOS)
       if: ${{ matrix.os == 'macos-12' }}
       run: |
-        brew install llvm@16
+        brew install llvm
         brew install ninja
         brew install cmake
 

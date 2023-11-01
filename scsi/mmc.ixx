@@ -389,6 +389,65 @@ export struct READ_DVD_STRUCTURE_LayerDescriptor
 };
 
 
+struct READ_DISC_STRUCTURE_DIUnitHeader
+{
+	uint8_t identifier[2];
+	uint8_t format;
+	uint8_t layer            :3;
+	uint8_t units_per_block  :5;
+	uint8_t legacy;
+	uint8_t sequence_number;
+	uint8_t unit_size        :7;
+	uint8_t continuation     :1;
+	uint8_t reserved1;
+};
+
+
+struct READ_DISC_STRUCTURE_DIUnitBodyCommon
+{
+	uint8_t disc_type_identifier[3];
+	uint8_t disc_version             :4;
+	uint8_t disc_class               :2;
+	uint8_t disc_size                :2;
+};
+
+#pragma pack(push, 1)
+export struct READ_DISC_STRUCTURE_DIUnitBodyTrailer
+{
+	uint8_t disc_manufacturer_id[6];
+	uint8_t media_type_id[3];
+	uint16_t time_stamp;
+	uint8_t product_revision_number;
+};
+#pragma pack(pop)
+
+export struct READ_DISC_STRUCTURE_DiscInformationUnit
+{
+	READ_DISC_STRUCTURE_DIUnitHeader header;
+	READ_DISC_STRUCTURE_DIUnitBodyCommon body_common;
+	uint8_t body[0];
+};
+
+
+export struct READ_DISC_STRUCTURE_DiscInformationBody1
+{
+	uint8_t reserved1          :4;
+	uint8_t layers_count       :4;
+	uint8_t channel_length     :4;
+	uint8_t cd_layer           :2;
+	uint8_t dvd_layer          :2;
+	uint8_t polarity;
+	uint8_t recorded_polarity;
+	uint8_t reserved2          :4;
+	uint8_t bca                :4;
+	uint8_t maximum_transfer;
+	uint8_t reserved3[2];
+	uint32_t last_psn;
+	uint32_t first_aun;
+	uint32_t last_aun;
+};
+
+
 export struct READ_DVD_STRUCTURE_CopyrightInformation
 {
 	uint8_t copyright_protection_system_type;

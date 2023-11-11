@@ -186,6 +186,7 @@ target_sources(redumper
 	"debug.ixx"
 	"dump.ixx"
 	"drive.ixx"
+	"hash.ixx"
 	"info.ixx"
 	"offset_manager.ixx"
 	"options.ixx"

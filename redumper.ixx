@@ -86,6 +86,7 @@ const std::map<std::string, std::pair<bool, bool (*)(Context &, Options &)>> COM
 	{ "dvdisokey" , { false,   redumper_dvdisokey  }},
 	{ "protection", { false,   redumper_protection }},
 	{ "split"     , { false,   redumper_split      }},
+	{ "hash"      , { false,   redumper_hash       }},
 	{ "info"      , { false,   redumper_info       }},
 
 	{ "subchannel", { false,   redumper_subchannel }},

@@ -297,14 +297,14 @@ std::set<READ_DISC_STRUCTURE_Format> get_readable_formats(SPTD &sptd, bool blura
 }
 
 
-uint32_t read_physical_structures(SPTD &sptd, std::map<uint32_t, std::vector<uint8_t>> &structures, GET_CONFIGURATION_FeatureCode_ProfileList current_profile)
+uint32_t read_physical_structures(SPTD &sptd, std::map<uint32_t, std::vector<uint8_t>> &structures, bool bluray, bool &rom)
 {
 	uint32_t layers_count = 0;
 
 	for(uint32_t i = 0; !layers_count || i < layers_count; ++i)
 	{
 		std::vector<uint8_t> structure;
-		auto status = cmd_read_disc_structure(sptd, structure, profile_is_bluray(current_profile) ? 1 : 0, 0, i, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
+		auto status = cmd_read_disc_structure(sptd, structure, bluray ? 1 : 0, 0, i, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
 		if(status.status_code)
 			throw_line("failed to read disc physical structure, SCSI ({})", SPTD::StatusMessage(status));
 
@@ -321,19 +321,23 @@ uint32_t read_physical_structures(SPTD &sptd, std::map<uint32_t, std::vector<uin
 
 		if(!layers_count)
 		{
-			if(profile_is_bluray(current_profile))
+			if(bluray)
 			{
-				bool rom = current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM;
-				uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
-
 				uint8_t *di_units = &structure[sizeof(CMD_ParameterListHeader)];
 				for(uint32_t j = 0; j < 32; ++j)
 				{
+					uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
+
 					auto unit = (READ_DISC_STRUCTURE_DiscInformationUnit *)&di_units[j * unit_size];
 					std::string identifier((char *)unit->header.identifier, sizeof(unit->header.identifier));
 					if(identifier != "DI")
 						break;
 
+					// some BD-R discs (not finalized?) are incorrectly identified as BD-ROM profile
+					std::string disc_type_identifier((char *)unit->body_common.disc_type_identifier, sizeof(unit->body_common.disc_type_identifier));
+					if(rom && disc_type_identifier != "BDO")
+						rom = false;
+					
 					if(unit->header.format == 1)
 					{
 						auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit->body;
@@ -392,10 +396,19 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 	auto readable_formats = get_readable_formats(*ctx.sptd, profile_is_bluray(ctx.current_profile));
 
+	bool trim_to_filesystem_size = false;
 	if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
 	{
 		std::map<uint32_t, std::vector<uint8_t>> physical_structures;
-		auto layers_count = read_physical_structures(*ctx.sptd, physical_structures, ctx.current_profile);
+
+		// function call changes rom flag if discrepancy is detected
+		bool rom = ctx.current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM;
+		auto layers_count = read_physical_structures(*ctx.sptd, physical_structures, profile_is_bluray(ctx.current_profile), rom);
+		if(ctx.current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM && !rom)
+		{
+			trim_to_filesystem_size = true;
+			LOG("warning: Blu-ray current profile mismatch, dump will be trimmed to disc filesystem size");
+		}
 
 		if(dump_mode == DumpMode::DUMP)
 		{
@@ -430,7 +443,6 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 			if(profile_is_bluray(ctx.current_profile))
 			{
-				bool rom = ctx.current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM;
 				uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
 
 				LOG("disc structure:");

@@ -3,7 +3,9 @@ module;
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <format>
+#include <fstream>
 #include <functional>
 #include <iomanip>
 #include <map>
@@ -605,5 +607,34 @@ export bool number_is_month(uint32_t month)
 	return month >= 1 && month <= 12;
 }
 
+
+export std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::path &cue_path)
+{
+	std::list<std::pair<std::string, bool>> entries;
+
+	std::fstream fs(cue_path, std::fstream::in);
+	if(!fs.is_open())
+		throw_line("unable to open file ({})", cue_path.filename().string());
+
+	std::pair<std::string, bool> entry;
+	std::string line;
+	while(std::getline(fs, line))
+	{
+		auto tokens(tokenize(line, " \t", "\"\""));
+		if(tokens.size() == 3)
+		{
+			if(tokens[0] == "FILE")
+				entry.first = tokens[1];
+			else if(tokens[0] == "TRACK" && !entry.first.empty())
+			{
+				entry.second = tokens[2] != "AUDIO";
+				entries.push_back(entry);
+				entry.first.clear();
+			}
+		}
+	}
+
+	return entries;
+}
 
 }

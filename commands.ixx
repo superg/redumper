@@ -9,6 +9,7 @@ import debug;
 import dump;
 import dvd.dump;
 import dvd.key;
+import hash;
 import info;
 import options;
 import utils.logger;
@@ -100,6 +101,14 @@ export bool redumper_protection(Context &ctx, Options &options)
 export bool redumper_split(Context &ctx, Options &options)
 {
 	redumper_split_cd(options);
+
+	return true;
+}
+
+
+export bool redumper_hash(Context &ctx, Options &options)
+{
+	redumper_hash(options);
 
 	return true;
 }

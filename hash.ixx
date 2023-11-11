@@ -1,6 +1,7 @@
 module;
 #include <filesystem>
 #include <fstream>
+#include <vector>
 #include "throw_line.hh"
 
 export module hash;
@@ -32,7 +33,7 @@ export void redumper_hash(const Options &options)
 
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
-	std::list<std::filesystem::path> files;
+	std::vector<std::filesystem::path> files;
 	if(std::filesystem::exists(image_prefix + ".cue"))
 	{
 		for(auto const &t : cue_get_entries(image_prefix + ".cue"))

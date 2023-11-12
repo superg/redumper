@@ -29,7 +29,7 @@ import utils.misc;
 namespace gpsxre
 {
 
-export void debug_subchannel(Options &options)
+export void redumper_subchannel(Context &ctx, Options &options)
 {
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -89,7 +89,7 @@ struct SBIEntry
 #pragma pack(pop)
 
 
-export void debug(Context &ctx, Options &options)
+export void redumper_debug(Context &ctx, Options &options)
 {
 	std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 	std::filesystem::path state_path(image_prefix + ".state");

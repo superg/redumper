@@ -40,7 +40,7 @@ enum class TrackType
 };
 
 
-export void redumper_info(Options &options)
+export void redumper_info(Context &ctx, Options &options)
 {
 	if(options.image_name.empty())
 		throw_line("image name is not provided");

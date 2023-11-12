@@ -6,6 +6,7 @@ module;
 #include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "throw_line.hh"
 
 export module dump;
@@ -37,9 +38,10 @@ export struct Context
 	struct Dump
 	{
 		bool refine;
-		bool interrupted;
 	};
 	std::unique_ptr<Dump> dump;
+
+	std::vector<std::string> dat;
 };
 
 

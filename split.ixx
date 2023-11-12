@@ -869,7 +869,7 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
 }
 
 
-export void redumper_protection_cd(Options &options)
+export void redumper_protection(Context &ctx, Options &options)
 {
 	if(options.image_name.empty())
 		throw_line("image name is not provided");
@@ -1112,7 +1112,7 @@ export void redumper_protection_cd(Options &options)
 }
 
 
-export void redumper_split_cd(const Options &options)
+export void redumper_split(Context &ctx, Options &options)
 {
 	if(options.image_name.empty())
 		throw_line("image name is not provided");
@@ -1259,7 +1259,7 @@ export void redumper_split_cd(const Options &options)
 			for(auto const &o : sync_records)
 			{
 				MSF msf = LBA_to_BCDMSF(o.lba);
-				LOG("  LBA: {:6}, MSF: {:02X}:{:02X}:{:02X}, count: {:6}, offset: {:+}", o.lba, msf.m, msf.s, msf.f, o.count, sample_offset_to_write_offset(o.sample_offset, o.lba));
+				LOG("  LBA: {:6} -> {:6}, MSF: {:02X}:{:02X}:{:02X}, count: {:6}, offset: {:+}", o.sample_offset / (int32_t)CD_DATA_SIZE_SAMPLES, o.lba, msf.m, msf.s, msf.f, o.count, sample_offset_to_write_offset(o.sample_offset, o.lba));
 			}
 			LOG("");
 
@@ -1620,7 +1620,7 @@ export void redumper_split_cd(const Options &options)
 
 	// write tracks
 	LOG("writing tracks");
-	auto xml_lines = write_tracks(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
+	ctx.dat = write_tracks(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
 	LOG("done");
 	LOG("");
 
@@ -1662,11 +1662,6 @@ export void redumper_split_cd(const Options &options)
 			LOG("  session {}: {}-{}", s.session_number, s.tracks.front().indices.empty() ? s.tracks.front().lba_start : s.tracks.front().indices.front(), s.tracks.back().lba_end - 1);
 		LOG("");
 	}
-
-	LOG("dat:");
-	for(auto const &line : xml_lines)
-		LOG("{}", line);
-	LOG("");
 
 	for(auto const &c : cue_sheets)
 	{

@@ -19,11 +19,12 @@ import cd.scrambler;
 import cd.split;
 import cd.subcode;
 import cd.toc;
-import commands;
+import debug;
 import drive;
 import dump;
 import dvd.dump;
 import dvd.key;
+import hash;
 import info;
 import options;
 import scsi.cmd;
@@ -76,7 +77,46 @@ const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_S
 };
 
 
-const std::map<std::string, std::pair<bool, bool (*)(Context &, Options &)>> COMMAND_HANDLERS
+void redumper_dump(Context &ctx, Options &options)
+{
+	ctx.dump = std::make_unique<Context::Dump>();
+
+	if(profile_is_cd(ctx.current_profile))
+		ctx.dump->refine = redumper_dump_cd(ctx, options, false);
+	else
+		ctx.dump->refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
+}
+
+
+void redumper_refine(Context &ctx, Options &options)
+{
+	if(!ctx.dump || ctx.dump->refine && options.retries)
+	{
+		if(profile_is_cd(ctx.current_profile))
+			redumper_dump_cd(ctx, options, true);
+		else
+			redumper_dump_dvd(ctx, options, DumpMode::REFINE);
+	}
+}
+
+
+void redumper_verify(Context &ctx, Options &options)
+{
+	if(profile_is_cd(ctx.current_profile))
+		LOG("warning: CD verify is unsupported");
+	else
+		redumper_dump_dvd(ctx, options, DumpMode::VERIFY);
+}
+
+
+void redumper_dvdkey(Context &ctx, Options &options)
+{
+	if(profile_is_dvd(ctx.current_profile))
+		dvd_key(ctx, options);
+}
+
+
+const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS
 {
 	//COMMAND         DRIVE    HANDLER
 	{ "dump"      , { true ,   redumper_dump       }},
@@ -136,13 +176,13 @@ std::string generate_image_name(std::string drive)
 std::list<std::string> get_cd_batch_commands(Context &ctx)
 {
 	if(profile_is_cd(ctx.current_profile))
-		return std::list<std::string>{ "dump", "protection", "refine", "split", "info" };
+		return std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
 	else if(profile_is_dvd(ctx.current_profile))
-		return std::list<std::string>{ "dump", "refine", "dvdkey", "info" };
+		return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info" };
 	else if(profile_is_bluray(ctx.current_profile))
-		return std::list<std::string>{ "dump", "refine", "info" };
+		return std::list<std::string>{ "dump", "refine", "hash", "info" };
 	else if(profile_is_hddvd(ctx.current_profile))
-		return std::list<std::string>{ "dump", "refine", "info" };
+		return std::list<std::string>{ "dump", "refine", "hash", "info" };
 	else
 		return std::list<std::string>{};
 }
@@ -307,7 +347,7 @@ export int redumper(Options &options)
 		LOG("");
 
 		auto time_start = std::chrono::high_resolution_clock::now();
-		bool complete = it->second.second(ctx, options);
+		it->second.second(ctx, options);
 		auto time_stop = std::chrono::high_resolution_clock::now();
 		time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
 	}

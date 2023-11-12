@@ -7,6 +7,7 @@ module;
 export module hash;
 
 import cd.cd;
+import dump;
 import options;
 import rom_entry;
 import utils.animation;
@@ -26,67 +27,73 @@ void progress_output(uint64_t byte, uint64_t bytes_count)
 }
 
 
-export void redumper_hash(const Options &options)
+export void redumper_hash(Context &ctx, Options &options)
 {
-	if(options.image_name.empty())
-		throw_line("image name is not provided");
+	std::vector<std::string> dat(ctx.dat);
 
-	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-
-	std::vector<std::filesystem::path> files;
-	if(std::filesystem::exists(image_prefix + ".cue"))
+	if(dat.empty())
 	{
-		for(auto const &t : cue_get_entries(image_prefix + ".cue"))
-			files.push_back(std::filesystem::path(options.image_path) / t.first);
-	}
-	else if(std::filesystem::exists(image_prefix + ".iso"))
-	{
-		files.push_back(image_prefix + ".iso");
-	}
+		if(options.image_name.empty())
+			throw_line("image name is not provided");
 
-	if(!files.empty())
-	{
-		uint64_t byte = 0;
-		uint64_t bytes_count = 0;
-		for(auto f : files)
-			bytes_count += std::filesystem::file_size(f);
+		auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
-		std::vector<std::string> lines;
-
-		std::vector<uint8_t> sector(CD_DATA_SIZE);
-		for(auto f : files)
+		std::vector<std::filesystem::path> files;
+		if(std::filesystem::exists(image_prefix + ".cue"))
 		{
-			std::fstream fs(f, std::fstream::in | std::fstream::binary);
-			if(!fs.is_open())
-				throw_line("unable to open file ({})", f.filename().string());
-
-			ROMEntry rom_entry(f.filename().string());
-			
-			std::vector<uint8_t> data(10 * 1024 * 1024); // 10Mb chunk
-			batch_process_range<uint64_t>(std::pair(0, std::filesystem::file_size(f)), data.size(), [&](uint64_t offset, uint64_t size) -> bool
-			{
-				progress_output(byte, bytes_count);
-
-				fs.read((char *)data.data(), size);
-				if(fs.fail())
-					throw_line("read failed ({})", f.filename().string());
-
-				rom_entry.update(data.data(), size);
-
-				byte += size;
-
-				return false;
-			});
-
-			lines.push_back(rom_entry.xmlLine());
+			for(auto const &t : cue_get_entries(image_prefix + ".cue"))
+				files.push_back(std::filesystem::path(options.image_path) / t.first);
+		}
+		else if(std::filesystem::exists(image_prefix + ".iso"))
+		{
+			files.push_back(image_prefix + ".iso");
 		}
 
-		progress_output(bytes_count, bytes_count);
-		LOG("");
+		if(!files.empty())
+		{
+			uint64_t byte = 0;
+			uint64_t bytes_count = 0;
+			for(auto f : files)
+				bytes_count += std::filesystem::file_size(f);
 
-		LOG("");
+			std::vector<uint8_t> sector(CD_DATA_SIZE);
+			for(auto f : files)
+			{
+				std::fstream fs(f, std::fstream::in | std::fstream::binary);
+				if(!fs.is_open())
+					throw_line("unable to open file ({})", f.filename().string());
+
+				ROMEntry rom_entry(f.filename().string());
+
+				std::vector<uint8_t> data(1024 * 1024); // 1Mb chunk
+				batch_process_range<uint64_t>(std::pair(0, std::filesystem::file_size(f)), data.size(), [&](uint64_t offset, uint64_t size) -> bool
+				{
+					progress_output(byte, bytes_count);
+
+					fs.read((char *)data.data(), size);
+					if(fs.fail())
+						throw_line("read failed ({})", f.filename().string());
+
+					rom_entry.update(data.data(), size);
+
+					byte += size;
+
+					return false;
+				});
+
+				dat.push_back(rom_entry.xmlLine());
+			}
+
+			progress_output(bytes_count, bytes_count);
+			LOG("");
+			LOG("");
+		}
+	}
+
+	if(!dat.empty())
+	{
 		LOG("dat:");
-		for(auto l : lines)
+		for(auto l : dat)
 			LOG("{}", l);
 	}
 }

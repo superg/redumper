@@ -266,7 +266,8 @@ export struct Options
 		LOG("\tdvdisokey \tcracks DVD CSS keys directly from iso dump, no drive required");
 		LOG("\tprotection\tscans dump files for protections");
 		LOG("\tsplit     \tgenerates BIN/CUE track split from dump files");
-		LOG("\tinfo      \toutputs basic information from BIN/CUE track split");
+		LOG("\thash      \toutputs XML DAT hash entries (CUE/BIN or ISO)");
+		LOG("\tinfo      \toutputs basic image information (CUE/BIN or ISO)");
 		LOG("");
 
 		LOG("OPTIONS:");

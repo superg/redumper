@@ -182,7 +182,6 @@ target_sources(redumper
 	"utils/misc.ixx"
 	"utils/signal.ixx"
 	"utils/strings.ixx"
-	"commands.ixx"
 	"debug.ixx"
 	"dump.ixx"
 	"drive.ixx"

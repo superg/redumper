@@ -372,7 +372,7 @@ void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
 }
 
 
-export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
+export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 {
 	if(options.image_name.empty())
 		throw_line("image name is not provided");
@@ -583,6 +583,7 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 	uint32_t refine_retries = options.retries ? options.retries : 1;
 
 	uint32_t errors_scsi = 0;
+	//FIXME: verify memory usage for largest bluray and chunk it if needed
 	if(dump_mode != DumpMode::DUMP)
 	{
 		std::vector<State> state_buffer(sectors_count);
@@ -600,23 +601,28 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 		uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
 
-		progress_output(s, sectors_count, errors_scsi);
-
 		bool read = false;
 		if(dump_mode == DumpMode::DUMP)
 		{
 			read = true;
 		}
-		else if(dump_mode == DumpMode::REFINE || dump_mode == DumpMode::VERIFY)
+		else if(dump_mode == DumpMode::REFINE)
+		{
+			read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+			read = std::count(file_state.begin(), file_state.end(), State::ERROR_SKIP);
+		}
+		else if(dump_mode == DumpMode::VERIFY)
 		{
 			read_entry(fs_iso, (uint8_t *)file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0, 0);
 
 			read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
-			read = std::count(file_state.begin(), file_state.end(), State::ERROR_SKIP);
+			read = true;
 		}
 
 		if(read)
 		{
+			progress_output(s, sectors_count, errors_scsi);
+
 			std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
 			auto status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
 
@@ -707,7 +713,8 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 			}
 		}
 
-		rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
+		if(dump_mode == DumpMode::DUMP && !errors_scsi)
+			rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
 
 		if(signal.interrupt())
 		{
@@ -716,7 +723,7 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 		}
 
 		if(increment)
-			s += sectors_at_once;
+			s += sectors_to_read;
 	}
 
 	if(!signal.interrupt())
@@ -728,17 +735,12 @@ export bool dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 
 	LOG("media errors: ");
 	LOG("  SCSI: {}", errors_scsi);
-	LOG("");
 
 	if(signal.interrupt())
 		signal.raiseDefault();
 
-	if(!errors_scsi)
-	{
-		LOG("dat:");
-		LOG("{}", rom_entry.xmlLine());
-		LOG("");
-	}
+	if(dump_mode == DumpMode::DUMP && !errors_scsi)
+		ctx.dat.push_back(rom_entry.xmlLine());
 
 	return errors_scsi;
 }

@@ -193,7 +193,7 @@ export void dvd_key(Context &ctx, const Options &options)
 }
 
 
-export void dvd_isokey(Context &ctx, const Options &options)
+export void redumper_dvdisokey(Context &ctx, Options &options)
 {
 	if(options.image_name.empty())
 		throw_line("image name is not provided");

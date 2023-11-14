@@ -48,6 +48,8 @@ export void redumper_hash(Context &ctx, Options &options)
 		{
 			files.push_back(image_prefix + ".iso");
 		}
+		else
+			throw_line("image file not found");
 
 		if(!files.empty())
 		{

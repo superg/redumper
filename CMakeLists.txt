@@ -191,6 +191,7 @@ target_sources(redumper
 	"options.ixx"
 	"redumper.ixx"
 	"rom_entry.ixx"
+	"skeleton.ixx"
 	"split.ixx"
 	"version.ixx"
 )

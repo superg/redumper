@@ -80,11 +80,11 @@ public:
 		return sectors_read;
 	}
 
-
-	uint32_t readLBA(uint8_t *sectors, uint32_t lba, uint32_t count) override
+	
+	uint32_t sectorsBase() override
 	{
-		return read(sectors, lba - _baseLBA, count);
-	};
+		return _baseLBA;
+	}
 
 
 	uint32_t sectorsCount() const override

@@ -57,6 +57,8 @@ export void redumper_info(Context &ctx, Options &options)
 	{
 		tracks.emplace_back(image_prefix + ".iso", TrackType::ISO);
 	}
+	else
+		throw_line("image file not found");
 
 	bool separate_nl = false;
 	for(auto const &t : tracks)

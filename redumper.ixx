@@ -30,6 +30,7 @@ import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
+import skeleton;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
@@ -128,6 +129,7 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
 	{ "split"     , { false,   redumper_split      }},
 	{ "hash"      , { false,   redumper_hash       }},
 	{ "info"      , { false,   redumper_info       }},
+	{ "skeleton"  , { false,   redumper_skeleton   }},
 
 	{ "subchannel", { false,   redumper_subchannel }},
 	{ "debug"     , { false,   redumper_debug      }}

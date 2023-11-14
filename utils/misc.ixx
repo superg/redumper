@@ -543,10 +543,11 @@ export std::string ranges_to_string(const std::vector<std::pair<int32_t, int32_t
 }
 
 
-export const std::pair<int32_t, int32_t> *inside_range(int32_t lba, const std::vector<std::pair<int32_t, int32_t>> &ranges)
+export template<typename T>
+const std::pair<T, T> *inside_range(T value, const std::vector<std::pair<T, T>> &ranges)
 {
 	for(auto const &r : ranges)
-		if(lba >= r.first && lba < r.second)
+		if(value >= r.first && value < r.second)
 			return &r;
 
 	return nullptr;

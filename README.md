@@ -6,7 +6,7 @@ Copyright 2021-2023 Hennadiy Brych
 redumper is an advanced byte perfect disc dumper. It supports incremental dumps, advanced SCSI/C2 repair, intelligent audio CD offset detection and a lot of other features. Everything is written from scratch in C++.
 
 ## Disc Support
-CD and DVD support is implemented, HD-DVD and BluRay support is planned.
+CD/DVD/HD-DVD/Blu-ray discs are supported.
 
 ## Operating Systems Support
 Available for Windows, Linux and macOS.

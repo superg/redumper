@@ -1,5 +1,6 @@
 module;
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -70,7 +71,7 @@ struct MemorySeqInStream
 		// old tail
 		if(_tailSize)
 		{
-			*size = std::min(_tailSize, *size);
+			*size = std::min((size_t)_tailSize, *size);
 			memcpy(buf, _tail.data(), *size);
 			_tailSize -= *size;
 		}

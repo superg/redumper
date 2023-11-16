@@ -5,6 +5,8 @@ module;
 #include <string>
 #include <utility>
 #include <vector>
+#include "lzma/Alloc.h"
+#include "lzma/LzmaEnc.h"
 #include "throw_line.hh"
 
 export module skeleton;
@@ -26,9 +28,161 @@ import utils.misc;
 namespace gpsxre
 {
 
+struct MemorySeqInStream
+{
+	ISeqInStream stream;
+
+	std::fstream _imageFS;
+	const std::vector<std::pair<uint32_t, uint32_t>> &_files;
+	bool _iso;
+
+	uint64_t _sectorSize;
+	uint64_t _sectorsCount;
+	uint64_t _currentSector;
+
+	std::vector<uint8_t> _tail;
+	uint64_t _tailSize;
+
+	MemorySeqInStream(const std::filesystem::path &image_path, const std::vector<std::pair<uint32_t, uint32_t>> &files, bool iso)
+		: _files(files)
+		, _iso(iso)
+		, _sectorSize(_iso ? FORM1_DATA_SIZE : CD_DATA_SIZE)
+		, _sectorsCount(std::filesystem::file_size(image_path) / _sectorSize)
+		, _currentSector(0)
+		, _tail(_sectorSize)
+		, _tailSize(0)
+	{
+		stream.Read = &readC;
+
+		_imageFS.open(image_path, std::fstream::in | std::fstream::binary);
+		if(!_imageFS.is_open())
+			throw_line("unable to open file ({})", image_path.filename().string());
+	}
+
+	static SRes readC(ISeqInStreamPtr p, void *buf, size_t *size)
+	{
+		auto stream = (MemorySeqInStream *)p;
+		return stream->read((uint8_t *)buf, size);
+	}
+
+	SRes read(uint8_t *buf, size_t *size)
+	{
+		// old tail
+		if(_tailSize)
+		{
+			*size = std::min(_tailSize, *size);
+			memcpy(buf, _tail.data(), *size);
+			_tailSize -= *size;
+		}
+		else
+		{
+			if(_currentSector == _sectorsCount)
+			{
+				*size = 0;
+			}
+			else
+			{
+				// new tail
+				if(*size < _sectorSize)
+				{
+					_imageFS.read((char *)_tail.data(), _sectorSize);
+					if(_imageFS.fail())
+						return SZ_ERROR_READ;
+
+					if(inside_range((uint32_t)_currentSector, _files) != nullptr)
+						eraseSector(_tail.data());
+
+					memcpy(buf, _tail.data(), *size);
+					std::copy(_tail.begin() + *size, _tail.end(), _tail.begin());
+					_tailSize = _sectorSize - *size;
+
+					++_currentSector;
+				}
+				// body
+				else
+				{
+					uint64_t sectors_to_process = std::min(*size / _sectorSize, _sectorsCount - _currentSector);
+					*size = sectors_to_process * _sectorSize;
+
+					_imageFS.read((char *)buf, *size);
+					if(_imageFS.fail())
+						return SZ_ERROR_READ;
+
+					for(uint64_t i = 0; i < sectors_to_process; ++i)
+					{
+						if(inside_range((uint32_t)(_currentSector + i), _files) != nullptr)
+							eraseSector(buf + i * _sectorSize);
+					}
+
+					_currentSector += sectors_to_process;
+				}
+			}
+		}
+
+		return SZ_OK;
+	}
+
+	void eraseSector(uint8_t *s)
+	{
+		if(_iso)
+			memset(s, 0x00, FORM1_DATA_SIZE);
+		else
+		{
+			auto sector = (Sector *)s;
+
+			if(sector->header.mode == 1)
+			{
+				memset(sector->mode1.user_data, 0x00, FORM1_DATA_SIZE);
+				memset(&sector->mode1.ecc, 0x00, sizeof(Sector::ECC));
+				sector->mode1.edc = 0;
+			}
+			else if(sector->header.mode == 2)
+			{
+				if(sector->mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
+				{
+					memset(sector->mode2.xa.form2.user_data, 0x00, FORM2_DATA_SIZE);
+					sector->mode2.xa.form2.edc = 0;
+				}
+				else
+				{
+					memset(sector->mode2.xa.form1.user_data, 0x00, FORM1_DATA_SIZE);
+					memset(&sector->mode2.xa.form1.ecc, 0x00, sizeof(Sector::ECC));
+					sector->mode2.xa.form1.edc = 0;
+				}
+			}
+		}
+	}
+};
+
+struct FileSeqOutStream
+{
+	ISeqOutStream stream;
+
+	std::fstream ofs;
+
+	FileSeqOutStream(const std::filesystem::path &file_path)
+	{
+		stream.Write = &write;
+
+		ofs.open(file_path, std::fstream::out | std::fstream::binary);
+		if(!ofs.is_open())
+			throw_line("unable to create file ({})", file_path.filename().string());
+	}
+
+	static size_t write(ISeqOutStreamPtr p, const void *buf, size_t size)
+	{
+		auto stream = (FileSeqOutStream *)p;
+
+		stream->ofs.write((char *)buf, size);
+
+		return stream->ofs ? size : 0;
+	}
+};
+
+
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
-	std::filesystem::path skeleton_path(image_prefix + ".skeleton");
+	std::filesystem::path skeleton_path(image_prefix + ".skeleton.lzma");
 	std::filesystem::path index_path(image_prefix + ".index");
 
 	if(!options.overwrite && (std::filesystem::exists(skeleton_path) || std::filesystem::exists(index_path)))
@@ -58,57 +212,34 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 		return false;
 	});
 
-	std::fstream image_fs(image_path, std::fstream::in | std::fstream::binary);
-	if(!image_fs.is_open())
-		throw_line("unable to open file ({})", image_path);
+	CLzmaEncHandle enc = LzmaEnc_Create(&g_Alloc);
+	if(enc == nullptr)
+		throw_line("failed to create LZMA encoder");
 
-	std::fstream skeleton_fs(skeleton_path, std::fstream::out | std::fstream::binary);
-	if(!skeleton_fs.is_open())
-		throw_line("unable to create file ({})", skeleton_path.filename().string());
+	CLzmaEncProps props;
+	LzmaEncProps_Init(&props);
+	if(LzmaEnc_SetProps(enc, &props) != SZ_OK)
+		throw_line("failed to set LZMA properties");
 
-	std::vector<uint8_t> data(iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
-	uint32_t sectors_count = std::filesystem::file_size(image_path) / data.size();
-	for(uint32_t i = 0; i < sectors_count; ++i)
-	{
-		image_fs.read((char *)data.data(), data.size());
-		if(image_fs.fail())
-			throw_line("read failed");
+	MemorySeqInStream msis(image_path, files, iso);
+	FileSeqOutStream fsos(skeleton_path);
 
-		if(inside_range(i, files) != nullptr)
-		{
-			if(iso)
-				std::fill(data.begin(), data.end(), 0);
-			else
-			{
-				auto sector = (Sector *)data.data();
+	// store props
+	Byte header[LZMA_PROPS_SIZE];
+	size_t props_size = LZMA_PROPS_SIZE;
+	if(LzmaEnc_WriteProperties(enc, header, &props_size) != SZ_OK)
+		throw_line("failed to write LZMA properties");
+	if(fsos.stream.Write(&fsos.stream, header, props_size) != props_size)
+		throw_line("failed to store LZMA properties");
 
-				if(sector->header.mode == 1)
-				{
-					memset(sector->mode1.user_data, 0x00, FORM1_DATA_SIZE);
-					memset(&sector->mode1.ecc, 0x00, sizeof(Sector::ECC));
-					sector->mode1.edc = 0;
-				}
-				else if(sector->header.mode == 2)
-				{
-					if(sector->mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
-					{
-						memset(sector->mode2.xa.form2.user_data, 0x00, FORM2_DATA_SIZE);
-						sector->mode2.xa.form2.edc = 0;
-					}
-					else
-					{
-						memset(sector->mode2.xa.form1.user_data, 0x00, FORM1_DATA_SIZE);
-						memset(&sector->mode2.xa.form1.ecc, 0x00, sizeof(Sector::ECC));
-						sector->mode2.xa.form1.edc = 0;
-					}
-				}
-			}
-		}
+	uint64_t decompressed_size = std::filesystem::file_size(image_path);
+	if(fsos.stream.Write(&fsos.stream, &decompressed_size, sizeof(decompressed_size)) != sizeof(decompressed_size))
+		throw_line("failed to store decompressed size");
 
-		skeleton_fs.write((char *)data.data(), data.size());
-		if(skeleton_fs.fail())
-			throw_line("write failed");
-	}
+	if(LzmaEnc_Encode(enc, &fsos.stream, &msis.stream, nullptr, &g_Alloc, &g_Alloc) != SZ_OK)
+		throw_line("failed to encode LZMA stream");
+
+	LzmaEnc_Destroy(enc, &g_Alloc, &g_Alloc);
 }
 
 

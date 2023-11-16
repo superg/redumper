@@ -7,7 +7,7 @@ string(TIMESTAMP REDUMPER_VERSION_MINOR "%m")
 string(TIMESTAMP REDUMPER_VERSION_PATCH "%d")
 set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Version patch")
 project(${REDUMPER_PROJECT_NAME}
-	LANGUAGES CXX
+	LANGUAGES C CXX
 	VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
 
 set(REDUMPER_CLANG_LINK_OPTIONS "-static" CACHE STRING "Extra LLVM/Clang linker options")
@@ -110,25 +110,15 @@ add_custom_command(
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-set(sources
+add_executable(redumper)
+target_sources(redumper
+	PUBLIC
+	"dvd/css/css_tables.cc"
 	"main.cc"
 	"driveoffsets.txt"
 	"utils/throw_line.hh"
 	"redumper.manifest"
 	${DRIVEOFFSETS_FN}
-)
-
-set(includes
-	${CMAKE_CURRENT_SOURCE_DIR}
-	${CMAKE_CURRENT_BINARY_DIR}
-	"utils"
-)
-
-add_executable(redumper)
-target_sources(redumper
-	PUBLIC
-	${sources}
-	"dvd/css/css_tables.cc"
 	PRIVATE FILE_SET cxx_modules TYPE CXX_MODULES FILES
 	"analyzers/analyzer.ixx"
 	"analyzers/silence.ixx"
@@ -195,13 +185,28 @@ target_sources(redumper
 	"split.ixx"
 	"version.ixx"
 )
-target_include_directories(redumper PUBLIC ${includes})
+
+target_include_directories(redumper
+	PUBLIC
+	${CMAKE_CURRENT_SOURCE_DIR}
+	${CMAKE_CURRENT_BINARY_DIR}
+	"utils"
+)
+
+set(libs
+	"lzma"
+)
 
 if(REDUMPER_TARGET_MACOSX)
 	find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
 	find_library(IO_KIT IOKit REQUIRED)
-	target_link_libraries(redumper ${CORE_FOUNDATION} ${IO_KIT})
+	set(libs ${libs}
+		${CORE_FOUNDATION}
+		${IO_KIT}
+	)
 endif()
+
+target_link_libraries(redumper ${libs})
 
 install(TARGETS redumper DESTINATION "bin")
 
@@ -211,4 +216,6 @@ if(MSVC AND ${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
 endif()
 
 enable_testing()
+
+add_subdirectory("lzma")
 add_subdirectory("tests")

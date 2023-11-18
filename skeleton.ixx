@@ -21,6 +21,7 @@ import readers.sector_reader;
 import readers.form1_reader;
 import readers.image_bin_form1_reader;
 import readers.image_iso_form1_reader;
+import utils.animation;
 import utils.logger;
 import utils.misc;
 
@@ -34,6 +35,7 @@ struct MemorySeqInStream
 	ISeqInStream stream;
 
 	std::fstream _imageFS;
+	std::string _imageName;
 	const std::vector<std::pair<uint32_t, uint32_t>> &_files;
 	bool _iso;
 
@@ -52,6 +54,7 @@ struct MemorySeqInStream
 		, _currentSector(0)
 		, _tail(_sectorSize)
 		, _tailSize(0)
+		, _imageName(image_path.filename().string())
 	{
 		stream.Read = &readC;
 
@@ -68,6 +71,8 @@ struct MemorySeqInStream
 
 	SRes read(uint8_t *buf, size_t *size)
 	{
+		progressOutput(_currentSector, _sectorsCount);
+
 		// old tail
 		if(_tailSize)
 		{
@@ -153,6 +158,14 @@ struct MemorySeqInStream
 			}
 		}
 	}
+
+	void progressOutput(uint64_t sector, uint64_t sectors_count)
+	{
+		char animation = sector == sectors_count ? '*' : spinner_animation();
+
+		LOGC_RF("{} [{:3}%] {}", animation, sector * 100 / sectors_count, _imageName);
+	}
+
 };
 
 struct FileSeqOutStream
@@ -183,7 +196,7 @@ struct FileSeqOutStream
 
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
-	std::filesystem::path skeleton_path(image_prefix + ".skeleton.lzma");
+	std::filesystem::path skeleton_path(image_prefix + ".skeleton");
 	std::filesystem::path index_path(image_prefix + ".index");
 
 	if(!options.overwrite && (std::filesystem::exists(skeleton_path) || std::filesystem::exists(index_path)))
@@ -192,7 +205,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	std::vector<std::pair<uint32_t, uint32_t>> files;
 
 	files.emplace_back(0, iso9660::SYSTEM_AREA_SIZE);
-	
+
 	std::unique_ptr<SectorReader> sector_reader;
 	if(iso)
 		sector_reader = std::make_unique<Image_ISO_Form1Reader>(image_path);
@@ -212,6 +225,19 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 
 		return false;
 	});
+
+	//TODO: parse UDF
+
+	// some PS2 games use unreferenced ISO9660 space to store streaming files
+	uint32_t unref_start = 0;
+	std::for_each(files.begin(), files.end(), [&](const std::pair<uint32_t, uint32_t> &p){ unref_start = std::max(unref_start, p.second); });
+	// can't use pvd.volume_space_size here because there might be more than one extent (UDF specific?) [Gran Turismo 4]
+	uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
+
+	uint32_t unref_size = sectors_count - unref_start;
+	// 5% or more in relation to the total filesystem size
+	if(unref_size * 100 / sectors_count > 5)
+		files.emplace_back(unref_start, sectors_count);
 
 	CLzmaEncHandle enc = LzmaEnc_Create(&g_Alloc);
 	if(enc == nullptr)
@@ -241,6 +267,8 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 		throw_line("failed to encode LZMA stream");
 
 	LzmaEnc_Destroy(enc, &g_Alloc, &g_Alloc);
+
+	LOG("");
 }
 
 

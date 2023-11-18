@@ -26,12 +26,12 @@ public:
 	{
 		uint32_t sectors_read = 0;
 
-		_fs.seekg(index * T::sectorSize());
+		_fs.seekg((uint64_t)index * T::sectorSize());
 		if(_fs.fail())
 			_fs.clear();
 		else
 		{
-			_fs.read((char *)sectors, count * T::sectorSize());
+			_fs.read((char *)sectors, (uint64_t)count * T::sectorSize());
 			if(_fs.fail())
 				_fs.clear();
 			else

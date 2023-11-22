@@ -148,6 +148,66 @@ bool optional_track(uint32_t track_number)
 }
 
 
+void fill_track_modes(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
+						   const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
+{
+	Scrambler scrambler;
+	std::vector<uint8_t> sector(CD_DATA_SIZE);
+	std::vector<State> state(CD_DATA_SIZE_SAMPLES);
+
+	// discs with offset shift usually have some corruption in a couple of transitional sectors preventing normal descramble detection,
+	// as everything is scrambled in this case, force descrambling
+	bool force_descramble = offset_manager->isVariable();
+
+	for(auto &s : toc.sessions)
+	{
+		for(auto &t : s.tracks)
+		{
+			// skip empty tracks
+			if(t.lba_end == t.lba_start)
+				continue;
+
+			// skip audio tracks
+			if(!(t.control & (uint8_t)ChannelQ::Control::DATA))
+				continue;
+
+			const uint8_t data_mode_invalid = 3;
+
+			auto lba_end = iso9660_trim_if_needed(t, scm_fs, scrap, offset_manager, options);
+
+			for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
+			{
+				// skip erroneous sectors
+				read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
+				if(std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_SKIP || s == State::ERROR_C2; }))
+					continue;
+
+				read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offset_manager->getOffset(lba) * CD_SAMPLE_SIZE, 0);
+
+				bool success = true;
+				if(force_descramble)
+					scrambler.process(sector.data(), sector.data(), 0, sector.size());
+				else
+					success = scrambler.descramble(sector.data(), &lba);
+
+				if(success)
+				{
+					auto mode = ((Sector *)sector.data())->header.mode;
+					if(mode < data_mode_invalid)
+					{
+						t.data_mode = mode;
+
+						// some systems have mixed mode gaps (SS), prioritize index1 mode
+						if(t.indices.empty() || lba >= t.indices.front())
+							break;
+					}
+				}
+			}
+		}
+	}
+}
+
+
 bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
                   const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
 {
@@ -213,7 +273,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 }
 
 
-std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
+std::vector<std::string> write_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
                   const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
 {
 	std::vector<std::string> xml_lines;
@@ -235,9 +295,6 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 				continue;
 
 			bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
-			const uint8_t data_mode_invalid = 3;
-			uint8_t data_mode = data_mode_invalid;
-			uint8_t data_mode_index1 = data_mode_invalid;
 
 			std::string track_string = toc.getTrackString(t.track_number);
 			bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
@@ -267,14 +324,7 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 				if(!options.leave_unchanged)
 				{
 					read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
-					for(auto const &s : state)
-					{
-						if(s == State::ERROR_SKIP || s == State::ERROR_C2)
-						{
-							generate_sector = true;
-							break;
-						}
-					}
+					generate_sector = std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_SKIP || s == State::ERROR_C2; });
 				}
 
 				// generate sector and fill it with fill byte (default: 0x55)
@@ -306,19 +356,7 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 						else
 							success = scrambler.descramble(sector.data(), &lba);
 
-						if(success)
-						{
-							auto mode = ((Sector *)sector.data())->header.mode;
-							if(mode < data_mode_invalid)
-							{
-								if(data_mode == data_mode_invalid)
-									data_mode = mode;
-
-								if(data_mode_index1 == data_mode_invalid && !t.indices.empty() && lba >= t.indices.front())
-									data_mode_index1 = mode;
-							}
-						}
-						else
+						if(!success)
 						{
 							if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
 								descramble_errors.emplace_back(lba, lba);
@@ -334,12 +372,6 @@ std::vector<std::string> write_tracks(TOC &toc, std::fstream &scm_fs, std::fstre
 				if(fs_bin.fail())
 					throw_line("write failed ({})", track_name);
 			}
-
-			// some systems have mixed mode gaps (SS), prioritize index1 mode
-			if(data_mode_index1 != data_mode_invalid)
-				t.data_mode = data_mode_index1;
-			else if(data_mode != data_mode_invalid)
-				t.data_mode = data_mode;
 
 			for(auto const &d : descramble_errors)
 			{
@@ -1610,6 +1642,9 @@ export void redumper_split(Context &ctx, Options &options)
 	}
 
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
+
+	// determine data track modes
+	fill_track_modes(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
 
 	// check tracks
 	LOG("checking tracks");

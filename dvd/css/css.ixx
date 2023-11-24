@@ -8,7 +8,7 @@ module;
 export module dvd.css;
 
 import cd.cdrom;
-import readers.form1_reader;
+import readers.sector_reader;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -87,7 +87,7 @@ public:
 	}
 
 
-	static std::vector<uint8_t> crackTitleKey(uint32_t lba_start, uint32_t lba_end, Form1Reader &form1_reader)
+	static std::vector<uint8_t> crackTitleKey(uint32_t lba_start, uint32_t lba_end, SectorReader &sector_reader)
 	{
 		std::vector<uint8_t> title_key;
 
@@ -96,7 +96,7 @@ public:
 		std::vector<uint8_t> data(FORM1_DATA_SIZE);
 		for(uint32_t lba = lba_start; lba < lba_end; ++lba)
 		{
-			if(form1_reader.read(data.data(), lba, 1) != 1)
+			if(sector_reader.read(data.data(), lba, 1) != 1)
 				continue;
 
 			// PES_scrambling_control does not exist in a system_header, a padding_stream or a private_stream2 (and others?)

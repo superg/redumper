@@ -10,33 +10,39 @@ export module readers.image_simple_reader;
 namespace gpsxre
 {
 
-export template<typename T>
+export template<typename T, uint32_t S>
 class Image_SimpleReader : public T
 {
 public:
 	Image_SimpleReader(const std::filesystem::path &image_path)
 		: _fs(image_path, std::fstream::in | std::fstream::binary)
-		, _sectorsCount(std::filesystem::file_size(image_path) / T::sectorSize())
+		, _sectorsCount(std::filesystem::file_size(image_path) / S)
 	{
 		;
 	}
 
 
-	uint32_t read(uint8_t *sectors, uint32_t index, uint32_t count) override
+	uint32_t read(uint8_t *sectors, uint32_t index, uint32_t count, bool form2 = false, bool *form_hint = nullptr) override
 	{
 		uint32_t sectors_read = 0;
 
-		_fs.seekg((uint64_t)index * T::sectorSize());
-		if(_fs.fail())
-			_fs.clear();
-		else
+		if(!form2)
 		{
-			_fs.read((char *)sectors, (uint64_t)count * T::sectorSize());
+			_fs.seekg((uint64_t)index * S);
 			if(_fs.fail())
 				_fs.clear();
 			else
-				sectors_read = count;
+			{
+				_fs.read((char *)sectors, (uint64_t)count * S);
+				if(_fs.fail())
+					_fs.clear();
+				else
+					sectors_read = count;
+			}
 		}
+
+		if(form_hint != nullptr)
+			*form_hint = false;
 
 		return sectors_read;
 	}

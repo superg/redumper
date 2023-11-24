@@ -5,14 +5,15 @@ module;
 
 export module readers.image_raw_reader;
 
+import cd.cd;
 import readers.image_simple_reader;
-import readers.raw_reader;
+import readers.sector_reader;
 
 
 
 namespace gpsxre
 {
 
-export using Image_RawReader = Image_SimpleReader<RawReader>;
+export using Image_RawReader = Image_SimpleReader<SectorReader, CD_DATA_SIZE>;
 
 }

@@ -171,7 +171,7 @@ public:
 		std::vector<uint8_t> sectors(sectorsSize() * FORM1_DATA_SIZE);
 		
 		uint32_t sectors_read = _sectorReader->read(sectors.data(), sectorsOffset(), sectorsSize());
-		sectors.resize(sectors_read * FORM1_DATA_SIZE);
+		sectors.resize(_directoryRecord.data_length.lsb);
 
 		return sectors;
 	}

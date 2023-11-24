@@ -14,12 +14,10 @@ import cd.cdrom;
 import dump;
 import filesystem.iso9660;
 import options;
-import readers.sector_reader;
-import readers.form1_reader;
 import readers.image_bin_form1_reader;
 import readers.image_iso_form1_reader;
 import readers.image_raw_reader;
-import readers.raw_reader;
+import readers.sector_reader;
 import systems.system;
 import systems.systems;
 import utils.hex_bin;
@@ -67,7 +65,7 @@ export void redumper_info(Context &ctx, Options &options)
 		std::shared_ptr<SectorReader> form1_reader;
 
 		if(t.second == TrackType::ISO)
-			form1_reader = std::make_shared<Image_ISO_Form1Reader>(t.first);
+			form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
 		else if(t.second == TrackType::DATA)
 		{
 			raw_reader = std::make_shared<Image_RawReader>(t.first);

@@ -15,9 +15,9 @@ import dump;
 import dvd.css;
 import filesystem.iso9660;
 import options;
-import readers.form1_reader;
 import readers.disc_read_form1_reader;
 import readers.image_iso_form1_reader;
+import readers.sector_reader;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -45,15 +45,15 @@ std::string region_string(uint8_t region_bits)
 }
 
 
-std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(Form1Reader *form1_reader)
+std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(SectorReader *sector_reader)
 {
 	std::map<std::string, std::pair<uint32_t, uint32_t>> titles;
 
 	iso9660::PrimaryVolumeDescriptor pvd;
-	if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader, iso9660::VolumeDescriptorType::PRIMARY))
+	if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
 		return titles;
 
-	auto root_directory = iso9660::Browser::rootDirectory(form1_reader, pvd);
+	auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
 	auto video_ts = root_directory->subEntry("VIDEO_TS");
 	if(!video_ts)
 		return titles;
@@ -130,7 +130,7 @@ export void dvd_key(Context &ctx, const Options &options)
 
 		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
 		{
-			Disc_READ_Form1Reader reader(*ctx.sptd);
+			Disc_READ_Reader reader(*ctx.sptd);
 			auto vobs = extract_vob_list(&reader);
 			
 			bool cppm = false;
@@ -200,7 +200,7 @@ export void redumper_dvdisokey(Context &ctx, Options &options)
 
 	std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
 
-	Image_ISO_Form1Reader reader(scm_path);
+	Image_ISO_Reader reader(scm_path);
 	auto vobs = extract_vob_list(&reader);
 	if(!vobs.empty())
 	{

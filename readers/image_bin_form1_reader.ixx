@@ -9,14 +9,14 @@ export module readers.image_bin_form1_reader;
 import cd.cd;
 import cd.cdrom;
 import cd.scrambler;
-import readers.form1_reader;
+import readers.sector_reader;
 
 
 
 namespace gpsxre
 {
 
-export class Image_BIN_Form1Reader : public Form1Reader
+export class Image_BIN_Form1Reader : public SectorReader
 {
 public:
 	Image_BIN_Form1Reader(const std::filesystem::path &image_path)
@@ -43,7 +43,7 @@ public:
 	}
 
 
-	uint32_t read(uint8_t *sectors, uint32_t index, uint32_t count) override
+	uint32_t read(uint8_t *sectors, uint32_t index, uint32_t count, bool form2 = false, bool *form_hint = nullptr) override
 	{
 		uint32_t sectors_read = 0;
 
@@ -56,13 +56,19 @@ public:
 					break;
 
 				uint8_t *user_data = nullptr;
+				bool user_form2 = false;
 				if(sector.header.mode == 1)
 				{
 					user_data = sector.mode1.user_data;
 				}
 				else if(sector.header.mode == 2)
 				{
-					if(!(sector.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2))
+					if(sector.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
+					{
+						user_data = sector.mode2.xa.form2.user_data;
+						user_form2 = true;
+					}
+					else
 					{
 						user_data = sector.mode2.xa.form1.user_data;
 					}
@@ -70,10 +76,15 @@ public:
 
 				if(user_data != nullptr)
 				{
-					memcpy(sectors + sectors_read * sectorSize(), user_data, sectorSize());
-					++sectors_read;
+					if(user_form2 == form2)
+					{
+						uint32_t size = user_form2 ? FORM2_DATA_SIZE : FORM1_DATA_SIZE;
+						memcpy(sectors + sectors_read * size, user_data, size);
+						++sectors_read;
+					}
+					else if(form_hint != nullptr)
+						*form_hint = true;
 				}
-
 			}
 		}
 

@@ -18,7 +18,6 @@ import dump;
 import filesystem.iso9660;
 import options;
 import readers.sector_reader;
-import readers.form1_reader;
 import readers.image_bin_form1_reader;
 import readers.image_iso_form1_reader;
 import utils.animation;
@@ -208,7 +207,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 
 	std::unique_ptr<SectorReader> sector_reader;
 	if(iso)
-		sector_reader = std::make_unique<Image_ISO_Form1Reader>(image_path);
+		sector_reader = std::make_unique<Image_ISO_Reader>(image_path);
 	else
 		sector_reader = std::make_unique<Image_BIN_Form1Reader>(image_path);
 

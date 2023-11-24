@@ -13,6 +13,7 @@ import :defs;
 import :entry;
 
 import cd.cd;
+import cd.cdrom;
 import readers.sector_reader;
 
 
@@ -25,10 +26,10 @@ class Browser
 public:
 	static std::vector<uint8_t> readSystemArea(SectorReader *sector_reader)
 	{
-		std::vector<uint8_t> system_area(SYSTEM_AREA_SIZE * sector_reader->sectorSize());
+		std::vector<uint8_t> system_area(SYSTEM_AREA_SIZE * FORM1_DATA_SIZE);
 
 		uint32_t sectors_count = sector_reader->read(system_area.data(), 0, SYSTEM_AREA_SIZE);
-		system_area.resize(sectors_count * sector_reader->sectorSize());
+		system_area.resize(sectors_count * FORM1_DATA_SIZE);
 
 		return system_area;
 	}

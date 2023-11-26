@@ -733,7 +733,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 	}
 	LOG("");
 
-	LOG("media errors: ");
+	LOG("media errors:");
 	LOG("  SCSI: {}", errors_scsi);
 
 	if(signal.interrupt())

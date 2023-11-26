@@ -116,7 +116,7 @@ export void dvd_key(Context &ctx, const Options &options)
 		auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
 		auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
 
-		LOG("copyright: ");
+		LOG("copyright:");
 
 		std::string protection("unknown");
 		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::NONE)

@@ -396,7 +396,7 @@ export bool drive_is_asus(const DriveConfig &drive_config)
 export void print_supported_drives()
 {
 	LOG("");
-	LOG("supported drives: ");
+	LOG("supported drives:");
 	for(auto const &di : KNOWN_DRIVES)
 		if(di.type != DriveConfig::Type::GENERIC)
 			LOG("{}", drive_info_string(di));

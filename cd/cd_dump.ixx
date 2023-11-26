@@ -1031,7 +1031,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 	LOGC_RF("");
 	LOG("");
 
-	LOG("media errors: ");
+	LOG("media errors:");
 	LOG("  SCSI: {}", errors_scsi);
 	LOG("  C2: {}", errors_c2);
 	LOG("  Q: {}", errors_q);
@@ -1190,7 +1190,7 @@ void redumper_rings(const Options &options)
 				rings.emplace_back(ring_start, lba_leadout - 1);
 
 			LOG("");
-			LOG("pass rings: ");
+			LOG("pass rings:");
 			for(auto const &r : rings)
 				LOG("{}-{}", r.first, r.second);
 		}

@@ -1287,7 +1287,7 @@ export void redumper_split(Context &ctx, Options &options)
 		
 		if(data_track)
 		{
-			LOG("data disc detected, offset configuration: ");
+			LOG("data disc detected, offset configuration:");
 			for(auto const &o : sync_records)
 			{
 				MSF msf = LBA_to_BCDMSF(o.lba);
@@ -1527,7 +1527,7 @@ export void redumper_split(Context &ctx, Options &options)
 
 	if(!scrap && offsets.size() > 1)
 	{
-		LOG("offset shift correction applied: ");
+		LOG("offset shift correction applied:");
 		for(auto const &o : offsets)
 			LOG("  LBA: {:6}, offset: {:+}", o.first, o.second);
 		LOG("");

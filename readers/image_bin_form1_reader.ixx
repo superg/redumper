@@ -53,7 +53,7 @@ public:
 			{
 				Sector sector;
 				if(!read((uint8_t *)&sector) || memcmp(sector.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
-					break;
+					continue;
 
 				uint8_t *user_data = nullptr;
 				bool user_form2 = false;
@@ -78,7 +78,7 @@ public:
 				{
 					if(user_form2 == form2)
 					{
-						uint32_t size = user_form2 ? FORM2_DATA_SIZE : FORM1_DATA_SIZE;
+						uint32_t size = sectorSize(user_form2);
 						memcpy(sectors + sectors_read * size, user_data, size);
 						++sectors_read;
 					}
@@ -89,6 +89,12 @@ public:
 		}
 
 		return sectors_read;
+	}
+
+
+	uint32_t sectorSize(bool form2 = false) override
+	{
+		return form2 ? FORM2_DATA_SIZE : FORM1_DATA_SIZE;
 	}
 
 	

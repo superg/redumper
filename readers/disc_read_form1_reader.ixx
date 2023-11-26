@@ -1,5 +1,6 @@
 module;
 #include <cstdint>
+#include <string>
 
 export module readers.disc_read_form1_reader;
 
@@ -39,7 +40,13 @@ public:
 
 		return sectors_read;
 	}
-	
+
+
+	uint32_t sectorSize(bool form2 = false) override
+	{
+		return FORM1_DATA_SIZE;
+	}
+
 private:
 	SPTD &_sptd;
 };

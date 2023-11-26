@@ -68,6 +68,12 @@ public:
 	}
 
 
+	bool isAccessible() const
+	{
+		return sectorsOffset() + sectorsSize() <= _sectorReader->sectorsCount();
+	}
+
+
 	bool isDirectory() const
 	{
 		return _directoryRecord.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY;
@@ -166,16 +172,27 @@ public:
 	}
 
 
-	std::vector<uint8_t> read()
+	std::vector<uint8_t> read(bool form2 = false, bool *form_hint = nullptr)
 	{
-		std::vector<uint8_t> sectors(sectorsSize() * FORM1_DATA_SIZE);
+		std::vector<uint8_t> sectors(sectorsSize() * _sectorReader->sectorSize(form2));
 		
-		uint32_t sectors_read = _sectorReader->read(sectors.data(), sectorsOffset(), sectorsSize());
-		sectors.resize(_directoryRecord.data_length.lsb);
+		uint32_t sectors_read = _sectorReader->read(sectors.data(), sectorsOffset(), sectorsSize(), form2, form_hint);
+
+		// exclude form2 sectors as multiples of form1 size
+		uint32_t size = form2 ? sectors_read * _sectorReader->sectorSize(form2) :
+			_directoryRecord.data_length.lsb - ((sectorsSize() - sectors_read) * _sectorReader->sectorSize(form2));
+
+		sectors.resize(size);
 
 		return sectors;
 	}
-	
+
+
+	std::string calculateSHA1(bool form2 = false, bool *form_hint = nullptr)
+	{
+		return _sectorReader->calculateSHA1(sectorsOffset(), sectorsSize(), _directoryRecord.data_length.lsb, form2, form_hint);
+	}
+
 private:
 	SectorReader *_sectorReader;
 	std::string _name;

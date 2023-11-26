@@ -48,6 +48,12 @@ public:
 	}
 
 
+	uint32_t sectorSize(bool form2 = false) override
+	{
+		return S;
+	}
+
+
 	uint32_t sectorsCount() const override
 	{
 		return _sectorsCount;

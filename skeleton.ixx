@@ -196,9 +196,8 @@ struct FileSeqOutStream
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
 	std::filesystem::path skeleton_path(image_prefix + ".skeleton");
-	std::filesystem::path index_path(image_prefix + ".index");
 
-	if(!options.overwrite && (std::filesystem::exists(skeleton_path) || std::filesystem::exists(index_path)))
+	if(!options.overwrite && (std::filesystem::exists(skeleton_path)))
 		throw_line("skeleton/index file already exists");
 
 	std::vector<std::pair<uint32_t, uint32_t>> files;
@@ -216,14 +215,26 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 		return;
 
 	auto root_directory = iso9660::Browser::rootDirectory(sector_reader.get(), pvd);
+
+	LOG("file hashes (SHA-1):");
 	iso9660::Browser::iterate(root_directory, [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
 	{
+		if(!d->isAccessible())
+			return false;
+
 		auto fp((path.empty() ? "" : path + "/") + d->name());
+
+		bool xa = false;
+		LOG("{} {}", d->calculateSHA1(false, &xa), fp);
+
+		if(xa)
+			LOG("{} {}.XA", d->calculateSHA1(true), fp);
 
 		files.emplace_back(d->sectorsOffset(), d->sectorsOffset() + d->sectorsSize());
 
 		return false;
 	});
+	LOG("");
 
 	//TODO: parse UDF
 

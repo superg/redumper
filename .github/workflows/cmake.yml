@@ -40,8 +40,8 @@ jobs:
 
     - name: Customize Software (macOS)
       if: ${{ matrix.os == 'macos-12' }}
-      run: |
 # ignore brew link warning, revert after https://github.com/actions/setup-python/issues/577 is fixed
+      run: |
         brew install llvm || true
         brew install ninja
         brew install cmake

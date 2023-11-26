@@ -63,7 +63,7 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	# -fexperimental-library is required for clang-16 as std::format is defined there
-	add_compile_options(-stdlib=libc++ -fexperimental-library)
+	add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> -fexperimental-library)
 	add_link_options(-stdlib=libc++ ${REDUMPER_CLANG_LINK_OPTIONS} -fexperimental-library)
 
 	# silence implicit modules use warning

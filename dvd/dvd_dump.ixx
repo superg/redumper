@@ -335,7 +335,8 @@ uint32_t read_physical_structures(SPTD &sptd, std::map<uint32_t, std::vector<uin
 
 					// some BD-R discs (not finalized?) are incorrectly identified as BD-ROM profile
 					std::string disc_type_identifier((char *)unit->body_common.disc_type_identifier, sizeof(unit->body_common.disc_type_identifier));
-					if(rom && disc_type_identifier != "BDO")
+					// BDO: BD-ROM, BDW: BD-RE, BDR: BD-R, BDU: PS5?
+					if(rom && disc_type_identifier == "BDR")
 						rom = false;
 					
 					if(unit->header.format == 1)

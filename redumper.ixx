@@ -178,13 +178,13 @@ std::string generate_image_name(std::string drive)
 std::list<std::string> get_cd_batch_commands(Context &ctx)
 {
 	if(profile_is_cd(ctx.current_profile))
-		return std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
+		return std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info", "skeleton" };
 	else if(profile_is_dvd(ctx.current_profile))
-		return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info" };
+		return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info", "skeleton" };
 	else if(profile_is_bluray(ctx.current_profile))
-		return std::list<std::string>{ "dump", "refine", "hash", "info" };
+		return std::list<std::string>{ "dump", "refine", "hash", "info", "skeleton" };
 	else if(profile_is_hddvd(ctx.current_profile))
-		return std::list<std::string>{ "dump", "refine", "hash", "info" };
+		return std::list<std::string>{ "dump", "refine", "hash", "info", "skeleton" };
 	else
 		return std::list<std::string>{};
 }

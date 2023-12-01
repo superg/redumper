@@ -202,19 +202,77 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 
 	std::vector<std::pair<uint32_t, uint32_t>> files;
 
-	files.emplace_back(0, iso9660::SYSTEM_AREA_SIZE);
-
 	std::unique_ptr<SectorReader> sector_reader;
 	if(iso)
 		sector_reader = std::make_unique<Image_ISO_Reader>(image_path);
 	else
 		sector_reader = std::make_unique<Image_BIN_Form1Reader>(image_path);
 
+	// can't use pvd.volume_space_size here because there might be more than one extent (UDF specific?) [Gran Turismo 4]
+	uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
+
+	auto area_map = iso9660::area_map(sector_reader.get());
+	if(area_map.empty())
+		return;
+/*
+	//DEBUG
+	for(auto const &a : area_map)
+	{
+		LOG("[{:7} .. {:7}) size: {}, type: {:16}{}", a.offset, a.offset + scale_up(a.size, sector_reader->sectorSize()), a.size, enum_to_string(a.type, iso9660::AREA_TYPE_STRING),
+			a.name.empty() ? "" : std::format(", name: {}", a.name));
+	}
+*/
+
+	area_map.emplace_back(iso9660::Area{ sectors_count, iso9660::Area::Type::SYSTEM_AREA, 0, "" });
+
+	LOG("excluded areas hashes (SHA-1):");
+	for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
+	{
+		auto const &a = area_map[i];
+
+		std::string name(a.name.empty() ? enum_to_string(a.type, iso9660::AREA_TYPE_STRING) : a.name);
+
+		if(a.type == iso9660::Area::Type::SYSTEM_AREA || a.type == iso9660::Area::Type::FILE_EXTENT)
+		{
+			uint32_t sector_size = scale_up(a.size, sector_reader->sectorSize());
+
+			bool xa = false;
+			LOG("{} {}", sector_reader->calculateSHA1(a.offset, sector_size, a.size, false, &xa), name);
+
+			if(xa)
+				LOG("{} {}.XA", sector_reader->calculateSHA1(a.offset, sector_size, a.size, true), name);
+
+			files.emplace_back(a.offset, a.offset + sector_size);
+		}
+
+		uint32_t gap_start = a.offset + scale_up(a.size, sector_reader->sectorSize());
+		if(gap_start <= area_map[i + 1].offset)
+		{
+			uint32_t gap_size = area_map[i + 1].offset - gap_start;
+
+			// 5% or more in relation to the total filesystem size
+			if((uint64_t)gap_size * 100 / sectors_count > 5)
+			{
+				bool xa = false;
+				LOG("{} GAP_{:07}", sector_reader->calculateSHA1(gap_start, gap_size, gap_size * sector_reader->sectorSize(), false, &xa), gap_start);
+
+				if(xa)
+					LOG("{} GAP_{:07}.XA", sector_reader->calculateSHA1(gap_start, gap_size, gap_size * sector_reader->sectorSize(), true), gap_start);
+
+				files.emplace_back(gap_start, gap_start + gap_size);
+			}
+		}
+	}
+	LOG("");
+
+/*
 	iso9660::PrimaryVolumeDescriptor pvd;
 	if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
 		return;
 
 	auto root_directory = iso9660::Browser::rootDirectory(sector_reader.get(), pvd);
+
+	files.emplace_back(0, iso9660::SYSTEM_AREA_SIZE);
 
 	LOG("file hashes (SHA-1):");
 	iso9660::Browser::iterate(root_directory, [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
@@ -241,13 +299,12 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	// some PS2 games use unreferenced ISO9660 space to store streaming files
 	uint32_t unref_start = 0;
 	std::for_each(files.begin(), files.end(), [&](const std::pair<uint32_t, uint32_t> &p){ unref_start = std::max(unref_start, p.second); });
-	// can't use pvd.volume_space_size here because there might be more than one extent (UDF specific?) [Gran Turismo 4]
-	uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
 
 	uint32_t unref_size = sectors_count - unref_start;
 	// 5% or more in relation to the total filesystem size
 	if(unref_size * 100 / sectors_count > 5)
 		files.emplace_back(unref_start, sectors_count);
+*/
 
 	CLzmaEncHandle enc = LzmaEnc_Create(&g_Alloc);
 	if(enc == nullptr)

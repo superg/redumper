@@ -32,7 +32,7 @@ public:
 		for(uint32_t i = 0; i < count; ++i)
 		{
 			bool hint = false;
-			if(read(sector.data(), index + i, 1, form2, &hint))
+			if(read(sector.data(), index + i, 1, form2, &hint) == 1)
 			{
 				uint32_t size = sector.size();
 				if(!form2)

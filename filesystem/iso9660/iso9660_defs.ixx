@@ -2,8 +2,17 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
+#include <map>
+#include <string>
+#include <vector>
+#include "throw_line.hh"
 
 export module filesystem.iso9660:defs;
+
+import cd.cdrom;
+import readers.sector_reader;
+import utils.endian;
+import utils.misc;
 
 
 
@@ -90,6 +99,15 @@ struct DirectoryRecord
 };
 
 
+struct PathRecord
+{
+	uint8_t length;
+	uint8_t xa_length;
+	uint32_t offset;
+	uint16_t parent_directory_number;
+};
+
+
 struct DateTime
 {
 	uint8_t year[4];
@@ -127,10 +145,10 @@ struct PrimaryVolumeDescriptor
 	uint32_lsb_msb volume_sequence_number;
 	uint32_lsb_msb logical_block_size;
 	uint64_lsb_msb path_table_size;
-	uint32_t type_l_path_table_offset;
-	uint32_t optional_type_l_path_table_offset;
-	uint32_t type_m_path_table_offset;
-	uint32_t optional_type_m_path_table_offset;
+	uint32_t path_table_l_offset;
+	uint32_t path_table_l_offset_opt;
+	uint32_t path_table_m_offset;
+	uint32_t path_table_m_offset_opt;
 	DirectoryRecord root_directory_record;
 	uint8_t root_directory_identifier;
 	char volume_set_identifier[128];
@@ -148,15 +166,6 @@ struct PrimaryVolumeDescriptor
 	uint8_t reserved1;
 	uint8_t application_use[512];
 	uint8_t reserved2[653];
-};
-
-
-struct PathRecord
-{
-	uint8_t length;
-	uint8_t xa_length;
-	uint32_t offset;
-	uint16_t parent_directory_number;
 };
 #pragma pack(pop)
 
@@ -223,6 +232,66 @@ time_t convert_time(const RecordingDateTime &date_time)
 	//FIXME: GMT offset
 
 	return mktime(&time_info);
+}
+
+
+bool directory_record_is_valid(const DirectoryRecord &dr)
+{
+	return dr.offset.lsb == endian_swap(dr.offset.msb) && dr.data_length.lsb == endian_swap(dr.data_length.msb);
+}
+
+
+std::vector<std::pair<std::string, DirectoryRecord>> directory_extent_get_records(const std::vector<uint8_t> &extent)
+{
+	std::vector<std::pair<std::string, DirectoryRecord>> directory_records;
+
+	for(uint32_t i = 0, n = (uint32_t)extent.size(); i < n;)
+	{
+		auto dr = (DirectoryRecord &)extent[i];
+
+		uint32_t next_sector = round_down(i, FORM1_DATA_SIZE) + FORM1_DATA_SIZE;
+		if(dr.length && dr.length <= next_sector - i)
+		{
+			// (1) [01/12/2020]: "All Star Racing 2 (Europe) (Track 1).bin"
+			// (2) [11/10/2020]: "All Star Racing 2 (USA) (Track 1).bin"
+			// (3) [01/21/2020]: "Aitakute... - Your Smiles in My Heart - Oroshitate no Diary - Introduction Disc (Japan) (Track 1).bin"
+			// (4) [01/21/2020]: "MLB 2005 (USA).bin"
+			// all these tracks have messed up directory records, (1), (2) and (4) have garbage after valid entries, (3) has garbage before
+			// good DirectoryRecord validity trick is to compare lsb to msb for offset and data_length and make sure it's the same
+			if(!directory_record_is_valid(dr))
+			{
+				//FIXME:
+				// 1) try to find legit entry after garbage, useful for (3)
+//				++i;
+//				continue;
+				// 2) skip everything
+				break;
+			}
+
+			std::string identifier((const char *)&extent[i + sizeof(dr)], dr.file_identifier_length);
+			directory_records.emplace_back(identifier, dr);
+
+			i += dr.length;
+		}
+		// skip sector boundary
+		else
+			i = next_sector;
+	}
+
+	return directory_records;
+}
+
+
+uint32_t directory_extent_get_length(SectorReader *sector_reader, uint32_t offset)
+{
+	std::vector<uint8_t> sector(sector_reader->sectorSize());
+	if(sector_reader->read(sector.data(), offset, 1) == 1)
+	{
+		auto dr = (DirectoryRecord &)sector[0];
+		return dr.data_length.lsb;
+	}
+
+	return 0;
 }
 
 }

@@ -52,7 +52,7 @@ std::map<Area::Type, std::string> AREA_TYPE_STRING =
 };
 
 
-export std::vector<Area> area_map(SectorReader *sector_reader)
+std::vector<Area> area_map(SectorReader *sector_reader)
 {
 	std::vector<Area> area_vector;
 

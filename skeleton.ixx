@@ -214,14 +214,6 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	auto area_map = iso9660::area_map(sector_reader.get());
 	if(area_map.empty())
 		return;
-/*
-	//DEBUG
-	for(auto const &a : area_map)
-	{
-		LOG("[{:7} .. {:7}) size: {}, type: {:16}{}", a.offset, a.offset + scale_up(a.size, sector_reader->sectorSize()), a.size, enum_to_string(a.type, iso9660::AREA_TYPE_STRING),
-			a.name.empty() ? "" : std::format(", name: {}", a.name));
-	}
-*/
 
 	area_map.emplace_back(iso9660::Area{ sectors_count, iso9660::Area::Type::SYSTEM_AREA, 0, "" });
 
@@ -264,47 +256,6 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 		}
 	}
 	LOG("");
-
-/*
-	iso9660::PrimaryVolumeDescriptor pvd;
-	if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
-		return;
-
-	auto root_directory = iso9660::Browser::rootDirectory(sector_reader.get(), pvd);
-
-	files.emplace_back(0, iso9660::SYSTEM_AREA_SIZE);
-
-	LOG("file hashes (SHA-1):");
-	iso9660::Browser::iterate(root_directory, [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
-	{
-		if(!d->isAccessible())
-			return false;
-
-		auto fp((path.empty() ? "" : path + "/") + d->name());
-
-		bool xa = false;
-		LOG("{} {}", d->calculateSHA1(false, &xa), fp);
-
-		if(xa)
-			LOG("{} {}.XA", d->calculateSHA1(true), fp);
-
-		files.emplace_back(d->sectorsOffset(), d->sectorsOffset() + d->sectorsSize());
-
-		return false;
-	});
-	LOG("");
-
-	//TODO: parse UDF
-
-	// some PS2 games use unreferenced ISO9660 space to store streaming files
-	uint32_t unref_start = 0;
-	std::for_each(files.begin(), files.end(), [&](const std::pair<uint32_t, uint32_t> &p){ unref_start = std::max(unref_start, p.second); });
-
-	uint32_t unref_size = sectors_count - unref_start;
-	// 5% or more in relation to the total filesystem size
-	if(unref_size * 100 / sectors_count > 5)
-		files.emplace_back(unref_start, sectors_count);
-*/
 
 	CLzmaEncHandle enc = LzmaEnc_Create(&g_Alloc);
 	if(enc == nullptr)

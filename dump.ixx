@@ -2,6 +2,7 @@ module;
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <list>
 #include <map>
 #include <memory>
 #include <sstream>

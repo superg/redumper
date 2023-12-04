@@ -179,6 +179,7 @@ target_sources(redumper
 	"offset_manager.ixx"
 	"options.ixx"
 	"redumper.ixx"
+	"rings.ixx"
 	"rom_entry.ixx"
 	"skeleton.ixx"
 	"split.ixx"

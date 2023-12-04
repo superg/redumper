@@ -4,7 +4,7 @@ module;
 #include <vector>
 #include "throw_line.hh"
 
-export module offset_manager;
+export module cd.offset_manager;
 
 
 

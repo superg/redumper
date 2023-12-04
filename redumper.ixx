@@ -15,6 +15,7 @@ export module redumper;
 
 import cd.cd;
 import cd.dump;
+import cd.protection;
 import cd.scrambler;
 import cd.split;
 import cd.subcode;

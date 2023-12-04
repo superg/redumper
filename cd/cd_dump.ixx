@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <bit>
 #include <cstdint>
 #include <filesystem>
 #include <format>
@@ -31,6 +32,7 @@ import utils.file_io;
 import utils.logger;
 import utils.misc;
 import utils.signal;
+import utils.strings;
 
 
 
@@ -363,7 +365,7 @@ uint32_t state_from_c2(std::vector<State> &state, const uint8_t *c2_data)
 		if(c2_quad)
 		{
 			state[i] = State::ERROR_C2;
-			c2_count += bits_count(c2_quad);
+			c2_count += std::popcount(c2_quad);
 		}
 	}
 

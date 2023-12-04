@@ -7,7 +7,7 @@ module;
 #include <ostream>
 #include <string_view>
 
-export module systems.ss;
+export module systems.sat;
 
 import filesystem.iso9660;
 import readers.sector_reader;
@@ -19,7 +19,7 @@ import utils.hex_bin;
 namespace gpsxre
 {
 
-export class SystemSS : public System
+export class SystemSAT : public System
 {
 public:
 	std::string getName() override

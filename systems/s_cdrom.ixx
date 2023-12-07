@@ -4,6 +4,7 @@ module;
 #include <fstream>
 #include <ostream>
 #include <vector>
+#include "system.hh"
 #include "throw_line.hh"
 
 export module systems.cdrom;
@@ -13,7 +14,6 @@ import cd.cdrom;
 import cd.ecc;
 import cd.edc;
 import readers.sector_reader;
-import systems.system;
 import utils.file_io;
 
 

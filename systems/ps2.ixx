@@ -7,13 +7,13 @@ module;
 #include <ostream>
 #include <regex>
 #include <set>
+#include "system.hh"
 #include "throw_line.hh"
 
 export module systems.ps2;
 
 import filesystem.iso9660;
 import readers.sector_reader;
-import systems.system;
 import utils.misc;
 import utils.strings;
 

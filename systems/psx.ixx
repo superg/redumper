@@ -5,6 +5,7 @@ module;
 #include <ostream>
 #include <regex>
 #include <set>
+#include "system.hh"
 #include "throw_line.hh"
 
 export module systems.psx;
@@ -15,7 +16,6 @@ import cd.subcode;
 import dump;
 import filesystem.iso9660;
 import readers.sector_reader;
-import systems.system;
 import utils.endian;
 import utils.file_io;
 import utils.misc;

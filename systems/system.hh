@@ -1,9 +1,8 @@
-module;
 #include <filesystem>
 #include <ostream>
 #include <string>
 
-export module systems.system;
+
 
 import readers.sector_reader;
 
@@ -12,7 +11,8 @@ import readers.sector_reader;
 namespace gpsxre
 {
 
-export class System
+//FIXME: switch back to module after correction of CMake Ninja generator issue with cyclic dependencies
+class System
 {
 public:
 	enum class Type

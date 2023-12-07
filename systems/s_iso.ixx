@@ -4,12 +4,12 @@ module;
 #include <format>
 #include <fstream>
 #include <ostream>
+#include "system.hh"
 
 export module systems.iso;
 
 import filesystem.iso9660;
 import readers.sector_reader;
-import systems.system;
 import utils.hex_bin;
 import utils.strings;
 

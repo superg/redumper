@@ -6,6 +6,7 @@ module;
 #include <string>
 #include <utility>
 #include <sstream>
+#include "systems/system.hh"
 #include "throw_line.hh"
 
 export module info;
@@ -18,7 +19,6 @@ import readers.image_bin_form1_reader;
 import readers.image_iso_form1_reader;
 import readers.image_raw_reader;
 import readers.sector_reader;
-import systems.system;
 import systems.systems;
 import utils.hex_bin;
 import utils.logger;

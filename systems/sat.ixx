@@ -6,12 +6,12 @@ module;
 #include <format>
 #include <ostream>
 #include <string_view>
+#include "system.hh"
 
 export module systems.sat;
 
 import filesystem.iso9660;
 import readers.sector_reader;
-import systems.system;
 import utils.hex_bin;
 
 

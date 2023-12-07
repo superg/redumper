@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
+# enable scan imports in 3.28 while supporting 3.26
+cmake_policy(SET CMP0155 NEW)
 
 # project / version
 set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
@@ -49,13 +51,15 @@ endif()
 # C/C++
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-if(CMAKE_VERSION VERSION_LESS "3.27.0")
-	set(CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API "2182bf5c-ef0d-489a-91da-49dbc3090d2a")
-else()
-	set(CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API "aa1f7df0-828a-4fcd-9afc-2dc80491aca7")
+if(CMAKE_VERSION VERSION_LESS "3.28.0")
+	set(CMAKE_CXX_EXTENSIONS OFF)
+	if(CMAKE_VERSION VERSION_LESS "3.27.0")
+		set(CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API "2182bf5c-ef0d-489a-91da-49dbc3090d2a")
+	else()
+		set(CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API "aa1f7df0-828a-4fcd-9afc-2dc80491aca7")
+	endif()
+	set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
 endif()
-set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
 add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_MINOR=${PROJECT_VERSION_MINOR}
                 -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH}
@@ -63,8 +67,8 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	# -fexperimental-library is required for clang-16 as std::format is defined there
-	add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> -fexperimental-library)
-	add_link_options(-stdlib=libc++ ${REDUMPER_CLANG_LINK_OPTIONS} -fexperimental-library)
+	add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
+	add_link_options(-stdlib=libc++ ${REDUMPER_CLANG_LINK_OPTIONS})
 
 	# silence implicit modules use warning
 	# TL;DR, this will be taken cared of by listing module dependencies explicitly (cmake)
@@ -116,6 +120,7 @@ target_sources(redumper
 	"dvd/css/css_tables.cc"
 	"main.cc"
 	"driveoffsets.txt"
+	"systems/system.hh"
 	"utils/throw_line.hh"
 	"redumper.manifest"
 	${DRIVEOFFSETS_FN}
@@ -161,7 +166,6 @@ target_sources(redumper
 	"systems/psx.ixx"
 	"systems/ps2.ixx"
 	"systems/sat.ixx"
-	"systems/system.ixx"
 	"systems/systems.ixx"
 	"utils/animation.ixx"
 	"utils/endian.ixx"

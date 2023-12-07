@@ -2,6 +2,7 @@ module;
 #include <functional>
 #include <list>
 #include <memory>
+#include "system.hh"
 
 export module systems.systems;
 
@@ -12,7 +13,6 @@ import systems.psx;
 import systems.ps2;
 import systems.securom;
 import systems.sat;
-import systems.system;
 
 
 
@@ -29,7 +29,7 @@ public:
 	static std::list<Creator> get()
 	{
 		std::list<Creator> systems;
-		
+
 		systems.push_back([](){ return std::make_unique<SystemCDROM>(); });
 		systems.push_back([](){ return std::make_unique<SystemSecuROM>(); });
 		systems.push_back([](){ return std::make_unique<SystemISO>(); });

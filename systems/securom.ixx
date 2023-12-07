@@ -4,6 +4,7 @@ module;
 #include <fstream>
 #include <ostream>
 #include <vector>
+#include "system.hh"
 #include "throw_line.hh"
 
 
@@ -16,7 +17,6 @@ import cd.subcode;
 import crc.crc16_gsm;
 import dump;
 import readers.sector_reader;
-import systems.system;
 import utils.endian;
 import utils.file_io;
 import utils.misc;

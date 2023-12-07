@@ -30,7 +30,6 @@ jobs:
       run: |
         wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
         sudo add-apt-repository --yes 'deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main'
-        sudo apt-get remove clang-14 lldb-14 lld-14 clang-tools-14 libc++-14-dev libc++abi-14-dev libc++1-14 libc++abi1-14 libunwind-14 libunwind-14-dev python3-lldb-14
         sudo apt-get install clang-17 lldb-17 lld-17 clang-tools-17 libc++-17-dev libc++abi-17-dev
         sudo ln -s /usr/lib/llvm-17/lib/clang/17 /usr/lib/llvm-17/lib/clang/17.0.0
         wget http://mirrors.kernel.org/ubuntu/pool/universe/n/ninja-build/ninja-build_1.11.1-1_amd64.deb

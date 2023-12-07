@@ -2,6 +2,7 @@ module;
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <list>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -330,6 +331,59 @@ export int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fst
 	}
 
 	return write_offset;
+}
+
+
+export std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::path &cue_path)
+{
+	std::list<std::pair<std::string, bool>> entries;
+
+	std::fstream fs(cue_path, std::fstream::in);
+	if(!fs.is_open())
+		throw_line("unable to open file ({})", cue_path.filename().string());
+
+	std::pair<std::string, bool> entry;
+	std::string line;
+	while(std::getline(fs, line))
+	{
+		auto tokens(tokenize(line, " \t", "\"\""));
+		if(tokens.size() == 3)
+		{
+			if(tokens[0] == "FILE")
+				entry.first = tokens[1];
+			else if(tokens[0] == "TRACK" && !entry.first.empty())
+			{
+				entry.second = tokens[2] != "AUDIO";
+				entries.push_back(entry);
+				entry.first.clear();
+			}
+		}
+	}
+
+	return entries;
+}
+
+
+//FIXME: just do regexp
+export std::string track_extract_basename(std::string str)
+{
+	std::string basename = str;
+
+	// strip extension
+	{
+		auto pos = basename.find_last_of('.');
+		if(pos != std::string::npos)
+			basename = std::string(basename, 0, pos);
+	}
+
+	// strip (Track X)
+	{
+		auto pos = str.find(" (Track ");
+		if(pos != std::string::npos)
+			basename = std::string(basename, 0, pos);
+	}
+
+	return basename;
 }
 
 }

@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -94,13 +95,9 @@ void clean_write(T *dst, size_t dst_offset, size_t size, T data)
 
 
 export template<typename T>
-bool is_zeroed(const T *data, uint64_t count)
+bool is_zeroed(const T *data, size_t size)
 {
-	for(uint64_t i = 0; i < count; ++i)
-		if(data[i])
-			return false;
-
-	return true;
+	return std::all_of(data, data + size, [](T v){ return v == 0; });
 }
 
 
@@ -192,24 +189,12 @@ void bit_copy(T *dst, size_t dst_offset, const T *src, size_t src_offset, size_t
 
 
 export template<typename T>
-uint32_t bits_count(T value)
-{
-	uint32_t count = 0;
-
-	for(; value; ++count)
-		value &= value - 1;
-
-	return count;
-}
-
-
-export template<typename T>
 uint64_t bit_diff(const T *data1, const T *data2, uint64_t count)
 {
 	uint64_t diff = 0;
 
 	for(uint64_t i = 0; i < count; ++i)
-		diff += bits_count(data1[i] ^ data2[i]);
+		diff += std::popcount(data1[i] ^ data2[i]);
 
 	return diff;
 }
@@ -563,29 +548,6 @@ export std::string system_date_time(std::string fmt)
 }
 
 
-//FIXME: just do regexp
-export std::string track_extract_basename(std::string str)
-{
-	std::string basename = str;
-
-	// strip extension
-	{
-		auto pos = basename.find_last_of('.');
-		if(pos != std::string::npos)
-			basename = std::string(basename, 0, pos);
-	}
-
-	// strip (Track X)
-	{
-		auto pos = str.find(" (Track ");
-		if(pos != std::string::npos)
-			basename = std::string(basename, 0, pos);
-	}
-
-	return basename;
-}
-
-
 export template<unsigned int bits, class T>
 T sign_extend(T value)
 {
@@ -607,36 +569,6 @@ export bool number_is_year(uint32_t year)
 export bool number_is_month(uint32_t month)
 {
 	return month >= 1 && month <= 12;
-}
-
-
-export std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::path &cue_path)
-{
-	std::list<std::pair<std::string, bool>> entries;
-
-	std::fstream fs(cue_path, std::fstream::in);
-	if(!fs.is_open())
-		throw_line("unable to open file ({})", cue_path.filename().string());
-
-	std::pair<std::string, bool> entry;
-	std::string line;
-	while(std::getline(fs, line))
-	{
-		auto tokens(tokenize(line, " \t", "\"\""));
-		if(tokens.size() == 3)
-		{
-			if(tokens[0] == "FILE")
-				entry.first = tokens[1];
-			else if(tokens[0] == "TRACK" && !entry.first.empty())
-			{
-				entry.second = tokens[2] != "AUDIO";
-				entries.push_back(entry);
-				entry.first.clear();
-			}
-		}
-	}
-
-	return entries;
 }
 
 }

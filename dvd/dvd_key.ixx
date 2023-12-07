@@ -64,7 +64,7 @@ std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(SectorRead
 		if(e->isDirectory())
 			continue;
 
-		if(ends_with(e->name(), ".VOB"))
+		if(e->name().ends_with(".VOB"))
 			titles[e->name()] = std::pair(e->sectorsOffset(), e->sectorsOffset() + e->sectorsSize());
 	}
 
@@ -132,7 +132,7 @@ export void dvd_key(Context &ctx, const Options &options)
 		{
 			Disc_READ_Reader reader(*ctx.sptd);
 			auto vobs = extract_vob_list(&reader);
-			
+
 			bool cppm = false;
 
 			CSS css(*ctx.sptd);

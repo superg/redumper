@@ -12,8 +12,6 @@ module;
 export module dump;
 
 import cd.cd;
-import cd.cdrom;
-import cd.scrambler;
 import cd.subcode;
 import cd.toc;
 import drive;
@@ -25,7 +23,6 @@ import utils.endian;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
-import utils.strings;
 
 
 
@@ -284,106 +281,6 @@ export bool profile_is_hddvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL;
-}
-
-
-export std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::path &cue_path)
-{
-	std::list<std::pair<std::string, bool>> entries;
-
-	std::fstream fs(cue_path, std::fstream::in);
-	if(!fs.is_open())
-		throw_line("unable to open file ({})", cue_path.filename().string());
-
-	std::pair<std::string, bool> entry;
-	std::string line;
-	while(std::getline(fs, line))
-	{
-		auto tokens(tokenize(line, " \t", "\"\""));
-		if(tokens.size() == 3)
-		{
-			if(tokens[0] == "FILE")
-				entry.first = tokens[1];
-			else if(tokens[0] == "TRACK" && !entry.first.empty())
-			{
-				entry.second = tokens[2] != "AUDIO";
-				entries.push_back(entry);
-				entry.first.clear();
-			}
-		}
-	}
-
-	return entries;
-}
-
-
-//FIXME: just do regexp
-export std::string track_extract_basename(std::string str)
-{
-	std::string basename = str;
-
-	// strip extension
-	{
-		auto pos = basename.find_last_of('.');
-		if(pos != std::string::npos)
-			basename = std::string(basename, 0, pos);
-	}
-
-	// strip (Track X)
-	{
-		auto pos = str.find(" (Track ");
-		if(pos != std::string::npos)
-			basename = std::string(basename, 0, pos);
-	}
-
-	return basename;
-}
-
-
-export int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs)
-{
-	int32_t write_offset = std::numeric_limits<int32_t>::max();
-
-	constexpr uint32_t sectors_to_check = 2;
-
-	std::vector<uint8_t> data(sectors_to_check * CD_DATA_SIZE);
-	std::vector<State> state(sectors_to_check * CD_DATA_SIZE_SAMPLES);
-
-	uint32_t groups_count = (lba_end - lba_start) / sectors_to_check;
-	for(uint32_t i = 0; i < groups_count; ++i)
-	{
-		int32_t lba = lba_start + i * sectors_to_check;
-		read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba - LBA_START, sectors_to_check, 0, 0);
-		read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, sectors_to_check, 0, (uint8_t)State::ERROR_SKIP);
-
-		for(auto const &s : state)
-			if(s == State::ERROR_SKIP || s == State::ERROR_C2)
-				continue;
-
-		auto it = std::search(data.begin(), data.end(), std::begin(CD_DATA_SYNC), std::end(CD_DATA_SYNC));
-		if(it != data.end())
-		{
-			auto sector_offset = (uint32_t)(it - data.begin());
-
-			// enough data for one sector
-			if(data.size() - sector_offset >= CD_DATA_SIZE)
-			{
-				Sector &sector = *(Sector *)&data[sector_offset];
-				Scrambler scrambler;
-				scrambler.descramble((uint8_t *)&sector, nullptr);
-
-				if(BCDMSF_valid(sector.header.address))
-				{
-					int32_t sector_lba = BCDMSF_to_LBA(sector.header.address);
-					write_offset = ((int32_t)sector_offset - (sector_lba - lba) * (int32_t)CD_DATA_SIZE) / (int32_t)CD_SAMPLE_SIZE;
-
-					break;
-				}
-			}
-		}
-	}
-
-	return write_offset;
 }
 
 }

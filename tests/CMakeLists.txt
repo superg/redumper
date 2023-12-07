@@ -19,7 +19,6 @@ target_sources(tests
 		"${CMAKE_SOURCE_DIR}/crc/crc32.ixx"
 		"${CMAKE_SOURCE_DIR}/utils/file_io.ixx"
 		"${CMAKE_SOURCE_DIR}/utils/misc.ixx"
-		"${CMAKE_SOURCE_DIR}/utils/strings.ixx"
 )
 
 add_test(NAME tests COMMAND tests WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")

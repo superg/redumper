@@ -135,7 +135,9 @@ target_sources(redumper
 	"cd/cdrom.ixx"
 	"cd/ecc.ixx"
 	"cd/edc.ixx"
+	"cd/offset_manager.ixx"
 	"cd/scrambler.ixx"
+	"cd/split.ixx"
 	"cd/subcode.ixx"
 	"cd/toc.ixx"
 	"crc/crc.ixx"
@@ -182,13 +184,11 @@ target_sources(redumper
 	"drive.ixx"
 	"hash.ixx"
 	"info.ixx"
-	"offset_manager.ixx"
 	"options.ixx"
 	"redumper.ixx"
 	"rings.ixx"
 	"rom_entry.ixx"
 	"skeleton.ixx"
-	"split.ixx"
 	"version.ixx"
 )
 

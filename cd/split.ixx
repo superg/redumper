@@ -21,13 +21,13 @@ import cd.cd;
 import cd.cdrom;
 import cd.ecc;
 import cd.edc;
+import cd.offset_manager;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
 import dump;
 import filesystem.iso9660;
 import hash.sha1;
-import offset_manager;
 import options;
 import readers.image_bin_form1_reader;
 import rom_entry;
@@ -285,7 +285,7 @@ std::vector<std::string> write_tracks(const TOC &toc, std::fstream &scm_fs, std:
 	// discs with offset shift usually have some corruption in a couple of transitional sectors preventing normal descramble detection,
 	// as everything is scrambled in this case, force descrambling
 	bool force_descramble = offset_manager->isVariable();
-	
+
 	for(auto &s : toc.sessions)
 	{
 		for(auto &t : s.tracks)
@@ -1284,7 +1284,7 @@ export void redumper_split(Context &ctx, Options &options)
 				data_track = true;
 				break;
 			}
-		
+
 		if(data_track)
 		{
 			LOG("data disc detected, offset configuration: ");

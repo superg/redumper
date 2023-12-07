@@ -12,6 +12,8 @@ module;
 export module dump;
 
 import cd.cd;
+import cd.cdrom;
+import cd.scrambler;
 import cd.subcode;
 import cd.toc;
 import drive;
@@ -237,7 +239,7 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 	MSF msf = LBA_to_MSF(lba);
 	os << std::format("MSF: {:02}:{:02}:{:02} Q-Data: {:X}{:X}{:02X}{:02X} {:02X}:{:02X}:{:02X} {:02X} {:02X}:{:02X}:{:02X} {:04X}",
 					  msf.m, msf.s, msf.f, (uint8_t)Q.control, (uint8_t)Q.adr, Q.mode1.tno, Q.mode1.point_index, Q.mode1.msf.m, Q.mode1.msf.s, Q.mode1.msf.f, Q.mode1.zero, Q.mode1.a_msf.m, Q.mode1.a_msf.s, Q.mode1.a_msf.f, endian_swap<uint16_t>(Q.crc)) << std::endl;
-	
+
 	return os;
 }
 
@@ -281,6 +283,53 @@ export bool profile_is_hddvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL;
+}
+
+
+export int32_t track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs)
+{
+	int32_t write_offset = std::numeric_limits<int32_t>::max();
+
+	constexpr uint32_t sectors_to_check = 2;
+
+	std::vector<uint8_t> data(sectors_to_check * CD_DATA_SIZE);
+	std::vector<State> state(sectors_to_check * CD_DATA_SIZE_SAMPLES);
+
+	uint32_t groups_count = (lba_end - lba_start) / sectors_to_check;
+	for(uint32_t i = 0; i < groups_count; ++i)
+	{
+		int32_t lba = lba_start + i * sectors_to_check;
+		read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba - LBA_START, sectors_to_check, 0, 0);
+		read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, sectors_to_check, 0, (uint8_t)State::ERROR_SKIP);
+
+		for(auto const &s : state)
+			if(s == State::ERROR_SKIP || s == State::ERROR_C2)
+				continue;
+
+		auto it = std::search(data.begin(), data.end(), std::begin(CD_DATA_SYNC), std::end(CD_DATA_SYNC));
+		if(it != data.end())
+		{
+			auto sector_offset = (uint32_t)(it - data.begin());
+
+			// enough data for one sector
+			if(data.size() - sector_offset >= CD_DATA_SIZE)
+			{
+				Sector &sector = *(Sector *)&data[sector_offset];
+				Scrambler scrambler;
+				scrambler.descramble((uint8_t *)&sector, nullptr);
+
+				if(BCDMSF_valid(sector.header.address))
+				{
+					int32_t sector_lba = BCDMSF_to_LBA(sector.header.address);
+					write_offset = ((int32_t)sector_offset - (sector_lba - lba) * (int32_t)CD_DATA_SIZE) / (int32_t)CD_SAMPLE_SIZE;
+
+					break;
+				}
+			}
+		}
+	}
+
+	return write_offset;
 }
 
 }

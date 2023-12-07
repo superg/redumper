@@ -136,6 +136,7 @@ target_sources(redumper
 	"cd/ecc.ixx"
 	"cd/edc.ixx"
 	"cd/offset_manager.ixx"
+	"cd/protection.ixx"
 	"cd/scrambler.ixx"
 	"cd/split.ixx"
 	"cd/subcode.ixx"

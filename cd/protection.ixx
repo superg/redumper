@@ -11,7 +11,6 @@ module;
 export module cd.protection;
 
 import cd.cd;
-import cd.subcode;
 import cd.toc;
 import dump;
 import filesystem.iso9660;

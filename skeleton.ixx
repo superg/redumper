@@ -3,6 +3,7 @@ module;
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <list>
 #include <string>
 #include <utility>
 #include <vector>

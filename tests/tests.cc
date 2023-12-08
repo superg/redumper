@@ -13,6 +13,7 @@ import crc.crc16_gsm;
 import crc.crc32;
 import utils.file_io;
 import utils.misc;
+import utils.strings;
 
 
 
@@ -166,7 +167,7 @@ bool test_bcd()
 
 		std::cout << std::endl;
 	}
-	
+
 	for(size_t i = 0; i < cases.size(); ++i)
 	{
 		std::cout << std::format("bcd_encode: {:3} -> {:02X}... ", cases[i].second, cases[i].first) << std::flush;
@@ -181,7 +182,7 @@ bool test_bcd()
 
 		std::cout << std::endl;
 	}
-	
+
 	return success;
 }
 

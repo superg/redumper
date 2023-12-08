@@ -26,6 +26,7 @@ import utils.endian;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
+import utils.strings;
 
 
 
@@ -263,7 +264,9 @@ export bool profile_is_dvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR
 		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R;
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL
+		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL;
 }
 
 

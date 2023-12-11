@@ -100,6 +100,28 @@ export uint32_t sample_offset_r2a(int32_t relative)
 }
 
 
+export TOC choose_toc(const std::vector<uint8_t> &toc_buffer, const std::vector<uint8_t> &full_toc_buffer)
+{
+	TOC toc(toc_buffer, false);
+
+	if(!full_toc_buffer.empty())
+	{
+		TOC toc_full(full_toc_buffer, true);
+
+		// [PSX] Motocross Mania
+		// [ENHANCED-CD] Vanishing Point
+		// PX-W5224TA: incorrect FULL TOC data in some cases
+		toc_full.deriveINDEX(toc);
+
+		// prefer TOC for single session discs and FULL TOC for multisession discs
+		if(toc_full.sessions.size() > 1)
+			toc = toc_full;
+	}
+
+	return toc;
+}
+
+
 export std::vector<ChannelQ> load_subq(const std::filesystem::path &sub_path)
 {
 	std::vector<ChannelQ> subq(std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE);

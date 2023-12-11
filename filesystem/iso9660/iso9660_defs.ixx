@@ -13,6 +13,7 @@ import cd.cdrom;
 import readers.sector_reader;
 import utils.endian;
 import utils.misc;
+import utils.strings;
 
 
 
@@ -292,6 +293,16 @@ uint32_t directory_extent_get_length(SectorReader *sector_reader, uint32_t offse
 	}
 
 	return 0;
+}
+
+
+std::string split_identifier(uint32_t &version, std::string identifier)
+{
+	auto s = identifier.find((char)iso9660::Characters::SEPARATOR2);
+
+	version = (s == std::string::npos ? 0 : str_to_int(identifier.substr(s + 1)));
+
+	return identifier.substr(0, s);
 }
 
 }

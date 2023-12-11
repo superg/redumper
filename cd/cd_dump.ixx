@@ -410,25 +410,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 	int32_t lba_start = ctx.drive_config.pregap_start;
 	int32_t lba_end = MSF_to_LBA(MSF{74, 0, 0}); // default: 74min / 650Mb
 
-	// TOC
 	std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
-	TOC toc(toc_buffer, false);
-
-	// FULL TOC
 	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
-	if(!full_toc_buffer.empty())
-	{
-		TOC toc_full(full_toc_buffer, true);
-
-		// [PSX] Motocross Mania
-		// [ENHANCED-CD] Vanishing Point
-		// PX-W5224TA: incorrect FULL TOC data in some cases
-		toc_full.deriveINDEX(toc);
-
-		// prefer TOC for single session discs and FULL TOC for multisession discs
-		if(toc_full.sessions.size() > 1)
-			toc = toc_full;
-	}
+	auto toc = choose_toc(toc_buffer, full_toc_buffer);
 
 	if(!refine)
 	{

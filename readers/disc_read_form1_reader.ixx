@@ -17,8 +17,9 @@ namespace gpsxre
 export class Disc_READ_Reader : public SectorReader
 {
 public:
-	Disc_READ_Reader(SPTD &sptd)
+	Disc_READ_Reader(SPTD &sptd, uint32_t base_lba)
 		: _sptd(sptd)
+		, _baseLBA(base_lba)
 	{
 		;
 	}
@@ -30,7 +31,7 @@ public:
 
 		if(!form2)
 		{
-			auto status = cmd_read(_sptd, sectors, FORM1_DATA_SIZE, index, count, false);
+			auto status = cmd_read(_sptd, sectors, FORM1_DATA_SIZE, _baseLBA + index, count, false);
 			if(!status.status_code)
 				sectors_read = count;
 		}
@@ -47,8 +48,15 @@ public:
 		return FORM1_DATA_SIZE;
 	}
 
+
+	uint32_t sectorsBase() override
+	{
+		return _baseLBA;
+	}
+
 private:
 	SPTD &_sptd;
+	uint32_t _baseLBA;
 };
 
 }

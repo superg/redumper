@@ -130,7 +130,7 @@ export void dvd_key(Context &ctx, const Options &options)
 
 		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
 		{
-			Disc_READ_Reader reader(*ctx.sptd);
+			Disc_READ_Reader reader(*ctx.sptd, 0);
 			auto vobs = extract_vob_list(&reader);
 
 			bool cppm = false;

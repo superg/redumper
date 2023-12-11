@@ -212,7 +212,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	// can't use pvd.volume_space_size here because there might be more than one extent (UDF specific?) [Gran Turismo 4]
 	uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
 
-	auto area_map = iso9660::area_map(sector_reader.get());
+	auto area_map = iso9660::area_map(sector_reader.get(), 0, sectors_count);
 	if(area_map.empty())
 		return;
 

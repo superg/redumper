@@ -28,6 +28,7 @@ import dvd.key;
 import hash;
 import info;
 import options;
+import rings;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -121,6 +122,7 @@ void redumper_dvdkey(Context &ctx, Options &options)
 const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS
 {
 	//COMMAND         DRIVE    HANDLER
+	{ "rings"     , { true ,   redumper_rings      }},
 	{ "dump"      , { true ,   redumper_dump       }},
 	{ "refine"    , { true ,   redumper_refine     }},
 	{ "verify"    , { true ,   redumper_verify     }},

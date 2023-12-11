@@ -882,23 +882,13 @@ export void redumper_split(Context &ctx, Options &options)
 	if(!state_fs.is_open())
 		throw_line("unable to open file ({})", state_path.filename().string());
 
-	// TOC
 	std::vector<uint8_t> toc_buffer = read_vector(toc_path);
-	TOC toc(toc_buffer, false);
-
-	// FULL TOC
+	std::vector<uint8_t> full_toc_buffer;
 	if(std::filesystem::exists(fulltoc_path))
-	{
-		std::vector<uint8_t> full_toc_buffer = read_vector(fulltoc_path);
-		TOC toc_full(full_toc_buffer, true);
+		full_toc_buffer = read_vector(fulltoc_path);
 
-		// PX-W5224TA: incorrect FULL TOC data in some cases
-		toc_full.deriveINDEX(toc);
-
-		if(toc_full.sessions.size() > 1)
-			toc = toc_full;
-	}
-
+	auto toc = choose_toc(toc_buffer, full_toc_buffer);
+	
 	// preload subchannel Q
 	std::vector<ChannelQ> subq;
 	if(std::filesystem::exists(sub_path))

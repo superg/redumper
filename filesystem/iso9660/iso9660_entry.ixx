@@ -93,7 +93,7 @@ public:
 					continue;
 
 				uint32_t version;
-				std::string name = splitIdentifier(version, dr.first);
+				std::string name = split_identifier(version, dr.first);
 
 				entries.push_back(std::make_shared<Entry>(_sectorReader, name, version, dr.second));
 			}
@@ -111,7 +111,7 @@ public:
 		for(auto const &c : components)
 		{
 			uint32_t version;
-			std::string name = str_uppercase(splitIdentifier(version, c));
+			std::string name = str_uppercase(split_identifier(version, c));
 
 			bool found = false;
 
@@ -163,16 +163,6 @@ private:
 	std::string _name;
 	uint32_t _version;
 	iso9660::DirectoryRecord _directoryRecord;
-
-
-	std::string splitIdentifier(uint32_t &version, std::string identifier)
-	{
-		auto s = identifier.find((char)iso9660::Characters::SEPARATOR2);
-
-		version = (s == std::string::npos ? 0 : str_to_int(identifier.substr(s + 1)));
-
-		return identifier.substr(0, s);
-	}
 };
 
 }

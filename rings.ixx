@@ -7,6 +7,7 @@ module;
 export module rings;
 
 import cd.cdrom;
+import cd.subcode;
 import dump;
 import filesystem.iso9660;
 import options;

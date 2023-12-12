@@ -6,6 +6,7 @@ module;
 
 export module rings;
 
+import cd.cd;
 import cd.cdrom;
 import cd.subcode;
 import dump;

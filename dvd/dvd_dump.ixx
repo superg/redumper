@@ -741,7 +741,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 		signal.raiseDefault();
 
 	if(dump_mode == DumpMode::DUMP && !errors_scsi)
-		ctx.dat.push_back(rom_entry.xmlLine());
+		ctx.dat = std::vector<std::string>(1, rom_entry.xmlLine());
 
 	return errors_scsi;
 }

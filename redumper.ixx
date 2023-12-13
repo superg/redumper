@@ -82,18 +82,16 @@ const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_S
 
 void redumper_dump(Context &ctx, Options &options)
 {
-	ctx.dump = std::make_unique<Context::Dump>();
-
 	if(profile_is_cd(ctx.current_profile))
-		ctx.dump->refine = redumper_dump_cd(ctx, options, false);
+		ctx.refine = redumper_dump_cd(ctx, options, false);
 	else
-		ctx.dump->refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
+		ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
 }
 
 
 void redumper_refine(Context &ctx, Options &options)
 {
-	if(!ctx.dump || ctx.dump->refine && options.retries)
+	if(!ctx.refine || *ctx.refine && options.retries)
 	{
 		if(profile_is_cd(ctx.current_profile))
 			redumper_dump_cd(ctx, options, true);

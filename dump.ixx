@@ -5,6 +5,7 @@ module;
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -39,13 +40,9 @@ export struct Context
 	std::shared_ptr<SPTD> sptd;
 	DriveConfig drive_config;
 
-	struct Dump
-	{
-		bool refine;
-	};
-	std::unique_ptr<Dump> dump;
-
-	std::vector<std::string> dat;
+	std::optional<std::vector<std::pair<int32_t, int32_t>>> rings;
+	std::optional<bool> refine;
+	std::optional<std::vector<std::string>> dat;
 };
 
 

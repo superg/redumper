@@ -30,9 +30,7 @@ void progress_output(uint64_t byte, uint64_t bytes_count)
 
 export void redumper_hash(Context &ctx, Options &options)
 {
-	std::vector<std::string> dat(ctx.dat);
-
-	if(dat.empty())
+	if(!ctx.dat)
 	{
 		if(options.image_name.empty())
 			throw_line("image name is not provided");
@@ -58,6 +56,8 @@ export void redumper_hash(Context &ctx, Options &options)
 			uint64_t bytes_count = 0;
 			for(auto f : files)
 				bytes_count += std::filesystem::file_size(f);
+
+			std::vector<std::string> dat;
 
 			std::vector<uint8_t> sector(CD_DATA_SIZE);
 			for(auto f : files)
@@ -87,16 +87,18 @@ export void redumper_hash(Context &ctx, Options &options)
 				dat.push_back(rom_entry.xmlLine());
 			}
 
+			ctx.dat = dat;
+
 			progress_output(bytes_count, bytes_count);
 			LOG("");
 			LOG("");
 		}
 	}
 
-	if(!dat.empty())
+	if(ctx.dat)
 	{
 		LOG("dat:");
-		for(auto l : dat)
+		for(auto l : *ctx.dat)
 			LOG("{}", l);
 	}
 }

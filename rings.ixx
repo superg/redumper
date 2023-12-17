@@ -29,49 +29,6 @@ export void redumper_rings(Context &ctx, Options &options)
 	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
 	auto toc = choose_toc(toc_buffer, full_toc_buffer);
 
-	//DEBUG
-	int32_t s = 0;
-	s = lba_to_sample(0, 0);
-	LOG("&&& {}", s);
-	s = lba_to_sample(1, 0);
-	LOG("&&& {}", s);
-	s = lba_to_sample(2, 0);
-	LOG("&&& {}", s);
-	s = lba_to_sample(-1, 0);
-	LOG("&&& {}", s);
-	s = lba_to_sample(-2, 0);
-	LOG("&&& {}", s);
-
-	s = sample_to_lba(0, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(1, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(587, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(588, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(1175, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(1176, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(1177, 0);
-	LOG("^^^ {}", s);
-
-	s = sample_to_lba(-1, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(-587, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(-588, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(-589, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(-1175, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(-1176, 0);
-	LOG("^^^ {}", s);
-	s = sample_to_lba(-1177, 0);
-	LOG("^^^ {}", s);
-
 	//FIXME:
 	int32_t write_offset = 0;
 

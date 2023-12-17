@@ -216,8 +216,6 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	if(area_map.empty())
 		return;
 
-	area_map.emplace_back(iso9660::Area{ sectors_count, iso9660::Area::Type::SYSTEM_AREA, 0, "" });
-
 	LOG("excluded areas hashes (SHA-1):");
 	for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
 	{
@@ -239,7 +237,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 		}
 
 		uint32_t gap_start = a.offset + scale_up(a.size, sector_reader->sectorSize());
-		if(gap_start <= area_map[i + 1].offset)
+		if(gap_start < area_map[i + 1].offset)
 		{
 			uint32_t gap_size = area_map[i + 1].offset - gap_start;
 

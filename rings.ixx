@@ -29,10 +29,53 @@ export void redumper_rings(Context &ctx, Options &options)
 	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
 	auto toc = choose_toc(toc_buffer, full_toc_buffer);
 
-//	uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
+	//DEBUG
+	int32_t s = 0;
+	s = lba_to_sample(0, 0);
+	LOG("&&& {}", s);
+	s = lba_to_sample(1, 0);
+	LOG("&&& {}", s);
+	s = lba_to_sample(2, 0);
+	LOG("&&& {}", s);
+	s = lba_to_sample(-1, 0);
+	LOG("&&& {}", s);
+	s = lba_to_sample(-2, 0);
+	LOG("&&& {}", s);
+
+	s = sample_to_lba(0, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(1, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(587, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(588, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(1175, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(1176, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(1177, 0);
+	LOG("^^^ {}", s);
+
+	s = sample_to_lba(-1, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(-587, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(-588, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(-589, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(-1175, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(-1176, 0);
+	LOG("^^^ {}", s);
+	s = sample_to_lba(-1177, 0);
+	LOG("^^^ {}", s);
+
+	//FIXME:
+	int32_t write_offset = 0;
 
 	std::vector<iso9660::Area> area_map;
-
 	for(auto &s : toc.sessions)
 	{
 		for(uint32_t i = 0; i + 1 < s.tracks.size(); ++i)
@@ -48,10 +91,10 @@ export void redumper_rings(Context &ctx, Options &options)
 			area_map.insert(area_map.end(), am.begin(), am.end());
 		}
 	}
-
 	if(area_map.empty())
 		return;
 
+	LOG("ISO9660 map: ");
 	std::for_each(area_map.cbegin(), area_map.cend(), [](const iso9660::Area &area)
 	{
 		auto sectors_count = scale_up(area.size, FORM1_DATA_SIZE);
@@ -59,8 +102,27 @@ export void redumper_rings(Context &ctx, Options &options)
 			area.offset, area.offset + sectors_count - 1, sectors_count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
 			area.name.empty() ? "" : std::format(", name: {}", area.name));
 	});
-
 	LOG("");
+
+	std::vector<std::pair<int32_t, int32_t>> rings;
+	for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
+	{
+		auto &a = area_map[i];
+		
+		uint32_t gap_start = a.offset + scale_up(a.size, FORM1_DATA_SIZE);
+		if(gap_start < area_map[i + 1].offset)
+			rings.emplace_back(gap_start, area_map[i + 1].offset);
+	}
+
+	if(!rings.empty())
+	{
+		LOG("ISO9660 rings: ");
+		for(auto r : rings)
+			LOG("  [{:6}, {:6})", r.first, r.second);
+		LOG("");
+	}
+
+	ctx.rings = rings;
 }
 
 }

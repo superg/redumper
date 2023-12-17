@@ -30,7 +30,8 @@ struct Area
 		PATH_TABLE_M_OPT,
 		DIRECTORY_EXTENT,
 		FILE_EXTENT,
-		END_MARKER
+		VOLUME_END_MARKER,
+		SPACE_END_MARKER
 	};
 
 	uint32_t offset;
@@ -50,7 +51,8 @@ std::map<Area::Type, std::string> AREA_TYPE_STRING =
 	{Area::Type::PATH_TABLE_M_OPT, "PATH_TABLE_M_OPT"},
 	{Area::Type::DIRECTORY_EXTENT, "DIRECTORY_EXTENT"},
 	{Area::Type::FILE_EXTENT, "FILE_EXTENT"},
-	{Area::Type::END_MARKER, "END_MARKER"}
+	{Area::Type::VOLUME_END_MARKER, "VOLUME_END_MARKER"},
+	{Area::Type::SPACE_END_MARKER, "SPACE_END_MARKER"}
 };
 
 
@@ -177,8 +179,13 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
 
 	// filesystem end marker
 	// for multisession discs sometimes it's an absolute sector value
-	o = base_offset + pvd.volume_space_size.lsb - (pvd.volume_space_size.lsb > sectors_count ? sector_reader->sectorsBase() : 0);
-	area_map.emplace(o, Area{ o, Area::Type::END_MARKER, 0, "" });
+	uint32_t volume_end_offset = pvd.volume_space_size.lsb - (pvd.volume_space_size.lsb > sectors_count ? sector_reader->sectorsBase() : 0);
+	o = base_offset + volume_end_offset;
+	area_map.emplace(o, Area{ o, Area::Type::VOLUME_END_MARKER, 0, "" });
+
+	// optional space after volume
+	if(sectors_count > volume_end_offset)
+		area_map.emplace(sectors_count, iso9660::Area{ sectors_count, iso9660::Area::Type::SPACE_END_MARKER, 0, "" });
 
 	area_vector.reserve(area_map.size());
 	for(auto const &a : area_map)

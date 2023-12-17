@@ -1096,7 +1096,7 @@ export void redumper_split(Context &ctx, Options &options)
 	{
 		auto &t = toc.sessions.front().tracks.front();
 
-		int32_t lba_start = scale_left(nonzero_data_range.first, CD_DATA_SIZE_SAMPLES);
+		int32_t lba_start = sample_to_lba(nonzero_data_range.first);
 
 		static const std::vector<uint8_t> videonow_magic = {0xE1, 0xE1, 0xE1, 0x01, 0xE1, 0xE1, 0xE1, 0x00};
 		int32_t byte_offset = byte_offset_by_magic(lba_start, t.lba_end, state_fs, scm_fs, videonow_magic);
@@ -1112,7 +1112,7 @@ export void redumper_split(Context &ctx, Options &options)
 	{
 		auto &t = toc.sessions.front().tracks.front();
 
-		int32_t lba_start = scale_left(nonzero_data_range.first, CD_DATA_SIZE_SAMPLES);
+		int32_t lba_start = sample_to_lba(nonzero_data_range.first);
 
 		static const std::vector<uint8_t> videonow_magic_color = { 0x81, 0xE3, 0xE3, 0xC7, 0xC7, 0x81, 0x81, 0xE3 };
 		int32_t byte_offset = byte_offset_by_magic(lba_start, t.lba_end, state_fs, scm_fs, videonow_magic_color);
@@ -1279,7 +1279,7 @@ export void redumper_split(Context &ctx, Options &options)
 		auto &s = toc.sessions[i];
 		auto &t = s.tracks.front();
 
-		int32_t leadin_start = i ? toc.sessions[i - 1].tracks.back().lba_end : scale_left(nonzero_data_range.first, CD_DATA_SIZE_SAMPLES);
+		int32_t leadin_start = i ? toc.sessions[i - 1].tracks.back().lba_end : sample_to_lba(nonzero_data_range.first);
 		int32_t leadin_end = i ? t.indices.front() : 0;
 
 		// do this before new track insertion

@@ -1,6 +1,7 @@
 module;
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <vector>
 #include "throw_line.hh"
 
@@ -8,6 +9,7 @@ export module rings;
 
 import cd.cd;
 import cd.cdrom;
+import cd.scrambler;
 import cd.subcode;
 import dump;
 import filesystem.iso9660;
@@ -23,14 +25,48 @@ import utils.misc;
 namespace gpsxre
 {
 
+
+std::optional<int32_t> find_offset(Context &ctx, uint32_t lba, uint32_t count)
+{
+	std::optional<int32_t> offset;
+	
+	const uint32_t sectors_to_check = 2;
+	std::vector<uint8_t> data(sectors_to_check * CD_DATA_SIZE);
+	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+	
+	for(uint32_t i = 0; i < round_down(count, sectors_to_check); i += sectors_to_check)
+	{
+		for(uint32_t j = 0; j < sectors_to_check; ++j)
+		{
+			auto status = read_sector(sector_buffer.data(), *ctx.sptd, ctx.drive_config, lba + i + j);
+			if(status.status_code)
+				throw_line("failed to read sector");
+
+			std::copy(&sector_buffer[0], &sector_buffer[CD_DATA_SIZE], &data[j * CD_DATA_SIZE]);
+		}
+
+		auto o = sector_offset_by_sync(data, lba + i);
+		if(o)
+		{
+			offset = *o - ctx.drive_config.read_offset;
+			break;
+		}
+	}
+
+	return offset;
+}
+
+
 export void redumper_rings(Context &ctx, Options &options)
 {
+	if(!profile_is_cd(ctx.current_profile))
+		throw_line("rings command requires CD profile (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);
+
 	std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
 	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
 	auto toc = choose_toc(toc_buffer, full_toc_buffer);
 
-	//FIXME:
-	int32_t write_offset = 0;
+	std::optional<int32_t> write_offset;
 
 	std::vector<iso9660::Area> area_map;
 	for(auto &s : toc.sessions)
@@ -42,9 +78,15 @@ export void redumper_rings(Context &ctx, Options &options)
 			if(!(t.control & (uint8_t)ChannelQ::Control::DATA) || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER) || t.indices.empty())
 				continue;
 
-			std::unique_ptr<SectorReader> sector_reader = std::make_unique<Disc_READ_Reader>(*ctx.sptd, t.indices.front());
+			uint32_t track_start = t.indices.front();
+			uint32_t sectors_count = s.tracks[i + 1].lba_start - track_start;
 
-			auto am = iso9660::area_map(sector_reader.get(), t.indices.front(), s.tracks[i + 1].lba_start - t.indices.front());
+			if(!write_offset)
+				write_offset = find_offset(ctx, track_start, std::min(iso9660::SYSTEM_AREA_SIZE, sectors_count));
+
+			std::unique_ptr<SectorReader> sector_reader = std::make_unique<Disc_READ_Reader>(*ctx.sptd, track_start);
+
+			auto am = iso9660::area_map(sector_reader.get(), track_start, sectors_count);
 			area_map.insert(area_map.end(), am.begin(), am.end());
 		}
 	}
@@ -54,9 +96,9 @@ export void redumper_rings(Context &ctx, Options &options)
 	LOG("ISO9660 map: ");
 	std::for_each(area_map.cbegin(), area_map.cend(), [](const iso9660::Area &area)
 	{
-		auto sectors_count = scale_up(area.size, FORM1_DATA_SIZE);
+		auto count = scale_up(area.size, FORM1_DATA_SIZE);
 		LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}",
-			area.offset, area.offset + sectors_count - 1, sectors_count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
+			area.offset, area.offset + count - 1, count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
 			area.name.empty() ? "" : std::format(", name: {}", area.name));
 	});
 	LOG("");

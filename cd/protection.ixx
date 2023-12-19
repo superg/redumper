@@ -96,11 +96,10 @@ export void redumper_protection(Context &ctx, Options &options)
 
 		if(t.control & (uint8_t)ChannelQ::Control::DATA)
 		{
-			int32_t write_offset = track_offset_by_sync(t.lba_start, t_next.lba_start, state_fs, scm_fs);
-
-			if(write_offset != std::numeric_limits<int32_t>::max())
+			auto write_offset = track_offset_by_sync(t.lba_start, t_next.lba_start, state_fs, scm_fs);
+			if(write_offset)
 			{
-				uint32_t file_offset = (t.lba_start - LBA_START) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE;
+				uint32_t file_offset = (t.lba_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
 				auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t_next.lba_start - t.lba_start, !scrap);
 
 				iso9660::PrimaryVolumeDescriptor pvd;
@@ -134,7 +133,7 @@ export void redumper_protection(Context &ctx, Options &options)
 						std::vector<int32_t> errors;
 						for(int32_t lba = lba_start; lba < lba_end; ++lba)
 						{
-							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
+							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -*write_offset, (uint8_t)State::ERROR_SKIP);
 
 							uint32_t error_count = 0;
 							for(auto const &s : state)
@@ -172,8 +171,8 @@ export void redumper_protection(Context &ctx, Options &options)
 		{
 			std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
-			int32_t write_offset = track_offset_by_sync(t.lba_start, t_next.lba_start, state_fs, scm_fs);
-			if(write_offset != std::numeric_limits<int32_t>::max())
+			auto write_offset = track_offset_by_sync(t.lba_start, t_next.lba_start, state_fs, scm_fs);
+			if(write_offset)
 			{
 				// preliminary check
 				bool candidate = false;
@@ -181,7 +180,7 @@ export void redumper_protection(Context &ctx, Options &options)
 					constexpr int32_t lba_check = 50;
 					if(lba_check >= t.lba_start && lba_check < t_next.lba_start)
 					{
-						read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba_check - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
+						read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba_check - LBA_START, 1, -*write_offset, (uint8_t)State::ERROR_SKIP);
 						for(auto const &s : state)
 							if(s == State::ERROR_C2)
 							{
@@ -197,7 +196,7 @@ export void redumper_protection(Context &ctx, Options &options)
 
 					std::string protected_filename;
 					{
-						uint32_t file_offset = (t.lba_start - LBA_START) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE;
+						uint32_t file_offset = (t.lba_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
 						auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t_next.lba_start - t.lba_start, !scrap);
 
 						iso9660::PrimaryVolumeDescriptor pvd;
@@ -228,7 +227,7 @@ export void redumper_protection(Context &ctx, Options &options)
 						std::pair<int32_t, int32_t> range(0, 0);
 						for(int32_t lba = first_file_offset, lba_end = std::min(t_next.lba_start, 5000); lba < lba_end; ++lba)
 						{
-							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -write_offset, (uint8_t)State::ERROR_SKIP);
+							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -*write_offset, (uint8_t)State::ERROR_SKIP);
 
 							bool error = false;
 							for(auto const &s : state)

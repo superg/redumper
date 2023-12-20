@@ -322,6 +322,59 @@ export bool profile_is_hddvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 }
 
 
+export SPTD::Status read_sector(uint8_t *sector, SPTD &sptd, const DriveConfig &drive_config, int32_t lba)
+{
+	auto layout = sector_order_layout(drive_config.sector_order);
+
+	// PLEXTOR: C2 is shifted 294/295 bytes late, read as much sectors as needed to get whole C2
+	// as a consequence, lead-out overread will fail a few sectors earlier
+	uint32_t sectors_count = drive_config.c2_shift / CD_C2_SIZE + (drive_config.c2_shift % CD_C2_SIZE ? 1 : 0) + 1;
+	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
+
+	SPTD::Status status;
+	// D8
+	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
+	{
+		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
+							   drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
+	}
+	// BE
+	else
+	{
+		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
+							 drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
+							 layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
+							 layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
+	}
+
+	if(!status.status_code)
+	{
+		memset(sector, 0x00, CD_RAW_DATA_SIZE);
+
+		// copy data
+		if(layout.data_offset != CD_RAW_DATA_SIZE)
+			memcpy(sector + 0, sector_buffer.data() + layout.data_offset, CD_DATA_SIZE);
+
+		// copy C2
+		if(layout.c2_offset != CD_RAW_DATA_SIZE)
+		{
+			// compensate C2 shift
+			std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);
+			for(uint32_t i = 0; i < sectors_count; ++i)
+				memcpy(c2_buffer.data() + CD_C2_SIZE * i, sector_buffer.data() + layout.size * i + layout.c2_offset, CD_C2_SIZE);
+
+			memcpy(sector + CD_DATA_SIZE, c2_buffer.data() + drive_config.c2_shift, CD_C2_SIZE);
+		}
+
+		// copy subcode
+		if(layout.subcode_offset != CD_RAW_DATA_SIZE)
+			memcpy(sector + CD_DATA_SIZE + CD_C2_SIZE, sector_buffer.data() + layout.subcode_offset, CD_SUBCODE_SIZE);
+	}
+
+	return status;
+}
+
+
 export std::optional<int32_t> sector_offset_by_sync(std::span<uint8_t> data, int32_t lba)
 {
 	std::optional<int32_t> offset;
@@ -370,6 +423,37 @@ export std::optional<int32_t> track_offset_by_sync(int32_t lba_start, int32_t lb
 			break;
 	}
 	
+	return offset;
+}
+
+
+export std::optional<int32_t> track_offset_by_sync(Context &ctx, uint32_t lba, uint32_t count)
+{
+	std::optional<int32_t> offset;
+
+	const uint32_t sectors_to_check = 2;
+	std::vector<uint8_t> data(sectors_to_check * CD_DATA_SIZE);
+	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+
+	for(uint32_t i = 0; i < round_down(count, sectors_to_check); i += sectors_to_check)
+	{
+		for(uint32_t j = 0; j < sectors_to_check; ++j)
+		{
+			auto status = read_sector(sector_buffer.data(), *ctx.sptd, ctx.drive_config, lba + i + j);
+			if(status.status_code)
+				throw_line("failed to read sector");
+
+			std::copy(&sector_buffer[0], &sector_buffer[CD_DATA_SIZE], &data[j * CD_DATA_SIZE]);
+		}
+
+		auto o = sector_offset_by_sync(data, lba + i);
+		if(o)
+		{
+			offset = *o - ctx.drive_config.read_offset;
+			break;
+		}
+	}
+
 	return offset;
 }
 
@@ -424,59 +508,6 @@ export std::string track_extract_basename(std::string str)
 	}
 
 	return basename;
-}
-
-
-export SPTD::Status read_sector(uint8_t *sector, SPTD &sptd, const DriveConfig &drive_config, int32_t lba)
-{
-	auto layout = sector_order_layout(drive_config.sector_order);
-
-	// PLEXTOR: C2 is shifted 294/295 bytes late, read as much sectors as needed to get whole C2
-	// as a consequence, lead-out overread will fail a few sectors earlier
-	uint32_t sectors_count = drive_config.c2_shift / CD_C2_SIZE + (drive_config.c2_shift % CD_C2_SIZE ? 1 : 0) + 1;
-	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
-
-	SPTD::Status status;
-	// D8
-	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
-	{
-		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
-							   drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
-	}
-	// BE
-	else
-	{
-		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
-							 drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
-							 layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
-							 layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
-	}
-
-	if(!status.status_code)
-	{
-		memset(sector, 0x00, CD_RAW_DATA_SIZE);
-
-		// copy data
-		if(layout.data_offset != CD_RAW_DATA_SIZE)
-			memcpy(sector + 0, sector_buffer.data() + layout.data_offset, CD_DATA_SIZE);
-
-		// copy C2
-		if(layout.c2_offset != CD_RAW_DATA_SIZE)
-		{
-			// compensate C2 shift
-			std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);
-			for(uint32_t i = 0; i < sectors_count; ++i)
-				memcpy(c2_buffer.data() + CD_C2_SIZE * i, sector_buffer.data() + layout.size * i + layout.c2_offset, CD_C2_SIZE);
-
-			memcpy(sector + CD_DATA_SIZE, c2_buffer.data() + drive_config.c2_shift, CD_C2_SIZE);
-		}
-
-		// copy subcode
-		if(layout.subcode_offset != CD_RAW_DATA_SIZE)
-			memcpy(sector + CD_DATA_SIZE + CD_C2_SIZE, sector_buffer.data() + layout.subcode_offset, CD_SUBCODE_SIZE);
-	}
-
-	return status;
 }
 
 

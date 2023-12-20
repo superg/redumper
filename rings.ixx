@@ -26,37 +26,6 @@ namespace gpsxre
 {
 
 
-std::optional<int32_t> find_offset(Context &ctx, uint32_t lba, uint32_t count)
-{
-	std::optional<int32_t> offset;
-	
-	const uint32_t sectors_to_check = 2;
-	std::vector<uint8_t> data(sectors_to_check * CD_DATA_SIZE);
-	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
-	
-	for(uint32_t i = 0; i < round_down(count, sectors_to_check); i += sectors_to_check)
-	{
-		for(uint32_t j = 0; j < sectors_to_check; ++j)
-		{
-			auto status = read_sector(sector_buffer.data(), *ctx.sptd, ctx.drive_config, lba + i + j);
-			if(status.status_code)
-				throw_line("failed to read sector");
-
-			std::copy(&sector_buffer[0], &sector_buffer[CD_DATA_SIZE], &data[j * CD_DATA_SIZE]);
-		}
-
-		auto o = sector_offset_by_sync(data, lba + i);
-		if(o)
-		{
-			offset = *o - ctx.drive_config.read_offset;
-			break;
-		}
-	}
-
-	return offset;
-}
-
-
 export void redumper_rings(Context &ctx, Options &options)
 {
 	if(!profile_is_cd(ctx.current_profile))
@@ -82,7 +51,7 @@ export void redumper_rings(Context &ctx, Options &options)
 			uint32_t sectors_count = s.tracks[i + 1].lba_start - track_start;
 
 			if(!write_offset)
-				write_offset = find_offset(ctx, track_start, std::min(iso9660::SYSTEM_AREA_SIZE, sectors_count));
+				write_offset = track_offset_by_sync(ctx, track_start, std::min(iso9660::SYSTEM_AREA_SIZE, sectors_count));
 
 			std::unique_ptr<SectorReader> sector_reader = std::make_unique<Disc_READ_Reader>(*ctx.sptd, track_start);
 
@@ -103,23 +72,27 @@ export void redumper_rings(Context &ctx, Options &options)
 	});
 	LOG("");
 
-	std::vector<std::pair<int32_t, int32_t>> rings;
+	std::vector<std::pair<int32_t, int32_t>> sector_rings;
 	for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
 	{
 		auto &a = area_map[i];
 		
 		uint32_t gap_start = a.offset + scale_up(a.size, FORM1_DATA_SIZE);
 		if(gap_start < area_map[i + 1].offset)
-			rings.emplace_back(gap_start, area_map[i + 1].offset);
+			sector_rings.emplace_back(gap_start, area_map[i + 1].offset);
 	}
 
-	if(!rings.empty())
+	if(!sector_rings.empty())
 	{
 		LOG("ISO9660 rings: ");
-		for(auto r : rings)
+		for(auto r : sector_rings)
 			LOG("  [{:6}, {:6})", r.first, r.second);
 		LOG("");
 	}
+
+	std::vector<std::pair<int32_t, int32_t>> rings;
+	for(auto r : sector_rings)
+		rings.emplace_back(lba_to_sample(r.first, *write_offset), lba_to_sample(r.second, *write_offset));
 
 	ctx.rings = rings;
 }

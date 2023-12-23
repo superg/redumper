@@ -4,7 +4,9 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <list>
+#include <numeric>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include "lzma/Alloc.h"
@@ -30,14 +32,25 @@ import utils.misc;
 namespace gpsxre
 {
 
+typedef std::tuple<std::string, uint32_t, uint32_t, uint32_t> ContentEntry;
+
+
+void progress_output(std::string name, uint64_t value, uint64_t value_count)
+{
+	char animation = value == value_count ? '*' : spinner_animation();
+
+	LOGC_RF("{} [{:3}%] {}", animation, value * 100 / value_count, name);
+}
+
+
 struct MemorySeqInStream
 {
 	ISeqInStream stream;
 
 	std::fstream _imageFS;
-	std::string _imageName;
-	const std::vector<std::pair<uint32_t, uint32_t>> &_files;
+	const std::vector<ContentEntry> &_contents;
 	bool _iso;
+	std::string _skeletonFN;
 
 	uint64_t _sectorSize;
 	uint64_t _sectorsCount;
@@ -46,15 +59,15 @@ struct MemorySeqInStream
 	std::vector<uint8_t> _tail;
 	uint64_t _tailSize;
 
-	MemorySeqInStream(const std::filesystem::path &image_path, const std::vector<std::pair<uint32_t, uint32_t>> &files, bool iso)
-		: _files(files)
+	MemorySeqInStream(const std::filesystem::path &image_path, const std::vector<ContentEntry> &contents, bool iso, const std::string &skeleton_fn)
+		: _contents(contents)
 		, _iso(iso)
 		, _sectorSize(_iso ? FORM1_DATA_SIZE : CD_DATA_SIZE)
 		, _sectorsCount(std::filesystem::file_size(image_path) / _sectorSize)
 		, _currentSector(0)
 		, _tail(_sectorSize)
 		, _tailSize(0)
-		, _imageName(image_path.filename().string())
+		, _skeletonFN(skeleton_fn)
 	{
 		stream.Read = &readC;
 
@@ -71,7 +84,7 @@ struct MemorySeqInStream
 
 	SRes read(uint8_t *buf, size_t *size)
 	{
-		progressOutput(_currentSector, _sectorsCount);
+		progress_output(std::format("creating {}", _skeletonFN), _currentSector, _sectorsCount);
 
 		// old tail
 		if(_tailSize)
@@ -95,7 +108,7 @@ struct MemorySeqInStream
 					if(_imageFS.fail())
 						return SZ_ERROR_READ;
 
-					if(inside_range((uint32_t)_currentSector, _files) != nullptr)
+					if(insideContents((uint32_t)_currentSector))
 						eraseSector(_tail.data());
 
 					memcpy(buf, _tail.data(), *size);
@@ -116,7 +129,7 @@ struct MemorySeqInStream
 
 					for(uint64_t i = 0; i < sectors_to_process; ++i)
 					{
-						if(inside_range((uint32_t)(_currentSector + i), _files) != nullptr)
+						if(insideContents((uint32_t)(_currentSector + i)))
 							eraseSector(buf + i * _sectorSize);
 					}
 
@@ -126,6 +139,15 @@ struct MemorySeqInStream
 		}
 
 		return SZ_OK;
+	}
+
+	bool insideContents(uint32_t value)
+	{
+		for(auto const &c : _contents)
+			if(value >= std::get<1>(c) && value < std::get<1>(c) + std::get<2>(c))
+				return true;
+
+		return false;
 	}
 
 	void eraseSector(uint8_t *s)
@@ -158,14 +180,6 @@ struct MemorySeqInStream
 			}
 		}
 	}
-
-	void progressOutput(uint64_t sector, uint64_t sectors_count)
-	{
-		char animation = sector == sectors_count ? '*' : spinner_animation();
-
-		LOGC_RF("{} [{:3}%] {}", animation, sector * 100 / sectors_count, _imageName);
-	}
-
 };
 
 struct FileSeqOutStream
@@ -197,11 +211,10 @@ struct FileSeqOutStream
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
 	std::filesystem::path skeleton_path(image_prefix + ".skeleton");
+	std::filesystem::path hash_path(image_prefix + ".hash");
 
-	if(!options.overwrite && (std::filesystem::exists(skeleton_path)))
+	if(!options.overwrite && (std::filesystem::exists(skeleton_path) || std::filesystem::exists(hash_path)))
 		throw_line("skeleton/index file already exists");
-
-	std::vector<std::pair<uint32_t, uint32_t>> files;
 
 	std::unique_ptr<SectorReader> sector_reader;
 	if(iso)
@@ -209,14 +222,13 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	else
 		sector_reader = std::make_unique<Image_BIN_Form1Reader>(image_path);
 
-	// can't use pvd.volume_space_size here because there might be more than one extent (UDF specific?) [Gran Turismo 4]
 	uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
 
 	auto area_map = iso9660::area_map(sector_reader.get(), 0, sectors_count);
 	if(area_map.empty())
 		return;
 
-	LOG("excluded areas hashes (SHA-1):");
+	std::vector<ContentEntry> contents;
 	for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
 	{
 		auto const &a = area_map[i];
@@ -224,17 +236,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 		std::string name(a.name.empty() ? enum_to_string(a.type, iso9660::AREA_TYPE_STRING) : a.name);
 
 		if(a.type == iso9660::Area::Type::SYSTEM_AREA || a.type == iso9660::Area::Type::FILE_EXTENT)
-		{
-			uint32_t sector_size = scale_up(a.size, sector_reader->sectorSize());
-
-			bool xa = false;
-			LOG("{} {}", sector_reader->calculateSHA1(a.offset, sector_size, a.size, false, &xa), name);
-
-			if(xa)
-				LOG("{} {}.XA", sector_reader->calculateSHA1(a.offset, sector_size, a.size, true), name);
-
-			files.emplace_back(a.offset, a.offset + sector_size);
-		}
+			contents.emplace_back(name, a.offset, scale_up(a.size, sector_reader->sectorSize()), a.size);
 
 		uint32_t gap_start = a.offset + scale_up(a.size, sector_reader->sectorSize());
 		if(gap_start < area_map[i + 1].offset)
@@ -243,18 +245,33 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 
 			// 5% or more in relation to the total filesystem size
 			if((uint64_t)gap_size * 100 / sectors_count > 5)
-			{
-				bool xa = false;
-				LOG("{} GAP_{:07}", sector_reader->calculateSHA1(gap_start, gap_size, gap_size * sector_reader->sectorSize(), false, &xa), gap_start);
-
-				if(xa)
-					LOG("{} GAP_{:07}.XA", sector_reader->calculateSHA1(gap_start, gap_size, gap_size * sector_reader->sectorSize(), true), gap_start);
-
-				files.emplace_back(gap_start, gap_start + gap_size);
-			}
+				contents.emplace_back(std::format("GAP_{:07}", gap_start), gap_start, gap_size, gap_size * sector_reader->sectorSize());
 		}
 	}
-	LOG("");
+
+	uint64_t contents_sectors_count = 0;
+	for(auto const &c : contents)
+		contents_sectors_count += std::get<2>(c);
+
+	std::fstream hash_fs(hash_path, std::fstream::out);
+	if(!hash_fs.is_open())
+		throw_line("unable to create file ({})", hash_path.filename().string());
+
+	uint32_t contents_sectors_processed = 0;
+	for(auto const &c : contents)
+	{
+		progress_output(std::format("hashing {}", std::get<0>(c)), contents_sectors_processed, contents_sectors_count);
+
+		bool xa = false;
+		hash_fs << std::format("{} {}", sector_reader->calculateSHA1(std::get<1>(c), std::get<2>(c), std::get<3>(c), false, &xa), std::get<0>(c)) << std::endl;
+
+		if(xa)
+			hash_fs << std::format("{} {}.XA", sector_reader->calculateSHA1(std::get<1>(c), std::get<2>(c), std::get<3>(c), true), std::get<0>(c)) << std::endl;
+
+		contents_sectors_processed += std::get<2>(c);
+	}
+	progress_output("hashing complete", contents_sectors_processed, contents_sectors_count);
+	LOGC("");
 
 	CLzmaEncHandle enc = LzmaEnc_Create(&g_Alloc);
 	if(enc == nullptr)
@@ -265,7 +282,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	if(LzmaEnc_SetProps(enc, &props) != SZ_OK)
 		throw_line("failed to set LZMA properties");
 
-	MemorySeqInStream msis(image_path, files, iso);
+	MemorySeqInStream msis(image_path, contents, iso, skeleton_path.filename().string());
 	FileSeqOutStream fsos(skeleton_path);
 
 	// store props
@@ -285,7 +302,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 
 	LzmaEnc_Destroy(enc, &g_Alloc, &g_Alloc);
 
-	LOG("");
+	LOGC("");
 }
 
 

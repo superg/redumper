@@ -140,6 +140,14 @@ constexpr void LOG(std::format_string<Args...> fmt, Args &&... args)
 }
 
 
+// log message followed by a new line (console)
+export template<typename... Args>
+constexpr void LOGC(std::format_string<Args...> fmt, Args &&... args)
+{
+	Logger::get().log(false, fmt, std::forward<Args>(args)...).lineFeed(false);
+}
+
+
 // log message and flush, no new line (console & file)
 export template<typename... Args>
 constexpr void LOG_F(std::format_string<Args...> fmt, Args &&... args)
@@ -148,7 +156,7 @@ constexpr void LOG_F(std::format_string<Args...> fmt, Args &&... args)
 }
 
 
-// erase current line (console only), log message followed by a new line (console & file)
+// erase current line (console), log message followed by a new line (console & file)
 export template<typename... Args>
 constexpr void LOG_R(std::format_string<Args...> fmt, Args &&... args)
 {
@@ -156,7 +164,7 @@ constexpr void LOG_R(std::format_string<Args...> fmt, Args &&... args)
 }
 
 
-// erase current line, log message and flush, no new line (console only)
+// erase current line, log message and flush, no new line (console)
 // used for progress update
 export template<typename... Args>
 constexpr void LOGC_RF(std::format_string<Args...> fmt, Args &&... args)

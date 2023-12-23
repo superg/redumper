@@ -70,7 +70,6 @@ export void redumper_rings(Context &ctx, Options &options)
 			area.offset, area.offset + count - 1, count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
 			area.name.empty() ? "" : std::format(", name: {}", area.name));
 	});
-	LOG("");
 
 	std::vector<std::pair<int32_t, int32_t>> sector_rings;
 	for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
@@ -84,10 +83,10 @@ export void redumper_rings(Context &ctx, Options &options)
 
 	if(!sector_rings.empty())
 	{
+		LOG("");
 		LOG("ISO9660 rings: ");
 		for(auto r : sector_rings)
 			LOG("  [{:6}, {:6})", r.first, r.second);
-		LOG("");
 	}
 
 	std::vector<std::pair<int32_t, int32_t>> rings;

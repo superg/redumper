@@ -411,6 +411,27 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 			LOG("warning: Blu-ray current profile mismatch, dump will be trimmed to disc filesystem size");
 		}
 
+		if(!profile_is_bluray(ctx.current_profile))
+		{
+			uint32_t physical_sectors_count = 0;
+			for(auto const &p : physical_structures)
+			{
+				if(p.second.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+					throw_line("invalid layer descriptor size (layer: {})", p.first);
+
+				auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)&p.second[sizeof(CMD_ParameterListHeader)];
+
+				physical_sectors_count += get_layer_length(*layer_descriptor);
+			}
+
+			// Kreon drives return incorrect sectors count
+			if(physical_sectors_count != sectors_count)
+			{
+				LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");
+				sectors_count = physical_sectors_count;
+			}
+		}
+
 		if(dump_mode == DumpMode::DUMP)
 		{
 			std::map<uint32_t, std::vector<uint8_t>> manufacturer_structures;

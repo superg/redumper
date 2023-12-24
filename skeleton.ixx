@@ -50,7 +50,6 @@ struct MemorySeqInStream
 	std::fstream _imageFS;
 	const std::vector<ContentEntry> &_contents;
 	bool _iso;
-	std::string _skeletonFN;
 
 	uint64_t _sectorSize;
 	uint64_t _sectorsCount;
@@ -59,7 +58,7 @@ struct MemorySeqInStream
 	std::vector<uint8_t> _tail;
 	uint64_t _tailSize;
 
-	MemorySeqInStream(const std::filesystem::path &image_path, const std::vector<ContentEntry> &contents, bool iso, const std::string &skeleton_fn)
+	MemorySeqInStream(const std::filesystem::path &image_path, const std::vector<ContentEntry> &contents, bool iso)
 		: _contents(contents)
 		, _iso(iso)
 		, _sectorSize(_iso ? FORM1_DATA_SIZE : CD_DATA_SIZE)
@@ -67,7 +66,6 @@ struct MemorySeqInStream
 		, _currentSector(0)
 		, _tail(_sectorSize)
 		, _tailSize(0)
-		, _skeletonFN(skeleton_fn)
 	{
 		stream.Read = &readC;
 
@@ -84,7 +82,7 @@ struct MemorySeqInStream
 
 	SRes read(uint8_t *buf, size_t *size)
 	{
-		progress_output(std::format("creating {}", _skeletonFN), _currentSector, _sectorsCount);
+		progress_output("creating skeleton", _currentSector, _sectorsCount);
 
 		// old tail
 		if(_tailSize)
@@ -282,7 +280,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	if(LzmaEnc_SetProps(enc, &props) != SZ_OK)
 		throw_line("failed to set LZMA properties");
 
-	MemorySeqInStream msis(image_path, contents, iso, skeleton_path.filename().string());
+	MemorySeqInStream msis(image_path, contents, iso);
 	FileSeqOutStream fsos(skeleton_path);
 
 	// store props

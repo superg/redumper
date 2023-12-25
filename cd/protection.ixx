@@ -127,20 +127,13 @@ export void redumper_protection(Context &ctx, Options &options)
 								lba_end = entry_offset;
 						}
 
-						// verified: 78
-						const std::set<uint32_t> safedisc_c2_samples = { 60, 66, 72, 78 };
-
 						std::vector<int32_t> errors;
+
 						for(int32_t lba = lba_start; lba < lba_end; ++lba)
 						{
 							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -*write_offset, (uint8_t)State::ERROR_SKIP);
 
-							uint32_t error_count = 0;
-							for(auto const &s : state)
-								if(s == State::ERROR_C2)
-									++error_count;
-
-							if(safedisc_c2_samples.find(error_count) != safedisc_c2_samples.end())
+							if(std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_C2; }))
 								errors.push_back(lba);
 						}
 

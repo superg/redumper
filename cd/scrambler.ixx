@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <array>
 #include <climits>
 #include <cstdint>
 #include <cstring>
@@ -18,12 +19,6 @@ namespace gpsxre
 export class Scrambler
 {
 public:
-	Scrambler()
-	{
-		generateTable();
-	}
-
-
 	bool descramble(uint8_t *sector, int32_t *lba, uint32_t size = CD_DATA_SIZE) const
 	{
 		bool unscrambled = false;
@@ -69,27 +64,21 @@ public:
 	void process(uint8_t *output, const uint8_t *data, uint32_t offset, uint32_t size) const
 	{
 		for(uint32_t i = 0; i < size; ++i)
-			output[i] = data[i] ^ _table[offset + i];
+			output[i] = data[i] ^ _TABLE[offset + i];
 	}
 
 private:
-	uint8_t _table[CD_DATA_SIZE];
-
-
-	void generateTable()
+	static constexpr auto _TABLE = []()
 	{
+		std::array<uint8_t, CD_DATA_SIZE> table{};
+
 		// ECMA-130
 
-		// after the Sync of the Sector, the register is pre-set with the value 0000 0000 0000 0001, where the ONE is the least significant bit
 		uint16_t shift_register = 0x0001;
-
-		// if sector sync is processed through scramble / unscramble cycle, this ensures that it will remain unchanged
-		// this is not required but remains here for the reference
-		memset(_table, 0, sizeof(CD_DATA_SYNC));
 
 		for(uint16_t i = sizeof(CD_DATA_SYNC); i < CD_DATA_SIZE; ++i)
 		{
-			_table[i] = (uint8_t)shift_register;
+			table[i] = (uint8_t)shift_register;
 
 			for(uint8_t b = 0; b < CHAR_BIT; ++b)
 			{
@@ -99,7 +88,9 @@ private:
 				shift_register = ((uint16_t)carry << 15 | shift_register) >> 1;
 			}
 		}
-	}
+		
+		return table;
+	}();
 
 };
 

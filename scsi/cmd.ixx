@@ -143,14 +143,28 @@ export SPTD::Status cmd_read_capacity(SPTD &sptd, uint32_t &lba, uint32_t &block
 }
 
 
+export SPTD::Status cmd_read_toc(SPTD &sptd, std::vector<uint8_t> &response_data, bool time, READ_TOC_Format format, uint8_t track_number)
+{
+	response_data.clear();
+
+	CDB10_ReadTOC cdb = {};
+	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
+	cdb.time = time ? 1 : 0;
+	cdb.format = (uint8_t)format;
+	cdb.track_number = track_number;
+	
+	return cdb_send_receive(sptd, response_data, cdb);
+}
+
+
 export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> toc;
 
 	CDB10_ReadTOC cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
-	cdb.format2 = (uint8_t)READ_TOC_ExFormat::TOC;
-	cdb.starting_track = 1;
+	cdb.format = (uint8_t)READ_TOC_Format::TOC;
+	cdb.track_number = 1;
 
 	// read TOC header first to get the full TOC size
 	CMD_ParameterListHeader toc_response;
@@ -179,8 +193,8 @@ export std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 
 	CDB10_ReadTOC cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
-	cdb.format2 = (uint8_t)READ_TOC_ExFormat::FULL_TOC;
-	cdb.starting_track = 1;
+	cdb.format = (uint8_t)READ_TOC_Format::FULL_TOC;
+	cdb.track_number = 1;
 
 	// read TOC header first to get the full TOC size
 	CMD_ParameterListHeader toc_response;
@@ -209,7 +223,7 @@ export SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 
 	CDB10_ReadTOC cdb = {};
 	cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
-	cdb.format2 = (uint8_t)READ_TOC_ExFormat::CD_TEXT;
+	cdb.format = (uint8_t)READ_TOC_Format::CD_TEXT;
 
 	// read CD-TEXT header first to get the full TOC size
 	CMD_ParameterListHeader toc_response;

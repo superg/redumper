@@ -343,17 +343,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 		LOG("");
 	}
 
-	bool subcode = true;
-	{
-		auto layout = sector_order_layout(ctx.drive_config.sector_order);
-		if(layout.subcode_offset == CD_RAW_DATA_SIZE)
-		{
-			subcode = false;
-			LOG("warning: drive doesn't support reading of subchannel data");
-		}
-		if(layout.c2_offset == CD_RAW_DATA_SIZE)
-			LOG("warning: drive doesn't support C2 Error pointers");
-	}
+	auto layout = sector_order_layout(ctx.drive_config.sector_order);
+	bool subcode = layout.subcode_offset != CD_RAW_DATA_SIZE;
 
 	// BE read mode
 	bool scrap = false;

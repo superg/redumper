@@ -58,10 +58,10 @@ export enum class INQUIRY_VPDPageCode : uint8_t
 };
 
 
-export enum class READ_TOC_ExFormat : uint8_t
+export enum class READ_TOC_Format : uint8_t
 {
 	TOC,
-	SESSION,
+	SESSION_INFO,
 	FULL_TOC,
 	PMA,
 	ATIP,
@@ -597,17 +597,16 @@ export struct CDB10_ReadCapacity
 export struct CDB10_ReadTOC
 {
 	uint8_t operation_code;
-	uint8_t reserved1             :1;
-	uint8_t msf                   :1;
+	uint8_t reserved3             :1;
+	uint8_t time                  :1;
 	uint8_t reserved2             :3;
-	uint8_t logical_unit_number   :3;
-	uint8_t format2               :4;
-	uint8_t reserved3             :4;
-	uint8_t reserved4[3];
-	uint8_t starting_track;
+	uint8_t reserved1             :3;
+	uint8_t format                :4;
+	uint8_t reserved4             :4;
+	uint8_t reserved5[3];
+	uint8_t track_number;
 	uint8_t allocation_length[2]; // unaligned
-	uint8_t control               :6;
-	uint8_t format                :2;
+	uint8_t control;
 };
 
 

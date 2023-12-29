@@ -15,6 +15,7 @@ export module redumper;
 
 import cd.cd;
 import cd.dump;
+import cd.dump_new;
 import cd.protection;
 import cd.scrambler;
 import cd.split;
@@ -89,6 +90,15 @@ void redumper_dump(Context &ctx, Options &options)
 }
 
 
+void redumper_dump_new(Context &ctx, Options &options)
+{
+	if(profile_is_cd(ctx.current_profile))
+		ctx.refine = redumper_dump_cd_new(ctx, options, DumpMode::DUMP);
+	else
+		ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
+}
+
+
 void redumper_refine(Context &ctx, Options &options)
 {
 	if(!ctx.refine || *ctx.refine && options.retries)
@@ -122,6 +132,7 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
 	//COMMAND         DRIVE    HANDLER
 	{ "rings"     , { true ,   redumper_rings      }},
 	{ "dump"      , { true ,   redumper_dump       }},
+	{ "dumpnew"   , { true ,   redumper_dump_new   }},
 	{ "refine"    , { true ,   redumper_refine     }},
 	{ "verify"    , { true ,   redumper_verify     }},
 	{ "dvdkey"    , { true ,   redumper_dvdkey     }},
@@ -326,6 +337,12 @@ export int redumper(Options &options)
 			speed_str = std::format("<setting failed, SCSI ({})>", SPTD::StatusMessage(status));
 
 		LOG("drive read speed: {}", speed_str);
+
+		auto layout = sector_order_layout(ctx.drive_config.sector_order);
+		if(layout.subcode_offset == CD_RAW_DATA_SIZE)
+			LOG("warning: drive doesn't support reading of subchannel data");
+		if(layout.c2_offset == CD_RAW_DATA_SIZE)
+			LOG("warning: drive doesn't support C2 error pointers");
 
 		LOG("");
 		LOG("current profile: {}", enum_to_string(ctx.current_profile, PROFILE_STRING));

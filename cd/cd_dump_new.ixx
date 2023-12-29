@@ -13,6 +13,7 @@ import cd.toc;
 import dump;
 import options;
 import scsi.cmd;
+import scsi.mmc;
 import scsi.sptd;
 import utils.file_io;
 import utils.logger;

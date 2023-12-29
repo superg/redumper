@@ -10,6 +10,7 @@ export module cd.dump_new;
 
 import cd.cd;
 import cd.toc;
+import drive;
 import dump;
 import options;
 import scsi.cmd;

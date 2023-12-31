@@ -157,6 +157,7 @@ export SPTD::Status cmd_read_toc(SPTD &sptd, std::vector<uint8_t> &response_data
 }
 
 
+//OBSOLETE: remove after migrating to new CD dump code
 export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> toc;
@@ -187,6 +188,7 @@ export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 }
 
 
+//OBSOLETE: remove after migrating to new CD dump code
 export std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> full_toc;
@@ -217,6 +219,7 @@ export std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 }
 
 
+//OBSOLETE: remove after migrating to new CD dump code
 export SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 {
 	SPTD::Status status;
@@ -317,7 +320,7 @@ export SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, i
 }
 
 
-export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
+export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
 {
 	CDB12_ReadCD cdb = {};
 
@@ -334,11 +337,11 @@ export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sector, int32_t start_lba, 
 	cdb.include_sync_data = 1;
 	cdb.sub_channel_selection = (uint8_t)sub_channel;
 
-	return sptd.sendCommand(&cdb, sizeof(cdb), sector, CD_RAW_DATA_SIZE * transfer_length);
+	return sptd.sendCommand(&cdb, sizeof(cdb), sectors, CD_RAW_DATA_SIZE * transfer_length);
 }
 
 
-export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sector, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
+export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
 {
 	CDB12_ReadCDDA cdb = {};
 
@@ -347,7 +350,7 @@ export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sector, int32_t start_lba
 	*(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
 	cdb.sub_code = (uint8_t)sub_code;
 
-	return sptd.sendCommand(&cdb, sizeof(cdb), sector, CD_RAW_DATA_SIZE * transfer_length);
+	return sptd.sendCommand(&cdb, sizeof(cdb), sectors, CD_RAW_DATA_SIZE * transfer_length);
 }
 
 

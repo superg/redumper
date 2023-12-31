@@ -1,4 +1,5 @@
 module;
+#include <algorithm>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -322,7 +323,8 @@ export bool profile_is_hddvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 }
 
 
-export SPTD::Status read_sector(uint8_t *sector, SPTD &sptd, const DriveConfig &drive_config, int32_t lba)
+//OBSOLETE: remove after migrating to new CD dump code
+export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, const DriveConfig &drive_config, int32_t lba)
 {
 	auto layout = sector_order_layout(drive_config.sector_order);
 
@@ -369,6 +371,100 @@ export SPTD::Status read_sector(uint8_t *sector, SPTD &sptd, const DriveConfig &
 		// copy subcode
 		if(layout.subcode_offset != CD_RAW_DATA_SIZE)
 			memcpy(sector + CD_DATA_SIZE + CD_C2_SIZE, sector_buffer.data() + layout.subcode_offset, CD_SUBCODE_SIZE);
+	}
+
+	return status;
+}
+
+
+export SPTD::Status read_sectors(SPTD &sptd, uint8_t *sectors, const DriveConfig &drive_config, int32_t lba, uint32_t count)
+{
+	auto layout = sector_order_layout(drive_config.sector_order);
+	
+	// PLEXTOR: C2 is shifted 294/295 bytes late (drive dependent), read as much sectors as needed to get whole C2
+	// as a consequence, lead-out overread will fail a few sectors earlier
+	uint32_t sectors_count = count + scale_up(drive_config.c2_shift, CD_C2_SIZE);
+
+	// cmd_read_cdda / cmd_read_cd functions internally "know" this buffer size
+	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
+
+	SPTD::Status status;
+	// D8
+	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
+	{
+		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
+							   drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
+	}
+	// BE
+	else
+	{
+		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
+							 drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
+							 layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
+							 layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
+	}
+
+	if(!status.status_code)
+	{
+		// compensate C2 shift
+		if(layout.c2_offset != CD_RAW_DATA_SIZE)
+		{
+			std::vector<uint8_t> c2_buffer(CD_C2_SIZE * sectors_count);
+
+			for(uint32_t i = 0; i < sectors_count; ++i)
+			{
+				auto sector_src = sector_buffer.data() + layout.size * i;
+				auto src = sector_src + layout.c2_offset;
+				auto dst = c2_buffer.data() + CD_C2_SIZE * i;
+
+				std::copy(src, src + CD_C2_SIZE, dst);
+			}
+
+			auto c2_src = c2_buffer.data() + drive_config.c2_shift;
+			for(uint32_t i = 0; i < count; ++i)
+			{
+				auto sector_dst = sector_buffer.data() + layout.size * i;
+				auto dst = sector_dst + layout.c2_offset;
+				auto src = c2_src + CD_C2_SIZE * i;
+
+				std::copy(src, src + CD_C2_SIZE, dst);
+			}
+		}
+
+		for(uint32_t i = 0; i < count; ++i)
+		{
+			auto sector_src = sector_buffer.data() + layout.size * i;
+			auto dst = sectors + CD_RAW_DATA_SIZE * i;
+
+			// copy data
+			if(layout.data_offset == CD_RAW_DATA_SIZE)
+				std::fill(dst, dst + CD_DATA_SIZE, 0x00);
+			else
+			{
+				auto src = sector_src + layout.data_offset;
+				std::copy(src, src + CD_DATA_SIZE, dst);
+			}
+			dst += CD_DATA_SIZE;
+
+			// copy C2
+			if(layout.c2_offset == CD_RAW_DATA_SIZE)
+				std::fill(dst, dst + CD_C2_SIZE, 0x00);
+			else
+			{
+				auto src = sector_src + layout.c2_offset;
+				std::copy(src, src + CD_C2_SIZE, dst);
+			}
+			dst += CD_C2_SIZE;
+
+			// copy subcode
+			if(layout.subcode_offset == CD_RAW_DATA_SIZE)
+				std::fill(dst, dst + CD_SUBCODE_SIZE, 0x00);
+			else
+			{
+				auto src = sector_src + layout.subcode_offset;
+				std::copy(src, src + CD_SUBCODE_SIZE, dst);
+			}
+		}
 	}
 
 	return status;
@@ -439,7 +535,7 @@ export std::optional<int32_t> track_offset_by_sync(Context &ctx, uint32_t lba, u
 	{
 		for(uint32_t j = 0; j < sectors_to_check; ++j)
 		{
-			auto status = read_sector(sector_buffer.data(), *ctx.sptd, ctx.drive_config, lba + i + j);
+			auto status = read_sector(*ctx.sptd, sector_buffer.data(), ctx.drive_config, lba + i + j);
 			if(status.status_code)
 				throw_line("failed to read sector");
 

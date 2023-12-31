@@ -16,6 +16,7 @@ import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
+import utils.animation;
 import utils.file_io;
 import utils.logger;
 import utils.signal;
@@ -24,6 +25,22 @@ import utils.signal;
 
 namespace gpsxre
 {
+
+const uint32_t SLOW_SECTOR_TIMEOUT = 5;
+
+
+void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors_scsi, uint32_t errors_c2, uint32_t errors_q)
+{
+	uint32_t sectors_count = lba_end - lba_start;
+
+	char animation = lba == lba_end ? '*' : spinner_animation();
+
+	uint32_t percentage = (lba - lba_start) * 100 / (lba_end - lba_start);
+
+	LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", animation, percentage,
+			lba, lba_end, errors_scsi, errors_c2, errors_q);
+}
+
 
 TOC process_toc(Context &ctx, const Options &options, DumpMode dump_mode)
 {
@@ -107,9 +124,9 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
 	// don't use .replace_extension() as it messes up paths with dot
-	std::filesystem::path scram_path(image_prefix + ".scram");
-	std::filesystem::path subcode_path(image_prefix + ".subcode");
-	std::filesystem::path state_path(image_prefix + ".state");
+	std::string scram_path(image_prefix + ".scram");
+	std::string subcode_path(image_prefix + ".subcode");
+	std::string state_path(image_prefix + ".state");
 
 	if(dump_mode == DumpMode::DUMP)
 	{
@@ -157,9 +174,10 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 	std::fstream fs_state(state_path, mode);
 
 	// buffers
-	std::vector<uint8_t> sector_data(CD_DATA_SIZE);
-	std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
-	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
+//	std::vector<uint8_t> sector_data(CD_DATA_SIZE);
+//	std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
+//	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
+	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 
 //	uint32_t refine_counter = 0;
 //	uint32_t refine_retries = options.retries ? options.retries : 1;
@@ -195,14 +213,16 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 		}
 
 		if(read)
-		{/*
-			progress_output(s, sectors_count, errors_scsi);
+		{
+			progress_output(lba, lba_start, lba_overread, errors_scsi, errors_c2, errors_q);
 
-			std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
-			auto status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+			auto read_time_start = std::chrono::high_resolution_clock::now();
+			auto status = read_sector(*ctx.sptd, sector_buffer.data(), ctx.drive_config, lba);
+			auto read_time_stop = std::chrono::high_resolution_clock::now();
+			bool slow = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
 
 			if(status.status_code)
-			{
+			{/*
 				if(options.verbose)
 				{
 					std::string status_retries;
@@ -227,21 +247,22 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 
 						refine_counter = 0;
 					}
-				}
+				}*/
 			}
 			else
 			{
 				if(dump_mode == DumpMode::DUMP)
 				{
-					file_data.swap(drive_data);
+//					file_data.swap(drive_data);
 
-					write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
-					std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
-					write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+//					write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
+//					std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
+//					write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
 
 				}
 				else if(dump_mode == DumpMode::REFINE)
 				{
+/*
 					for(uint32_t i = 0; i < sectors_to_read; ++i)
 					{
 						if(file_state[i] == State::SUCCESS)
@@ -260,9 +281,11 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 
 					write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
 					write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+*/
 				}
 				else if(dump_mode == DumpMode::VERIFY)
 				{
+/*
 					bool update = false;
 
 					for(uint32_t i = 0; i < sectors_to_read; ++i)
@@ -284,8 +307,9 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 
 					if(update)
 						write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+*/
 				}
-			}*/
+			}
 		}
 
 		if(signal.interrupt())
@@ -296,6 +320,12 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 
 		if(increment)
 			++lba;
+	}
+
+	if(!signal.interrupt())
+	{
+		progress_output(lba_overread, lba_start, lba_overread, errors_scsi, errors_c2, errors_q);
+		LOGC("");
 	}
 
 	LOG("media errors: ");

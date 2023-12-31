@@ -573,7 +573,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 				if(refine)
 				{
 					std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
-					read_sector(sector_buffer.data(), *ctx.sptd, ctx.drive_config, lba - 1);
+					read_sector(*ctx.sptd, sector_buffer.data(), ctx.drive_config, lba - 1);
 				}
 
 				LOG_R("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
@@ -707,7 +707,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 				cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
-			auto status = read_sector(sector_buffer.data(), *ctx.sptd, ctx.drive_config, lba);
+			auto status = read_sector(*ctx.sptd, sector_buffer.data(), ctx.drive_config, lba);
 			auto read_time_stop = std::chrono::high_resolution_clock::now();
 			bool slow = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
 

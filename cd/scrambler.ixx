@@ -61,7 +61,7 @@ public:
 	}
 
 
-	void process(uint8_t *output, const uint8_t *data, uint32_t offset, uint32_t size) const
+	static void process(uint8_t *output, const uint8_t *data, uint32_t offset, uint32_t size)
 	{
 		for(uint32_t i = 0; i < size; ++i)
 			output[i] = data[i] ^ _TABLE[offset + i];

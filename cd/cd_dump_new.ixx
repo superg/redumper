@@ -217,7 +217,7 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 			progress_output(lba, lba_start, lba_overread, errors_scsi, errors_c2, errors_q);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
-			auto status = read_sector(*ctx.sptd, sector_buffer.data(), ctx.drive_config, lba);
+			auto status = read_sectors(*ctx.sptd, sector_buffer.data(), ctx.drive_config, lba, 1);
 			auto read_time_stop = std::chrono::high_resolution_clock::now();
 			bool slow = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
 

@@ -392,16 +392,49 @@ export SPTD::Status read_sectors(SPTD &sptd, uint8_t *sectors, const DriveConfig
 	// D8
 	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
 	{
-		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
-							   drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
+		auto sub_code = drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
+		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count, sub_code);
 	}
-	// BE
 	else
 	{
-		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
-							 drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
-							 layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
-							 layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
+		auto error_field = layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2;
+		auto sub_channel = layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
+
+		// BE_CDDA
+		if(drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA)
+		{
+			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
+		}
+		// BE
+		else
+		{
+			// read as audio
+			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
+
+			// read failed
+			if(status.status_code)
+			{
+				// read as data
+				status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
+				
+				// read success, scramble data back to unify scram format for generic drives
+				if(!status.status_code && layout.data_offset != CD_RAW_DATA_SIZE)
+				{
+					for(uint32_t i = 0; i < sectors_count; ++i)
+					{
+						auto sector = sector_buffer.data() + layout.size * i;
+						auto data = sector + layout.data_offset;
+
+						Scrambler::process(data, data, 0, CD_DATA_SIZE);
+					}
+
+				}
+
+				LOG("");
+			}
+
+			LOG("");
+		}
 	}
 
 	if(!status.status_code)
@@ -436,34 +469,21 @@ export SPTD::Status read_sectors(SPTD &sptd, uint8_t *sectors, const DriveConfig
 			auto sector_src = sector_buffer.data() + layout.size * i;
 			auto dst = sectors + CD_RAW_DATA_SIZE * i;
 
-			// copy data
-			if(layout.data_offset == CD_RAW_DATA_SIZE)
-				std::fill(dst, dst + CD_DATA_SIZE, 0x00);
-			else
+			auto copy_or_clear = [&dst, sector_src](uint32_t offset, uint32_t size)
 			{
-				auto src = sector_src + layout.data_offset;
-				std::copy(src, src + CD_DATA_SIZE, dst);
-			}
-			dst += CD_DATA_SIZE;
+				if(offset == CD_RAW_DATA_SIZE)
+					std::fill(dst, dst + size, 0x00);
+				else
+				{
+					auto src = sector_src + offset;
+					std::copy(src, src + size, dst);
+				}
+				dst += size;
+			};
 
-			// copy C2
-			if(layout.c2_offset == CD_RAW_DATA_SIZE)
-				std::fill(dst, dst + CD_C2_SIZE, 0x00);
-			else
-			{
-				auto src = sector_src + layout.c2_offset;
-				std::copy(src, src + CD_C2_SIZE, dst);
-			}
-			dst += CD_C2_SIZE;
-
-			// copy subcode
-			if(layout.subcode_offset == CD_RAW_DATA_SIZE)
-				std::fill(dst, dst + CD_SUBCODE_SIZE, 0x00);
-			else
-			{
-				auto src = sector_src + layout.subcode_offset;
-				std::copy(src, src + CD_SUBCODE_SIZE, dst);
-			}
+			copy_or_clear(layout.data_offset, CD_DATA_SIZE);
+			copy_or_clear(layout.c2_offset, CD_C2_SIZE);
+			copy_or_clear(layout.subcode_offset, CD_SUBCODE_SIZE);
 		}
 	}
 

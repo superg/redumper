@@ -2,6 +2,7 @@ module;
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <string>
 #include <vector>
 #include "throw_line.hh"
@@ -19,6 +20,7 @@ import scsi.sptd;
 import utils.animation;
 import utils.file_io;
 import utils.logger;
+import utils.misc;
 import utils.signal;
 
 
@@ -27,18 +29,17 @@ namespace gpsxre
 {
 
 const uint32_t SLOW_SECTOR_TIMEOUT = 5;
+const uint32_t LEADOUT_OVERREAD_COUNT = 100;
 
 
 void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors_scsi, uint32_t errors_c2, uint32_t errors_q)
 {
-	uint32_t sectors_count = lba_end - lba_start;
+	std::string status = lba == lba_end ? "dump complete" :
+		std::format("LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", lba, lba_end, errors_scsi, errors_c2, errors_q);
 
 	char animation = lba == lba_end ? '*' : spinner_animation();
-
 	uint32_t percentage = (lba - lba_start) * 100 / (lba_end - lba_start);
-
-	LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", animation, percentage,
-			lba, lba_end, errors_scsi, errors_c2, errors_q);
+	LOGC_RF("{} [{:3}%] {}", animation, percentage, status);
 }
 
 
@@ -116,6 +117,30 @@ TOC process_toc(Context &ctx, const Options &options, DumpMode dump_mode)
 }
 
 
+std::vector<State> c2_to_state(std::span<uint8_t> c2_data)
+{
+	const uint32_t samples_count = c2_data.size() * CHAR_BIT / CD_SAMPLE_SIZE;
+
+	std::vector<State> state;
+	state.reserve(samples_count);
+
+	// group 4 C2 consecutive errors into 1 state, this way it aligns to the drive offset
+	// and covers the case where for 1 C2 bit there are 2 damaged sector bytes (scrambled data bytes, usually)
+	for(uint32_t i = 0; i < samples_count; ++i)
+	{
+		uint8_t c2_quad = c2_data[i / 2];
+		if(i % 2)
+			c2_quad &= 0x0F;
+		else
+			c2_quad >>= 4;
+
+		state.push_back(c2_quad ? State::ERROR_C2 : State::SUCCESS);
+	}
+
+	return state;
+}
+
+
 export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode dump_mode)
 {
 	if(options.image_name.empty())
@@ -162,6 +187,11 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 		}
 	}
 
+	// multisession gaps
+	std::vector<std::pair<int32_t, int32_t>> error_ranges;
+	for(uint32_t i = 1; i < toc.sessions.size(); ++i)
+		error_ranges.emplace_back(toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + ctx.drive_config.pregap_start);
+
 	auto layout = sector_order_layout(ctx.drive_config.sector_order);
 	bool subcode = layout.subcode_offset != CD_RAW_DATA_SIZE;
 
@@ -173,10 +203,6 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 		fs_subcode.open(subcode_path, mode);
 	std::fstream fs_state(state_path, mode);
 
-	// buffers
-//	std::vector<uint8_t> sector_data(CD_DATA_SIZE);
-//	std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
-//	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
 	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 
 //	uint32_t refine_counter = 0;
@@ -186,14 +212,13 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 	uint32_t errors_c2 = 0;
 	uint32_t errors_q = 0;
 
+	uint32_t errors_q_last = errors_q;
+
 	SignalINT signal;
 
-	int32_t lba_next = 0;
 	int32_t lba_overread = lba_end;
 	for(int32_t lba = lba_start; lba < lba_overread;)
 	{
-		bool increment = true;
-
 		bool read = false;
 		if(dump_mode == DumpMode::DUMP)
 		{
@@ -217,25 +242,36 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 			progress_output(lba, lba_start, lba_overread, errors_scsi, errors_c2, errors_q);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
-			auto status = read_sectors(*ctx.sptd, sector_buffer.data(), ctx.drive_config, lba, 1);
+			bool read_as_data = false;
+			auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), read_as_data, ctx.drive_config, lba);
 			auto read_time_stop = std::chrono::high_resolution_clock::now();
-			bool slow = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
+			bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
+			auto error_range = inside_range(lba, error_ranges);
 
 			if(status.status_code)
-			{/*
-				if(options.verbose)
-				{
-					std::string status_retries;
-					if(dump_mode == DumpMode::REFINE)
-						status_retries = std::format(", retry: {}", refine_counter + 1);
-					for(uint32_t i = 0; i < sectors_to_read; ++i)
-						LOG_R("[sector: {}] SCSI error ({}{})", s + i, SPTD::StatusMessage(status), status_retries);
-				}
-
+			{
 				if(dump_mode == DumpMode::DUMP)
-					errors_scsi += sectors_to_read;
+				{
+					if(error_range == nullptr && lba < lba_end)
+					{
+						++errors_scsi;
+
+						if(options.verbose)
+							LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+					}
+				}
 				else if(dump_mode == DumpMode::REFINE)
 				{
+/*
+					if(options.verbose)
+					{
+						std::string status_retries;
+						if(dump_mode == DumpMode::REFINE)
+							status_retries = std::format(", retry: {}", refine_counter + 1);
+						for(uint32_t i = 0; i < sectors_to_read; ++i)
+							LOG_R("[sector: {}] SCSI error ({}{})", s + i, SPTD::StatusMessage(status), status_retries);
+					}
+
 					++refine_counter;
 					if(refine_counter < refine_retries)
 						increment = false;
@@ -247,18 +283,52 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 
 						refine_counter = 0;
 					}
-				}*/
+*/
+				}
 			}
 			else
 			{
 				if(dump_mode == DumpMode::DUMP)
 				{
-//					file_data.swap(drive_data);
+					int32_t lba_index = lba - LBA_START;
 
-//					write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
-//					std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
-//					write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+					int32_t offset = ctx.drive_config.read_offset;
+					if(read_as_data && options.dump_write_offset)
+						offset = -*options.dump_write_offset;
 
+					write_entry(fs_scram, sector_buffer.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
+
+					if(subcode)
+					{
+						auto sc = sector_buffer.data() + CD_DATA_SIZE + CD_C2_SIZE;
+
+						ChannelQ Q;
+						subcode_extract_channel((uint8_t *)&Q, sc, Subchannel::Q);
+						if(Q.isValid())
+						{
+							errors_q_last = errors_q;
+						}
+						else
+						{
+							// PLEXTOR: some drives byte desync on subchannel after mass C2 errors with high bit count on high speed
+							// prevent this by flushing drive cache after C2 error range (flush cache on 5 consecutive Q errors)
+							if(errors_q - errors_q_last > 5)
+							{
+								cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
+								errors_q_last = errors_q;
+							}
+
+							++errors_q;
+						}
+
+						write_entry(fs_subcode, sc, CD_SUBCODE_SIZE, lba_index, 1, 0);
+					}
+
+					std::vector<State> state = c2_to_state(std::span<uint8_t>(sector_buffer.data() + CD_DATA_SIZE, CD_C2_SIZE));
+					if(std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_C2; }))
+						++errors_c2;
+
+					write_entry(fs_state, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
 				}
 				else if(dump_mode == DumpMode::REFINE)
 				{
@@ -310,21 +380,42 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 */
 				}
 			}
+
+			// skip known erroneous areas (multisession gaps and protection rings)
+			if(error_range != nullptr && slow_sector)
+			{
+				lba = error_range->second;
+			}
+			else
+			{
+				// grow lead-out overread if we still can read
+				if(lba + 1 == lba_overread && !slow_sector && !status.status_code &&
+				   !options.lba_end && (lba_overread - lba_end <= LEADOUT_OVERREAD_COUNT || options.overread_leadout))
+				{
+					++lba_overread;
+				}
+
+				++lba;
+			}
+		}
+		else
+		{
+			//FIXME:
+			++lba;
 		}
 
 		if(signal.interrupt())
 		{
 			LOG_R("[LBA: {:6}] forced stop ", lba);
+			LOG("");
 			break;
 		}
-
-		if(increment)
-			++lba;
 	}
 
 	if(!signal.interrupt())
 	{
 		progress_output(lba_overread, lba_start, lba_overread, errors_scsi, errors_c2, errors_q);
+		LOGC("");
 		LOGC("");
 	}
 

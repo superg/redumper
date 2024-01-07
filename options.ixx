@@ -50,7 +50,7 @@ export struct Options
 	std::string skip;
 	int skip_fill;
 	bool iso9660_trim;
-	bool plextor_leadin_skip;
+	bool plextor_skip_leadin;
 	int plextor_leadin_retries;
 	bool asus_skip_leadout;
 	bool disable_cdtext;
@@ -58,6 +58,7 @@ export struct Options
 	bool offset_shift_relocate;
 	std::unique_ptr<int> force_offset;
 	int audio_silence_threshold;
+	std::unique_ptr<int> dump_write_offset;
 	int dump_read_size;
 	bool overread_leadout;
 
@@ -76,7 +77,7 @@ export struct Options
 		, legacy_subs(false)
 		, skip_fill(0x55)
 		, iso9660_trim(false)
-		, plextor_leadin_skip(false)
+		, plextor_skip_leadin(false)
 		, plextor_leadin_retries(4)
 		, asus_skip_leadout(false)
 		, disable_cdtext(false)
@@ -195,8 +196,8 @@ export struct Options
 						i_value = &skip_fill;
 					else if(key == "--iso9660-trim")
 						iso9660_trim = true;
-					else if(key == "--plextor-leadin-skip")
-						plextor_leadin_skip = true;
+					else if(key == "--plextor-skip-leadin")
+						plextor_skip_leadin = true;
 					else if(key == "--plextor-leadin-retries")
 						i_value = &plextor_leadin_retries;
 					else if(key == "--asus-skip-leadout")
@@ -214,6 +215,11 @@ export struct Options
 					}
 					else if(key == "--audio-silence-threshold")
 						i_value = &audio_silence_threshold;
+					else if(key == "--dump-write-offset")
+					{
+						dump_write_offset = std::make_unique<int>();
+						i_value = dump_write_offset.get();
+					}
 					else if(key == "--dump-read-size")
 						i_value = &dump_read_size;
 					else if(key == "--overread-leadout")
@@ -291,7 +297,7 @@ export struct Options
 		LOG("\t--drive-sector-order=VALUE     \toverride drive sector order, possible values: DATA_C2_SUB, DATA_SUB_C2, DATA_SUB, DATA_C2");
 		LOG("");
 		LOG("\t(drive specific)");
-		LOG("\t--plextor-leadin-skip          \tskip dumping lead-in using negative range");
+		LOG("\t--plextor-skip-leadin          \tskip dumping lead-in using negative range");
 		LOG("\t--plextor-leadin-retries=VALUE \tmaximum number of lead-in retries per session (default: {})", plextor_leadin_retries);
 		LOG("\t--asus-skip-leadout            \tskip extracting lead-out from drive cache");
 		LOG("\t--disable-cdtext               \tdisable CD-TEXT reading");
@@ -315,6 +321,7 @@ export struct Options
 		LOG("\t--lba-end=VALUE                \tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
 		LOG("\t--refine-subchannel            \tin addition to SCSI/C2, refine subchannel");
 		LOG("\t--skip=VALUE                   \tLBA ranges of sectors to skip");
+		LOG("\t--dump-write-offset=VALUE      \toffset hint for data sectors read using BE method");
 		LOG("\t--dump-read-size=VALUE         \tnumber of sectors to read at once on initial dump, DVD only (default: {})", dump_read_size);
 		LOG("\t--overread-leadout             \tdo not limit lead-out to the first hundred sectors, read until drive returns SCSI error");
 	}

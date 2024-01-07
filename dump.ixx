@@ -377,13 +377,15 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, const DriveConfig &
 }
 
 
-export SPTD::Status read_sectors(SPTD &sptd, uint8_t *sectors, const DriveConfig &drive_config, int32_t lba, uint32_t count)
+export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &read_as_data, const DriveConfig &drive_config, int32_t lba)
 {
+	read_as_data = false;
+
 	auto layout = sector_order_layout(drive_config.sector_order);
 	
 	// PLEXTOR: C2 is shifted 294/295 bytes late (drive dependent), read as much sectors as needed to get whole C2
 	// as a consequence, lead-out overread will fail a few sectors earlier
-	uint32_t sectors_count = count + scale_up(drive_config.c2_shift, CD_C2_SIZE);
+	uint32_t sectors_count = 1 + scale_up(drive_config.c2_shift, CD_C2_SIZE);
 
 	// cmd_read_cdda / cmd_read_cd functions internally "know" this buffer size
 	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
@@ -408,32 +410,29 @@ export SPTD::Status read_sectors(SPTD &sptd, uint8_t *sectors, const DriveConfig
 		// BE
 		else
 		{
-			// read as audio
+			// read as audio (according to MMC-3 standard, the CD-DA sector type support is optional)
 			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
 
-			// read failed
+			// read failed, either data sector is encountered (likely) or CD-DA sector type call is unsupported (unlikely)
 			if(status.status_code)
 			{
-				// read as data
+				// read without filter
 				status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
 				
-				// read success, scramble data back to unify scram format for generic drives
+				// read success
 				if(!status.status_code && layout.data_offset != CD_RAW_DATA_SIZE)
 				{
-					for(uint32_t i = 0; i < sectors_count; ++i)
+					auto data = sector_buffer.data() + layout.data_offset;
+
+					// rule out audio sector if CD-DA sector type call is unsupported
+					if(std::equal(data, data + sizeof(CD_DATA_SYNC), CD_DATA_SYNC))
 					{
-						auto sector = sector_buffer.data() + layout.size * i;
-						auto data = sector + layout.data_offset;
-
+						// scramble data back
 						Scrambler::process(data, data, 0, CD_DATA_SIZE);
+						read_as_data = true;
 					}
-
 				}
-
-				LOG("");
 			}
-
-			LOG("");
 		}
 	}
 
@@ -446,45 +445,33 @@ export SPTD::Status read_sectors(SPTD &sptd, uint8_t *sectors, const DriveConfig
 
 			for(uint32_t i = 0; i < sectors_count; ++i)
 			{
-				auto sector_src = sector_buffer.data() + layout.size * i;
-				auto src = sector_src + layout.c2_offset;
-				auto dst = c2_buffer.data() + CD_C2_SIZE * i;
-
-				std::copy(src, src + CD_C2_SIZE, dst);
+				auto src = sector_buffer.data() + layout.size * i + layout.c2_offset;
+				std::copy(src, src + CD_C2_SIZE, c2_buffer.data() + CD_C2_SIZE * i);
 			}
 
-			auto c2_src = c2_buffer.data() + drive_config.c2_shift;
-			for(uint32_t i = 0; i < count; ++i)
 			{
-				auto sector_dst = sector_buffer.data() + layout.size * i;
-				auto dst = sector_dst + layout.c2_offset;
-				auto src = c2_src + CD_C2_SIZE * i;
-
-				std::copy(src, src + CD_C2_SIZE, dst);
+				auto src = c2_buffer.data() + drive_config.c2_shift;
+				std::copy(src, src + CD_C2_SIZE, sector_buffer.data() + layout.c2_offset);
 			}
 		}
 
-		for(uint32_t i = 0; i < count; ++i)
+		auto dst = sector;
+
+		auto copy_or_clear = [&](uint32_t offset, uint32_t size)
 		{
-			auto sector_src = sector_buffer.data() + layout.size * i;
-			auto dst = sectors + CD_RAW_DATA_SIZE * i;
-
-			auto copy_or_clear = [&dst, sector_src](uint32_t offset, uint32_t size)
+			if(offset == CD_RAW_DATA_SIZE)
+				std::fill(dst, dst + size, 0x00);
+			else
 			{
-				if(offset == CD_RAW_DATA_SIZE)
-					std::fill(dst, dst + size, 0x00);
-				else
-				{
-					auto src = sector_src + offset;
-					std::copy(src, src + size, dst);
-				}
-				dst += size;
-			};
+				auto src = sector_buffer.data() + offset;
+				std::copy(src, src + size, dst);
+			}
+			dst += size;
+		};
 
-			copy_or_clear(layout.data_offset, CD_DATA_SIZE);
-			copy_or_clear(layout.c2_offset, CD_C2_SIZE);
-			copy_or_clear(layout.subcode_offset, CD_SUBCODE_SIZE);
-		}
+		copy_or_clear(layout.data_offset, CD_DATA_SIZE);
+		copy_or_clear(layout.c2_offset, CD_C2_SIZE);
+		copy_or_clear(layout.subcode_offset, CD_SUBCODE_SIZE);
 	}
 
 	return status;

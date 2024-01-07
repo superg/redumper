@@ -442,7 +442,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 	}
 
 	// read lead-in early as it improves the chance of extracting both sessions at once
-	if(ctx.drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_leadin_skip)
+	if(ctx.drive_config.type == DriveConfig::Type::PLEXTOR && !options.plextor_skip_leadin)
 	{
 		bool read = !refine;
 

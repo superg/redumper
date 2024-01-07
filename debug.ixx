@@ -175,9 +175,9 @@ export void redumper_debug(Context &ctx, Options &options)
 	// LG/ASUS cache dump extract
 	if(0)
 	{
-		auto drive_type = DriveConfig::Type::LG_ASU83;
 		std::vector<uint8_t> cache = read_vector(cache_path);
 
+		auto drive_type = DriveConfig::Type::LG_ASU8C;
 		asus_cache_print_subq(cache, drive_type);
 
 //		auto asd = asus_cache_unroll(cache);

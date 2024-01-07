@@ -111,6 +111,18 @@ void redumper_refine(Context &ctx, Options &options)
 }
 
 
+void redumper_refine_new(Context &ctx, Options &options)
+{
+	if(!ctx.refine || *ctx.refine && options.retries)
+	{
+		if(profile_is_cd(ctx.current_profile))
+			redumper_dump_cd_new(ctx, options, DumpMode::REFINE);
+		else
+			redumper_dump_dvd(ctx, options, DumpMode::REFINE);
+	}
+}
+
+
 void redumper_verify(Context &ctx, Options &options)
 {
 	if(profile_is_cd(ctx.current_profile))
@@ -134,6 +146,7 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
 	{ "dump"      , { true ,   redumper_dump       }},
 	{ "dumpnew"   , { true ,   redumper_dump_new   }},
 	{ "refine"    , { true ,   redumper_refine     }},
+	{ "refinenew" , { true ,   redumper_refine_new }},
 	{ "verify"    , { true ,   redumper_verify     }},
 	{ "dvdkey"    , { true ,   redumper_dvdkey     }},
 	{ "dvdisokey" , { false,   redumper_dvdisokey  }},

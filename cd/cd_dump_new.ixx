@@ -1,7 +1,9 @@
 module;
+#include <bit>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <numeric>
 #include <span>
 #include <string>
 #include <vector>
@@ -297,14 +299,18 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 					if(read_as_data && options.dump_write_offset)
 						offset = -*options.dump_write_offset;
 
+					// DATA
+
 					write_entry(fs_scram, sector_buffer.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
+
+					// SUBCODE
 
 					if(subcode)
 					{
-						auto sc = sector_buffer.data() + CD_DATA_SIZE + CD_C2_SIZE;
+						auto subcode_data = sector_buffer.data() + CD_DATA_SIZE + CD_C2_SIZE;
 
 						ChannelQ Q;
-						subcode_extract_channel((uint8_t *)&Q, sc, Subchannel::Q);
+						subcode_extract_channel((uint8_t *)&Q, subcode_data, Subchannel::Q);
 						if(Q.isValid())
 						{
 							errors_q_last = errors_q;
@@ -322,13 +328,23 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 							++errors_q;
 						}
 
-						write_entry(fs_subcode, sc, CD_SUBCODE_SIZE, lba_index, 1, 0);
+						write_entry(fs_subcode, subcode_data, CD_SUBCODE_SIZE, lba_index, 1, 0);
 					}
 
-					std::vector<State> state = c2_to_state(std::span<uint8_t>(sector_buffer.data() + CD_DATA_SIZE, CD_C2_SIZE));
-					if(std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_C2; }))
+					// C2
+
+					auto c2_data = sector_buffer.data() + CD_DATA_SIZE;
+					auto c2_bits = std::accumulate(c2_data, c2_data + CD_C2_SIZE, (uint32_t)0, [](uint32_t a, uint8_t v){ return a + std::popcount(v); });
+					if(c2_bits)
+					{
 						++errors_c2;
 
+						if(options.verbose)
+						{
+							LOG_R("[LBA: {:6}] C2 error (bits: {:4})", lba, c2_bits);
+						}
+					}
+					std::vector<State> state = c2_to_state(std::span<uint8_t>(c2_data, CD_C2_SIZE));
 					write_entry(fs_state, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
 				}
 				else if(dump_mode == DumpMode::REFINE)

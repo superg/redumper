@@ -215,6 +215,7 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 	uint32_t errors_c2 = 0;
 	uint32_t errors_q = 0;
 
+	int32_t subcode_shift = 0;
 	uint32_t errors_q_last = errors_q;
 
 	SignalINT signal;
@@ -314,6 +315,21 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 						if(Q.isValid())
 						{
 							errors_q_last = errors_q;
+							
+							// desync diagnostics
+							if(Q.adr == 1 && Q.mode1.tno)
+							{
+								int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
+
+								int32_t shift = lbaq - lba;
+								if(subcode_shift != shift)
+								{
+									subcode_shift = shift;
+
+									if(options.verbose)
+										LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
+								}
+							}
 						}
 						else
 						{

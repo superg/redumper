@@ -112,7 +112,7 @@ export void redumper_protection(Context &ctx, Options &options)
 						std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
 						int32_t lba_start = entry->sectorsOffset() + entry->sectorsSize();
-						int32_t lba_end = lba_start;
+						int32_t lba_end = pvd.volume_space_size.lsb;
 						auto entries = root_directory->entries();
 						for(auto &e : entries)
 						{
@@ -123,7 +123,7 @@ export void redumper_protection(Context &ctx, Options &options)
 							if(entry_offset <= lba_start)
 								continue;
 
-							if(lba_end == lba_start || entry_offset < lba_end)
+							if(entry_offset < lba_end)
 								lba_end = entry_offset;
 						}
 

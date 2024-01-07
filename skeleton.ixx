@@ -226,6 +226,18 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 	if(area_map.empty())
 		return;
 
+	if(options.debug)
+	{
+		LOG("ISO9660 map: ");
+		std::for_each(area_map.cbegin(), area_map.cend(), [](const iso9660::Area &area)
+		{
+			auto count = scale_up(area.size, FORM1_DATA_SIZE);
+			LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}",
+				area.offset, area.offset + count - 1, count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
+				area.name.empty() ? "" : std::format(", name: {}", area.name));
+		});
+	}
+
 	std::vector<ContentEntry> contents;
 	for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
 	{

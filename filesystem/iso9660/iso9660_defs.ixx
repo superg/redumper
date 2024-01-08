@@ -298,7 +298,7 @@ uint32_t directory_extent_get_length(SectorReader *sector_reader, uint32_t offse
 
 std::string split_identifier(uint32_t &version, std::string identifier)
 {
-	auto s = identifier.find((char)iso9660::Characters::SEPARATOR2);
+	auto s = identifier.find_last_of((char)iso9660::Characters::SEPARATOR2);
 
 	version = (s == std::string::npos ? 0 : str_to_int(identifier.substr(s + 1)));
 

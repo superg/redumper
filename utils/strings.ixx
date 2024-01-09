@@ -88,7 +88,7 @@ export std::string replace_all(std::string s, const std::string &from, const std
 export std::string str_uppercase(const std::string &s)
 {
     std::string str_uc;
-    std::transform(s.begin(), s.end(), std::back_inserter(str_uc), [](unsigned char c)
+    std::transform(s.begin(), s.end(), std::back_inserter(str_uc), [](char c)
     {
         return std::toupper(c);
     });
@@ -102,23 +102,6 @@ export std::string str_quoted_if_space(const std::string &s)
     const std::string quote("\"");
 
     return s.find(' ') == std::string::npos ? s : quote + s + quote;
-}
-
-
-export std::string normalize_string(const std::string &s)
-{
-	std::string ns;
-
-	std::istringstream iss(s);
-	for(std::string token; std::getline(iss, token, ' '); )
-	{
-		if(!token.empty())
-			ns += token + ' ';
-	}
-	if(!ns.empty())
-		ns.pop_back();
-
-	return ns;
 }
 
 
@@ -171,6 +154,34 @@ export std::vector<std::string> tokenize(const std::string &str, const char *del
 		tokens.emplace_back(s, str.end());
 
 	return tokens;
+}
+
+
+export void replace_nonprint_inplace(std::string &s, char r)
+{
+	std::transform(s.begin(), s.end(), s.begin(), [r](char c){ return isprint(c) ? c : r; });
+}
+
+
+export std::string replace_nonprint(std::string s, char r)
+{
+	replace_nonprint_inplace(s, r);
+	return s;
+}
+
+
+export std::string normalize_string(const std::string &s)
+{
+	std::string ns;
+
+	auto tokens = tokenize(s, " ", nullptr);
+	for(auto const &t : tokens)
+		ns += replace_nonprint(t, '.') + ' ';
+
+	if(!ns.empty())
+		ns.pop_back();
+
+	return ns;
 }
 
 

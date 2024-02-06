@@ -10,6 +10,7 @@ module;
 #include <span>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <vector>
 #include "throw_line.hh"
 
@@ -377,9 +378,10 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, const DriveConfig &
 }
 
 
-export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &read_as_data, const DriveConfig &drive_config, int32_t lba)
+export auto read_sector_new(SPTD &sptd, uint8_t *sector, const DriveConfig &drive_config, int32_t lba)
 {
-	read_as_data = false;
+	SPTD::Status status;
+	bool read_as_data = false;
 
 	auto layout = sector_order_layout(drive_config.sector_order);
 	
@@ -390,7 +392,6 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &read_as_d
 	// cmd_read_cdda / cmd_read_cd functions internally "know" this buffer size
 	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
 
-	SPTD::Status status;
 	// D8
 	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
 	{
@@ -474,7 +475,7 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &read_as_d
 		copy_or_clear(layout.subcode_offset, CD_SUBCODE_SIZE);
 	}
 
-	return status;
+	return std::tuple(status, read_as_data);
 }
 
 

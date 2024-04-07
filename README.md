@@ -3,7 +3,7 @@
 Copyright 2021-2023 Hennadiy Brych
 
 ## Intro
-redumper is an advanced byte perfect disc dumper. It supports incremental dumps, advanced SCSI/C2 repair, intelligent audio CD offset detection and a lot of other features. Everything is written from scratch in C++.
+redumper is a low-level byte perfect disc dumper. It supports incremental dumps, advanced SCSI/C2 repair, intelligent audio CD offset detection and a lot of other features. Everything is written from scratch in C++.
 
 ## Disc Support
 CD/DVD/HD-DVD/Blu-ray discs are supported.
@@ -13,7 +13,7 @@ Available for Windows, Linux and macOS.
 
 ## General
 redumper operates using commands.
-The preferred way is to run it without command (equivalent to running `redumper cd`). This is the most common use case that will dump the disc and generate the dump files. Everything that can be automated, is automated. If `--drive` option is not specified, the first available drive with the inserted disc will be used. If `--image-name` option is not specified, it will be generated based on the current date and drive used.
+The preferred way is to run it without command argument (equivalent to running `redumper cd`). This is the most common use case that will dump the disc and generate the dump files. Everything that can be automated, is automated. If `--drive` option is not specified, the first available drive with the inserted disc will be used. If `--image-name` option is not specified, it will be generated based on the current date and drive name.
 
 The updated command list is always available by running `redumper --help`.
 
@@ -25,15 +25,18 @@ Drive is specified using full path: `--drive=/dev/sr0`. The disc has to be unmou
 At the time of writing, drive autodetection doesn't work for some Linux distributions. Autodetection is based on kernel sysfs guidelines but some distributions deviate from that (or I didn't implement it right). This will be fixed at some point and the current suggested workaround is to specify the drive directly. One thing to mention is that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). 
 
 ## macOS
-Drive is specified using BSD name, for /dev/disk2 that will be: `--drive=disk2`, that's how it's internally represented in macOS. Same as Linux, the disc has to be unmounted before running redumper. Insert the disc, use `diskutil list` to see a list of all disks in the system. Identify your disc drive and execute `diskutil unmountDisk /dev/disk2`. After redumper finishes executing, macOS takes over and mounts the disc again, very annoying. Also my Mac Mini seems to scan a disc before mounting, I haven't found a way how to disable that, this will be blocking the disc access until done. 
+Drive is specified using BSD name, for /dev/disk2 that will be: `--drive=disk2`, that's how it's internally represented in macOS. Same as Linux, the disc has to be unmounted before running redumper. Insert the disc, use `diskutil list` to see a list of all disks in the system. Identify your disc drive and execute `diskutil unmountDisk /dev/disk2`. After redumper finishes executing, macOS takes over and mounts the disc again, very annoying. Also my Mac Mini seems to scan a disc before mounting, I haven't found a way how to disable that, this will be blocking the disc access until done. Currently, macOS version is distributed as an ELF binary, there is no installation package available. You download and extract the binary and run it from the command line. Another issue is that binary that requires SCSI drive access doesn't run from Desktop / Downloads / Documents directories, I suggest to copy it to /usr/local/bin and run it from there. Overall, macOS version needs more work (auto unmount, better package support etc) and I will work on it at some point but right now it's low priority.
 
 ## Supported Drives
-Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommended for the perfect dump, the full list is [HERE](drive.ixx#L130).
-GENERIC drive support is implemented. In some cases, GENERIC drives will not provide a perfect dump but redumper will do it's best given the drive hardware/firmware limitations. Read on for GENERIC drive features evaluation guide.
+Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommended for the perfect dump, the full list is [HERE](drive.ixx#L130). Drives listed under "//OTHER" are bad drives that I own, they are listed purely for experimentation, please do not buy these drives!
+While there is some GENERIC drive support implemented, GENERIC drives often will not provide a perfect dump due to drive firmware limitations. Feel free to use this functionality at your leisure but at the moment I don't have bandwidth for supporting such cases, you're on your own.
 
 ## Good Drives Technical
-D8 and BE CDDA read opcodes are supported using the compatible drives (PLEXTOR and LG/ASUS/LITE-ON respectively). Everything, including data tracks, is read as audio. On a dump stage, each sector is dumped sequentially from the start to end in a linear fashion. Known drive inaccessible / slow sectors (e.g. multisession gaps) are skipped forward but dumper never seeks back and a great care is exercised not to put an excessive wear on drive. Everything that is possible to extract will be extracted. Lead-out session overread is supported. Lead-in/pre-gap session reading is implemented by using PLEXTOR negative LBA range feature, tricks are in place to be able to extract this data for both sessions whenever possible. The main scrambled dump output prepends an extra space of 45150 sectors (10 minutes) in order to save first session lead-in (10 minutes is a maximum addressable negative MSF range that can be used to access first session lead-in). LG/ASUS/LITE-ON cache session lead-out extraction is supported for 8Mb and 3Mb cache configurations. Both PLEXTOR lead-in/pre-gap and LG/ASUS/LITE-ON lead-out are multiplexed into main scrambled dump file using absolute addressing from subchannel Q in order to minimize the chance of error.
-
+D8 and BE/CDDA read opcodes are supported using the compatible drives (PLEXTOR and LG/ASUS/LITE-ON respectively). Everything, including data tracks, is read as audio. On an initial dump pass, each sector is dumped from start to end in a linear fashion. Known slow sectors such as multisession gaps (session Lead-in area) are skipped. Dumper never seeks back and a great care is exercised not to put an excessive wear on the drive.
+If drive is a good PLEXTOR, session lead-in will be read using negative LBA range. Several lead-in read attempts are made to ensure data integrity. Sometimes it's possible to capture other session lead-in but there is no direct control of it.
+Good LG/ASUS/LITE-ON can natively read ~135 out of 150 pre-gap sectors, this is usually enough for 99% of the discs. Very rarely, there is some non zero data in early lead-in sectors (TOC area). Such drives are unable to extract this data and PLEXTOR is needed.
+Good PLEXTOR can read ~100 lead-out sectors. Good LG/ASUS/LITE-ON have lead-out sectors locked but these drives usually have cache read opcode that is used to extract available lead-out sectors. Finally, ASUS BW-16D1HT flashed with RibShark custom 3.10 firmware has fully unlocked lead-out. All these cases are supported.
+In order to accomodate for first session lead-in sectors, primary scrambled dump output (.scram file) prepends an extra space of 45150 sectors (10 minutes, a maximum addressable negative MSF range that can be used to access first session lead-in).
 The resulting dump is drive read offset corrected but not combined offset corrected (the disc write offset is determined at a later track split stage). Sector dump state (SUCCESS / SUCCESS_SCSI_OFF / SUCCESS_C2_OFF / ERROR_C2 / ERROR_SKIP) is stored for each sample, 1 sample is 4 bytes (2 16-bit signed samples of stereo audio data) e.g. for 1 sector there are 588 state values. All this allows an incremental dump improvement with sample granularity using different drives with different read offsets.
 
 Subchannel data is stored uncorrected RAW (multiplexed). Both TOC based and Subchannel Q based splits are supported, subchannel Q is corrected in memory and never stored on disk. This allows to keep subchannel based protection schemes (libcrypt, SecuROM etc) for a later analysis, as well as future R-W packs extraction (CD+G CD+MIDI). Disc write offset detection is calculated based on a variety of methods, data track as an addressing difference between data sector MSF and subchannel Q MSF, data / audio track intersection of BE read method was used, silence based Perfect Audio Offset detection, CDi-Ready data in index 0 offset detection. Split will fail if track sector range contains SCSI/C2 errors or inaccessible, example: track split of ASUS dump without cache lead-out data if the combined offset is positive. 
@@ -136,10 +139,8 @@ Force generation of track split with track errors, just because you really want 
 
 ## Building from Source
 
-redumper requires bleeding edge C++ compiler. C++20 features such as modules and std::format are relied on extensively. Currently that limits compiler selection to latest MSVC and LLVM/Clang 16 with supported libc++. Also you will need latest CMake and ninja. Please check my GitHub Actions workflow [HERE](.github/workflows/cmake.yml) for the latest tools needed for the build.
+redumper is using C++20 standard features such as modules, this requires latest C++ compiler. Currently that limits you to latest MSVC and LLVM/Clang 16 with supported libc++.
+Also you will need latest CMake and ninja. For the detail build instructions, please check my GitHub Actions workflow [HERE](.github/workflows/cmake.yml). I do not provide Docker container and I will not be able to troubleshoot your build issues. If my GitHub Action CI/CD can build it, so can you.
 
-
-## Contacts
-E-mail: gennadiy.brich@gmail.com
-
-Discord: superg#9200
+## Help
+You can get help in #redumper channel at [VGPC]([.github/workflows/cmake.yml](https://discord.gg/AHTfxQV)) Discord server.

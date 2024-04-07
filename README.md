@@ -143,4 +143,4 @@ redumper is using C++20 standard features such as modules, this requires latest 
 Also you will need latest CMake and ninja. For the detail build instructions, please check my GitHub Actions workflow [HERE](.github/workflows/cmake.yml). I do not provide Docker container and I will not be able to troubleshoot your build issues. If my GitHub Action CI/CD can build it, so can you.
 
 ## Help
-You can get help in #redumper channel at [VGPC]([.github/workflows/cmake.yml](https://discord.gg/AHTfxQV)) Discord server.
+You can get help in #redumper channel at [VGPC](https://discord.gg/AHTfxQV) Discord server.

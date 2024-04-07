@@ -1,12 +1,11 @@
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct-single.svg)](https://stand-with-ukraine.pp.ua)
 # redumper
-Copyright 2021-2023 Hennadiy Brych
+Copyright 2021-2024 Hennadiy Brych
 
 ## Intro
-redumper is a low-level byte perfect disc dumper. It supports incremental dumps, advanced SCSI/C2 repair, intelligent audio CD offset detection and a lot of other features. Everything is written from scratch in C++.
-
-## Disc Support
-CD/DVD/HD-DVD/Blu-ray discs are supported.
+redumper is a low-level byte perfect CD disc dumper. It supports incremental dumps, advanced SCSI/C2 repair, intelligent audio CD offset detection and a lot of other features. 
+redumper also is a general purpose DVD/HD-DVD/Blu-ray disc dumper. DVD and later media format dumping is implemented using high-level mode thus most of the complexities described in this document are related to the CD technology. If you intend to dump DVD media and later, you usually can use any drive and it just works.
+Everything is written from scratch in C++.
 
 ## Operating Systems Support
 Available for Windows, Linux and macOS.
@@ -32,7 +31,7 @@ Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommen
 While there is some GENERIC drive support implemented, GENERIC drives often will not provide a perfect dump due to drive firmware limitations. Feel free to use this functionality at your leisure but at the moment I don't have bandwidth for supporting such cases, you're on your own.
 
 ## Good Drives Technical
-D8 and BE/CDDA read opcodes are supported using the compatible drives (PLEXTOR and LG/ASUS/LITE-ON respectively). Everything, including data tracks, is read as audio. On an initial dump pass, each sector is dumped from start to end in a linear fashion. Known slow sectors such as multisession gaps (session Lead-in area) are skipped. Dumper never seeks back and a great care is exercised not to put an excessive wear on the drive.
+D8 and BE CDDA read opcodes are supported using the compatible drives (PLEXTOR and LG/ASUS/LITE-ON respectively). Everything, including data tracks, is read as audio. On an initial dump pass, each sector is dumped from start to end in a linear fashion. Known slow sectors such as multisession gaps (session Lead-in area) are skipped. Dumper never seeks back and a great care is exercised not to put an excessive wear on the drive.
 If drive is a good PLEXTOR, session lead-in will be read using negative LBA range. Several lead-in read attempts are made to ensure data integrity. Sometimes it's possible to capture other session lead-in but there is no direct control of it.
 Good LG/ASUS/LITE-ON can natively read ~135 out of 150 pre-gap sectors, this is usually enough for 99% of the discs. Very rarely, there is some non zero data in early lead-in sectors (TOC area). Such drives are unable to extract this data and PLEXTOR is needed.
 Good PLEXTOR can read ~100 lead-out sectors. Good LG/ASUS/LITE-ON have lead-out sectors locked but these drives usually have cache read opcode that is used to extract available lead-out sectors. Finally, ASUS BW-16D1HT flashed with RibShark custom 3.10 firmware has fully unlocked lead-out. All these cases are supported.
@@ -42,6 +41,10 @@ The resulting dump is drive read offset corrected but not combined offset correc
 Subchannel data is stored uncorrected RAW (multiplexed). Both TOC based and Subchannel Q based splits are supported, subchannel Q is corrected in memory and never stored on disk. This allows to keep subchannel based protection schemes (libcrypt, SecuROM etc) for a later analysis, as well as future R-W packs extraction (CD+G CD+MIDI). Disc write offset detection is calculated based on a variety of methods, data track as an addressing difference between data sector MSF and subchannel Q MSF, data / audio track intersection of BE read method was used, silence based Perfect Audio Offset detection, CDi-Ready data in index 0 offset detection. Split will fail if track sector range contains SCSI/C2 errors or inaccessible, example: track split of ASUS dump without cache lead-out data if the combined offset is positive. 
 
 ## GENERIC Drives Feature Evaluation Guide
+### General
+This is a guide that will help you to evaluate your GENERIC drive features and make it work with redumper manually. Eventually it will be automated but it's a low priority for now.
+I do not provide support and I don't need feedback. Please do not create issues related to adding GENERIC drives to redumper source code, I don't have bandwidth for that.
+
 ### Requirements
 Any not too scratched mixed mode disc where the first track is a data track and following tracks are audio tracks will work (e.g. no multisession).
 
@@ -93,7 +96,7 @@ Your chances grow if it's an early drive (or PLEXTOR in disguise). If you get no
 
 **5. Is it a good PLEXTOR or a good ASUS rebadge?**
 
-If D8 read method is available, it might be a good hint that the drive is PLEXTOR in a disguise, there are good PLEXTORs in QPS external enclosures, HP and Creative rebadges and some other rebadge rumors. If BE_CDDA read method is available and drive can read at least 135 pre-gap sectors, there is a chance that drive might be a good ASUS in a disguise, for instance recently found LITE-ON, two cache varieties here, 8Mb and 3Mb. There is a way to check both assumptions.
+If D8 read method is available, it might be a good hint that the drive is PLEXTOR in a disguise, there are good PLEXTORs in QPS external enclosures, HP and Creative rebadges and some other rebadge rumors. If BE_CDDA read method is available and drive can read at least 135 pre-gap sectors, there is a chance that drive might be a good ASUS in disguise, for instance recently found LITE-ON, there are a few cache partition configurations possible, all based on 8Mb and 3Mb cache sizes.
 
 By setting --drive-type value, you can instruct to use good drive specific features, such as read lead-in using PLEXTOR negative range or read lead-out from ASUS cache.
 
@@ -101,21 +104,19 @@ To check for a good PLEXTOR, run `redumper dump --speed=8 --drive-type=PLEXTOR -
 
 Look for "PLEXTOR: reading lead-in" message, if process ends with "PLEXTOR: lead-in found" message, this is a good PLEXTOR. If LBA counter decreases all the way and it's at least a minute long, you can kill the process, it's not good PLEXTOR.
 
-To check for a good ASUS, you will have to check for two possible cache configurations, first run `redumper dump --speed=8 --drive-type=LG_ASU8 --drive-sector-order=<sector_order_from_previous_step> --drive-pregap-start=<pregap_start_from_previous_step> --drive-read-method=BE_CDDA --verbose --overwrite --image-name=drive_test`
+To check for a good ASUS, run `redumper dump --speed=8 --drive-type=LG_ASU8 --drive-sector-order=<sector_order_from_previous_step> --drive-pregap-start=<pregap_start_from_previous_step> --drive-read-method=BE_CDDA --verbose --overwrite --image-name=drive_test`
 
-Look for "LG/ASUS: searching lead-out in cache" message which will appear right after reading last LBA, if the next message is "LG/ASUS: lead-out found", it's a good ASUS. If you get "error: read cache failed", there is no read cache command and it's not a good ASUS. If you don't get SCSI error but no lead-out sectors count, it might be a different cache configuration, restart the test with --drive-type=LG_ASU3. Proper distinction between different cache sizes is out of scope here, it requires manual cache dump analysis.
-
-I would love to know your results if you think you found good PLEXTOR or good ASUS, please contact me so I can evaluate it and add it to the known drives database.
+Look for "LG/ASUS: searching lead-out in cache" message which will appear right after reading last LBA, if the next message is "LG/ASUS: lead-out found", it's a good ASUS. If you get "error: read cache failed", there is no read cache command and it's not a good ASUS. Proper distinction between different cache partition configurations is very important but it requires manual cache dump analysis. In a nutshell, first you have to establish true cache size. The above command hardcodes 8Mb cache size as it's the maximum possible size. If cache size is smaller, for example 3Mb and it's being read as 8Mb, it wraps around by the firmware. Basically you have to open .asus cache file in hex editor and determine where it starts repeating data. For example, search for the next appearance of the first 8 bytes you see at the start of the file. If you found a match, it's address basically will be cache size. If it's not found, it's likely a 8Mb cache size. Even if cache size is the same, multiple partition configurations are possible, some are already enumerated [HERE](drive.ixx#L256), first value is cache size in Mb, second value is a number of sectors that are stored in cache. Determining the second value is out of scope here, it requires parsing cache subchannel to see where is the boundary, I have some tools for that but it's not user friendly at the moment. When you determine cache size, predefined cache configurations most likely will work but that requires extensive testing using discs with various write offsets and comparing to a known good dump.
 
 
 ## Examples
-**1. Super lazy:**
+**1.**
 
 `redumper`
 
 If run without arguments, the dumper will use the first available supported drive with disc inside and "cd" aggregate mode. The image name will be autogenerated based on a date/time and drive path and will be put in the current process working directory. If you have two drives and the first drive is already busy dumping, running it again will dump the disc in the next available drive and so on, easy daisy chaining. Please take into account that no SCSI/C2 rereads will be performed on errors unless you specify --retries=100, but don't worry as it won't let you split to tracks if tracks have errors.
 
-**2. Concerned citizen:**
+**2.**
 
 `redumper cd --verbose --drive=F: --retries=100 --image-name=my_dump_name --image-path=my_dump_directory`
 
@@ -125,13 +126,13 @@ or (you can use spaces and = interchangeably)
 
 Will dump a disc in drive F: with 100 retries count in case of errors (refine). The dump files will be stored in my_dump_directory directory and dump files will have my_dump_name base name and you will get verbose messages.
 
-**3. You know what you do:**
+**3.**
 
 `redumper refine --verbose --drive=G: --speed=8 --retries=500 --image-name=my_dump_name --image-path=my_dump_directory`
 
 Refine a previous dump from my_dump_directory with base name my_dump_name on a different drive using lowest speed with different retries count.
 
-**4. Advanced:**
+**4.**
 
 `redumper split --verbose --force --image-name=my_dump_name --image-path=my_dump_directory`
 

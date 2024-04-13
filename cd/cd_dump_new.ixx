@@ -145,7 +145,7 @@ uint32_t c2_to_state(std::vector<State> &state, const uint8_t *c2_data)
 }
 
 
-bool data_refine_skip(std::fstream &fs_state, int32_t index, int32_t offset)
+bool sector_data_complete(std::fstream &fs_state, int32_t index, int32_t offset)
 {
 	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
 
@@ -155,7 +155,17 @@ bool data_refine_skip(std::fstream &fs_state, int32_t index, int32_t offset)
 }
 
 
-bool subchannel_refine_skip(std::fstream &fs_subcode, int32_t index)
+bool sector_data_blank(std::fstream &fs_state, int32_t index, int32_t offset)
+{
+	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
+
+	read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, index, 1, offset, (uint8_t)State::ERROR_SKIP);
+
+	return std::all_of(sector_state.begin(), sector_state.end(), [](State s){ return s == State::ERROR_SKIP; });
+}
+
+
+bool sector_subcode_complete(std::fstream &fs_subcode, int32_t index)
 {
 	std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
 
@@ -164,16 +174,6 @@ bool subchannel_refine_skip(std::fstream &fs_subcode, int32_t index)
 	subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
 
 	return Q.isValid();
-}
-
-
-bool data_verify_skip(std::fstream &fs_state, int32_t index, int32_t offset)
-{
-	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
-
-	read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, index, 1, offset, (uint8_t)State::ERROR_SKIP);
-	
-	return std::all_of(sector_state.begin(), sector_state.end(), [](State s){ return s == State::ERROR_SKIP; });
 }
 
 
@@ -280,13 +280,12 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 			skip = false;
 		else if(dump_mode == DumpMode::REFINE)
 		{
-			skip = data_refine_skip(fs_state, lba_index, ctx.drive_config.read_offset) || data_refine_skip(fs_state, lba_index, data_offset);
-			
-			if(skip && options.refine_subchannel)
-				skip = subchannel_refine_skip(fs_subcode, lba_index);
+			skip = sector_data_complete(fs_state, lba_index, ctx.drive_config.read_offset)
+				&& sector_data_complete(fs_state, lba_index, data_offset)
+				&& (!options.refine_subchannel || sector_subcode_complete(fs_subcode, lba_index));
 		}
 		else if(dump_mode == DumpMode::VERIFY)
-			skip = data_verify_skip(fs_state, lba_index, ctx.drive_config.read_offset) || data_verify_skip(fs_state, lba_index, data_offset);
+			skip = sector_data_blank(fs_state, lba_index, ctx.drive_config.read_offset) && sector_data_blank(fs_state, lba_index, data_offset);
 
 		if(skip)
 		{
@@ -373,10 +372,13 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 				}
 			}
 
-			bool store = false;
 			if(dump_mode == DumpMode::DUMP)
 			{
-				store = true;
+				int32_t offset = read_as_data ? data_offset : ctx.drive_config.read_offset;
+
+				write_entry(fs_scram, sector_data, CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
+				write_entry(fs_subcode, sector_subcode, CD_SUBCODE_SIZE, lba_index, 1, 0);
+				write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
 			}
 			else if(dump_mode == DumpMode::REFINE)
 			{
@@ -385,15 +387,6 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 			else if(dump_mode == DumpMode::VERIFY)
 			{
 				;
-			}
-
-			if(store)
-			{
-				int32_t offset = read_as_data ? data_offset : ctx.drive_config.read_offset;
-
-				write_entry(fs_scram, sector_data, CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
-				write_entry(fs_subcode, sector_subcode, CD_SUBCODE_SIZE, lba_index, 1, 0);
-				write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
 			}
 
 			// grow lead-out overread if we still can read

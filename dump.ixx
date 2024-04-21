@@ -70,8 +70,18 @@ export enum class State : uint8_t
 };
 
 
-export void image_check_overwrite(std::filesystem::path state_path, const Options &options)
+export void image_check_empty(const Options &options)
 {
+	if(options.image_name.empty())
+		throw_line("image name is not provided");
+}
+
+
+export void image_check_overwrite(const Options &options)
+{
+	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	std::string state_path(image_prefix + ".state");
+
 	if(!options.overwrite && std::filesystem::exists(state_path))
 		throw_line("dump already exists (image name: {})", options.image_name);
 }
@@ -378,10 +388,12 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, const DriveConfig &
 }
 
 
-export auto read_sector_new(SPTD &sptd, uint8_t *sector, const DriveConfig &drive_config, int32_t lba)
+export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool *read_as_data, const DriveConfig &drive_config, int32_t lba)
 {
 	SPTD::Status status;
-	bool read_as_data = false;
+
+	if(read_as_data != nullptr)
+		*read_as_data = false;
 
 	auto layout = sector_order_layout(drive_config.sector_order);
 	
@@ -389,7 +401,7 @@ export auto read_sector_new(SPTD &sptd, uint8_t *sector, const DriveConfig &driv
 	// as a consequence, lead-out overread will fail a few sectors earlier
 	uint32_t sectors_count = 1 + scale_up(drive_config.c2_shift, CD_C2_SIZE);
 
-	// cmd_read_cdda / cmd_read_cd functions internally "know" this buffer size
+	// cmd_read_cdda / cmd_read_cd functions internally "knows" this buffer size
 	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
 
 	// D8
@@ -403,35 +415,27 @@ export auto read_sector_new(SPTD &sptd, uint8_t *sector, const DriveConfig &driv
 		auto error_field = layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2;
 		auto sub_channel = layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
 
-		// BE_CDDA
-		if(drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA)
-		{
-			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
-		}
-		// BE
-		else
-		{
-			// read as audio (according to MMC-3 standard, the CD-DA sector type support is optional)
-			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
+		// read as audio (according to MMC-3 standard, the CD-DA sector type support is optional)
+		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
 
-			// read failed, either data sector is encountered (likely) or CD-DA sector type call is unsupported (unlikely)
-			if(status.status_code)
-			{
-				// read without filter
-				status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
+		// read failed, either data sector is encountered (likely) or CD-DA sector type call is unsupported (unlikely)
+		if(status.status_code)
+		{
+			// read without filter
+			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
 				
-				// read success
-				if(!status.status_code && layout.data_offset != CD_RAW_DATA_SIZE)
-				{
-					auto data = sector_buffer.data() + layout.data_offset;
+			// read success
+			if(!status.status_code && layout.data_offset != CD_RAW_DATA_SIZE)
+			{
+				auto data = sector_buffer.data() + layout.data_offset;
 
-					// rule out audio sector if CD-DA sector type call is unsupported
-					if(std::equal(data, data + sizeof(CD_DATA_SYNC), CD_DATA_SYNC))
-					{
-						// scramble data back
-						Scrambler::process(data, data, 0, CD_DATA_SIZE);
-						read_as_data = true;
-					}
+				// rule out audio sector if CD-DA sector type call is unsupported
+				if(std::equal(data, data + sizeof(CD_DATA_SYNC), CD_DATA_SYNC))
+				{
+					// scramble data back
+					Scrambler::process(data, data, 0, CD_DATA_SIZE);
+					if(read_as_data != nullptr)
+						*read_as_data = true;
 				}
 			}
 		}
@@ -475,7 +479,7 @@ export auto read_sector_new(SPTD &sptd, uint8_t *sector, const DriveConfig &driv
 		copy_or_clear(layout.subcode_offset, CD_SUBCODE_SIZE);
 	}
 
-	return std::tuple(status, read_as_data);
+	return status;
 }
 
 

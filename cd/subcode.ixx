@@ -166,4 +166,13 @@ export void subcode_extract_channel(uint8_t *subchannel, const uint8_t *subcode,
 	}
 }
 
+
+export ChannelQ subcode_extract_q(const uint8_t *subcode)
+{
+	ChannelQ Q;
+	subcode_extract_channel((uint8_t *)&Q, subcode, Subchannel::Q);
+
+	return Q;
+}
+
 }

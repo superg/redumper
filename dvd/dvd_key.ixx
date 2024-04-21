@@ -195,8 +195,7 @@ export void dvd_key(Context &ctx, const Options &options)
 
 export void redumper_dvdisokey(Context &ctx, Options &options)
 {
-	if(options.image_name.empty())
-		throw_line("image name is not provided");
+	image_check_empty(options);
 
 	std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
 

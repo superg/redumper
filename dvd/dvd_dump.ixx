@@ -375,8 +375,7 @@ void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
 
 export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 {
-	if(options.image_name.empty())
-		throw_line("image name is not provided");
+	image_check_empty(options);
 
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -384,7 +383,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 	std::filesystem::path state_path(image_prefix + ".state");
 
 	if(dump_mode == DumpMode::DUMP)
-		image_check_overwrite(state_path, options);
+		image_check_overwrite(options);
 
 	// get sectors count
 	uint32_t sector_last, block_length;

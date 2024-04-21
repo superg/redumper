@@ -308,8 +308,7 @@ uint32_t percentage(int32_t value, uint32_t value_max)
 
 export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 {
-	if(options.image_name.empty())
-		throw_line("image name is not provided");
+	image_check_empty(options);
 
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -324,7 +323,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 	std::filesystem::path asus_path(image_prefix + ".asus");
 
 	if(!refine)
-		image_check_overwrite(state_path, options);
+		image_check_overwrite(options);
 
 	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); //FIXME: transition to samples?
 	std::vector<std::pair<int32_t, int32_t>> error_ranges;

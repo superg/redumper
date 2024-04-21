@@ -32,14 +32,22 @@ import utils.signal;
 namespace gpsxre
 {
 
+struct Errors
+{
+	uint32_t scsi;
+	uint32_t c2;
+	uint32_t q;
+};
+
+
 const uint32_t SLOW_SECTOR_TIMEOUT = 5;
 const uint32_t LEADOUT_OVERREAD_COUNT = 100;
 
 
-void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors_scsi, uint32_t errors_c2, uint32_t errors_q)
+void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, const Errors &errors)
 {
 	std::string status = lba == lba_end ? "dump complete" :
-		std::format("LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", lba, lba_end, errors_scsi, errors_c2, errors_q);
+		std::format("LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", lba, lba_end, errors.scsi, errors.c2, errors.q);
 
 	char animation = lba == lba_end ? '*' : spinner_animation();
 	uint32_t percentage = (lba - lba_start) * 100 / (lba_end - lba_start);
@@ -47,7 +55,7 @@ void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t e
 }
 
 
-TOC process_toc(Context &ctx, const Options &options, DumpMode dump_mode)
+TOC toc_process(Context &ctx, const Options &options, bool store)
 {
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -73,7 +81,7 @@ TOC process_toc(Context &ctx, const Options &options, DumpMode dump_mode)
 	auto toc = choose_toc(toc_buffer, full_toc_buffer);
 
 	// store TOC information
-	if(dump_mode == DumpMode::DUMP)
+	if(store)
 	{
 		// TOC / FULL_TOC
 		write_vector(toc_path, toc_buffer);
@@ -116,8 +124,30 @@ TOC process_toc(Context &ctx, const Options &options, DumpMode dump_mode)
 		if(toc_buffer != toc_buffer_file)
 			throw_line("disc / file TOC don't match, refining from a different disc?");
 	}
-	
+
 	return toc;
+}
+
+
+void toc_fix_faketoc(TOC &toc)
+{
+	// [PSX] Breaker Pro
+	if(toc.sessions.back().tracks.back().lba_end < 0)
+	{
+		toc.sessions.back().tracks.back().lba_end = MSF_to_LBA(MSF{ 74, 0, 0 }); // default: 74min / 650Mb
+		LOG("warning: fake TOC detected, using default 74min disc size");
+	}
+}
+
+
+std::vector<std::pair<int32_t, int32_t>> toc_get_gaps(const TOC &toc, int32_t pregap_start)
+{
+	std::vector<std::pair<int32_t, int32_t>> gaps;
+
+	for(uint32_t i = 1; i < toc.sessions.size(); ++i)
+		gaps.emplace_back(toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + pregap_start);
+
+	return gaps;
 }
 
 
@@ -136,117 +166,154 @@ std::vector<State> c2_to_state(const uint8_t *c2_data)
 
 		state[i] = c2_quad ? State::ERROR_C2 : State::SUCCESS;
 	}
-	
+
 	return state;
 }
 
 
 uint32_t c2_bits_count(std::span<const uint8_t> c2_data)
 {
-	return std::accumulate(c2_data.begin(), c2_data.end(), 0, [](uint32_t accumulator, uint8_t c2){ return accumulator + std::popcount(c2); });
+	return std::accumulate(c2_data.begin(), c2_data.end(), 0, [](uint32_t accumulator, uint8_t c2) { return accumulator + std::popcount(c2); });
 }
 
 
-bool sector_data_complete(std::fstream &fs_state, int32_t index, int32_t offset)
+bool sector_data_complete(std::span<const State> sector_state)
 {
-	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
-
-	read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, index, 1, offset, (uint8_t)State::ERROR_SKIP);
-
-	return std::all_of(sector_state.begin(), sector_state.end(), [](State s){ return s == State::SUCCESS; });
+	return std::all_of(sector_state.begin(), sector_state.end(), [](State s) { return s == State::SUCCESS; });
 }
 
 
-bool sector_data_blank(std::fstream &fs_state, int32_t index, int32_t offset)
+bool sector_data_blank(std::span<const State> sector_state)
 {
-	std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
-
-	read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, index, 1, offset, (uint8_t)State::ERROR_SKIP);
-
-	return std::all_of(sector_state.begin(), sector_state.end(), [](State s){ return s == State::ERROR_SKIP; });
+	return std::all_of(sector_state.begin(), sector_state.end(), [](State s) { return s == State::ERROR_SKIP; });
 }
 
 
-bool sector_subcode_complete(std::fstream &fs_subcode, int32_t index)
-{
-	std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
-
-	read_entry(fs_subcode, sector_subcode.data(), CD_SUBCODE_SIZE, index, 1, 0, 0);
-	ChannelQ Q;
-	subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-
-	return Q.isValid();
-}
-
-
-bool sector_data_state_merge(std::span<uint8_t> sector_data, std::span<State> sector_state, std::span<const uint8_t> sector_data_in, std::span<const State> sector_state_in)
+bool sector_data_state_update(std::span<State> sector_state, std::span<uint8_t> sector_data, std::span<const State> sector_state_in, std::span<const uint8_t> sector_data_in)
 {
 	bool updated = false;
-	
-	for(uint32_t i = 0; i < sector_state.size(); ++i)
+
+	for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
 	{
-		;
+		if(sector_state[i] < sector_state_in[i])
+		{
+			sector_state[i] = sector_state_in[i];
+			((uint32_t *)sector_data.data())[i] = ((uint32_t *)sector_data_in.data())[i];
+
+			updated = true;
+		}
 	}
-	
+
 	return updated;
 }
 
 
-export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode dump_mode)
+bool sector_subcode_update(std::span<uint8_t> sector_subcode, std::span<const uint8_t> sector_subcode_in)
 {
-	if(options.image_name.empty())
-		throw_line("image name is not provided");
+	bool updated = false;
 
-	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	ChannelQ Q = subcode_extract_q(sector_subcode.data());
+	ChannelQ Q_in = subcode_extract_q(sector_subcode_in.data());
 
-	// don't use .replace_extension() as it messes up paths with dot
-	std::string scram_path(image_prefix + ".scram");
-	std::string subcode_path(image_prefix + ".subcode");
-	std::string state_path(image_prefix + ".state");
-
-	if(dump_mode == DumpMode::DUMP)
+	if(std::all_of((uint8_t *)&Q, (uint8_t *)&Q + sizeof(Q), [](uint8_t s) { return s == 0; }) || !Q.isValid() && Q_in.isValid())
 	{
-		image_check_overwrite(state_path, options);
+		std::copy(sector_subcode_in.begin(), sector_subcode_in.end(), sector_subcode.begin());
 
-		if(!options.image_path.empty())
-			std::filesystem::create_directories(options.image_path);
+		updated = true;
 	}
 
-	auto toc = process_toc(ctx, options, dump_mode);
-	if(dump_mode == DumpMode::DUMP)
-	{
-		LOG("disc TOC:");
-		print_toc(toc);
-		LOG("");
-	}
+	return updated;
+}
 
-	// initialize dump range
-	int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
-	int32_t lba_end;
-	if(options.lba_end)
-		lba_end = *options.lba_end;
+
+void check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const uint8_t> sector_subcode, const Options &options)
+{
+	ChannelQ Q = subcode_extract_q(sector_subcode.data());
+	if(Q.isValid())
+	{
+		if(Q.adr == 1 && Q.mode1.tno)
+		{
+			int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
+
+			int32_t shift = lbaq - lba;
+			if(subcode_shift != shift)
+			{
+				subcode_shift = shift;
+
+				if(options.verbose)
+					LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
+			}
+		}
+	}
+}
+
+
+void check_fix_byte_desync(Context &ctx, uint32_t &errors_q_last, uint32_t errors_q, int32_t lba, std::span<const uint8_t> sector_subcode)
+{
+	if(subcode_extract_q(sector_subcode.data()).isValid())
+	{
+		errors_q_last = errors_q;
+	}
 	else
 	{
-		lba_end = toc.sessions.back().tracks.back().lba_end;
-
-		// fake TOC
-		// [PSX] Breaker Pro
-		if(lba_end < 0)
+		// PLEXTOR: some drives byte desync on subchannel after mass C2 errors with high bit count on high speed
+		// prevent this by flushing drive cache after C2 error range (flush cache on 5 consecutive Q errors)
+		if(errors_q - errors_q_last > 5)
 		{
-			lba_end = MSF_to_LBA(MSF{ 74, 0, 0 }); // default: 74min / 650Mb
-			LOG("warning: fake TOC detected, using default 74min disc size");
+			cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
+			errors_q_last = errors_q;
+		}
+	}
+}
+
+
+std::optional<int32_t> find_disc_offset(const TOC &toc, std::fstream &fs_state, std::fstream &fs_scram)
+{
+	for(auto &s : toc.sessions)
+	{
+		for(uint32_t i = 0; i + 1 < s.tracks.size(); ++i)
+		{
+			auto &t = s.tracks[i];
+			auto &t_next = s.tracks[i + 1];
+
+			if(t.control & (uint8_t)ChannelQ::Control::DATA)
+			{
+				auto track_offset = track_offset_by_sync(t.lba_start, t_next.lba_start, fs_state, fs_scram);
+				if(track_offset)
+					return track_offset;
+			}
 		}
 	}
 
-	// multisession gaps
-	std::vector<std::pair<int32_t, int32_t>> error_ranges;
-	for(uint32_t i = 1; i < toc.sessions.size(); ++i)
-		error_ranges.emplace_back(toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + ctx.drive_config.pregap_start);
+	return std::nullopt;
+}
 
-	std::fstream::openmode mode = std::fstream::out | std::fstream::binary | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in);
-	std::fstream fs_scram(scram_path, mode);
-	std::fstream fs_subcode(subcode_path, mode);
-	std::fstream fs_state(state_path, mode);
+
+export bool redumper_dump_cd_new(Context &ctx, const Options &options)
+{
+	image_check_empty(options);
+	image_check_overwrite(options);
+
+	if(!options.image_path.empty())
+		std::filesystem::create_directories(options.image_path);
+
+	auto toc = toc_process(ctx, options, true);
+	LOG("disc TOC:");
+	print_toc(toc);
+	LOG("");
+
+	toc_fix_faketoc(toc);
+
+	int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
+	int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
+
+	auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
+
+	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	std::fstream::openmode mode = std::fstream::out | std::fstream::binary | std::fstream::trunc;
+	std::fstream fs_scram(image_prefix + ".scram", mode);
+	std::fstream fs_subcode(image_prefix + ".subcode", mode);
+	std::fstream fs_state(image_prefix + ".state", mode);
 
 	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 	std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
@@ -256,26 +323,146 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 	int32_t data_offset = ctx.drive_config.read_offset;
 	if(options.dump_write_offset)
 		data_offset = -*options.dump_write_offset;
-	else
-	{
-		if(dump_mode != DumpMode::DUMP)
-		{
-			//TODO: detect scram offset
-			;
-		}
-	}
 
-	uint32_t errors_scsi = 0;
-	uint32_t errors_c2 = 0;
-	uint32_t errors_q = 0;
+	Errors errors = {};
 
 	int32_t subcode_shift = 0;
-	uint32_t errors_q_last = errors_q;
+	uint32_t errors_q_last = 0;
 
 	SignalINT signal;
 
 	int32_t lba_overread = lba_end;
-	for(int32_t lba = lba_start; lba < lba_overread;)
+	for(int32_t lba = lba_start; lba < lba_overread; ++lba)
+	{
+		if(signal.interrupt())
+		{
+			LOG_R("[LBA: {:6}] forced stop ", lba);
+			LOG("");
+			break;
+		}
+
+		progress_output(lba, lba_start, lba_overread, errors);
+
+		auto read_time_start = std::chrono::high_resolution_clock::now();
+		bool read_as_data;
+		auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), &read_as_data, ctx.drive_config, lba);
+		auto read_time_stop = std::chrono::high_resolution_clock::now();
+
+		auto error_range = inside_range(lba, gaps);
+		bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
+
+		if(error_range != nullptr && slow_sector)
+		{
+			lba = error_range->second - 1;
+			continue;
+		}
+
+		if(status.status_code)
+		{
+			if(error_range == nullptr && lba < lba_end)
+			{
+				++errors.scsi;
+
+				if(options.verbose)
+					LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+			}
+		}
+		else
+		{
+			check_subcode_shift(subcode_shift, lba, sector_subcode, options);
+			check_fix_byte_desync(ctx, errors_q_last, errors.q, lba, sector_subcode);
+
+			if(!subcode_extract_q(sector_subcode.data()).isValid())
+				++errors.q;
+
+			auto sector_state = c2_to_state(sector_c2.data());
+			if(!sector_data_complete(sector_state))
+			{
+				++errors.c2;
+
+				if(options.verbose)
+					LOG_R("[LBA: {:6}] C2 error (bits: {:4})", lba, c2_bits_count(sector_c2));
+			}
+
+			int32_t lba_index = lba - LBA_START;
+			int32_t offset = read_as_data ? data_offset : ctx.drive_config.read_offset;
+			write_entry(fs_scram, sector_data.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
+			write_entry(fs_subcode, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
+			write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
+
+			// grow lead-out overread if we still can read
+			if(lba + 1 == lba_overread && !slow_sector &&
+			   !options.lba_end && (lba_overread - lba_end <= LEADOUT_OVERREAD_COUNT || options.overread_leadout))
+			{
+				++lba_overread;
+			}
+		}
+	}
+
+	if(!signal.interrupt())
+	{
+		progress_output(lba_overread, lba_start, lba_overread, errors);
+		LOGC("");
+		LOGC("");
+	}
+
+	LOG("media errors: ");
+	LOG("  SCSI: {}", errors.scsi);
+	LOG("  C2: {}", errors.c2);
+	LOG("  Q: {}", errors.q);
+
+	if(signal.interrupt())
+		signal.raiseDefault();
+
+	return errors.scsi || errors.c2;
+}
+
+
+export void redumper_refine_cd_new(Context &ctx, const Options &options)
+{
+	image_check_empty(options);
+
+	auto toc = toc_process(ctx, options, false);
+	toc_fix_faketoc(toc);
+
+	int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
+	int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
+
+	auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
+
+	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+	std::fstream::openmode mode = std::fstream::out | std::fstream::binary | std::fstream::in;
+	std::fstream fs_scram(image_prefix + ".scram", mode);
+	std::fstream fs_subcode(image_prefix + ".subcode", mode);
+	std::fstream fs_state(image_prefix + ".state", mode);
+	
+	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+	std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
+	std::span<const uint8_t> sector_c2(sector_buffer.begin() + CD_DATA_SIZE, CD_C2_SIZE);
+	std::span<const uint8_t> sector_subcode(sector_buffer.begin() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
+
+	std::vector<uint8_t> sector_data_file_a(CD_DATA_SIZE);
+	std::vector<uint8_t> sector_data_file_d(CD_DATA_SIZE);
+	std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
+	std::vector<State> sector_state_file_a(CD_DATA_SIZE_SAMPLES);
+	std::vector<State> sector_state_file_d(CD_DATA_SIZE_SAMPLES);
+
+	int32_t data_offset = ctx.drive_config.read_offset;
+	if(options.dump_write_offset)
+		data_offset = -*options.dump_write_offset;
+	else
+	{
+		auto disc_offset = find_disc_offset(toc, fs_state, fs_scram);
+		if(disc_offset)
+			data_offset = -*disc_offset;
+	}
+
+	Errors errors = {};
+
+	SignalINT signal;
+
+	int32_t lba_overread = lba_end;
+	for(int32_t lba = lba_start; lba < lba_overread; ++lba)
 	{
 		if(signal.interrupt())
 		{
@@ -286,168 +473,113 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options, DumpMode 
 
 		int32_t lba_index = lba - LBA_START;
 
-		bool skip = true;
-		if(dump_mode == DumpMode::DUMP)
-			skip = false;
-		else if(dump_mode == DumpMode::REFINE)
-		{
-			skip = sector_data_complete(fs_state, lba_index, ctx.drive_config.read_offset)
-				&& sector_data_complete(fs_state, lba_index, data_offset)
-				&& (!options.refine_subchannel || sector_subcode_complete(fs_subcode, lba_index));
-		}
-		else if(dump_mode == DumpMode::VERIFY)
-			skip = sector_data_blank(fs_state, lba_index, ctx.drive_config.read_offset) && sector_data_blank(fs_state, lba_index, data_offset);
+		read_entry(fs_scram, sector_data_file_a.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE, 0);
+		read_entry(fs_scram, sector_data_file_d.data(), CD_DATA_SIZE, lba_index, 1, data_offset * CD_SAMPLE_SIZE, 0);
+		read_entry(fs_subcode, sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
+		read_entry(fs_state, (uint8_t *)sector_state_file_a.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
+		read_entry(fs_state, (uint8_t *)sector_state_file_d.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, data_offset, (uint8_t)State::ERROR_SKIP);
 
-		if(skip)
-		{
-			//FIXME: verify leadout improvement on a different drive
-			++lba;
-
+		if(sector_data_complete(sector_state_file_a) && sector_data_complete(sector_state_file_d)
+			&& (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
 			continue;
-		}
 
-		progress_output(lba, lba_start, lba_overread, errors_scsi, errors_c2, errors_q);
-
-		// read sector
-		auto read_time_start = std::chrono::high_resolution_clock::now();
-		auto [status, read_as_data] = read_sector_new(*ctx.sptd, sector_buffer.data(), ctx.drive_config, lba);
-		auto read_time_stop = std::chrono::high_resolution_clock::now();
-
-		auto error_range = inside_range(lba, error_ranges);
-		bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
-
-		// skip known erroneous areas (multisession gaps and protection rings)
-		if(error_range != nullptr && slow_sector)
+		bool data = false;
+		for(uint32_t r = 0, n = (options.retries ? options.retries : 1); r < n; ++r)
 		{
-			lba = error_range->second;
-			continue;
-		}
-
-		if(status.status_code)
-		{
-			if(error_range == nullptr && lba < lba_end)
+			if(signal.interrupt())
 			{
-				if(dump_mode == DumpMode::DUMP)
-					++errors_scsi;
-
-				if(options.verbose)
-					LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+				break;
 			}
-		}
-		else
-		{
-			ChannelQ Q;
-			subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-			if(Q.isValid())
+
+			progress_output(lba, lba_start, lba_overread, errors);
+
+			// flush cache
+			if(r)
+				cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
+
+			auto read_time_start = std::chrono::high_resolution_clock::now();
+			bool read_as_data;
+			auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), &read_as_data, ctx.drive_config, lba);
+			auto read_time_stop = std::chrono::high_resolution_clock::now();
+
+			auto error_range = inside_range(lba, gaps);
+			bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
+
+			if(error_range != nullptr && slow_sector)
 			{
-				errors_q_last = errors_q;
+				lba = error_range->second - 1;
+				break;
+			}
 
-				// desync diagnostics
-				if(Q.adr == 1 && Q.mode1.tno)
+			if(status.status_code)
+			{
+				if(error_range == nullptr && lba < lba_end)
 				{
-					int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
-
-					int32_t shift = lbaq - lba;
-					if(subcode_shift != shift)
-					{
-						subcode_shift = shift;
-
-						if(options.verbose)
-							LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
-					}
+					if(options.verbose)
+						LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 				}
 			}
 			else
 			{
-				// PLEXTOR: some drives byte desync on subchannel after mass C2 errors with high bit count on high speed
-				// prevent this by flushing drive cache after C2 error range (flush cache on 5 consecutive Q errors)
-				if(errors_q - errors_q_last > 5)
+				if(r)
 				{
-					cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
-					errors_q_last = errors_q;
+					if(data != read_as_data)
+					{
+						LOG_R("[LBA: {:6}] unexpected read type on retry (retry: {}, read type: {})", lba, r + 1, read_as_data ? "DATA" : "AUDIO");
+						continue;
+					}
+				}
+				else
+				{
+					data = read_as_data;
 				}
 
-				if(dump_mode == DumpMode::DUMP)
-					++errors_q;
-			}
+				int32_t offset = data ? data_offset : ctx.drive_config.read_offset;
+				std::span<uint8_t> sector_data_file(data ? sector_data_file_d : sector_data_file_a);
+				std::span<State> sector_state_file(data ? sector_state_file_d : sector_state_file_a);
 
-			auto sector_state = c2_to_state(sector_c2.data());
-			auto c2_bits = c2_bits_count(sector_c2);
-			if(c2_bits)
-			{
-				if(dump_mode == DumpMode::DUMP)
-					++errors_c2;
-
-				if(options.verbose)
+				auto sector_state = c2_to_state(sector_c2.data());
+				bool store = sector_data_state_update(sector_state_file, sector_data_file, sector_state, sector_data);
+				if(store)
 				{
-					LOG_R("[LBA: {:6}] C2 error (bits: {:4})", lba, c2_bits);
+					write_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
+					write_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
 				}
-			}
 
-			int32_t offset = read_as_data ? data_offset : ctx.drive_config.read_offset;
-			if(dump_mode == DumpMode::DUMP)
-			{
-				write_entry(fs_scram, sector_data.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
-				write_entry(fs_subcode, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
-				write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
-			}
-			else if(dump_mode == DumpMode::REFINE)
-			{
-				std::vector<uint8_t> sector_data_file(CD_DATA_SIZE);
-				std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
-				std::vector<State> sector_state_file(CD_DATA_SIZE_SAMPLES);
+				bool store_q = sector_subcode_update(sector_subcode_file, sector_subcode);
+				if(store_q)
+					write_entry(fs_subcode, sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
 
-				// read current sector data from files
-				read_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE, 0);
-				read_entry(fs_subcode, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
-				read_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset, (uint8_t)State::ERROR_SKIP);
-
-				;
-
-				for(uint32_t i = 0; i < options.retries; ++i)
+				if(store || store_q)
 				{
-					bool store = sector_data_state_merge(sector_data_file, sector_state_file, sector_data, sector_state);
-					// analyze
-
-					// store
-
-					// exit condition
-
-					// read
+					if(sector_data_complete(sector_state_file) && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
+						break;
 				}
-			}
-			else if(dump_mode == DumpMode::VERIFY)
-			{
-				;
-			}
 
-			// grow lead-out overread if we still can read
-			if(lba + 1 == lba_overread && !slow_sector &&
-			   !options.lba_end && (lba_overread - lba_end <= LEADOUT_OVERREAD_COUNT || options.overread_leadout))
-			{
-				++lba_overread;
+				// grow lead-out overread if we still can read
+				if(lba + 1 == lba_overread && !slow_sector &&
+				   !options.lba_end && (lba_overread - lba_end <= LEADOUT_OVERREAD_COUNT || options.overread_leadout))
+				{
+					++lba_overread;
+				}
 			}
 		}
-
-		++lba;
 	}
 
 	if(!signal.interrupt())
 	{
-		progress_output(lba_overread, lba_start, lba_overread, errors_scsi, errors_c2, errors_q);
+		progress_output(lba_overread, lba_start, lba_overread, errors);
 		LOGC("");
 		LOGC("");
 	}
 
 	LOG("media errors: ");
-	LOG("  SCSI: {}", errors_scsi);
-	LOG("  C2: {}", errors_c2);
-	LOG("  Q: {}", errors_q);
+	LOG("  SCSI: {}", errors.scsi);
+	LOG("  C2: {}", errors.c2);
+	LOG("  Q: {}", errors.q);
 
 	if(signal.interrupt())
 		signal.raiseDefault();
-
-	return errors_scsi || errors_c2;
 }
 
 }

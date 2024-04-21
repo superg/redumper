@@ -318,8 +318,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 
 export void redumper_skeleton(Context &ctx, Options &options)
 {
-	if(options.image_name.empty())
-		throw_line("image name is not provided");
+	image_check_empty(options);
 
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 

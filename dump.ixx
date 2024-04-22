@@ -388,12 +388,9 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, const DriveConfig &
 }
 
 
-export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool *read_as_data, const DriveConfig &drive_config, int32_t lba)
+export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types, const DriveConfig &drive_config, int32_t lba)
 {
 	SPTD::Status status;
-
-	if(read_as_data != nullptr)
-		*read_as_data = false;
 
 	auto layout = sector_order_layout(drive_config.sector_order);
 	
@@ -415,11 +412,23 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool *read_as_d
 		auto error_field = layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2;
 		auto sub_channel = layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
 
+		bool read_all_types = false;
+		if(all_types)
+		{
+			read_all_types = true;
+		}
 		// read as audio (according to MMC-3 standard, the CD-DA sector type support is optional)
-		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
+		else
+		{
+			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
+			if(status.status_code)
+			{
+				read_all_types = true;
+			}
+		}
 
 		// read failed, either data sector is encountered (likely) or CD-DA sector type call is unsupported (unlikely)
-		if(status.status_code)
+		if(read_all_types)
 		{
 			// read without filter
 			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
@@ -434,8 +443,7 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool *read_as_d
 				{
 					// scramble data back
 					Scrambler::process(data, data, 0, CD_DATA_SIZE);
-					if(read_as_data != nullptr)
-						*read_as_data = true;
+					all_types = true;
 				}
 			}
 		}

@@ -344,8 +344,8 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options)
 		progress_output(lba, lba_start, lba_overread, errors);
 
 		auto read_time_start = std::chrono::high_resolution_clock::now();
-		bool read_as_data;
-		auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), &read_as_data, ctx.drive_config, lba);
+		bool all_types = options.force_unscrambled;
+		auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
 		auto read_time_stop = std::chrono::high_resolution_clock::now();
 
 		auto error_range = inside_range(lba, gaps);
@@ -385,7 +385,7 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options)
 			}
 
 			int32_t lba_index = lba - LBA_START;
-			int32_t offset = read_as_data ? data_offset : ctx.drive_config.read_offset;
+			int32_t offset = all_types ? data_offset : ctx.drive_config.read_offset;
 			write_entry(fs_scram, sector_data.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
 			write_entry(fs_subcode, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
 			write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
@@ -498,8 +498,8 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 				cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
-			bool read_as_data;
-			auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), &read_as_data, ctx.drive_config, lba);
+			bool all_types = options.force_unscrambled;
+			auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
 			auto read_time_stop = std::chrono::high_resolution_clock::now();
 
 			auto error_range = inside_range(lba, gaps);
@@ -523,15 +523,15 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 			{
 				if(r)
 				{
-					if(data != read_as_data)
+					if(data != all_types)
 					{
-						LOG_R("[LBA: {:6}] unexpected read type on retry (retry: {}, read type: {})", lba, r + 1, read_as_data ? "DATA" : "AUDIO");
+						LOG_R("[LBA: {:6}] unexpected read type on retry (retry: {}, read type: {})", lba, r + 1, all_types ? "DATA" : "AUDIO");
 						continue;
 					}
 				}
 				else
 				{
-					data = read_as_data;
+					data = all_types;
 				}
 
 				int32_t offset = data ? data_offset : ctx.drive_config.read_offset;

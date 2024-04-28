@@ -42,13 +42,7 @@ struct Errors
 
 const uint32_t SLOW_SECTOR_TIMEOUT = 5;
 const uint32_t LEADOUT_OVERREAD_COUNT = 100;
-
-
-void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, const Errors &errors)
-{
-	uint32_t percentage = (lba - lba_start) * 100 / (lba_end - lba_start);
-	LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", spinner_animation(), percentage, lba, lba_end, errors.scsi, errors.c2, errors.q);
-}
+const uint32_t SUBCODE_BYTE_DESYNC_COUNT = 5;
 
 
 TOC toc_process(Context &ctx, const Options &options, bool store)
@@ -244,20 +238,22 @@ void check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const ui
 }
 
 
-void check_fix_byte_desync(Context &ctx, uint32_t &errors_q_last, uint32_t errors_q, int32_t lba, std::span<const uint8_t> sector_subcode)
+void check_fix_byte_desync(Context &ctx, uint32_t &errors_q_counter, int32_t lba, std::span<const uint8_t> sector_subcode)
 {
 	if(subcode_extract_q(sector_subcode.data()).isValid())
 	{
-		errors_q_last = errors_q;
+		errors_q_counter = 0;
 	}
 	else
 	{
+		++errors_q_counter;
+
 		// PLEXTOR: some drives byte desync on subchannel after mass C2 errors with high bit count on high speed
 		// prevent this by flushing drive cache after C2 error range (flush cache on 5 consecutive Q errors)
-		if(errors_q - errors_q_last > 5)
+		if(errors_q_counter > SUBCODE_BYTE_DESYNC_COUNT)
 		{
 			cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
-			errors_q_last = errors_q;
+			errors_q_counter = 0;
 		}
 	}
 }
@@ -351,18 +347,25 @@ void refine_init_errors(Errors &errors, std::fstream &fs_state, std::fstream &fs
 }
 
 
-export bool redumper_dump_cd_new(Context &ctx, const Options &options)
+export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMode dump_mode)
 {
 	image_check_empty(options);
-	image_check_overwrite(options);
 
-	if(!options.image_path.empty())
-		std::filesystem::create_directories(options.image_path);
+	if(dump_mode == DumpMode::DUMP)
+	{
+		image_check_overwrite(options);
 
-	auto toc = toc_process(ctx, options, true);
-	LOG("disc TOC:");
-	print_toc(toc);
-	LOG("");
+		if(!options.image_path.empty())
+			std::filesystem::create_directories(options.image_path);
+	}
+
+	auto toc = toc_process(ctx, options, dump_mode == DumpMode::DUMP);
+	if(dump_mode == DumpMode::DUMP)
+	{
+		LOG("disc TOC:");
+		print_toc(toc);
+		LOG("");
+	}
 
 	toc_fix_faketoc(toc);
 
@@ -372,124 +375,7 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options)
 	auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
 
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-	std::fstream::openmode mode = std::fstream::out | std::fstream::binary | std::fstream::trunc;
-	std::fstream fs_scram(image_prefix + ".scram", mode);
-	std::fstream fs_state(image_prefix + ".state", mode);
-	std::fstream fs_subcode(image_prefix + ".subcode", mode);
-
-	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
-	std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
-	std::span<const uint8_t> sector_c2(sector_buffer.begin() + CD_DATA_SIZE, CD_C2_SIZE);
-	std::span<const uint8_t> sector_subcode(sector_buffer.begin() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
-
-	int32_t data_offset = ctx.drive_config.read_offset;
-	if(options.dump_write_offset)
-		data_offset = -*options.dump_write_offset;
-
-	Errors errors = {};
-
-	int32_t subcode_shift = 0;
-	uint32_t errors_q_last = 0;
-
-	SignalINT signal;
-
-	int32_t lba_overread = lba_end;
-	for(int32_t lba = lba_start; lba < lba_overread; ++lba)
-	{
-		if(signal.interrupt())
-		{
-			LOG_R("[LBA: {:6}] forced stop ", lba);
-			LOG("");
-			break;
-		}
-
-		progress_output(lba, lba_start, lba_overread, errors);
-
-		auto read_time_start = std::chrono::high_resolution_clock::now();
-		bool all_types = options.force_unscrambled;
-		auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
-		auto read_time_stop = std::chrono::high_resolution_clock::now();
-
-		auto gap_range = inside_range(lba, gaps);
-		bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
-
-		if(gap_range != nullptr && slow_sector)
-		{
-			lba = gap_range->second - 1;
-			continue;
-		}
-
-		if(status.status_code)
-		{
-			if(gap_range == nullptr && lba < lba_end)
-			{
-				++errors.scsi;
-
-				if(options.verbose)
-					LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
-			}
-		}
-		else
-		{
-			// grow lead-out overread if we still can read
-			if(lba + 1 == lba_overread && !slow_sector && !options.lba_end && (lba_overread - lba_end < LEADOUT_OVERREAD_COUNT || options.overread_leadout))
-				++lba_overread;
-
-			check_subcode_shift(subcode_shift, lba, sector_subcode, options);
-			check_fix_byte_desync(ctx, errors_q_last, errors.q, lba, sector_subcode);
-
-			if(!subcode_extract_q(sector_subcode.data()).isValid())
-				++errors.q;
-
-			auto sector_state = c2_to_state(sector_c2.data());
-			if(!sector_data_complete(sector_state))
-			{
-				++errors.c2;
-
-				if(options.verbose)
-					LOG_R("[LBA: {:6}] C2 error (bits: {:4})", lba, c2_bits_count(sector_c2));
-			}
-
-			int32_t lba_index = lba - LBA_START;
-			int32_t offset = all_types ? data_offset : ctx.drive_config.read_offset;
-			write_entry(fs_scram, sector_data.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
-			write_entry(fs_subcode, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
-			write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
-		}
-	}
-
-	if(!signal.interrupt())
-	{
-		LOGC_RF("");
-		LOGC("");
-	}
-
-	LOG("media errors: ");
-	LOG("  SCSI: {}", errors.scsi);
-	LOG("  C2: {}", errors.c2);
-	LOG("  Q: {}", errors.q);
-
-	if(signal.interrupt())
-		signal.raiseDefault();
-
-	return errors.scsi || errors.c2;
-}
-
-
-export void redumper_refine_cd_new(Context &ctx, const Options &options)
-{
-	image_check_empty(options);
-
-	auto toc = toc_process(ctx, options, false);
-	toc_fix_faketoc(toc);
-
-	int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
-	int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
-
-	auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
-
-	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-	std::fstream::openmode mode = std::fstream::out | std::fstream::binary | std::fstream::in;
+	std::fstream::openmode mode = std::fstream::out | std::fstream::binary | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in);
 	std::fstream fs_scram(image_prefix + ".scram", mode);
 	std::fstream fs_state(image_prefix + ".state", mode);
 	std::fstream fs_subcode(image_prefix + ".subcode", mode);
@@ -508,7 +394,7 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 	int32_t data_offset = ctx.drive_config.read_offset;
 	if(options.dump_write_offset)
 		data_offset = -*options.dump_write_offset;
-	else
+	else if(dump_mode != DumpMode::DUMP)
 	{
 		auto disc_offset = find_disc_offset(toc, fs_state, fs_scram);
 		if(disc_offset)
@@ -520,12 +406,17 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 	}
 
 	Errors errors_initial = {};
-	refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_offset);
-
+	if(dump_mode != DumpMode::DUMP)
+		refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_offset);
 	Errors errors = errors_initial;
 
-	uint32_t refine_sectors_count = refine_count_sectors(fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_offset, options);
 	uint32_t refine_sectors_processed = 0;
+	uint32_t refine_sectors_count = 0;
+	if(dump_mode == DumpMode::REFINE)
+		refine_sectors_count = refine_count_sectors(fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_offset, options);
+
+	int32_t subcode_shift = 0;
+	uint32_t errors_q_counter = 0;
 
 	SignalINT signal;
 
@@ -550,8 +441,10 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 		if(sector_data_complete(sector_state_file_a) && sector_data_complete(sector_state_file_d) && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
 			continue;
 
+		uint32_t retries = dump_mode == DumpMode::REFINE ? options.retries : 0;
+
 		std::optional<bool> read_as_data;
-		for(uint32_t r = 0; r <= options.retries; ++r)
+		for(uint32_t r = 0; r <= retries; ++r)
 		{
 			if(signal.interrupt())
 			{
@@ -575,8 +468,13 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 				cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
 			}
 
-			uint32_t percentage = 100 * (refine_sectors_processed * (options.retries + 1) + r) / (refine_sectors_count * (options.retries + 1));
-			LOGC_RF("{} [{:3}%] LBA: {:6}, errors: {{ SCSIs: {}, C2s: {}, Q: {} }}{}", spinner_animation(), percentage, lba, errors.scsi, errors.c2, errors.q, status_message);
+			uint32_t percentage;
+			if(dump_mode == DumpMode::REFINE)
+				percentage = 100 * (refine_sectors_processed * (options.retries + 1) + r) / (refine_sectors_count * (options.retries + 1));
+			else
+				percentage = 100 * (lba - lba_start) / (lba_overread - lba_start);
+			LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), percentage, lba, lba_overread,
+					dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi, dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
 			bool all_types = options.force_unscrambled;
@@ -587,7 +485,8 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 			bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
 			if(gap_range != nullptr && slow_sector)
 			{
-				refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba + 1, gap_range->second, ctx.drive_config.read_offset, data_offset, options);
+				if(dump_mode == DumpMode::REFINE)
+					refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba + 1, gap_range->second, ctx.drive_config.read_offset, data_offset, options);
 				lba = gap_range->second - 1;
 				break;
 			}
@@ -596,6 +495,9 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 			{
 				if(gap_range == nullptr && lba < lba_end)
 				{
+					if(dump_mode != DumpMode::REFINE)
+						++errors.scsi;
+
 					if(options.verbose)
 						LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 				}
@@ -606,63 +508,79 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 				if(lba + 1 == lba_overread && !slow_sector && !options.lba_end && (lba_overread - lba_end < LEADOUT_OVERREAD_COUNT || options.overread_leadout))
 					++lba_overread;
 
+				check_subcode_shift(subcode_shift, lba, sector_subcode, options);
+				check_fix_byte_desync(ctx, errors_q_counter, lba, sector_subcode);
+
 				if(sector_subcode_update(sector_subcode_file, sector_subcode))
 				{
 					write_entry(fs_subcode, sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
 
-					if(subcode_extract_q(sector_subcode_file.data()).isValid() && lba < lba_end)
-						--errors.q;
+					bool subcode_valid = subcode_extract_q(sector_subcode_file.data()).isValid();
+
+					if(dump_mode == DumpMode::REFINE)
+					{
+						if(subcode_valid && lba < lba_end)
+							--errors.q;
+					}
+					else
+					{
+						if(!subcode_valid)
+							++errors.q;
+					}
 				}
 
-				if(read_as_data)
+				if(!read_as_data)
+					read_as_data = all_types;
+
+				if(*read_as_data == all_types)
 				{
-					if(*read_as_data != all_types)
+					uint32_t c2_bits = c2_bits_count(sector_c2);
+					if(c2_bits)
 					{
-						LOG_R("[LBA: {:6}] unexpected read type on retry (retry: {}, read type: {})", lba, r, all_types ? "DATA" : "AUDIO");
-						continue;
+						if(dump_mode != DumpMode::REFINE)
+							++errors.c2;
+
+						if(options.verbose)
+							LOG_R("[LBA: {:6}] C2 error (bits: {:4})", lba, c2_bits);
+					}
+
+					std::span<State> sector_state_file(all_types ? sector_state_file_d : sector_state_file_a);
+					std::span<uint8_t> sector_data_file(all_types ? sector_data_file_d : sector_data_file_a);
+
+					uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
+					uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
+
+					if(sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data()), sector_data))
+					{
+						int32_t offset = all_types ? data_offset : ctx.drive_config.read_offset;
+						write_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
+						write_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
+
+						if(dump_mode == DumpMode::REFINE && lba < lba_end)
+						{
+							uint32_t scsi_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
+							uint32_t c2_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
+
+							errors.scsi -= scsi_before - scsi_after;
+							errors.c2 -= c2_before - c2_after;
+						}
+					}
+
+					if(sector_data_complete(sector_state_file) && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
+					{
+						if(dump_mode == DumpMode::REFINE && options.verbose && lba < lba_end)
+							LOG_R("[LBA: {:6}] correction success", lba);
+
+						break;
 					}
 				}
 				else
 				{
-					read_as_data = all_types;
-				}
-
-				uint32_t c2_bits = c2_bits_count(sector_c2);
-				if(c2_bits && options.verbose)
-					LOG_R("[LBA: {:6}] C2 error (bits: {:4})", lba, c2_bits);
-
-				std::span<State> sector_state_file(all_types ? sector_state_file_d : sector_state_file_a);
-				std::span<uint8_t> sector_data_file(all_types ? sector_data_file_d : sector_data_file_a);
-
-				uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
-				uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
-
-				if(sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data()), sector_data))
-				{
-					int32_t offset = all_types ? data_offset : ctx.drive_config.read_offset;
-					write_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
-					write_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
-
-					if(lba < lba_end)
-					{
-						uint32_t scsi_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
-						uint32_t c2_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
-
-						errors.scsi -= scsi_before - scsi_after;
-						errors.c2 -= c2_before - c2_after;
-					}
-				}
-				
-				if(sector_data_complete(sector_state_file) && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
-				{
-					if(options.verbose && lba < lba_end)
-						LOG_R("[LBA: {:6}] correction success", lba);
-
-					break;
+					LOG_R("[LBA: {:6}] unexpected read type on retry (retry: {}, read type: {})", lba, r, all_types ? "DATA" : "AUDIO");
 				}
 			}
 
-			if(r == options.retries && options.verbose && lba < lba_end)
+			if(dump_mode == DumpMode::REFINE && r == options.retries && options.verbose && lba < lba_end)
 			{
 				bool failure = false;
 
@@ -687,7 +605,7 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 			}
 		}
 
-		if(lba < lba_end)
+		if(dump_mode == DumpMode::REFINE && lba < lba_end)
 			++refine_sectors_processed;
 	}
 
@@ -697,13 +615,25 @@ export void redumper_refine_cd_new(Context &ctx, const Options &options)
 		LOGC("");
 	}
 
-	LOG("correction statistics: ");
-	LOG("  SCSI: {} samples", errors_initial.scsi - errors.scsi);
-	LOG("  C2: {} samples", errors_initial.c2 - errors.c2);
-	LOG("  Q: {} sectors", errors_initial.q - errors.q);
+	if(dump_mode == DumpMode::DUMP)
+	{
+		LOG("media errors: ");
+		LOG("  SCSI: {}", errors.scsi);
+		LOG("  C2: {}", errors.c2);
+		LOG("  Q: {}", errors.q);
+	}
+	else if(dump_mode == DumpMode::REFINE)
+	{
+		LOG("correction statistics: ");
+		LOG("  SCSI: {} samples", errors_initial.scsi - errors.scsi);
+		LOG("  C2: {} samples", errors_initial.c2 - errors.c2);
+		LOG("  Q: {} sectors", errors_initial.q - errors.q);
+	}
 
 	if(signal.interrupt())
 		signal.raiseDefault();
+
+	return errors.scsi || errors.c2;
 }
 
 }

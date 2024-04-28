@@ -46,7 +46,7 @@ import version;
 namespace gpsxre
 {
 
-const std::set<std::string> CD_BATCH_COMMANDS { "cd", "sacd", "dvd", "bd" };
+const std::set<std::string> CD_BATCH_COMMANDS { "cd", "sacd", "dvd", "bd", "new" };
 
 
 const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_STRING =
@@ -200,10 +200,11 @@ std::string generate_image_name(std::string drive)
 }
 
 
-std::list<std::string> get_cd_batch_commands(Context &ctx)
+std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command)
 {
 	if(profile_is_cd(ctx.current_profile))
-		return std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info", "skeleton" };
+		return command == "new" ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info", "skeleton" } :
+			std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info", "skeleton" };
 	else if(profile_is_dvd(ctx.current_profile))
 		return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info", "skeleton" };
 	else if(profile_is_bluray(ctx.current_profile))
@@ -298,7 +299,7 @@ Context initialize(Options &options)
 			options.commands.push_back(c);
 		else
 		{
-			auto cd_batch_commands = get_cd_batch_commands(ctx);
+			auto cd_batch_commands = get_cd_batch_commands(ctx, c);
 			options.commands.insert(options.commands.end(), cd_batch_commands.begin(), cd_batch_commands.end());
 		}
 	}

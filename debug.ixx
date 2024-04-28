@@ -1,4 +1,5 @@
 module;
+#include <bit>
 #include <cstdint>
 #include <string>
 #include <filesystem>
@@ -52,12 +53,18 @@ export void redumper_subchannel(Context &ctx, Options &options)
 		ChannelQ Q;
 		subcode_extract_channel((uint8_t *)&Q, sub_buffer.data(), Subchannel::Q);
 
+		uint8_t P[12];
+		subcode_extract_channel(P, sub_buffer.data(), Subchannel::P);
+		uint32_t p_bits = 0;
+		for(uint32_t i = 0; i < sizeof(P); ++i)
+			p_bits += std::popcount(P[i]);
+
 		// Q is available
 		if(memcmp(&Q, &q_empty, sizeof(q_empty)))
 		{
 			int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
 
-			LOG("[LBA: {:6}, LBAQ: {:6}] {}", LBA_START + (int32_t)lba_index, lbaq, Q.Decode());
+			LOG("[LBA: {:6}, LBAQ: {:6}] {} P: {}/96", LBA_START + (int32_t)lba_index, lbaq, Q.Decode(), p_bits);
 			empty = false;
 		}
 		else if(!empty)

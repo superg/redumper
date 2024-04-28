@@ -871,7 +871,7 @@ export void redumper_split(Context &ctx, Options &options)
 	bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
 	auto scra_path(scrap ? scp_path : scm_path);
 
-	uint32_t sectors_count = check_file(state_path, CD_DATA_SIZE_SAMPLES);
+	uint32_t subcode_sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
 
 	std::fstream scm_fs(scra_path, std::fstream::in | std::fstream::binary);
 	if(!scm_fs.is_open())
@@ -896,7 +896,7 @@ export void redumper_split(Context &ctx, Options &options)
 
 		// correct Q
 		LOG_F("correcting Q... ");
-		if(!subcode_correct_subq(subq.data(), sectors_count))
+		if(!subcode_correct_subq(subq.data(), subcode_sectors_count))
 			subq.clear();
 		LOG("done");
 		LOG("");
@@ -908,7 +908,7 @@ export void redumper_split(Context &ctx, Options &options)
 		toc.generateIndex0();
 	}
 	else
-		toc.updateQ(subq.data(), sectors_count, LBA_START, options.legacy_subs);
+		toc.updateQ(subq.data(), subcode_sectors_count, LBA_START, options.legacy_subs);
 
 	LOG("final TOC:");
 	print_toc(toc);
@@ -916,7 +916,7 @@ export void redumper_split(Context &ctx, Options &options)
 
 	if(!subq.empty())
 	{
-		TOC qtoc(subq.data(), sectors_count, LBA_START);
+		TOC qtoc(subq.data(), subcode_sectors_count, LBA_START);
 
 		// compare TOC and QTOC
 		if(toc_mismatch(toc, qtoc))
@@ -934,7 +934,7 @@ export void redumper_split(Context &ctx, Options &options)
 			LOG("");
 		}
 
-		toc.updateMCN(subq.data(), sectors_count);
+		toc.updateMCN(subq.data(), subcode_sectors_count);
 	}
 
 	// CD-TEXT

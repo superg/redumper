@@ -238,22 +238,22 @@ void check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const ui
 }
 
 
-void check_fix_byte_desync(Context &ctx, uint32_t &errors_q_counter, int32_t lba, std::span<const uint8_t> sector_subcode)
+void check_fix_byte_desync(Context &ctx, uint32_t &subcode_byte_desync_counter, int32_t lba, std::span<const uint8_t> sector_subcode)
 {
 	if(subcode_extract_q(sector_subcode.data()).isValid())
 	{
-		errors_q_counter = 0;
+		subcode_byte_desync_counter = 0;
 	}
 	else
 	{
-		++errors_q_counter;
+		++subcode_byte_desync_counter;
 
 		// PLEXTOR: some drives byte desync on subchannel after mass C2 errors with high bit count on high speed
 		// prevent this by flushing drive cache after C2 error range (flush cache on 5 consecutive Q errors)
-		if(errors_q_counter > SUBCODE_BYTE_DESYNC_COUNT)
+		if(subcode_byte_desync_counter > SUBCODE_BYTE_DESYNC_COUNT)
 		{
 			cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
-			errors_q_counter = 0;
+			subcode_byte_desync_counter = 0;
 		}
 	}
 }
@@ -416,7 +416,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 		refine_sectors_count = refine_count_sectors(fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_offset, options);
 
 	int32_t subcode_shift = 0;
-	uint32_t errors_q_counter = 0;
+	uint32_t subcode_byte_desync_counter = 0;
 
 	SignalINT signal;
 
@@ -509,7 +509,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 					++lba_overread;
 
 				check_subcode_shift(subcode_shift, lba, sector_subcode, options);
-				check_fix_byte_desync(ctx, errors_q_counter, lba, sector_subcode);
+				if(!retries)
+					check_fix_byte_desync(ctx, subcode_byte_desync_counter, lba, sector_subcode);
 
 				if(sector_subcode_update(sector_subcode_file, sector_subcode))
 				{

@@ -374,8 +374,8 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options)
 	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 	std::fstream::openmode mode = std::fstream::out | std::fstream::binary | std::fstream::trunc;
 	std::fstream fs_scram(image_prefix + ".scram", mode);
-	std::fstream fs_subcode(image_prefix + ".subcode", mode);
 	std::fstream fs_state(image_prefix + ".state", mode);
+	std::fstream fs_subcode(image_prefix + ".subcode", mode);
 
 	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 	std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
@@ -410,18 +410,18 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options)
 		auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
 		auto read_time_stop = std::chrono::high_resolution_clock::now();
 
-		auto error_range = inside_range(lba, gaps);
+		auto gap_range = inside_range(lba, gaps);
 		bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
 
-		if(error_range != nullptr && slow_sector)
+		if(gap_range != nullptr && slow_sector)
 		{
-			lba = error_range->second - 1;
+			lba = gap_range->second - 1;
 			continue;
 		}
 
 		if(status.status_code)
 		{
-			if(error_range == nullptr && lba < lba_end)
+			if(gap_range == nullptr && lba < lba_end)
 			{
 				++errors.scsi;
 
@@ -431,6 +431,10 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options)
 		}
 		else
 		{
+			// grow lead-out overread if we still can read
+			if(lba + 1 == lba_overread && !slow_sector && !options.lba_end && (lba_overread - lba_end < LEADOUT_OVERREAD_COUNT || options.overread_leadout))
+				++lba_overread;
+
 			check_subcode_shift(subcode_shift, lba, sector_subcode, options);
 			check_fix_byte_desync(ctx, errors_q_last, errors.q, lba, sector_subcode);
 
@@ -451,20 +455,12 @@ export bool redumper_dump_cd_new(Context &ctx, const Options &options)
 			write_entry(fs_scram, sector_data.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
 			write_entry(fs_subcode, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
 			write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
-
-			// grow lead-out overread if we still can read
-			if(lba + 1 == lba_overread && !slow_sector &&
-			   !options.lba_end && (lba_overread - lba_end < LEADOUT_OVERREAD_COUNT || options.overread_leadout))
-			{
-				++lba_overread;
-			}
 		}
 	}
 
 	if(!signal.interrupt())
 	{
 		LOGC_RF("");
-		LOGC("");
 		LOGC("");
 	}
 

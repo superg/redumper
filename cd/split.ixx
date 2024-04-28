@@ -1409,6 +1409,14 @@ export void redumper_split(Context &ctx, Options &options)
 			LOG("{}", line);
 		LOG("");
 	}
+
+	if(ctx.dump_errors)
+	{
+		LOG("initial dump media errors: ");
+		LOG("  SCSI: {}", ctx.dump_errors->scsi);
+		LOG("  C2: {}", ctx.dump_errors->c2);
+		LOG("  Q: {}", ctx.dump_errors->q);
+	}
 }
 
 }

@@ -70,7 +70,7 @@ jobs:
       env:
         CC: /usr/local/opt/llvm@17/bin/clang
         CXX: /usr/local/opt/llvm@17/bin/clang++
-      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}} -DREDUMPER_CLANG_LINK_OPTIONS="-L/usr/local/opt/llvm/lib/c++"
+      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}} -DREDUMPER_CLANG_LINK_OPTIONS="-L/usr/local/opt/llvm@17/lib/c++"
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}}

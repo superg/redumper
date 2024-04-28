@@ -32,14 +32,6 @@ import utils.signal;
 namespace gpsxre
 {
 
-struct Errors
-{
-	uint32_t scsi;
-	uint32_t c2;
-	uint32_t q;
-};
-
-
 const uint32_t SLOW_SECTOR_TIMEOUT = 5;
 const uint32_t LEADOUT_OVERREAD_COUNT = 100;
 const uint32_t SUBCODE_BYTE_DESYNC_COUNT = 5;
@@ -618,6 +610,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 
 	if(dump_mode == DumpMode::DUMP)
 	{
+		ctx.dump_errors = errors;
+
 		LOG("media errors: ");
 		LOG("  SCSI: {}", errors.scsi);
 		LOG("  C2: {}", errors.c2);

@@ -37,6 +37,14 @@ import utils.strings;
 namespace gpsxre
 {
 
+export struct Errors
+{
+	uint32_t scsi;
+	uint32_t c2;
+	uint32_t q;
+};
+
+
 export struct Context
 {
 	GET_CONFIGURATION_FeatureCode_ProfileList current_profile;
@@ -44,6 +52,7 @@ export struct Context
 	DriveConfig drive_config;
 
 	std::optional<std::vector<std::pair<int32_t, int32_t>>> rings;
+	std::optional<Errors> dump_errors;
 	std::optional<bool> refine;
 	std::optional<std::vector<std::string>> dat;
 };

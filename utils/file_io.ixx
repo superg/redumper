@@ -1,4 +1,5 @@
 module;
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -89,7 +90,7 @@ export void write_align(std::fstream &fs, uint64_t index, uint64_t entry_size, u
 	if(fs.fail())
 		throw_line("seek failed");
 
-	auto file_size = fs.tellp();
+	auto file_size = (uint64_t)fs.tellp();
 
 	if(file_size < index * entry_size)
 	{

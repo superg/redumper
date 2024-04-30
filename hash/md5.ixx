@@ -1,5 +1,6 @@
 ﻿module;
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -46,12 +47,12 @@ private:
 			// alternative i < 16 and i < 32 computation yields more optimized code in some cases
 			if(i < 16)
 			{
-				f = d ^ b & (c ^ d);
+				f = d ^ (b & (c ^ d));
 				g = i;
 			}
 			else if(i < 32)
 			{
-				f = c ^ d & (b ^ c);
+				f = c ^ (d & (b ^ c));
 				g = (5 * i + 1) % 16;
 			}
 			else if(i < 48)

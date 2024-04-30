@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <cstdint>
 #include <vector>
 
 export module hash.sha1;
@@ -55,7 +56,7 @@ private:
 
 			if(i < 20)
 			{
-				f = b & c | ~b & d;
+				f = (b & c) | (~b & d);
 				k = 0x5A827999;
 			}
 			else if(i < 40)
@@ -65,7 +66,7 @@ private:
 			}
 			else if(i < 60)
 			{
-				f = b & c | b & d | c & d;
+				f = (b & c) | (b & d) | (c & d);
 				k = 0x8F1BBCDC;
 			}
 			else

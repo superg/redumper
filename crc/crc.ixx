@@ -1,5 +1,6 @@
 module;
 #include <array>
+#include <climits>
 #include <cstdint>
 
 export module crc.crc;

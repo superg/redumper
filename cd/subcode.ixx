@@ -1,4 +1,5 @@
 module;
+#include <climits>
 #include <cstdint>
 #include <format>
 #include <map>
@@ -117,7 +118,7 @@ export struct ChannelQ
 		uint32_t value_limit = BCDMSF_to_LBA(Q.mode1.msf) - MSF_to_LBA(MSF_ZERO);
 		uint32_t offset = std::abs(shift);
 
-		if(shift > 0 && Q.mode1.point_index == 0 || shift < 0 && Q.mode1.point_index != 0)
+		if((shift > 0 && Q.mode1.point_index == 0) || (shift < 0 && Q.mode1.point_index != 0))
 		{
 			if(offset > value_limit)
 			{

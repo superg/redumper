@@ -3,6 +3,7 @@ module;
 #include <bit>
 #include <cassert>
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <functional>

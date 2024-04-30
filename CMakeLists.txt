@@ -10,9 +10,7 @@ string(TIMESTAMP REDUMPER_VERSION_MAJOR "%Y")
 string(TIMESTAMP REDUMPER_VERSION_MINOR "%m")
 string(TIMESTAMP REDUMPER_VERSION_PATCH "%d")
 set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Version patch")
-project(${REDUMPER_PROJECT_NAME}
-	LANGUAGES C CXX
-	VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
+project(${REDUMPER_PROJECT_NAME} VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
 
 set(REDUMPER_CLANG_LINK_OPTIONS "-static" CACHE STRING "Extra LLVM/Clang linker options")
 
@@ -79,6 +77,11 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 17)
 		add_compile_options(-Wno-read-modules-implicitly)
 	endif()
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+	add_compile_options(-Wall -Wextra -Werror)
+
+	# remove after https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99426 is fixed
+	add_compile_options(--param=ggc-min-expand=10000)
 endif()
 if(MSVC)
 	# disable modules inlining

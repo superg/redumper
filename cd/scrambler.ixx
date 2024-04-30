@@ -2,6 +2,7 @@ module;
 #include <algorithm>
 #include <array>
 #include <climits>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -83,7 +84,7 @@ private:
 			for(uint8_t b = 0; b < CHAR_BIT; ++b)
 			{
 				// each bit in the input stream of the scrambler is added modulo 2 to the least significant bit of a maximum length register
-				bool carry = shift_register & 1 ^ shift_register >> 1 & 1;
+				bool carry = (shift_register & 1) ^ (shift_register >> 1 & 1);
 				// the 15-bit register is of the parallel block synchronized type, and fed back according to polynomial x15 + x + 1
 				shift_register = ((uint16_t)carry << 15 | shift_register) >> 1;
 			}

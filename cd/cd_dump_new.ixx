@@ -465,7 +465,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 				percentage = 100 * (refine_sectors_processed * (options.retries + 1) + r) / (refine_sectors_count * (options.retries + 1));
 			else
 				percentage = 100 * (lba - lba_start) / (lba_overread - lba_start);
-			LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), percentage, lba, lba_overread,
+			LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), percentage > 100 ? 100 : percentage, lba, lba_overread,
 					dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi, dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();

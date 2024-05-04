@@ -153,22 +153,42 @@ export TOC choose_toc(const std::vector<uint8_t> &toc_buffer, const std::vector<
 }
 
 
-export std::vector<ChannelQ> load_subq(const std::filesystem::path &sub_path)
+export void subcode_load_subpq(std::vector<ChannelP> &subp, std::vector<ChannelQ> &subq, const std::filesystem::path &sub_path)
 {
-	std::vector<ChannelQ> subq(std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE);
+	uint32_t sectors_count = std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE;
+	subp.resize(sectors_count);
+	subq.resize(sectors_count);
 
 	std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
 	if(!fs.is_open())
 		throw_line("unable to open file ({})", sub_path.filename().string());
 
+
 	std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
 	for(uint32_t lba_index = 0; lba_index < subq.size(); ++lba_index)
 	{
 		read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba_index, 1, 0, 0);
+
+		subcode_extract_channel((uint8_t *)&subp[lba_index], sub_buffer.data(), Subchannel::P);
 		subcode_extract_channel((uint8_t *)&subq[lba_index], sub_buffer.data(), Subchannel::Q);
 	}
+}
 
-	return subq;
+
+export std::vector<uint8_t> subcode_correct_subp(const ChannelP *subp_raw, uint32_t sectors_count)
+{
+	std::vector<uint8_t> subp(sectors_count);
+
+	for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
+	{
+		uint32_t p_bits = 0;
+		for(uint32_t i = 0; i < CD_SUBCODE_SIZE / CHAR_BIT; ++i)
+			p_bits += std::popcount(subp_raw[lba_index].pause[i]);
+
+		subp[lba_index] = p_bits >= CD_SUBCODE_SIZE / 2 ? 1 : 0;
+	}
+	
+	return subp;
 }
 
 

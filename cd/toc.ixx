@@ -186,7 +186,7 @@ export struct TOC
 	}
 
 
-	void updateQ(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start, bool legacy_subs)
+	void updateQ(ChannelQ *subq, const uint8_t *subp, uint32_t sectors_count, int32_t lba_start, bool legacy_subs)
 	{
 		// pre-gap
 		for(uint32_t i = 0; i < sessions.size(); ++i)
@@ -259,20 +259,23 @@ export struct TOC
 		{
 			for(uint32_t i = 1; i < (uint32_t)s.tracks.size(); ++i)
 			{
-				int32_t lba = s.tracks[i - 1].indices.front();
-				int32_t lba_end = std::min(s.tracks[i].indices.front(), lba_start + (int32_t)sectors_count);
-				for(; lba < lba_end; ++lba)
-				{
-					uint32_t lba_index = lba - lba_start;
+				auto &t = s.tracks[i - 1];
+				auto &t_next = s.tracks[i];
 
-					auto &Q = subq[lba_index];
+				int32_t lba = t.indices.front();
+				int32_t lba_next = lba;
+				for(; lba_next < std::min(t_next.indices.front(), lba_start + (int32_t)sectors_count); ++lba_next)
+				{
+					auto &Q = subq[lba_next - lba_start];
 					if(!Q.isValid())
 						continue;
 
 					if(Q.adr == 1)
 					{
 						uint8_t tno = bcd_decode(Q.mode1.tno);
-						if(tno == s.tracks[i].track_number)
+						if(tno == t.track_number)
+							lba = lba_next + 1;
+						else if(tno == t_next.track_number)
 						{
 							if(!legacy_subs || tno == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 							{
@@ -280,7 +283,7 @@ export struct TOC
 
 								// no gap, preserve TOC configuration
 								if(index)
-									lba = s.tracks[i].lba_start;
+									lba = lba_next = t_next.lba_start;
 							}
 
 							break;
@@ -288,8 +291,18 @@ export struct TOC
 					}
 				}
 
-				s.tracks[i - 1].lba_end = lba;
-				s.tracks[i].lba_start = lba;
+				// if track boundary is not precise (MCN/ISRC), use P
+				for(; lba < lba_next; ++lba)
+				{
+					uint32_t lba_index = lba - lba_start;
+
+					// P is always 1 sector delayed
+					if(lba_index + 1 < sectors_count && !subp[lba_index] && subp[lba_index + 1])
+						break;
+				}
+
+				t.lba_end = lba;
+				t_next.lba_start = lba;
 			}
 		}
 

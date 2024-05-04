@@ -59,7 +59,9 @@ public:
 		if(!std::filesystem::exists(sub_path))
 			return;
 
-		std::vector<ChannelQ> subq = load_subq(sub_path);
+		std::vector<ChannelP> subp;
+		std::vector<ChannelQ> subq;
+		subcode_load_subpq(subp, subq, sub_path);
 		std::vector<ChannelQ> subq_fixed = subq;
 		if(!subcode_correct_subq(subq_fixed.data(), subq_fixed.size()))
 			return;

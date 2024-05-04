@@ -23,6 +23,12 @@ export enum class Subchannel : uint8_t
 };
 
 
+export struct ChannelP
+{
+	uint8_t pause[12];
+};
+
+
 export struct ChannelQ
 {
 	enum class Control : uint8_t

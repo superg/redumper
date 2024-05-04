@@ -888,13 +888,18 @@ export void redumper_split(Context &ctx, Options &options)
 
 	auto toc = choose_toc(toc_buffer, full_toc_buffer);
 	
-	// preload subchannel Q
+	// preload subchannel P/Q
+	std::vector<uint8_t> subp;
 	std::vector<ChannelQ> subq;
 	if(std::filesystem::exists(sub_path))
 	{
-		subq = load_subq(sub_path);
+		std::vector<ChannelP> subp_raw;
+		subcode_load_subpq(subp_raw, subq, sub_path);
 
-		// correct Q
+		LOG_F("correcting P... ");
+		subp = subcode_correct_subp(subp_raw.data(), subcode_sectors_count);
+		LOG("done");
+
 		LOG_F("correcting Q... ");
 		if(!subcode_correct_subq(subq.data(), subcode_sectors_count))
 			subq.clear();
@@ -908,7 +913,7 @@ export void redumper_split(Context &ctx, Options &options)
 		toc.generateIndex0();
 	}
 	else
-		toc.updateQ(subq.data(), subcode_sectors_count, LBA_START, options.legacy_subs);
+		toc.updateQ(subq.data(), subp.data(), subcode_sectors_count, LBA_START, options.legacy_subs);
 
 	LOG("final TOC:");
 	print_toc(toc);

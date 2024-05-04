@@ -53,6 +53,7 @@ export struct Context
 
 	std::optional<std::vector<std::pair<int32_t, int32_t>>> rings;
 	std::optional<Errors> dump_errors;
+	std::vector<std::pair<int32_t, int32_t>> protection;
 	std::optional<bool> refine;
 	std::optional<std::vector<std::string>> dat;
 };

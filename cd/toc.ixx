@@ -186,7 +186,7 @@ export struct TOC
 	}
 
 
-	void updateQ(ChannelQ *subq, const uint8_t *subp, uint32_t sectors_count, int32_t lba_start, bool legacy_subs)
+	void updateQ(const ChannelQ *subq, const uint8_t *subp, uint32_t sectors_count, int32_t lba_start, bool legacy_subs)
 	{
 		// pre-gap
 		for(uint32_t i = 0; i < sessions.size(); ++i)
@@ -306,7 +306,7 @@ export struct TOC
 			}
 		}
 
-		updateINDEX(subq, sectors_count, lba_start);
+		updateINDEX(subq, subp, sectors_count, lba_start);
 	}
 
 
@@ -927,7 +927,7 @@ private:
 	}
 
 
-	void updateINDEX(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
+	void updateINDEX(const ChannelQ *subq, const uint8_t *subp, uint32_t sectors_count, int32_t lba_start)
 	{
 		for(auto &s : sessions)
 		{

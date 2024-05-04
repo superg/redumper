@@ -140,6 +140,10 @@ export void redumper_protection(Context &ctx, Options &options)
 						{
 							protection = std::format("SafeDisc {}, C2: {}, gap range: {}-{}", entry->name(), errors.size(), lba_start, lba_end - 1);
 
+							for(auto e : errors)
+								ctx.protection.emplace_back(lba_to_sample(e, *write_offset), lba_to_sample(e + 1, *write_offset));
+
+							//FIXME: remove after switch to dumpnew code
 							auto skip_ranges = string_to_ranges(options.skip);
 							for(auto e : errors)
 								skip_ranges.emplace_back(e, e + 1);
@@ -246,6 +250,9 @@ export void redumper_protection(Context &ctx, Options &options)
 						{
 							protection = std::format("PS2/Datel {}, C2: {}, range: {}-{}", protected_filename, range.second - range.first, range.first, range.second - 1);
 
+							ctx.protection.emplace_back(lba_to_sample(range.first, *write_offset), lba_to_sample(range.second, *write_offset));
+
+							//FIXME: remove after switch to dumpnew code
 							auto skip_ranges = string_to_ranges(options.skip);
 							skip_ranges.push_back(range);
 							options.skip = ranges_to_string(skip_ranges);

@@ -273,6 +273,18 @@ std::optional<int32_t> find_disc_offset(const TOC &toc, std::fstream &fs_state, 
 }
 
 
+std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &ctx, int32_t offset, int32_t data_offset)
+{
+	std::vector<std::pair<int32_t, int32_t>> protection;
+
+	for(auto const &e : ctx.protection)
+		protection.emplace_back(std::min(sample_to_lba(e.first, -offset), sample_to_lba(e.first, -data_offset)),
+								std::max(sample_to_lba(e.second, -offset), sample_to_lba(e.second, -data_offset)));
+
+	return protection;
+}
+
+
 uint32_t refine_count_sectors(std::fstream &fs_state, std::fstream &fs_subcode, int32_t lba_start, int32_t lba_end, int32_t offset, int32_t data_offset, const Options &options)
 {
 	uint32_t sectors_count = 0;
@@ -397,6 +409,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 		}
 	}
 
+	auto protection = get_protection_sectors(ctx, ctx.drive_config.read_offset, data_offset);
+
 	Errors errors_initial = {};
 	if(dump_mode != DumpMode::DUMP)
 		refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_offset);
@@ -421,7 +435,16 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 			LOG("");
 			break;
 		}
-
+		
+		auto protection_range = inside_range(lba, protection);
+		if(protection_range != nullptr)
+		{
+			if(dump_mode == DumpMode::REFINE)
+				refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba, protection_range->second, ctx.drive_config.read_offset, data_offset, options);
+			lba = protection_range->second - 1;
+			continue;
+		}
+		
 		int32_t lba_index = lba - LBA_START;
 
 		read_entry(fs_scram, sector_data_file_a.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE, 0);

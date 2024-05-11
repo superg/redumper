@@ -293,7 +293,7 @@ export struct Options
 		LOG("\t--overwrite                    \toverwrites previously generated dump files");
 		LOG("");
 		LOG("\t(drive configuration)");
-		LOG("\t--drive-type=VALUE             \toverride drive type, possible values: GENERIC, PLEXTOR, LG_ASU2, LG_ASU3, LG_ASU8, LG_ASU83");
+		LOG("\t--drive-type=VALUE             \toverride drive type, possible values: GENERIC, PLEXTOR, LG_ASU2, LG_ASU3, LG_ASU8A, LG_ASU8B, LG_ASU8C");
 		LOG("\t--drive-read-offset=VALUE      \toverride drive read offset");
 		LOG("\t--drive-c2-shift=VALUE         \toverride drive C2 shift");
 		LOG("\t--drive-pregap-start=VALUE     \toverride drive pre-gap start LBA");

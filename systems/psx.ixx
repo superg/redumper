@@ -96,10 +96,11 @@ public:
 
 private:
 	static const std::string _EXE_MAGIC;
-	static const std::vector<uint32_t> _LIBCRYPT_SECTORS_BASE;
-	static const uint32_t _LIBCRYPT_SECTORS_PAIR_SHIFT = 5;
-	static const std::set<uint32_t> _LIBCRYPT_SECTORS_MEDIEVIL;
-	static const std::set<uint32_t> _LIBCRYPT_SECTORS_COUNT;
+	static const std::vector<int32_t> _LIBCRYPT_SECTORS_BASE;
+	static const std::vector<int32_t> _LIBCRYPT_SECTORS_BACKUP;
+	static const int32_t _LIBCRYPT_SECTORS_MIRROR_SHIFT;
+	static const uint32_t _LIBCRYPT_BITS_COUNT;
+	static const uint32_t _LIBCRYPT_BITS_COUNT_NETYAROZE;
 
 	std::string findEXE(std::shared_ptr<iso9660::Entry> root_directory) const
 	{
@@ -172,9 +173,9 @@ private:
 	{
 		std::string region;
 
-		const std::set<std::string> REGION_J {"ESPM", "PAPX", "PCPX", "PDPX", "SCPM", "SCPS", "SCZS", "SIPS", "SLKA", "SLPM", "SLPS"};
-		const std::set<std::string> REGION_U {"LSP", "PUPX", "SCUS", "SLUS", "SLUSP"};
-		const std::set<std::string> REGION_E {"PEPX", "SCED", "SCES", "SLED", "SLES"};
+		const std::set<std::string> REGION_J{ "ESPM", "PAPX", "PCPX", "PDPX", "SCPM", "SCPS", "SCZS", "SIPS", "SLKA", "SLPM", "SLPS" };
+		const std::set<std::string> REGION_U{ "LSP", "PUPX", "SCUS", "SLUS", "SLUSP" };
+		const std::set<std::string> REGION_E{ "PEPX", "SCED", "SCES", "SLED", "SLES" };
 		// multi: "DTL", "PBPX"
 
 		if(REGION_J.find(prefix) != REGION_J.end())
@@ -237,6 +238,28 @@ private:
 		return !entries.empty();
 	}
 
+	static std::vector<bool> getLibCryptKey(std::fstream &fs, std::filesystem::path sub_path, const std::vector<int32_t> &sectors, uint32_t sector_shift)
+	{
+		std::vector<bool> key(sectors.size());
+
+		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
+		int32_t lba_end = std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE + LBA_START;
+		for(uint32_t i = 0; i < key.size(); ++i)
+		{
+			int32_t lba = sectors[i] + sector_shift;
+
+			if(lba >= lba_end)
+				continue;
+
+			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba - LBA_START, 1, 0, 0);
+			auto Q = subcode_extract_q(sub_buffer.data());
+
+			if(!Q.isValid())
+				key[i] = true;
+		}
+
+		return key;
+	}
 
 	bool detectLibCrypt(std::ostream &os, std::filesystem::path sub_path) const
 	{
@@ -246,46 +269,65 @@ private:
 		if(!fs.is_open())
 			throw_line("unable to open file ({})", sub_path.filename().string());
 
-		std::vector<int32_t> candidates;
-		std::vector<int32_t> candidates_medievil;
+		// read keys from all possible locations
+		auto base = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BASE, 0);
+		auto base_mirror = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BASE, _LIBCRYPT_SECTORS_MIRROR_SHIFT);
+		auto backup = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BACKUP, 0);
+		auto backup_mirror = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BACKUP, _LIBCRYPT_SECTORS_MIRROR_SHIFT);
 
-		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
-		int32_t lba_end = std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE + LBA_START;
-		for(auto lba : _LIBCRYPT_SECTORS_BASE)
+		// filter out unintentional Q errors in backup / mirror keys using base key as a reference
+		std::transform(base.begin(), base.end(), base_mirror.begin(), base_mirror.begin(), [](bool b1, bool b2) { return b1 && b2; });
+		std::transform(base.begin(), base.end(), backup.begin(), backup.begin(), [](bool b1, bool b2) { return b1 && b2; });
+		std::transform(base.begin(), base.end(), backup_mirror.begin(), backup_mirror.begin(), [](bool b1, bool b2) { return b1 && b2; });
+
+		auto base_mirror_count = std::count(base_mirror.begin(), base_mirror.end(), true);
+		auto backup_count = std::count(backup.begin(), backup.end(), true);
+		auto backup_mirror_count = std::count(backup_mirror.begin(), backup_mirror.end(), true);
+
+		bool base_mirror_exists = base_mirror_count == _LIBCRYPT_BITS_COUNT;
+		bool backup_exists = backup_count == _LIBCRYPT_BITS_COUNT;
+		bool backup_mirror_exists = backup_mirror_count == _LIBCRYPT_BITS_COUNT;
+
+		// filter out unintentional Q errors in base key using backup / mirror keys as a reference
+		if(base_mirror_exists)
+			std::transform(base_mirror.begin(), base_mirror.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
+		if(backup_exists)
+			std::transform(backup.begin(), backup.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
+		if(backup_mirror_exists)
+			std::transform(backup_mirror.begin(), backup_mirror.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
+
+		auto base_count = std::count(base.begin(), base.end(), true);
+
+		std::set<int32_t> candidates;
+
+		// strong check: base key exists and one of the backup / mirror keys exist
+		// weak check: 6 sectors without backup / mirror (Net Yaroze disc)
+		if(base_count == _LIBCRYPT_BITS_COUNT && (base_mirror_exists || backup_exists || backup_mirror_exists) || base_count == _LIBCRYPT_BITS_COUNT_NETYAROZE)
 		{
-			int32_t lba_pair = lba + _LIBCRYPT_SECTORS_PAIR_SHIFT;
-
-			if(lba >= lba_end || lba_pair >= lba_end)
-				continue;
-
-			ChannelQ Q;
-			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba - LBA_START, 1, 0, 0);
-			subcode_extract_channel((uint8_t *)&Q, sub_buffer.data(), Subchannel::Q);
-
-			ChannelQ Q_pair;
-			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba_pair - LBA_START, 1, 0, 0);
-			subcode_extract_channel((uint8_t *)&Q_pair, sub_buffer.data(), Subchannel::Q);
-
-			if(!Q.isValid() && !Q_pair.isValid())
+			for(uint32_t i = 0; i < base.size(); ++i)
 			{
-				candidates.push_back(lba);
-				candidates.push_back(lba_pair);
-			}
+				if(base[i])
+				{
+					candidates.insert(_LIBCRYPT_SECTORS_BASE[i]);
+					if(base_mirror_exists)
+						candidates.insert(_LIBCRYPT_SECTORS_BASE[i] + _LIBCRYPT_SECTORS_MIRROR_SHIFT);
 
-			if(_LIBCRYPT_SECTORS_MEDIEVIL.find(lba) != _LIBCRYPT_SECTORS_MEDIEVIL.end() && !Q.isValid())
-				candidates_medievil.push_back(lba);
+					if(backup_exists)
+						candidates.insert(_LIBCRYPT_SECTORS_BACKUP[i]);
+					if(backup_mirror_exists)
+						candidates.insert(_LIBCRYPT_SECTORS_BACKUP[i] + _LIBCRYPT_SECTORS_MIRROR_SHIFT);
+				}
+			}
 		}
 
-		if(_LIBCRYPT_SECTORS_COUNT.find(candidates.size()) == _LIBCRYPT_SECTORS_COUNT.end())
-			candidates.swap(candidates_medievil);
-
-		if(_LIBCRYPT_SECTORS_COUNT.find(candidates.size()) != _LIBCRYPT_SECTORS_COUNT.end())
+		if(!candidates.empty())
 		{
+			std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
+
 			for(auto c : candidates)
 			{
-				ChannelQ Q;
 				read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), c - LBA_START, 1, 0, 0);
-				subcode_extract_channel((uint8_t *)&Q, sub_buffer.data(), Subchannel::Q);
+				auto Q = subcode_extract_q(sub_buffer.data());
 				redump_print_subq(os, c, Q);
 			}
 
@@ -299,24 +341,20 @@ private:
 
 const std::string SystemPSX::_EXE_MAGIC("PS-X EXE");
 
-const std::vector<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_BASE =
+const std::vector<int32_t> SystemPSX::_LIBCRYPT_SECTORS_BASE =
 {
 	13955, 14081, 14335, 14429, 14499, 14749, 14906, 14980,
-	15092, 15162, 15228, 15478, 15769, 15881, 15951, 16017,
+	15092, 15162, 15228, 15478, 15769, 15881, 15951, 16017
+};
+
+const std::vector<int32_t> SystemPSX::_LIBCRYPT_SECTORS_BACKUP =
+{
 	41895, 42016, 42282, 42430, 42521, 42663, 42862, 43027,
 	43139, 43204, 43258, 43484, 43813, 43904, 44009, 44162
 };
 
-const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_MEDIEVIL =
-{
-	13955, 14749, 14906, 14980, 15092, 15228, 15769, 15951,
-	41895, 42663, 42862, 43027, 43139, 43258, 43813, 44009
-};
-
-const std::set<uint32_t> SystemPSX::_LIBCRYPT_SECTORS_COUNT =
-{
-	16,
-	32
-};
+const int32_t SystemPSX::_LIBCRYPT_SECTORS_MIRROR_SHIFT = 5;
+const uint32_t SystemPSX::_LIBCRYPT_BITS_COUNT = 8;
+const uint32_t SystemPSX::_LIBCRYPT_BITS_COUNT_NETYAROZE = 6;
 
 }

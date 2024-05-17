@@ -297,27 +297,18 @@ std::set<READ_DISC_STRUCTURE_Format> get_readable_formats(SPTD &sptd, bool blura
 }
 
 
-uint32_t read_physical_structures(SPTD &sptd, std::map<uint32_t, std::vector<uint8_t>> &structures, bool bluray, bool &rom)
+std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool bluray, bool &rom)
 {
-	uint32_t layers_count = 0;
-
-	for(uint32_t i = 0; !layers_count || i < layers_count; ++i)
+	std::vector<std::vector<uint8_t>> structures;
+	
+	for(uint32_t i = 0, layers_count = 0; !layers_count || i < layers_count; ++i)
 	{
 		std::vector<uint8_t> structure;
 		auto status = cmd_read_disc_structure(sptd, structure, bluray ? 1 : 0, 0, i, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
 		if(status.status_code)
 			throw_line("failed to read disc physical structure, SCSI ({})", SPTD::StatusMessage(status));
 
-		bool unique = true;
-		for(auto const &s : structures)
-			if(s.second == structure)
-			{
-				unique = false;
-				break;
-			}
-
-		if(unique)
-			structures.emplace(i, structure);
+		structures.push_back(structure);
 
 		if(!layers_count)
 		{
@@ -359,8 +350,8 @@ uint32_t read_physical_structures(SPTD &sptd, std::map<uint32_t, std::vector<uin
 				layers_count = 1;
 		}
 	}
-
-	return layers_count;
+	
+	return structures;
 }
 
 
@@ -368,7 +359,7 @@ void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
 {
 	char animation = sector == sectors_count ? '*' : spinner_animation();
 
-	LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, sector * 100 / sectors_count,
+	LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, (uint64_t)sector * 100 / sectors_count,
 			extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count, errors);
 }
 
@@ -399,11 +390,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 	bool trim_to_filesystem_size = false;
 	if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
 	{
-		std::map<uint32_t, std::vector<uint8_t>> physical_structures;
-
 		// function call changes rom flag if discrepancy is detected
 		bool rom = ctx.current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM;
-		auto layers_count = read_physical_structures(*ctx.sptd, physical_structures, profile_is_bluray(ctx.current_profile), rom);
+		auto physical_structures = read_physical_structures(*ctx.sptd, profile_is_bluray(ctx.current_profile), rom);
 		if(ctx.current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM && !rom)
 		{
 			trim_to_filesystem_size = true;
@@ -413,14 +402,16 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 		if(!profile_is_bluray(ctx.current_profile))
 		{
 			uint32_t physical_sectors_count = 0;
-			for(auto const &p : physical_structures)
+			for(uint32_t i = 0; i < physical_structures.size(); ++i)
 			{
-				if(p.second.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-					throw_line("invalid layer descriptor size (layer: {})", p.first);
+				auto const &structure = physical_structures[i];
 
-				auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)&p.second[sizeof(CMD_ParameterListHeader)];
+				if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+					throw_line("invalid layer descriptor size (layer: {})", i);
 
-				physical_sectors_count += get_layer_length(*layer_descriptor);
+				auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
+
+				physical_sectors_count += get_layer_length(layer_descriptor);
 			}
 
 			// Kreon drives return incorrect sectors count
@@ -433,34 +424,25 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
 		if(dump_mode == DumpMode::DUMP)
 		{
-			std::map<uint32_t, std::vector<uint8_t>> manufacturer_structures;
+			std::vector<std::vector<uint8_t>> manufacturer_structures;
 			if(readable_formats.find(READ_DISC_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
 			{
-				for(uint32_t i = 0; i < layers_count; ++i)
+				for(uint32_t i = 0; i < physical_structures.size(); ++i)
 				{
 					std::vector<uint8_t> structure;
 					cmd_read_disc_structure(*ctx.sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
 					if(status.status_code)
 						throw_line("failed to read disc manufacturer structure, SCSI ({})", SPTD::StatusMessage(status));
 
-					bool unique = true;
-					for(auto const &s : manufacturer_structures)
-						if(s.second == structure)
-						{
-							unique = false;
-							break;
-						}
-
-					if(unique)
-						manufacturer_structures.emplace(i, structure);
+					manufacturer_structures.push_back(structure);
 				}
 			}
 
 			// store structure files
-			for(auto const &s : physical_structures)
-				write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", s.first) : ""), s.second);
-			for(auto const &s : manufacturer_structures)
-				write_vector(std::format("{}{}.manufacturer", image_prefix, manufacturer_structures.size() > 1 ? std::format(".{}", s.first) : ""), s.second);
+			for(uint32_t i = 0; i < physical_structures.size(); ++i)
+				write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : ""), physical_structures[i]);
+			for(uint32_t i = 0; i < manufacturer_structures.size(); ++i)
+				write_vector(std::format("{}{}.manufacturer", image_prefix, manufacturer_structures.size() > 1 ? std::format(".{}", i) : ""), manufacturer_structures[i]);
 
 			if(profile_is_bluray(ctx.current_profile))
 			{
@@ -468,30 +450,32 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
 				LOG("disc structure:");
 				for(auto const &s : physical_structures)
-					print_di_units_structure(&s.second[sizeof(CMD_ParameterListHeader)], rom);
+					print_di_units_structure(&s[sizeof(CMD_ParameterListHeader)], rom);
 				LOG("");
 
 				// layer break
-				if(auto it = physical_structures.begin(); it != physical_structures.end())
+				if(!physical_structures.empty())
 				{
+					auto const &structure = physical_structures.front();
+
 					std::vector<uint32_t> layer_sizes(8);
 
-					uint8_t *di_units = &it->second[sizeof(CMD_ParameterListHeader)];
+					auto di_units = &structure[sizeof(CMD_ParameterListHeader)];
 					for(uint32_t j = 0; j < 32; ++j)
 					{
-						auto unit = (READ_DISC_STRUCTURE_DiscInformationUnit *)&di_units[j * unit_size];
-						std::string identifier((char *)unit->header.identifier, sizeof(unit->header.identifier));
+						auto unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)di_units[j * unit_size];
+						std::string identifier((char *)unit.header.identifier, sizeof(unit.header.identifier));
 						if(identifier != "DI")
 							break;
 
-						if(unit->header.format == 1)
+						if(unit.header.format == 1)
 						{
-							auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit->body;
+							auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit.body;
 							auto last_psn = endian_swap(body->last_psn);
 							auto first_aun = endian_swap(body->first_aun);
 							auto last_aun = endian_swap(body->last_aun);
 
-							layer_sizes[unit->header.layer] = last_aun - first_aun + 2;
+							layer_sizes[unit.header.layer] = last_aun - first_aun + 2;
 						}
 					}
 
@@ -517,31 +501,36 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 			else
 			{
 				LOG("disc structure:");
-				for(auto const &s : physical_structures)
-					print_physical_structure(*(READ_DVD_STRUCTURE_LayerDescriptor *)&s.second[sizeof(CMD_ParameterListHeader)], s.first);
+				for(uint32_t i = 0; i < physical_structures.size(); ++i)
+				{
+					auto const &structure = physical_structures[i];
+					print_physical_structure((READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)], i);
+				}
 				LOG("");
 
 				// layer break
-				if(auto it = physical_structures.begin(); it != physical_structures.end())
+				if(!physical_structures.empty())
 				{
-					if(it->second.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-						throw_line("invalid layer descriptor size (layer: {})", it->first);
+					auto const &structure = physical_structures.front();
 
-					auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)&it->second[sizeof(CMD_ParameterListHeader)];
+					if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+						throw_line("invalid layer descriptor size (layer: {})", 0);
+
+					auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
 
 					uint32_t layer_break = 0;
 
 					// opposite
-					if(layer_descriptor->track_path)
+					if(layer_descriptor.track_path)
 					{
-						int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
-						int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
+						int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
+						int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
 
 						layer_break = layer0_last + 1 - lba_first;
 					}
 					// parallel
-					else if(layers_count > 1)
-						layer_break = get_layer_length(*layer_descriptor);
+					else if(physical_structures.size() > 1)
+						layer_break = get_layer_length(layer_descriptor);
 
 					if(layer_break)
 					{
@@ -554,11 +543,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 		// compare physical structures to stored to make sure it's the same disc
 		else
 		{
-			for(auto const &s : physical_structures)
+			for(uint32_t i = 0; i < physical_structures.size(); ++i)
 			{
-				auto structure_fn = std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", s.first) : "");
+				auto const &structure = physical_structures[i];
 
-				if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != s.second)
+				auto structure_fn = std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : "");
+
+				if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != structure)
 					throw_line("disc / file physical structure doesn't match, refining from a different disc?");
 			}
 		}

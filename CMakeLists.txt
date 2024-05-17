@@ -176,6 +176,7 @@ target_sources(redumper
 	"systems/ps2.ixx"
 	"systems/ps3.ixx"
 	"systems/sat.ixx"
+	"systems/ps4.ixx"
 	"systems/systems.ixx"
 	"utils/animation.ixx"
 	"utils/endian.ixx"

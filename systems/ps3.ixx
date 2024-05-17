@@ -62,7 +62,6 @@ public:
 			title_id = it->second;
 		else
 		{
-			os << "debug" << std::endl;
 			it = param_sfo.find("TITLE_ID");
 			if(it != param_sfo.end())
 				title_id = it->second;

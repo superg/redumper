@@ -174,6 +174,7 @@ target_sources(redumper
 	"systems/mcd.ixx"
 	"systems/psx.ixx"
 	"systems/ps2.ixx"
+	"systems/ps3.ixx"
 	"systems/sat.ixx"
 	"systems/systems.ixx"
 	"utils/animation.ixx"

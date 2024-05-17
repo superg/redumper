@@ -5,7 +5,6 @@ module;
 #include <format>
 #include <map>
 #include <ostream>
-#include <set>
 #include "system.hh"
 #include "throw_line.hh"
 

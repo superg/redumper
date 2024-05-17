@@ -12,6 +12,7 @@ import systems.mcd;
 import systems.psx;
 import systems.ps2;
 import systems.ps3;
+import systems.ps4;
 import systems.securom;
 import systems.sat;
 
@@ -38,6 +39,7 @@ public:
 		systems.push_back([](){ return std::make_unique<SystemPSX>(); });
 		systems.push_back([](){ return std::make_unique<SystemPS2>(); });
 		systems.push_back([](){ return std::make_unique<SystemPS3>(); });
+		systems.push_back([](){ return std::make_unique<SystemPS4>(); });
 		systems.push_back([](){ return std::make_unique<SystemSAT>(); });
 
 		return systems;

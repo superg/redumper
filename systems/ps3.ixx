@@ -70,10 +70,6 @@ public:
 		if(!serial.first.empty() && !serial.second.empty())
 			os << std::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
 
-		auto region = detectRegion(serial.first);
-		if(!region.empty())
-			os << std::format("  region: {}", region) << std::endl;
-
 		auto fw = deduceFirmware(root_directory, "PS3_UPDATE/PS3UPDAT.PUP");
 		if(!fw.empty())
 			os << std::format("  firmware: {}", fw) << std::endl;
@@ -238,36 +234,6 @@ private:
 		}
 
 		return serial;
-	}
-
-
-	std::string detectRegion(std::string prefix) const
-	{
-		std::string region;
-
-		if (prefix.size() < 4)
-			return region;
-
-		// All Internal serials currently in redump.org
-		//const std::set<std::string> REGION_A{ "BCAS", "BLAS"};
-		//const std::set<std::string> REGION_E{ "BCED", "BCES", "BCET", "BLED", "BLES" };
-		//const std::set<std::string> REGION_J{ "BCJB", "BCJS", "BCJX", "BCJS", "BLJB", "BLJM", "BLJS", "BLJX" };
-		//const std::set<std::string> REGION_K{ "BCKS", "BLKS" };
-		//const std::set<std::string> REGION_U{ "BCUS", "BLUD", "BLUS" };
-		
-		// Determine region based on third char in prefix
-		if(prefix[2] == 'A')
-			region = "Asia";
-		else if(prefix[2] == 'E')
-			region = "Europe";
-		else if(prefix[2] == 'J')
-			region = "Japan";
-		else if(prefix[2] == 'K')
-			region = "South Korea";
-		else if(prefix[2] == 'U')
-			region = "USA";
-
-		return region;
 	}
 
 

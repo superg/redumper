@@ -208,6 +208,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"hp"      , "DVD-ROM TS-H353C", "H410", "R67468CZ11"         ,    +6, 0,    0, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
 	{"TSSTcorp", "DVD-ROM TS-H352C", "DE02", ""                   ,    +6, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // supports C2 only on data
 	{"PIONEER" , "BD-RW BDR-209D"  , "1.10", "13/09/10 PIONEER"   ,  +667, 0,    0, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // BE_CDDA unscrambles data sectors
+	{"HL-DT-ST", "BD-RE WH16NS40"  , "1.02", "N001401M00M3PJ3407" ,    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
 	{"HL-DT-ST", "BD-RE WH16NS40"  , "1.05", "N000900KLZL4TG5625" ,    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
 	{"HL-DT-ST", "BD-RE WH16NS60"  , "1.02", "NM00100SIK9PH7MJ032",    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC},
 	{"HL-DT-ST", "DVD+-RW GH50N"   , "B103", "000819093O9CQ82239" ,  +667, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC},

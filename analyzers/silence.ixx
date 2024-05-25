@@ -20,11 +20,11 @@ export class SilenceAnalyzer : public Analyzer
 {
 public:
 	SilenceAnalyzer(uint16_t silence_threshold, uint32_t samples_min)
-		: _limit(silence_threshold + 1)
-		, _samplesMin(samples_min)
-		, _count(0)
-		, _state(std::make_unique<std::pair<int32_t, bool>[]>(_limit))
-		, _ranges(_limit)
+	    : _limit(silence_threshold + 1)
+	    , _samplesMin(samples_min)
+	    , _count(0)
+	    , _state(std::make_unique<std::pair<int32_t, bool>[]>(_limit))
+	    , _ranges(_limit)
 	{
 		std::fill_n(_state.get(), _limit, std::pair(-_samplesMin, true));
 	}

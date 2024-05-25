@@ -28,8 +28,8 @@ public:
 
 
 	SyncAnalyzer(bool scrap)
-		: _scrap(scrap)
-		, _syncSearch(0)
+	    : _scrap(scrap)
+	    , _syncSearch(0)
 	{
 		;
 	}

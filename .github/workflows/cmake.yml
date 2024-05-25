@@ -87,6 +87,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
+        name: ${{env.release_name}}_${{matrix.os}}
         path: ${{env.build_directory}}/redumper-*.zip
 
   release:

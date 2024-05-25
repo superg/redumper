@@ -84,7 +84,7 @@ struct SBIEntry
 
     struct Q
     {
-        uint8_t adr :4;
+        uint8_t adr     :4;
         uint8_t control :4;
         uint8_t tno;
         uint8_t point_index;

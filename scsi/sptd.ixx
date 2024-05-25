@@ -379,13 +379,13 @@ private:
     struct SenseData
     {
         uint8_t error_code :7;
-        uint8_t valid :1;
+        uint8_t valid      :1;
         uint8_t segment_number;
-        uint8_t sense_key :4;
-        uint8_t reserved :1;
+        uint8_t sense_key        :4;
+        uint8_t reserved         :1;
         uint8_t incorrect_length :1;
-        uint8_t end_of_media :1;
-        uint8_t file_mark :1;
+        uint8_t end_of_media     :1;
+        uint8_t file_mark        :1;
         uint8_t information[4];
         uint8_t additional_sense_length;
         uint8_t command_specific_information[4];

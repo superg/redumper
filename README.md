@@ -145,7 +145,7 @@ redumper is using C++ modules, this requires latest C++20 compiler and build too
 - Ninja 1.11 (Linux & macOS only)
 - CMake 3.28
 
-For the detail build instructions, please check my GitHub Actions workflow [HERE](.github/workflows/cmake.yml). I do not provide Docker container and I will not be able to troubleshoot your build issues. If my GitHub Action CI/CD can build it, so can you.
+For the detail build instructions, please check my GitHub Actions workflow [HERE](.github/workflows/cmake.yml). I do not provide Docker container and I will not be able to troubleshoot your build issues. If my GitHub Actions CI/CD can build it, so can you.
 
 ## Contact
 Discord: **supermegag**

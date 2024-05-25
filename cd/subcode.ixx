@@ -50,7 +50,7 @@ export struct ChannelQ
     {
         struct
         {
-            uint8_t adr :4;
+            uint8_t adr     :4;
             uint8_t control :4;
 
             union

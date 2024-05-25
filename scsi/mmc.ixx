@@ -257,7 +257,7 @@ export struct TOC_Descriptor
 {
     uint8_t reserved1;
     uint8_t control :4;
-    uint8_t adr :4;
+    uint8_t adr     :4;
     uint8_t track_number;
     uint8_t reserved2;
     uint32_t track_start_address;
@@ -268,7 +268,7 @@ export struct FULL_TOC_Descriptor
 {
     uint8_t session_number;
     uint8_t control :4;
-    uint8_t adr :4;
+    uint8_t adr     :4;
     uint8_t tno;
     uint8_t point;
     uint8_t msf[3];
@@ -280,12 +280,12 @@ export struct FULL_TOC_Descriptor
 export struct CD_TEXT_Descriptor
 {
     uint8_t pack_type;
-    uint8_t track_number :7;
+    uint8_t track_number   :7;
     uint8_t extension_flag :1;
     uint8_t sequence_number;
     uint8_t character_position :4;
-    uint8_t block_number :3;
-    uint8_t unicode :1;
+    uint8_t block_number       :3;
+    uint8_t unicode            :1;
     uint8_t text[12];
     uint16_t crc;
 };
@@ -297,7 +297,7 @@ export struct REPORT_KEY_AGID
     uint8_t reserved2;
     uint8_t reserved3;
     uint8_t reserved4 :6;
-    uint8_t agid :2;
+    uint8_t agid      :2;
 };
 
 
@@ -306,7 +306,7 @@ export struct REPORT_KEY_ASF
     uint8_t reserved1;
     uint8_t reserved2;
     uint8_t reserved3;
-    uint8_t asf :1;
+    uint8_t asf       :1;
     uint8_t reserved4 :7;
 };
 
@@ -314,9 +314,9 @@ export struct REPORT_KEY_ASF
 export struct REPORT_KEY_TitleKey
 {
     uint8_t cp_mod :4;
-    uint8_t cgms :2;
+    uint8_t cgms   :2;
     uint8_t cp_sec :1;
-    uint8_t cpm :1;
+    uint8_t cpm    :1;
     uint8_t title_key[5];
     uint8_t reserved1;
     uint8_t reserved2;
@@ -349,10 +349,10 @@ export struct GET_CONFIGURATION_FeatureHeader
 export struct GET_CONFIGURATION_FeatureDescriptor
 {
     uint16_t feature_code;
-    uint8_t current :1;
+    uint8_t current    :1;
     uint8_t persistent :1;
-    uint8_t version :4;
-    uint8_t reserved :2;
+    uint8_t version    :4;
+    uint8_t reserved   :2;
     uint8_t additional_length;
     uint8_t feature_dependent_data[0];
 };
@@ -362,29 +362,29 @@ export struct READ_DVD_STRUCTURE_StructureListEntry
 {
     uint8_t format_code;
     uint8_t reserved :6;
-    uint8_t rds :1;
-    uint8_t sds :1;
+    uint8_t rds      :1;
+    uint8_t sds      :1;
     uint16_t structure_length;
 };
 
 
 export struct READ_DVD_STRUCTURE_LayerDescriptor
 {
-    uint8_t part_version :4;
-    uint8_t book_type :4;
-    uint8_t maximum_rate :4;
-    uint8_t disc_size :4;
-    uint8_t layer_type :4;
-    uint8_t track_path :1;
-    uint8_t layers_number :2;
-    uint8_t reserved1 :1;
-    uint8_t track_density :4;
+    uint8_t part_version   :4;
+    uint8_t book_type      :4;
+    uint8_t maximum_rate   :4;
+    uint8_t disc_size      :4;
+    uint8_t layer_type     :4;
+    uint8_t track_path     :1;
+    uint8_t layers_number  :2;
+    uint8_t reserved1      :1;
+    uint8_t track_density  :4;
     uint8_t linear_density :4;
     uint32_t data_start_sector;
     uint32_t data_end_sector;
     uint32_t layer0_end_sector;
     uint8_t reserved2 :7;
-    uint8_t bca :1;
+    uint8_t bca       :1;
     uint8_t media_specific[2031];
 };
 
@@ -393,11 +393,11 @@ struct READ_DISC_STRUCTURE_DIUnitHeader
 {
     uint8_t identifier[2];
     uint8_t format;
-    uint8_t layer :3;
+    uint8_t layer           :3;
     uint8_t units_per_block :5;
     uint8_t legacy;
     uint8_t sequence_number;
-    uint8_t unit_size :7;
+    uint8_t unit_size    :7;
     uint8_t continuation :1;
     uint8_t reserved1;
 };
@@ -407,8 +407,8 @@ struct READ_DISC_STRUCTURE_DIUnitBodyCommon
 {
     uint8_t disc_type_identifier[3];
     uint8_t disc_version :4;
-    uint8_t disc_class :2;
-    uint8_t disc_size :2;
+    uint8_t disc_class   :2;
+    uint8_t disc_size    :2;
 };
 
 #pragma pack(push, 1)
@@ -431,15 +431,15 @@ export struct READ_DISC_STRUCTURE_DiscInformationUnit
 
 export struct READ_DISC_STRUCTURE_DiscInformationBody1
 {
-    uint8_t reserved1 :4;
-    uint8_t layers_count :4;
+    uint8_t reserved1      :4;
+    uint8_t layers_count   :4;
     uint8_t channel_length :4;
-    uint8_t cd_layer :2;
-    uint8_t dvd_layer :2;
+    uint8_t cd_layer       :2;
+    uint8_t dvd_layer      :2;
     uint8_t polarity;
     uint8_t recorded_polarity;
     uint8_t reserved2 :4;
-    uint8_t bca :4;
+    uint8_t bca       :4;
     uint8_t maximum_transfer;
     uint8_t reserved3[2];
     uint32_t last_psn;
@@ -459,10 +459,10 @@ export struct READ_DVD_STRUCTURE_CopyrightInformation
 #pragma pack(push, 1)
 export struct INQUIRY_StandardData
 {
-    uint8_t device_type :5;
+    uint8_t device_type           :5;
     uint8_t device_type_qualifier :3;
-    uint8_t device_type_modifier :7;
-    uint8_t removable_media :1;
+    uint8_t device_type_modifier  :7;
+    uint8_t removable_media       :1;
     union
     {
         uint8_t versions;
@@ -470,43 +470,43 @@ export struct INQUIRY_StandardData
         {
             uint8_t ansi_version :3;
             uint8_t ecma_version :3;
-            uint8_t iso_version :2;
+            uint8_t iso_version  :2;
         };
     };
     uint8_t response_data_format :4;
-    uint8_t hi_support :1;
-    uint8_t norm_aca :1;
-    uint8_t terminate_task :1;
-    uint8_t aerc :1;
+    uint8_t hi_support           :1;
+    uint8_t norm_aca             :1;
+    uint8_t terminate_task       :1;
+    uint8_t aerc                 :1;
     uint8_t additional_length;
     union
     {
         uint8_t reserved;
         struct
         {
-            uint8_t protect :1;
-            uint8_t reserved1 :2;
+            uint8_t protect          :1;
+            uint8_t reserved1        :2;
             uint8_t third_party_copy :1;
-            uint8_t tpgs :2;
-            uint8_t acc :1;
-            uint8_t sccs :1;
+            uint8_t tpgs             :2;
+            uint8_t acc              :1;
+            uint8_t sccs             :1;
         };
     };
-    uint8_t addr16 :1;
-    uint8_t addr32 :1;
-    uint8_t ack_req_q :1;
-    uint8_t medium_changer :1;
-    uint8_t multi_port :1;
-    uint8_t reserved2 :1;
-    uint8_t enclosure_services :1;
-    uint8_t reserved3 :1;
-    uint8_t soft_reset :1;
-    uint8_t command_queue :1;
-    uint8_t transfer_disable :1;
-    uint8_t linked_commands :1;
-    uint8_t synchronous :1;
-    uint8_t wide_16bit :1;
-    uint8_t wide_32bit :1;
+    uint8_t addr16              :1;
+    uint8_t addr32              :1;
+    uint8_t ack_req_q           :1;
+    uint8_t medium_changer      :1;
+    uint8_t multi_port          :1;
+    uint8_t reserved2           :1;
+    uint8_t enclosure_services  :1;
+    uint8_t reserved3           :1;
+    uint8_t soft_reset          :1;
+    uint8_t command_queue       :1;
+    uint8_t transfer_disable    :1;
+    uint8_t linked_commands     :1;
+    uint8_t synchronous         :1;
+    uint8_t wide_16bit          :1;
+    uint8_t wide_32bit          :1;
     uint8_t relative_addressing :1;
     uint8_t vendor_id[8];
     uint8_t product_id[16];
@@ -522,7 +522,7 @@ export struct INQUIRY_StandardData
 export struct INQUIRY_VPDBlockLimits
 {
     uint8_t peripheral_device_type :5;
-    uint8_t peripheral_qualifier :3;
+    uint8_t peripheral_qualifier   :3;
     uint8_t page_code;
     uint16_t page_length;
     uint8_t reserved1;
@@ -534,7 +534,7 @@ export struct INQUIRY_VPDBlockLimits
     uint32_t maximum_unmap_lba_count;
     uint32_t maximum_unmap_block_descriptor_count;
     uint32_t optimal_unmap_granularity;
-    uint32_t ugavalid :1;
+    uint32_t ugavalid                    :1;
     uint32_t unmap_granularity_alignment :31;
     uint32_t maximum_write_same_length;
     uint32_t reserved2;
@@ -556,13 +556,13 @@ export struct READ_CAPACITY_Response
 export struct CDB6_Generic
 {
     uint8_t operation_code;
-    uint8_t immediate :1;
+    uint8_t immediate           :1;
     uint8_t command_unique_bits :4;
     uint8_t logical_unit_number :3;
     uint8_t command_unique_bytes[3];
-    uint8_t link :1;
-    uint8_t flag :1;
-    uint8_t reserved :4;
+    uint8_t link          :1;
+    uint8_t flag          :1;
+    uint8_t reserved      :4;
     uint8_t vendor_unique :2;
 };
 
@@ -571,8 +571,8 @@ export struct CDB6_Inquiry
 {
     uint8_t operation_code;
     uint8_t enable_vital_product_data :1;
-    uint8_t command_support_data :1;
-    uint8_t reserved1 :6;
+    uint8_t command_support_data      :1;
+    uint8_t reserved1                 :6;
     uint8_t page_code;
     uint8_t allocation_length[2]; // unaligned
     uint8_t control;
@@ -582,13 +582,13 @@ export struct CDB6_Inquiry
 export struct CDB10_ReadCapacity
 {
     uint8_t operation_code;
-    uint8_t rel_adr :1;
+    uint8_t rel_adr   :1;
     uint8_t reserved2 :4;
     uint8_t reserved1 :3;
     uint8_t address[4];
     uint8_t reserved3;
     uint8_t reserved4;
-    uint8_t pmi :1;
+    uint8_t pmi       :1;
     uint8_t reserved5 :7;
     uint8_t control;
 };
@@ -598,10 +598,10 @@ export struct CDB10_ReadTOC
 {
     uint8_t operation_code;
     uint8_t reserved3 :1;
-    uint8_t time :1;
+    uint8_t time      :1;
     uint8_t reserved2 :3;
     uint8_t reserved1 :3;
-    uint8_t format :4;
+    uint8_t format    :4;
     uint8_t reserved4 :4;
     uint8_t reserved5[3];
     uint8_t track_number;
@@ -625,8 +625,8 @@ export struct CDB10_GetConfiguration
 {
     uint8_t operation_code;
     uint8_t requested_type :2;
-    uint8_t reserved2 :3;
-    uint8_t reserved1 :3;
+    uint8_t reserved2      :3;
+    uint8_t reserved1      :3;
     uint16_t starting_feature_number;
     uint8_t reserved3;
     uint8_t reserved4;
@@ -640,13 +640,13 @@ export struct CDB12_ReadDiscStructure
 {
     uint8_t operation_code;
     uint8_t media_type :4;
-    uint8_t reserved1 :4;
+    uint8_t reserved1  :4;
     uint8_t address[4];
     uint8_t layer_number;
     uint8_t format;
     uint8_t allocation_length[2];
     uint8_t reserved2 :6;
-    uint8_t agid :2;
+    uint8_t agid      :2;
     uint8_t control;
 };
 
@@ -659,7 +659,7 @@ export struct CDB12_SendKey
     uint8_t reserved3[6];
     uint16_t parameter_list_length;
     uint8_t key_format :6;
-    uint8_t agid :2;
+    uint8_t agid       :2;
     uint8_t control;
 };
 
@@ -674,7 +674,7 @@ export struct CDB12_ReportKey
     uint8_t key_class;
     uint8_t allocation_length[2];
     uint8_t key_format :6;
-    uint8_t agid :2;
+    uint8_t agid       :2;
     uint8_t control;
 };
 
@@ -682,11 +682,11 @@ export struct CDB12_ReportKey
 export struct CDB12_Read
 {
     uint8_t operation_code;
-    uint8_t relative_address :1;
-    uint8_t reserved1 :2;
+    uint8_t relative_address  :1;
+    uint8_t reserved1         :2;
     uint8_t force_unit_access :1;
-    uint8_t disable_page_out :1;
-    uint8_t lun :3;
+    uint8_t disable_page_out  :1;
+    uint8_t lun               :3;
     uint8_t starting_lba[4];
     uint8_t transfer_blocks[4];
     uint8_t reserved2 :7;
@@ -698,20 +698,20 @@ export struct CDB12_Read
 export struct CDB12_ReadCD
 {
     uint8_t operation_code;
-    uint8_t relative_address :1;
-    uint8_t reserved1 :1;
+    uint8_t relative_address     :1;
+    uint8_t reserved1            :1;
     uint8_t expected_sector_type :3;
-    uint8_t lun :3;
+    uint8_t lun                  :3;
     uint8_t starting_lba[4];
     uint8_t transfer_blocks[3];
-    uint8_t reserved2 :1;
-    uint8_t error_flags :2;
-    uint8_t include_edc :1;
-    uint8_t include_user_data :1;
-    uint8_t header_code :2;
-    uint8_t include_sync_data :1;
+    uint8_t reserved2             :1;
+    uint8_t error_flags           :2;
+    uint8_t include_edc           :1;
+    uint8_t include_user_data     :1;
+    uint8_t header_code           :2;
+    uint8_t include_sync_data     :1;
     uint8_t sub_channel_selection :3;
-    uint8_t reserved3 :5;
+    uint8_t reserved3             :5;
     uint8_t control;
 };
 
@@ -720,7 +720,7 @@ export struct CDB12_ReadCDDA
 {
     uint8_t operation_code;
     uint8_t reserved1 :5;
-    uint8_t lun :3;
+    uint8_t lun       :3;
     uint8_t starting_lba[4];
     uint8_t transfer_blocks[4];
     uint8_t sub_code;
@@ -737,7 +737,7 @@ export struct CDB12_SetCDSpeed
         struct
         {
             uint8_t rotation_control :2;
-            uint8_t reserved2 :6;
+            uint8_t reserved2        :6;
         };
     };
     uint8_t read_speed[2];

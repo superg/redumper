@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     }
     catch(...)
     {
-        LOG("error: unhandled exception");
+        LOG ("error: unhandled exception");
         exit_code = -2;
     }
 

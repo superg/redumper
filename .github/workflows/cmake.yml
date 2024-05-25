@@ -11,7 +11,18 @@ env:
   release_name: build_${{github.run_number}}
 
 jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: clang-format Check (linux64)
+        shell: bash
+        run: find . -iname '*.hh' -o -iname '*.cc' -o -iname '*.ixx' | xargs clang-format-18 --dry-run -Werror
+
   build:
+    needs: check
     strategy:
       matrix:
         os: [windows-2022, ubuntu-24.04, macos-14]
@@ -39,10 +50,6 @@ jobs:
       with:
         submodules: 'true'
 
-    - name: clang-format Check (linux64)
-      if: ${{ matrix.os == 'ubuntu-24.04' }}
-      run: find . -iname '*.hh' -o -iname '*.cc' -o -iname '*.ixx' | xargs clang-format-18 --dry-run -Werror
-  
     - name: CMake Configure (win32)
       if: ${{ matrix.os == 'windows-2022' && matrix.platform == 32 }}
       run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}

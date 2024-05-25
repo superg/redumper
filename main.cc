@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
         if(options.help)
             options.printUsage();
         else if(options.version)
-            LOG("{}" , redumper_version());
+            LOG("{}", redumper_version());
         else
         {
             exit_code = redumper(options);

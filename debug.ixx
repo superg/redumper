@@ -112,7 +112,7 @@ export void redumper_debug(Context &ctx, Options &options)
         std::vector<uint8_t> structure = read_vector(physical_path);
 
         LOG("disc structure:");
-        //        print_di_units_structure(&structure[sizeof(CMD_ParameterListHeader)], false);
+        // print_di_units_structure(&structure[sizeof(CMD_ParameterListHeader)], false);
 
         LOG("");
     }
@@ -187,8 +187,8 @@ export void redumper_debug(Context &ctx, Options &options)
         auto drive_type = DriveConfig::Type::LG_ASU8C;
         asus_cache_print_subq(cache, drive_type);
 
-        //        auto asd = asus_cache_unroll(cache);
-        //        auto asd = asus_cache_extract(cache, 128224, 0);
+        // auto asd = asus_cache_unroll(cache);
+        // auto asd = asus_cache_extract(cache, 128224, 0);
         auto asus_leadout_buffer = asus_cache_extract(cache, 292353, 100, drive_type);
         uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 

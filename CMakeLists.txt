@@ -1,8 +1,4 @@
-cmake_minimum_required(VERSION 3.26)
-# enable scan imports in 3.28 while supporting 3.26, remove after all GitHub Actions runner images update to 3.28
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28.0")
-    cmake_policy(SET CMP0155 NEW)
-endif()
+cmake_minimum_required(VERSION 3.28)
 
 # project / version
 set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
@@ -50,16 +46,6 @@ endif()
 
 # C/C++
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-if(CMAKE_VERSION VERSION_LESS "3.28.0")
-    set(CMAKE_CXX_EXTENSIONS OFF)
-    if(CMAKE_VERSION VERSION_LESS "3.27.0")
-        set(CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API "2182bf5c-ef0d-489a-91da-49dbc3090d2a")
-    else()
-        set(CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API "aa1f7df0-828a-4fcd-9afc-2dc80491aca7")
-    endif()
-    set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
-endif()
 add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_MINOR=${PROJECT_VERSION_MINOR}
                 -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH}

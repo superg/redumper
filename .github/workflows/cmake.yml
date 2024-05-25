@@ -36,7 +36,7 @@ jobs:
 # ignore brew link warning, revert after https://github.com/actions/setup-python/issues/577 is fixed
       run: |
         brew update
-        brew install llvm@18 || true
+        brew install llvm@18
         brew install ninja
         brew install cmake
 
@@ -55,10 +55,7 @@ jobs:
 
     - name: CMake Configure (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' }}
-      env:
-        CC: clang-18
-        CXX: clang++-18
-      run: cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}} -DREDUMPER_CLANG_LINK_OPTIONS="-static"
+      run: CC=clang-18 CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}} -DREDUMPER_CLANG_LINK_OPTIONS="-static"
 
     - name: CMake Configure (macos64)
       if: ${{ matrix.os == 'macos-14' }}

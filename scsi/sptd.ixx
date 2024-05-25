@@ -27,7 +27,7 @@ module;
 #include <sys/ioctl.h>
 #include <unistd.h>
 #endif
-	
+
 export module scsi.sptd;
 
 import utils.logger;
@@ -59,7 +59,7 @@ public:
             throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
 #elif defined(__APPLE__)
         // returns IOCDMedia class, but we want IODVDServices, figure out how to specify filter on class and on device name
-        //		auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, drive_path.c_str()), &iterator);
+        //        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, drive_path.c_str()), &iterator);
 
         CFMutableDictionaryRef authoring_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
         if(authoring_dictionary == nullptr)

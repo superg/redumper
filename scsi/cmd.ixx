@@ -19,35 +19,35 @@ namespace gpsxre
 // clang-format off
 static const uint32_t READ_CD_C2_SIZES[] =
 {
-	0,
-	CD_C2_SIZE,
-	2 + CD_C2_SIZE,
-	0
+    0,
+    CD_C2_SIZE,
+    2 + CD_C2_SIZE,
+    0
 };
 
 static const uint32_t READ_CD_SUB_SIZES[] =
 {
-	0,
-	CD_SUBCODE_SIZE,
-	16,
-	0,
-	CD_SUBCODE_SIZE,
-	0,
-	0,
-	0
+    0,
+    CD_SUBCODE_SIZE,
+    16,
+    0,
+    CD_SUBCODE_SIZE,
+    0,
+    0,
+    0
 };
 
 static const uint32_t READ_CDDA_SIZES[] =
 {
-	CD_DATA_SIZE,
-	CD_DATA_SIZE + 16,
-	CD_DATA_SIZE + CD_SUBCODE_SIZE,
-	CD_SUBCODE_SIZE,
-	0, //TODO: analyze other values
-	0,
-	0,
-	0,
-	CD_RAW_DATA_SIZE
+    CD_DATA_SIZE,
+    CD_DATA_SIZE + 16,
+    CD_DATA_SIZE + CD_SUBCODE_SIZE,
+    CD_SUBCODE_SIZE,
+    0, //TODO: analyze other values
+    0,
+    0,
+    0,
+    CD_RAW_DATA_SIZE
 };
 // clang-format on
 
@@ -440,7 +440,7 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
         (uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) <= fds_end && (uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length <= fds_end;
         fds = (GET_CONFIGURATION_FeatureDescriptor *)((uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length))
     {
-        //		std::cout << endian_swap(fds->feature_code) << std::endl;
+        // std::cout << endian_swap(fds->feature_code) << std::endl;
     }
 
     return status;

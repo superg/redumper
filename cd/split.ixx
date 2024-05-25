@@ -334,7 +334,7 @@ std::vector<std::string> write_tracks(const TOC &toc, std::fstream &scm_fs, std:
                     LOG("warning: descramble failed (LBA: [{} .. {}])", d.first, d.second);
 
                 // DEBUG
-                //				LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
+                //                LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
             }
 
             xml_lines.emplace_back(rom_entry.xmlLine());

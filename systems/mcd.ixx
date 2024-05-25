@@ -265,7 +265,7 @@ const std::map<char, std::string> SystemMCD::_REGIONS_NEW = {
     { 'B', "JE"  },
     { 'C', "UE"  },
     { 'D', "JUE" },
-    //	 'E' - reserved for Europe, prioritize old style
+    // 'E' - reserved for Europe, prioritize old style
     { 'F', "JUE" }
 };
 

@@ -263,8 +263,8 @@ std::vector<std::pair<std::string, DirectoryRecord>> directory_extent_get_record
             {
                 // FIXME:
                 //  1) try to find legit entry after garbage, useful for (3)
-                //				++i;
-                //				continue;
+                //                ++i;
+                //                continue;
                 // 2) skip everything
                 break;
             }

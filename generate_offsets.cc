@@ -49,8 +49,8 @@ int main(int argc, char *argv[])
                         offset_max = o;
                 }
 
-                //				if(drive[0] == '-')
-                //					drive.insert(drive.begin(), ' ');
+                // if(drive[0] == '-')
+                //     drive.insert(drive.begin(), ' ');
 
                 ofs << std::format("{{\"{}\", {}}}, ", drive, offset) << std::endl;
             }

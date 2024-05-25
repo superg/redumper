@@ -622,7 +622,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
                         }
 
                         // DEBUG
-                        //						debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
+                        //                        debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
                     }
 
                     store = true;
@@ -717,7 +717,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
             if(ctx.drive_config.type == DriveConfig::Type::PLEXTOR && slow && inside_range(lba, error_ranges) != nullptr)
             {
                 // skip sector in refine mode
-                //				lba_next = lba + 1; //FIXME:
+                //                lba_next = lba + 1; //FIXME:
             }
             else if(status.status_code)
             {
@@ -761,7 +761,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
                     }
 
                     // DEBUG
-                    //					debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
+                    //                    debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
                 }
 
                 store = true;

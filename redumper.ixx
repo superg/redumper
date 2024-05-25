@@ -93,7 +93,7 @@ void redumper_dump_new(Context &ctx, Options &options)
 {
     if(profile_is_cd(ctx.current_profile))
         ctx.refine = redumper_refine_cd_new(ctx, options, DumpMode::DUMP);
-    //		ctx.refine = redumper_dump_cd_new(ctx, options);
+    // ctx.refine = redumper_dump_cd_new(ctx, options);
     else
         ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
 }

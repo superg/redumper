@@ -44,115 +44,115 @@ enum class LayerType : uint8_t
 // clang-format off
 static const std::string BOOK_TYPE[] =
 {
-	"DVD-ROM",
-	"DVD-RAM",
-	"DVD-R",
-	"DVD-RW",
-	"HD DVD-ROM",
-	"HD DVD-RAM",
-	"HD DVD-R",
-	"RESERVED1",
-	"RESERVED2",
-	"DVD+RW",
-	"DVD+R",
-	"RESERVED3",
-	"RESERVED4",
-	"DVD+RW DL",
-	"DVD+R DL",
-	"RESERVED5"
+    "DVD-ROM",
+    "DVD-RAM",
+    "DVD-R",
+    "DVD-RW",
+    "HD DVD-ROM",
+    "HD DVD-RAM",
+    "HD DVD-R",
+    "RESERVED1",
+    "RESERVED2",
+    "DVD+RW",
+    "DVD+R",
+    "RESERVED3",
+    "RESERVED4",
+    "DVD+RW DL",
+    "DVD+R DL",
+    "RESERVED5"
 };
 
 
 static const std::string MAXIMUM_RATE[] =
 {
-	"2.52 mbps",
-	"5.04 mbps",
-	"10.08 mbps",
-	"20.16 mbps",
-	"30.24 mpbs",
-	"reserved1",
-	"reserved2",
-	"reserved3",
-	"reserved4",
-	"reserved5",
-	"reserved6",
-	"reserved7",
-	"reserved8",
-	"reserved9",
-	"reserved10",
-	"not specified"
+    "2.52 mbps",
+    "5.04 mbps",
+    "10.08 mbps",
+    "20.16 mbps",
+    "30.24 mpbs",
+    "reserved1",
+    "reserved2",
+    "reserved3",
+    "reserved4",
+    "reserved5",
+    "reserved6",
+    "reserved7",
+    "reserved8",
+    "reserved9",
+    "reserved10",
+    "not specified"
 };
 
 
 static const std::string LINEAR_DENSITY[] =
 {
-	"0.267 um/bit",
-	"0.293 um/bit",
-	"0.409 to 0.435 um/bit",
-	"reserved1",
-	"0.280 to 0.291 um/bit",
-	"0.153 um/bit",
-	"0.130 to 0.140 um/bit",
-	"reserved2",
-	"0.353 um/bit",
-	"reserved3",
-	"reserved4",
-	"reserved5",
-	"reserved6",
-	"reserved7",
-	"reserved8",
-	"reserved9"
+    "0.267 um/bit",
+    "0.293 um/bit",
+    "0.409 to 0.435 um/bit",
+    "reserved1",
+    "0.280 to 0.291 um/bit",
+    "0.153 um/bit",
+    "0.130 to 0.140 um/bit",
+    "reserved2",
+    "0.353 um/bit",
+    "reserved3",
+    "reserved4",
+    "reserved5",
+    "reserved6",
+    "reserved7",
+    "reserved8",
+    "reserved9"
 };
 
 
 static const std::string TRACK_DENSITY[] =
 {
-	"0.74 um/track",
-	"0.80 um/track",
-	"0.615 um/track",
-	"0.40 um/track",
-	"0.34 um/track",
-	"reserved1",
-	"reserved2",
-	"reserved3",
-	"reserved4",
-	"reserved5",
-	"reserved6",
-	"reserved7",
-	"reserved8",
-	"reserved9",
-	"reserved10",
-	"reserved11"
+    "0.74 um/track",
+    "0.80 um/track",
+    "0.615 um/track",
+    "0.40 um/track",
+    "0.34 um/track",
+    "reserved1",
+    "reserved2",
+    "reserved3",
+    "reserved4",
+    "reserved5",
+    "reserved6",
+    "reserved7",
+    "reserved8",
+    "reserved9",
+    "reserved10",
+    "reserved11"
 };
 
 
 static const std::string BLURAY_HYBRID_LAYER[] =
 {
-	"none",
-	"-ROM",
-	"-R",
-	"-RW"
+    "none",
+    "-ROM",
+    "-R",
+    "-RW"
 };
 
 
 static const std::string BLURAY_CHANNEL_LENGTH[] =
 {
-	"none",
-	"74.5nm",
-	"69.0nm",
-	"reserved1",
-	"reserved2",
-	"reserved3",
-	"reserved4",
-	"reserved5",
-	"reserved6",
-	"reserved7",
-	"reserved8",
-	"reserved9",
-	"reserved10",
-	"reserved11",
-	"reserved12",
-	"reserved13"
+    "none",
+    "74.5nm",
+    "69.0nm",
+    "reserved1",
+    "reserved2",
+    "reserved3",
+    "reserved4",
+    "reserved5",
+    "reserved6",
+    "reserved7",
+    "reserved8",
+    "reserved9",
+    "reserved10",
+    "reserved11",
+    "reserved12",
+    "reserved13"
 };
 // clang-format on
 

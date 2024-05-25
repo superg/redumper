@@ -141,8 +141,8 @@ export uint64_t check_file(const std::filesystem::path &file_path, uint64_t entr
         throw_line("file is empty ({})", file_path.filename().string());
 
     // TODO: improve unaligned handling
-    //	if(file_size % entry_size)
-    //		throw_line("incomplete file or garbage in the end ({})", file_path.filename().string());
+    //    if(file_size % entry_size)
+    //        throw_line("incomplete file or garbage in the end ({})", file_path.filename().string());
 
     return file_size / entry_size;
 }

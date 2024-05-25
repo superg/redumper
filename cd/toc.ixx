@@ -314,13 +314,13 @@ export struct TOC
     void updateMCN(const ChannelQ *subq, uint32_t sectors_count)
     {
         // clang-format off
-		constexpr char ISRC_TABLE[] =
-		{
-			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_', '_', '_', '_', '_', '_',
-			'_', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-			'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '_', '_', '_', '_', '_',
-			'_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'
-		};
+        constexpr char ISRC_TABLE[] =
+        {
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_', '_', '_', '_', '_', '_',
+            '_', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+            'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '_', '_', '_', '_', '_',
+            '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'
+        };
         // clang-format on
 
         // build linear track array
@@ -411,9 +411,10 @@ export struct TOC
             auto &pack_data = descriptors[i];
 
             // DEBUG
-            //			LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}",
-            //									 pack_data.pack_type, pack_data.track_number, pack_data.extension_flag, pack_data.sequence_number, pack_data.character_position, pack_data.block_number,
-            // pack_data.unicode, 									 DescriptorText(pack_data));
+            //            LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}",
+            //                                     pack_data.pack_type, pack_data.track_number, pack_data.extension_flag, pack_data.sequence_number, pack_data.character_position,
+            //                                     pack_data.block_number,
+            // pack_data.unicode,                                      DescriptorText(pack_data));
 
             auto crc = CRC16_GSM().update((uint8_t *)&pack_data, sizeof(pack_data) - sizeof(uint16_t)).final();
             // PLEXTOR PX-W5224TA: crc of last pack is always zeroed
@@ -960,10 +961,10 @@ private:
             os << std::format("{}PERFORMER \"{}\"", std::string(indent_level, ' '), cdt.performer) << std::endl;
         if(!cdt.songwriter.empty())
             os << std::format("{}SONGWRITER \"{}\"", std::string(indent_level, ' '), cdt.songwriter) << std::endl;
-        //		if(!cdt.composer.empty())
-        //			os << std::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
-        //		if(!cdt.arranger.empty())
-        //			os << std::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
+        // if(!cdt.composer.empty())
+        //     os << std::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
+        // if(!cdt.arranger.empty())
+        //     os << std::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
 
         return os;
     }
@@ -1026,7 +1027,7 @@ private:
     {
         // FIXME: codecvt is deprecated
         //  sometimes it's not UTF-16
-        //		return unicode ? std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(std::u16string((char16_t*)text)) : std::string(text);
+        //        return unicode ? std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(std::u16string((char16_t*)text)) : std::string(text);
 
         // for now copy verbatim
         return std::string(text);

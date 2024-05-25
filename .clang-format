@@ -4,43 +4,43 @@ AccessModifierOffset: -4
 AlignAfterOpenBracket: DontAlign
 AlignArrayOfStructures: Left
 AlignConsecutiveAssignments:
-    Enabled: false
-    AcrossEmptyLines: false
-    AcrossComments: false
-    AlignCompound: false
-    AlignFunctionPointers: false
-    PadOperators: true
+  Enabled: false
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: false
+  AlignFunctionPointers: false
+  PadOperators: true
 AlignConsecutiveBitFields:
-    Enabled: false
-    AcrossEmptyLines: false
-    AcrossComments: false
-    AlignCompound: false
-    AlignFunctionPointers: false
-    PadOperators: false
+  Enabled: false
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: false
+  AlignFunctionPointers: false
+  PadOperators: false
 AlignConsecutiveDeclarations:
-    Enabled: false
-    AcrossEmptyLines: false
-    AcrossComments: false
-    AlignCompound: false
-    AlignFunctionPointers: false
-    PadOperators: false
+  Enabled: false
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: false
+  AlignFunctionPointers: false
+  PadOperators: false
 AlignConsecutiveMacros:
-    Enabled: false
-    AcrossEmptyLines: false
-    AcrossComments: false
-    AlignCompound: false
-    AlignFunctionPointers: false
-    PadOperators: false
+  Enabled: false
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: false
+  AlignFunctionPointers: false
+  PadOperators: false
 AlignConsecutiveShortCaseStatements:
-    Enabled: false
-    AcrossEmptyLines: false
-    AcrossComments: false
-    AlignCaseColons: false
+  Enabled: false
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCaseColons: false
 AlignEscapedNewlines: Right
 AlignOperands: AlignAfterOperator
 AlignTrailingComments:
-    Kind: Always
-    OverEmptyLines: 1
+  Kind: Always
+  OverEmptyLines: 1
 AllowAllArgumentsOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
 AllowBreakBeforeNoexceptSpecifier: Never
@@ -57,29 +57,29 @@ AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: Yes
 AttributeMacros:
-    - __capability
+  - __capability
 BinPackArguments: true
 BinPackParameters: true
 BitFieldColonSpacing: Before
 BraceWrapping:
-    AfterCaseLabel: false
-    AfterClass: false
-    AfterControlStatement: Never
-    AfterEnum: false
-    AfterExternBlock: false
-    AfterFunction: false
-    AfterNamespace: false
-    AfterObjCDeclaration: false
-    AfterStruct: false
-    AfterUnion: false
-    BeforeCatch: false
-    BeforeElse: false
-    BeforeLambdaBody: false
-    BeforeWhile: false
-    IndentBraces: false
-    SplitEmptyFunction: true
-    SplitEmptyRecord: true
-    SplitEmptyNamespace: true
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterExternBlock: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterObjCDeclaration: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
 BreakAdjacentStringLiterals: false
 BreakAfterAttributes: Never
 BreakAfterJavaFieldAnnotations: false
@@ -105,21 +105,21 @@ EmptyLineBeforeAccessModifier: Always
 ExperimentalAutoDetectBinPacking: false
 FixNamespaceComments: false
 ForEachMacros:
-    - foreach
-    - Q_FOREACH
-    - BOOST_FOREACH
+  - foreach
+  - Q_FOREACH
+  - BOOST_FOREACH
 IfMacros:
-    - KJ_IF_MAYBE
+  - KJ_IF_MAYBE
 IncludeBlocks: Merge
 IncludeCategories:
-    - Regex: '^<.*'
-      Priority: 1
-      SortPriority: 0
-      CaseSensitive: true
-    - Regex: '^".*'
-      Priority: 2
-      SortPriority: 0
-      CaseSensitive: true
+  - Regex: '^<.*'
+    Priority: 1
+    SortPriority: 0
+    CaseSensitive: true
+  - Regex: '^".*'
+    Priority: 2
+    SortPriority: 0
+    CaseSensitive: true
 IncludeIsMainRegex: '(Test)?$'
 IncludeIsMainSourceRegex: ''
 IndentAccessModifiers: false
@@ -135,12 +135,12 @@ InsertBraces: false
 InsertNewlineAtEOF: true
 InsertTrailingCommas: None
 IntegerLiteralSeparator:
-    Binary: 0
-    BinaryMinDigits: 0
-    Decimal: 0
-    DecimalMinDigits: 0
-    Hex: 0
-    HexMinDigits: 0
+  Binary: 0
+  BinaryMinDigits: 0
+  Decimal: 0
+  DecimalMinDigits: 0
+  Hex: 0
+  HexMinDigits: 0
 JavaScriptQuotes: Leave
 JavaScriptWrapImports: true
 KeepEmptyLinesAtTheStartOfBlocks: true
@@ -196,16 +196,16 @@ SpaceBeforeInheritanceColon: true
 SpaceBeforeJsonColon: false
 SpaceBeforeParens: Custom
 SpaceBeforeParensOptions:
-    AfterControlStatements: false
-    AfterForeachMacros: false
-    AfterFunctionDefinitionName: false
-    AfterFunctionDeclarationName: false
-    AfterIfMacros: false
-    AfterOverloadedOperator: false
-    AfterPlacementOperator: true
-    AfterRequiresInClause: false
-    AfterRequiresInExpression: false
-    BeforeNonEmptyParentheses: false
+  AfterControlStatements: false
+  AfterForeachMacros: false
+  AfterFunctionDefinitionName: false
+  AfterFunctionDeclarationName: false
+  AfterIfMacros: false
+  AfterOverloadedOperator: false
+  AfterPlacementOperator: true
+  AfterRequiresInClause: false
+  AfterRequiresInExpression: false
+  BeforeNonEmptyParentheses: false
 SpaceBeforeRangeBasedForLoopColon: true
 SpaceBeforeSquareBrackets: false
 SpaceInEmptyBlock: false
@@ -213,29 +213,28 @@ SpacesBeforeTrailingComments: 1
 SpacesInAngles: Never
 SpacesInContainerLiterals: true
 SpacesInLineCommentPrefix:
-    Minimum: 1
-    Maximum: 1
+  Minimum: 1
+  Maximum: 1
 SpacesInParens: Never
 SpacesInParensOptions:
-    InCStyleCasts: false
-    InConditionalStatements: false
-    InEmptyParentheses: false
-    Other: false
+  InCStyleCasts: false
+  InConditionalStatements: false
+  InEmptyParentheses: false
+  Other: false
 SpacesInSquareBrackets: false
 Standard: Latest
 StatementAttributeLikeMacros:
-    - Q_EMIT
+  - Q_EMIT
 StatementMacros:
-    - Q_UNUSED
-    - QT_REQUIRE_VERSION
+  - Q_UNUSED
+  - QT_REQUIRE_VERSION
 TabWidth: 4
 UseTab: Never
 VerilogBreakBetweenInstancePorts: true
 WhitespaceSensitiveMacros:
-    - BOOST_PP_STRINGIZE
-    - CF_SWIFT_NAME
-    - NS_SWIFT_NAME
-    - PP_STRINGIZE
-    - STRINGIZE
+  - BOOST_PP_STRINGIZE
+  - CF_SWIFT_NAME
+  - NS_SWIFT_NAME
+  - PP_STRINGIZE
+  - STRINGIZE
 ...
-

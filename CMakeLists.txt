@@ -66,17 +66,8 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # -fexperimental-library is required for clang-16 as std::format is defined there
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
     add_link_options(-stdlib=libc++ ${REDUMPER_CLANG_LINK_OPTIONS})
-
-    # silence implicit modules use warning
-    # TL;DR, this will be taken cared of by listing module dependencies explicitly (cmake)
-    # more information:
-    # https://github.com/llvm/llvm-project/issues/62707
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 17)
-        add_compile_options(-Wno-read-modules-implicitly)
-    endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     add_compile_options(-Wall -Wextra -Werror)
 

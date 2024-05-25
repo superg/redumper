@@ -28,17 +28,11 @@ jobs:
     steps:
     - name: Customize Software (Linux)
       if: ${{ matrix.os == 'ubuntu-24.04' }}
-      run: |
-        sudo apt-get install clang-18 lld-18 clang-tools-18 libc++-18-dev ninja-build cmake
+      run: sudo apt-get install clang-18 lld-18 clang-tools-18 libc++-18-dev ninja-build cmake
 
     - name: Customize Software (macOS)
       if: ${{ matrix.os == 'macos-14' }}
-# ignore brew link warning, revert after https://github.com/actions/setup-python/issues/577 is fixed
-      run: |
-        brew update
-        brew install llvm@18
-        brew install ninja
-        brew install cmake
+      run: brew install llvm@18 ninja cmake
 
     - name: Checkout
       uses: actions/checkout@v4

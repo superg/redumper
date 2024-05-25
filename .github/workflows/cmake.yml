@@ -96,6 +96,8 @@ jobs:
     steps:
       - name: Download Artifact
         uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
 
       - name: ASDF
         run: ls -R

@@ -16,8 +16,8 @@ namespace gpsxre
 
 export std::string redumper_version()
 {
-	return std::format("redumper v{}.{}.{} build_{} [{}, {}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR),
-			XSTRINGIFY(REDUMPER_VERSION_PATCH), XSTRINGIFY(REDUMPER_VERSION_BUILD), __DATE__, __TIME__);
+	return std::format("redumper v{}.{}.{} build_{} [{}, {}]", XSTRINGIFY(REDUMPER_VERSION_MAJOR), XSTRINGIFY(REDUMPER_VERSION_MINOR), XSTRINGIFY(REDUMPER_VERSION_PATCH),
+	    XSTRINGIFY(REDUMPER_VERSION_BUILD), __DATE__, __TIME__);
 }
 
 }

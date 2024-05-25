@@ -130,12 +130,12 @@ private:
 				std::string key(sfb_header->field[i].key, sizeof(sfb_header->field[i].key));
 				erase_all_inplace(key, '\0');
 				trim_inplace(key);
-				if (key.empty())
+				if(key.empty())
 					return sfb;
 
 				uint32_t offset = endian_swap(sfb_header->field[i].offset);
 				uint32_t length = endian_swap(sfb_header->field[i].length);
-				if (sfb_raw.size() < offset + length)
+				if(sfb_raw.size() < offset + length)
 					return sfb;
 
 				std::string value(sfb_raw.begin() + offset, sfb_raw.begin() + offset + length);
@@ -185,8 +185,7 @@ private:
 				if(sfo_raw.size() < sfo_header->key_table + param->key_offset + key_length)
 					return sfo;
 
-				std::string key(sfo_raw.begin() + sfo_header->key_table + param->key_offset,
-								sfo_raw.begin() + sfo_header->key_table + param->key_offset + key_length);
+				std::string key(sfo_raw.begin() + sfo_header->key_table + param->key_offset, sfo_raw.begin() + sfo_header->key_table + param->key_offset + key_length);
 				erase_all_inplace(key, '\0');
 				trim_inplace(key);
 
@@ -196,19 +195,18 @@ private:
 					if(sfo_raw.size() < sfo_header->value_table + param->value_offset + 4)
 						return sfo;
 
-					uint32_t value_num = *(uint32_t*)(sfo_raw.data() + sfo_header->value_table + param->value_offset);
+					uint32_t value_num = *(uint32_t *)(sfo_raw.data() + sfo_header->value_table + param->value_offset);
 					value.assign(std::to_string(value_num));
 				}
 				else
 				{
 					if(sfo_raw.size() < sfo_header->value_table + param->value_offset + param->value_length)
 						return sfo;
-					value.assign(sfo_raw.begin() + sfo_header->value_table + param->value_offset,
-								 sfo_raw.begin() + sfo_header->value_table + param->value_offset + param->value_length);
+					value.assign(sfo_raw.begin() + sfo_header->value_table + param->value_offset, sfo_raw.begin() + sfo_header->value_table + param->value_offset + param->value_length);
 				}
 				erase_all_inplace(value, '\0');
 
-				sfo.emplace(key, value);	
+				sfo.emplace(key, value);
 			}
 		}
 

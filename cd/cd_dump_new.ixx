@@ -278,8 +278,7 @@ std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &c
 	std::vector<std::pair<int32_t, int32_t>> protection;
 
 	for(auto const &e : ctx.protection)
-		protection.emplace_back(std::min(sample_to_lba(e.first, -offset), sample_to_lba(e.first, -data_offset)),
-								std::max(sample_to_lba(e.second, -offset), sample_to_lba(e.second, -data_offset)));
+		protection.emplace_back(std::min(sample_to_lba(e.first, -offset), sample_to_lba(e.first, -data_offset)), std::max(sample_to_lba(e.second, -offset), sample_to_lba(e.second, -data_offset)));
 
 	return protection;
 }
@@ -314,7 +313,7 @@ uint32_t refine_count_sectors(std::fstream &fs_state, std::fstream &fs_subcode, 
 		if(options.refine_subchannel && !subcode_extract_q(sector_subcode.data()).isValid())
 			++sectors_count;
 	}
-	
+
 	return sectors_count;
 }
 
@@ -383,7 +382,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 	std::fstream fs_scram(image_prefix + ".scram", mode);
 	std::fstream fs_state(image_prefix + ".state", mode);
 	std::fstream fs_subcode(image_prefix + ".subcode", mode);
-	
+
 	std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 	std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
 	std::span<const uint8_t> sector_c2(sector_buffer.begin() + CD_DATA_SIZE, CD_C2_SIZE);
@@ -435,7 +434,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 			LOG("");
 			break;
 		}
-		
+
 		auto protection_range = inside_range(lba, protection);
 		if(protection_range != nullptr)
 		{
@@ -444,7 +443,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 			lba = protection_range->second - 1;
 			continue;
 		}
-		
+
 		int32_t lba_index = lba - LBA_START;
 
 		read_entry(fs_scram, sector_data_file_a.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE, 0);
@@ -489,7 +488,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 			else
 				percentage = 100 * (lba - lba_start) / (lba_overread - lba_start);
 			LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), percentage > 100 ? 100 : percentage, lba, lba_overread,
-					dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi, dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
+			    dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi, dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
 
 			auto read_time_start = std::chrono::high_resolution_clock::now();
 			bool all_types = options.force_unscrambled;

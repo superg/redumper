@@ -20,8 +20,8 @@ export class ROMEntry
 {
 public:
 	ROMEntry(std::string name)
-		: _name(replace_all(name, "&", "&amp;"))
-		, _size(0)
+	    : _name(replace_all(name, "&", "&amp;"))
+	    , _size(0)
 	{
 		;
 	}

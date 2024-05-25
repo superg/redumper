@@ -63,19 +63,19 @@ export void redumper_rings(Context &ctx, Options &options)
 		return;
 
 	LOG("ISO9660 map: ");
-	std::for_each(area_map.cbegin(), area_map.cend(), [](const iso9660::Area &area)
-	{
-		auto count = scale_up(area.size, FORM1_DATA_SIZE);
-		LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}",
-			area.offset, area.offset + count - 1, count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
-			area.name.empty() ? "" : std::format(", name: {}", area.name));
-	});
+	std::for_each(area_map.cbegin(), area_map.cend(),
+	    [](const iso9660::Area &area)
+	    {
+		    auto count = scale_up(area.size, FORM1_DATA_SIZE);
+		    LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.offset, area.offset + count - 1, count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
+		        area.name.empty() ? "" : std::format(", name: {}", area.name));
+	    });
 
 	std::vector<std::pair<int32_t, int32_t>> sector_rings;
 	for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
 	{
 		auto &a = area_map[i];
-		
+
 		uint32_t gap_start = a.offset + scale_up(a.size, FORM1_DATA_SIZE);
 		if(gap_start < area_map[i + 1].offset)
 			sector_rings.emplace_back(gap_start, area_map[i + 1].offset);

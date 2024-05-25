@@ -120,8 +120,7 @@ public:
 					// Form2 EDC can be zero depending on mastering utility
 					if(sector.mode2.xa.form2.edc)
 					{
-						uint32_t edc = EDC().update((uint8_t *)&sector.mode2.xa.sub_header,
-													offsetof(Sector, mode2.xa.form2.edc) - offsetof(Sector, mode2.xa.sub_header)).final();
+						uint32_t edc = EDC().update((uint8_t *)&sector.mode2.xa.sub_header, offsetof(Sector, mode2.xa.form2.edc) - offsetof(Sector, mode2.xa.sub_header)).final();
 
 						if(edc != sector.mode2.xa.form2.edc)
 						{
@@ -140,8 +139,7 @@ public:
 					bool error_detected = false;
 
 					// EDC
-					uint32_t edc = EDC().update((uint8_t *)&sector.mode2.xa.sub_header,
-												offsetof(Sector, mode2.xa.form1.edc) - offsetof(Sector, mode2.xa.sub_header)).final();
+					uint32_t edc = EDC().update((uint8_t *)&sector.mode2.xa.sub_header, offsetof(Sector, mode2.xa.form1.edc) - offsetof(Sector, mode2.xa.sub_header)).final();
 					if(edc != sector.mode2.xa.form1.edc)
 					{
 						++edc_errors;

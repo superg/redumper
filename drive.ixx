@@ -90,42 +90,38 @@ struct AsusConfig
 
 export constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
 
-static const std::unordered_map<std::string, int32_t> DRIVE_READ_OFFSETS =
-{
+static const std::unordered_map<std::string, int32_t> DRIVE_READ_OFFSETS = {
 #include "driveoffsets.inc"
 };
 
 
-static const std::map<DriveConfig::Type, std::string> TYPE_STRING =
-{
-	{DriveConfig::Type::GENERIC, "GENERIC"},
-	{DriveConfig::Type::PLEXTOR, "PLEXTOR"},
-	{DriveConfig::Type::LG_ASU8A, "LG_ASU8A"},
-	{DriveConfig::Type::LG_ASU8B, "LG_ASU8B"},
-	{DriveConfig::Type::LG_ASU8C, "LG_ASU8C"},
-	{DriveConfig::Type::LG_ASU3, "LG_ASU3"},
-	{DriveConfig::Type::LG_ASU2, "LG_ASU2"}
+static const std::map<DriveConfig::Type, std::string> TYPE_STRING = {
+	{ DriveConfig::Type::GENERIC,  "GENERIC"  },
+    { DriveConfig::Type::PLEXTOR,  "PLEXTOR"  },
+    { DriveConfig::Type::LG_ASU8A, "LG_ASU8A" },
+    { DriveConfig::Type::LG_ASU8B, "LG_ASU8B" },
+	{ DriveConfig::Type::LG_ASU8C, "LG_ASU8C" },
+    { DriveConfig::Type::LG_ASU3,  "LG_ASU3"  },
+    { DriveConfig::Type::LG_ASU2,  "LG_ASU2"  }
 };
 
 
-static const std::map<DriveConfig::ReadMethod, std::string> READ_METHOD_STRING =
-{
-	{DriveConfig::ReadMethod::BE, "BE"},
-	{DriveConfig::ReadMethod::D8, "D8"},
-	{DriveConfig::ReadMethod::BE_CDDA, "BE_CDDA"}
+static const std::map<DriveConfig::ReadMethod, std::string> READ_METHOD_STRING = {
+	{ DriveConfig::ReadMethod::BE,      "BE"      },
+    { DriveConfig::ReadMethod::D8,      "D8"      },
+    { DriveConfig::ReadMethod::BE_CDDA, "BE_CDDA" }
 };
 
 
-static const std::map<DriveConfig::SectorOrder, std::string> SECTOR_ORDER_STRING =
-{
-	{DriveConfig::SectorOrder::DATA_C2_SUB, "DATA_C2_SUB"},
-	{DriveConfig::SectorOrder::DATA_SUB_C2, "DATA_SUB_C2"},
-	{DriveConfig::SectorOrder::DATA_SUB   , "DATA_SUB"   },
-	{DriveConfig::SectorOrder::DATA_C2    , "DATA_C2"    }
+static const std::map<DriveConfig::SectorOrder, std::string> SECTOR_ORDER_STRING = {
+	{ DriveConfig::SectorOrder::DATA_C2_SUB, "DATA_C2_SUB" },
+    { DriveConfig::SectorOrder::DATA_SUB_C2, "DATA_SUB_C2" },
+    { DriveConfig::SectorOrder::DATA_SUB,    "DATA_SUB"    },
+	{ DriveConfig::SectorOrder::DATA_C2,     "DATA_C2"     }
 };
 
 
-static const DriveConfig DRIVE_CONFIG_GENERIC = {"", "", "", "", 0, 0, 0, DriveConfig::ReadMethod::BE, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC};
+static const DriveConfig DRIVE_CONFIG_GENERIC = { "", "", "", "", 0, 0, 0, DriveConfig::ReadMethod::BE, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC };
 
 
 // drive strings are normalized (trimmed and exactly one space between words)
@@ -242,7 +238,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 // However the following range, while preserving the above behavior, is unlocked for both BE and D8 commands with
 // disabled C2. Use it to dynamically find first second of pre-gap based on the Q subcode and prepend it to the rest of
 // [-75 .. leadout) Plextor dump, optionally saving the lead-in
-static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = {-20150, -1150};
+static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = { -20150, -1150 };
 
 
 //	LG/ASUS cache map:
@@ -255,13 +251,12 @@ static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = {-20150, -1150};
 //	0x0B00 end
 constexpr uint32_t ASUS_CACHE_ENTRY_SIZE = 0xB00;
 
-static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG =
-{
-	{DriveConfig::Type::LG_ASU8A, {8, 2806}},
-	{DriveConfig::Type::LG_ASU8B, {8, 1079}},
-	{DriveConfig::Type::LG_ASU8C, {8, 1268}},
-	{DriveConfig::Type::LG_ASU3, {3, 1070}},
-	{DriveConfig::Type::LG_ASU2, {2,  586}}
+static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG = {
+	{ DriveConfig::Type::LG_ASU8A, { 8, 2806 } },
+    { DriveConfig::Type::LG_ASU8B, { 8, 1079 } },
+    { DriveConfig::Type::LG_ASU8C, { 8, 1268 } },
+    { DriveConfig::Type::LG_ASU3,  { 3, 1070 } },
+	{ DriveConfig::Type::LG_ASU2,  { 2, 586 }  }
 };
 
 
@@ -272,7 +267,7 @@ int32_t drive_get_generic_read_offset(const std::string &vendor, const std::stri
 {
 	int32_t offset = std::numeric_limits<int32_t>::max();
 
-	//FIXME: clean up this AccurateRip mess later
+	// FIXME: clean up this AccurateRip mess later
 	std::string v(vendor);
 	if(vendor == "HL-DT-ST")
 		v = "LG Electronics";
@@ -316,9 +311,8 @@ export DriveConfig drive_get_config(const DriveQuery &drive_query)
 	bool found = false;
 	for(auto const &di : KNOWN_DRIVES)
 	{
-		if((di.vendor_id.empty() || di.vendor_id == drive_query.vendor_id) &&
-		   (di.product_id.empty() || di.product_id == drive_query.product_id) &&
-		   (di.product_revision_level.empty() || di.product_revision_level == drive_query.product_revision_level))
+		if((di.vendor_id.empty() || di.vendor_id == drive_query.vendor_id) && (di.product_id.empty() || di.product_id == drive_query.product_id)
+		    && (di.product_revision_level.empty() || di.product_revision_level == drive_query.product_revision_level))
 		{
 			drive_config = di;
 			found = true;
@@ -346,7 +340,7 @@ export DriveConfig drive_get_config(const DriveQuery &drive_query)
 
 AsusConfig asus_get_config(DriveConfig::Type type)
 {
-	AsusConfig asus_config = {0, 0};
+	AsusConfig asus_config = { 0, 0 };
 
 	auto it = ASUS_CACHE_CONFIG.find(type);
 	if(it != ASUS_CACHE_CONFIG.end())
@@ -356,7 +350,8 @@ AsusConfig asus_get_config(DriveConfig::Type type)
 }
 
 
-export void drive_override_config(DriveConfig &drive_config, const std::string *type, const int *read_offset, const int *c2_shift, const int *pregap_start, const std::string *read_method, const std::string *sector_order)
+export void drive_override_config(DriveConfig &drive_config, const std::string *type, const int *read_offset, const int *c2_shift, const int *pregap_start, const std::string *read_method,
+    const std::string *sector_order)
 {
 	if(type != nullptr)
 		drive_config.type = string_to_enum(*type, TYPE_STRING);
@@ -381,16 +376,14 @@ export void drive_override_config(DriveConfig &drive_config, const std::string *
 export std::string drive_info_string(const DriveConfig &drive_config)
 {
 	return std::format("{} - {} (revision level: {}, vendor specific: {})", drive_config.vendor_id, drive_config.product_id,
-			drive_config.product_revision_level.empty() ? "<empty>" : drive_config.product_revision_level,
-			drive_config.vendor_specific.empty() ? "<empty>" : drive_config.vendor_specific);
+	    drive_config.product_revision_level.empty() ? "<empty>" : drive_config.product_revision_level, drive_config.vendor_specific.empty() ? "<empty>" : drive_config.vendor_specific);
 }
 
 
 export std::string drive_config_string(const DriveConfig &drive_config)
 {
-	return std::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})",
-			enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset, drive_config.c2_shift,
-			drive_config.pregap_start, enum_to_string(drive_config.read_method, READ_METHOD_STRING), enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
+	return std::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})", enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset,
+	    drive_config.c2_shift, drive_config.pregap_start, enum_to_string(drive_config.read_method, READ_METHOD_STRING), enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
 }
 
 
@@ -481,9 +474,9 @@ export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 			ChannelQ Q;
 			subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
-			//DEBUG
-//			LOG_R();
-//			LOGC("{}", Q.Decode());
+			// DEBUG
+			//			LOG_R();
+			//			LOGC("{}", Q.Decode());
 
 			if(Q.isValid())
 			{
@@ -521,7 +514,7 @@ export std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache
 	uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 
 	int32_t index_start = cache_entries_count;
-	std::pair<int32_t, int32_t> index_range = {cache_entries_count, cache_entries_count};
+	std::pair<int32_t, int32_t> index_range = { cache_entries_count, cache_entries_count };
 	std::pair<int32_t, int32_t> lba_range;
 
 	// try to find the exact match

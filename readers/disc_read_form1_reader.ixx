@@ -18,8 +18,8 @@ export class Disc_READ_Reader : public SectorReader
 {
 public:
 	Disc_READ_Reader(SPTD &sptd, uint32_t base_lba)
-		: _sptd(sptd)
-		, _baseLBA(base_lba)
+	    : _sptd(sptd)
+	    , _baseLBA(base_lba)
 	{
 		;
 	}

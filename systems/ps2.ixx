@@ -87,7 +87,7 @@ public:
 	}
 
 private:
-	static constexpr std::array<uint8_t, 4> _EXE_MAGIC = {0x7F, 0x45, 0x4C, 0x46};
+	static constexpr std::array<uint8_t, 4> _EXE_MAGIC = { 0x7F, 0x45, 0x4C, 0x46 };
 
 
 	std::map<std::string, std::string> loadCNF(std::shared_ptr<iso9660::Entry> root_directory, std::string cnf_file) const
@@ -133,11 +133,11 @@ private:
 		std::string region;
 
 		// All Internal serials currently in redump.org
-		const std::set<std::string> REGION_J {"PAPX", "PCPX", "PDPX", "PSXC", "SCAJ", "SCPM", "SCPN", "SCPS", "SLAJ", "SLPM", "SLPS", "SRPM"};
-		const std::set<std::string> REGION_K {"SCKA", "SLKA"};
-		const std::set<std::string> REGION_C {"SCCS"};
-		const std::set<std::string> REGION_U {"PUPX", "SCUS", "SLUS"};
-		const std::set<std::string> REGION_E {"SCED", "SCES", "SLED", "SLES", "TCES"};
+		const std::set<std::string> REGION_J{ "PAPX", "PCPX", "PDPX", "PSXC", "SCAJ", "SCPM", "SCPN", "SCPS", "SLAJ", "SLPM", "SLPS", "SRPM" };
+		const std::set<std::string> REGION_K{ "SCKA", "SLKA" };
+		const std::set<std::string> REGION_C{ "SCCS" };
+		const std::set<std::string> REGION_U{ "PUPX", "SCUS", "SLUS" };
+		const std::set<std::string> REGION_E{ "SCED", "SCES", "SLED", "SLES", "TCES" };
 		// multi region: "PBPX"
 		// preprod only: "ABCD", "XXXX"
 

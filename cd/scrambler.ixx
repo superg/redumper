@@ -89,10 +89,9 @@ private:
 				shift_register = ((uint16_t)carry << 15 | shift_register) >> 1;
 			}
 		}
-		
+
 		return table;
 	}();
-
 };
 
 }

@@ -34,10 +34,10 @@ namespace gpsxre
 
 enum class LayerType : uint8_t
 {
-	EMBOSSED   = 1 << 0,
+	EMBOSSED = 1 << 0,
 	RECORDABLE = 1 << 1,
 	REWRITABLE = 1 << 2,
-	RESERVED   = 1 << 3
+	RESERVED = 1 << 3
 };
 
 
@@ -228,8 +228,8 @@ void print_di_units_structure(const uint8_t *di_units, bool rom)
 		if(identifier != "DI")
 			break;
 
-		LOG("{}DI {{ format: {}, layer: {}, sequence number: {}, unit size: {}, continuation: {} }}", std::string(2, ' '),
-			unit->header.format, (uint8_t)unit->header.layer, unit->header.sequence_number, (uint8_t)unit->header.unit_size, (uint8_t)unit->header.continuation);
+		LOG("{}DI {{ format: {}, layer: {}, sequence number: {}, unit size: {}, continuation: {} }}", std::string(2, ' '), unit->header.format, (uint8_t)unit->header.layer,
+		    unit->header.sequence_number, (uint8_t)unit->header.unit_size, (uint8_t)unit->header.continuation);
 
 		LOG("{}disc type: {}", indent, std::string((char *)unit->body_common.disc_type_identifier, sizeof(unit->body_common.disc_type_identifier)));
 		if(unit->body_common.disc_size < 2)
@@ -272,11 +272,9 @@ void print_di_units_structure(const uint8_t *di_units, bool rom)
 
 			LOG("{}PSN last {{ PSN: {}, hPSN: 0x{:06X} }}", indent, last_psn, last_psn);
 			uint32_t length = last_aun + 2 - first_aun;
-			LOG("{}AUN {{ PSN: [{} .. {}], length: {}, hPSN: [0x{:06X} .. 0x{:06X}] }}", indent,
-				first_aun, last_aun, length, first_aun, last_aun);
+			LOG("{}AUN {{ PSN: [{} .. {}], length: {}, hPSN: [0x{:06X} .. 0x{:06X}] }}", indent, first_aun, last_aun, length, first_aun, last_aun);
 		}
 	}
-
 }
 
 
@@ -302,7 +300,7 @@ std::set<READ_DISC_STRUCTURE_Format> get_readable_formats(SPTD &sptd, bool blura
 std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool bluray, bool &rom)
 {
 	std::vector<std::vector<uint8_t>> structures;
-	
+
 	for(uint32_t i = 0, layers_count = 0; !layers_count || i < layers_count; ++i)
 	{
 		std::vector<uint8_t> structure;
@@ -331,7 +329,7 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool blur
 					// BDO: BD-ROM, BDW: BD-RE, BDR: BD-R, BDU: UHD-BD, XG4: Xbox One XGD4
 					if(rom && disc_type_identifier == "BDR")
 						rom = false;
-					
+
 					if(unit->header.format == 1)
 					{
 						auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit->body;
@@ -352,7 +350,7 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool blur
 				layers_count = 1;
 		}
 	}
-	
+
 	return structures;
 }
 
@@ -361,8 +359,8 @@ void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
 {
 	char animation = sector == sectors_count ? '*' : spinner_animation();
 
-	LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, (uint64_t)sector * 100 / sectors_count,
-			extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count, errors);
+	LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, (uint64_t)sector * 100 / sectors_count, extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count,
+	    errors);
 }
 
 
@@ -490,12 +488,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
 						layer_break += layer_sizes[i];
 					}
-					
+
 					if(!layer_breaks.empty())
 					{
 						for(uint32_t i = 0; i < layer_breaks.size(); ++i)
 							LOG("layer break{}: {}", layer_breaks.size() > 1 ? std::format(" (layer: {})", i) : "", layer_breaks[i]);
-						
+
 						LOG("");
 					}
 				}
@@ -569,7 +567,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 			auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
 			auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
 
-			//TODO: distinguish CPPM
+			// TODO: distinguish CPPM
 			bool cppm = false;
 
 			if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
@@ -597,7 +595,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 	uint32_t refine_retries = options.retries ? options.retries : 1;
 
 	uint32_t errors_scsi = 0;
-	//FIXME: verify memory usage for largest bluray and chunk it if needed
+	// FIXME: verify memory usage for largest bluray and chunk it if needed
 	if(dump_mode != DumpMode::DUMP)
 	{
 		std::vector<State> state_buffer(sectors_count);
@@ -608,7 +606,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 	ROMEntry rom_entry(iso_path.filename().string());
 
 	SignalINT signal;
-	
+
 	for(uint32_t s = 0; s < sectors_count;)
 	{
 		bool increment = true;
@@ -677,7 +675,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 					write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
 					std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
 					write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
-
 				}
 				else if(dump_mode == DumpMode::REFINE)
 				{

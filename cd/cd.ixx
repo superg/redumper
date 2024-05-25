@@ -35,16 +35,16 @@ export const uint32_t CD_INDEX_COUNT = 100;
 export const uint32_t CD_LEADOUT_TRACK_NUMBER = 0xAA;
 
 export const uint32_t MSF_MINUTES_WRAP = 160;
-export const MSF MSF_ZERO = {0, 0, 0};
-export const MSF MSF_LIMIT = {170, 60, 75};
-//export const MSF MSF_MAX = {MSF_MINUTES_WRAP - 1, MSF_LIMIT.s, MSF_LIMIT.f};
+export const MSF MSF_ZERO = { 0, 0, 0 };
+export const MSF MSF_LIMIT = { 170, 60, 75 };
+// export const MSF MSF_MAX = {MSF_MINUTES_WRAP - 1, MSF_LIMIT.s, MSF_LIMIT.f};
 
-export const MSF MSF_LEADIN_START = {MSF_MINUTES_WRAP, 0, 0};
+export const MSF MSF_LEADIN_START = { MSF_MINUTES_WRAP, 0, 0 };
 
 export const uint32_t LBA_LIMIT = MSF_LIMIT.m * MSF_LIMIT.s * MSF_LIMIT.f;
 
-export const uint32_t CD_PREGAP_SIZE = 2 * MSF_LIMIT.f; // 2 seconds
-export const uint32_t CD_LEADIN_MIN_SIZE = 60 * MSF_LIMIT.f; // 60 seconds
+export const uint32_t CD_PREGAP_SIZE = 2 * MSF_LIMIT.f;       // 2 seconds
+export const uint32_t CD_LEADIN_MIN_SIZE = 60 * MSF_LIMIT.f;  // 60 seconds
 export const uint32_t CD_LEADOUT_MIN_SIZE = 90 * MSF_LIMIT.f; // 90 seconds
 
 export const int32_t MSF_LBA_SHIFT = -1 * CD_PREGAP_SIZE;

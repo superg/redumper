@@ -68,20 +68,21 @@ export void redumper_hash(Context &ctx, Options &options)
 				ROMEntry rom_entry(f.filename().string());
 
 				std::vector<uint8_t> data(1024 * 1024); // 1Mb chunk
-				batch_process_range<uint64_t>(std::pair(0, std::filesystem::file_size(f)), data.size(), [&](uint64_t offset, uint64_t size) -> bool
-				{
-					progress_output(byte, bytes_count);
+				batch_process_range<uint64_t>(std::pair(0, std::filesystem::file_size(f)), data.size(),
+				    [&](uint64_t offset, uint64_t size) -> bool
+				    {
+					    progress_output(byte, bytes_count);
 
-					fs.read((char *)data.data(), size);
-					if(fs.fail())
-						throw_line("read failed ({})", f.filename().string());
+					    fs.read((char *)data.data(), size);
+					    if(fs.fail())
+						    throw_line("read failed ({})", f.filename().string());
 
-					rom_entry.update(data.data(), size);
+					    rom_entry.update(data.data(), size);
 
-					byte += size;
+					    byte += size;
 
-					return false;
-				});
+					    return false;
+				    });
 
 				dat.push_back(rom_entry.xmlLine());
 			}

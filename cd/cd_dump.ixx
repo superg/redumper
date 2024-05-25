@@ -164,11 +164,12 @@ bool plextor_assign_leadin_session(std::vector<LeadInEntry> &entries, std::vecto
 }
 
 
-void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveConfig &drive_config, const Options &options)
+void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveConfig &drive_config,
+    const Options &options)
 {
 	std::vector<LeadInEntry> entries;
 	for(auto s : session_lba_start)
-		entries.push_back({std::vector<uint8_t>(), s, false});
+		entries.push_back({ std::vector<uint8_t>(), s, false });
 
 	if(entries.empty())
 		return;
@@ -325,11 +326,11 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 	if(!refine)
 		image_check_overwrite(options);
 
-	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); //FIXME: transition to samples?
+	std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); // FIXME: transition to samples?
 	std::vector<std::pair<int32_t, int32_t>> error_ranges;
 
 	int32_t lba_start = ctx.drive_config.pregap_start;
-	int32_t lba_end = MSF_to_LBA(MSF{74, 0, 0}); // default: 74min / 650Mb
+	int32_t lba_end = MSF_to_LBA(MSF{ 74, 0, 0 }); // default: 74min / 650Mb
 
 	std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
 	std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
@@ -620,8 +621,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 							LOG_R("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}{})", lba, c2_count, data_crc, c2_crc, status_retries);
 						}
 
-						//DEBUG
-//						debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
+						// DEBUG
+						//						debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
 					}
 
 					store = true;
@@ -716,7 +717,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 			if(ctx.drive_config.type == DriveConfig::Type::PLEXTOR && slow && inside_range(lba, error_ranges) != nullptr)
 			{
 				// skip sector in refine mode
-//				lba_next = lba + 1; //FIXME:
+				//				lba_next = lba + 1; //FIXME:
 			}
 			else if(status.status_code)
 			{
@@ -759,8 +760,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 						LOG_R("[LBA: {:6}] C2 error (bits: {:4}, data crc: {:08X}, C2 crc: {:08X}{})", lba, c2_count, data_crc, c2_crc, status_retries);
 					}
 
-					//DEBUG
-//					debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
+					// DEBUG
+					//					debug_print_c2_scm_offsets(sector_c2, lba_index, LBA_START, ctx.drive_config.read_offset);
 				}
 
 				store = true;
@@ -918,7 +919,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 		{
 			if(lba == lba_refine)
 			{
-				LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", spinner_animation(), percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
+				LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", spinner_animation(),
+				    percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
 			}
 		}
 		else

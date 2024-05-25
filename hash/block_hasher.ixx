@@ -18,8 +18,8 @@ export class BlockHasher
 {
 public:
 	BlockHasher(uint32_t block_size)
-		: _blockSize(block_size)
-		, _blocksHashed(0)
+	    : _blockSize(block_size)
+	    , _blocksHashed(0)
 	{
 		_tail.reserve(_blockSize);
 	}
@@ -85,7 +85,7 @@ protected:
 	{
 		return x << n | x >> ((0 - n) & 31);
 	}
-	
+
 private:
 	uint32_t _blockSize;
 	uint64_t _blocksHashed;

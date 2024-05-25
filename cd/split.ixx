@@ -101,8 +101,8 @@ bool optional_track(uint32_t track_number)
 }
 
 
-void fill_track_modes(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-						   const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
+void fill_track_modes(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges,
+    bool scrap, const Options &options)
 {
 	Scrambler scrambler;
 	std::vector<uint8_t> sector(CD_DATA_SIZE);
@@ -132,7 +132,7 @@ void fill_track_modes(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, st
 			{
 				// skip erroneous sectors
 				read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
-				if(std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_SKIP || s == State::ERROR_C2; }))
+				if(std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; }))
 					continue;
 
 				read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offset_manager->getOffset(lba) * CD_SAMPLE_SIZE, 0);
@@ -161,8 +161,8 @@ void fill_track_modes(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, st
 }
 
 
-bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-                  const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
+bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges,
+    bool scrap, const Options &options)
 {
 	bool no_errors = true;
 
@@ -227,7 +227,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
 
 std::vector<std::string> write_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-                  const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
+    const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
 {
 	std::vector<std::string> xml_lines;
 
@@ -277,7 +277,7 @@ std::vector<std::string> write_tracks(const TOC &toc, std::fstream &scm_fs, std:
 				if(!options.leave_unchanged)
 				{
 					read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
-					generate_sector = std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_SKIP || s == State::ERROR_C2; });
+					generate_sector = std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; });
 				}
 
 				// generate sector and fill it with fill byte (default: 0x55)
@@ -333,8 +333,8 @@ std::vector<std::string> write_tracks(const TOC &toc, std::fstream &scm_fs, std:
 				else
 					LOG("warning: descramble failed (LBA: [{} .. {}])", d.first, d.second);
 
-				//DEBUG
-//				LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
+				// DEBUG
+				//				LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
 			}
 
 			xml_lines.emplace_back(rom_entry.xmlLine());
@@ -451,21 +451,22 @@ void analyze_scram_samples(std::fstream &scm_fs, std::fstream &state_fs, uint32_
 	std::vector<uint32_t> samples(batch_size);
 	std::vector<State> state(batch_size);
 
-	batch_process_range<uint32_t>(std::pair(0, samples_count), batch_size, [&scm_fs, &state_fs, &samples, &state, &analyzers](int32_t offset, int32_t size) -> bool
-	{
-		read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset, size, 0, 0);
-		read_entry(state_fs, (uint8_t *)state.data(), 1, offset, size, 0, (uint8_t)State::ERROR_SKIP);
+	batch_process_range<uint32_t>(std::pair(0, samples_count), batch_size,
+	    [&scm_fs, &state_fs, &samples, &state, &analyzers](int32_t offset, int32_t size) -> bool
+	    {
+		    read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset, size, 0, 0);
+		    read_entry(state_fs, (uint8_t *)state.data(), 1, offset, size, 0, (uint8_t)State::ERROR_SKIP);
 
-		for(auto const &a : analyzers)
-			a->process(samples.data(), state.data(), size, offset);
+		    for(auto const &a : analyzers)
+			    a->process(samples.data(), state.data(), size, offset);
 
-		return false;
-	});
+		    return false;
+	    });
 }
 
 
-uint16_t disc_offset_by_silence(std::vector<std::pair<int32_t, int32_t>> &offset_ranges,
-		const std::vector<std::pair<int32_t, int32_t>> &index0_ranges, const std::vector<std::vector<std::pair<int32_t, int32_t>>> &silence_ranges)
+uint16_t disc_offset_by_silence(std::vector<std::pair<int32_t, int32_t>> &offset_ranges, const std::vector<std::pair<int32_t, int32_t>> &index0_ranges,
+    const std::vector<std::vector<std::pair<int32_t, int32_t>>> &silence_ranges)
 {
 	for(uint16_t t = 0; t < silence_ranges.size(); ++t)
 	{
@@ -729,12 +730,13 @@ bool state_errors_in_range(std::fstream &state_fs, std::pair<int32_t, int32_t> n
 {
 	std::vector<State> state(CD_DATA_SIZE_SAMPLES * 1024);
 
-	bool interrupted = batch_process_range<int32_t>(nonzero_data_range, state.size(), [&state_fs, &state](int32_t offset, int32_t size) -> bool
-	{
-		read_entry(state_fs, (uint8_t *)state.data(), sizeof(State), sample_offset_r2a(offset), size, 0, (uint8_t)State::ERROR_SKIP);
+	bool interrupted = batch_process_range<int32_t>(nonzero_data_range, state.size(),
+	    [&state_fs, &state](int32_t offset, int32_t size) -> bool
+	    {
+		    read_entry(state_fs, (uint8_t *)state.data(), sizeof(State), sample_offset_r2a(offset), size, 0, (uint8_t)State::ERROR_SKIP);
 
-		return std::any_of(state.begin(), state.begin() + size, [](State s){ return s == State::ERROR_SKIP || s == State::ERROR_C2; });
-	});
+		    return std::any_of(state.begin(), state.begin() + size, [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; });
+	    });
 
 	return interrupted;
 }
@@ -745,13 +747,14 @@ std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, in
 	SHA1 bh_sha1;
 
 	std::vector<uint32_t> samples(10 * 1024 * 1024); // 10Mb chunk
-	batch_process_range<int32_t>(nonzero_data_range, samples.size(), [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size) -> bool
-	{
-		read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset - LBA_START * CD_DATA_SIZE_SAMPLES, size, 0, 0);
-		bh_sha1.update((uint8_t *)samples.data(), size * sizeof(uint32_t));
+	batch_process_range<int32_t>(nonzero_data_range, samples.size(),
+	    [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size) -> bool
+	    {
+		    read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset - LBA_START * CD_DATA_SIZE_SAMPLES, size, 0, 0);
+		    bh_sha1.update((uint8_t *)samples.data(), size * sizeof(uint32_t));
 
-		return false;
-	});
+		    return false;
+	    });
 
 	return bh_sha1.final();
 }
@@ -887,7 +890,7 @@ export void redumper_split(Context &ctx, Options &options)
 		full_toc_buffer = read_vector(fulltoc_path);
 
 	auto toc = choose_toc(toc_buffer, full_toc_buffer);
-	
+
 	// preload subchannel P/Q
 	std::vector<uint8_t> subp;
 	std::vector<ChannelQ> subq;
@@ -955,7 +958,7 @@ export void redumper_split(Context &ctx, Options &options)
 	auto index0_ranges = audio_get_toc_index0_ranges(toc);
 
 	uint32_t samples_min = std::numeric_limits<uint32_t>::max();
-	std::for_each(index0_ranges.begin(), index0_ranges.end(), [&samples_min](const std::pair<int32_t, int32_t> &r){ samples_min = std::min(samples_min, (uint32_t)(r.second - r.first)); });
+	std::for_each(index0_ranges.begin(), index0_ranges.end(), [&samples_min](const std::pair<int32_t, int32_t> &r) { samples_min = std::min(samples_min, (uint32_t)(r.second - r.first)); });
 	auto silence_analyzer = std::make_shared<SilenceAnalyzer>(options.audio_silence_threshold, samples_min);
 	analyzers.emplace_back(silence_analyzer);
 
@@ -995,7 +998,8 @@ export void redumper_split(Context &ctx, Options &options)
 			for(auto const &o : sync_records)
 			{
 				MSF msf = LBA_to_BCDMSF(o.lba);
-				LOG("  LBA: {:6} -> {:6}, MSF: {:02X}:{:02X}:{:02X}, count: {:6}, offset: {:+}", o.sample_offset / (int32_t)CD_DATA_SIZE_SAMPLES, o.lba, msf.m, msf.s, msf.f, o.count, sample_offset_to_write_offset(o.sample_offset, o.lba));
+				LOG("  LBA: {:6} -> {:6}, MSF: {:02X}:{:02X}:{:02X}, count: {:6}, offset: {:+}", o.sample_offset / (int32_t)CD_DATA_SIZE_SAMPLES, o.lba, msf.m, msf.s, msf.f, o.count,
+				    sample_offset_to_write_offset(o.sample_offset, o.lba));
 			}
 			LOG("");
 
@@ -1102,7 +1106,7 @@ export void redumper_split(Context &ctx, Options &options)
 
 		int32_t lba_start = sample_to_lba(nonzero_data_range.first);
 
-		static const std::vector<uint8_t> videonow_magic = {0xE1, 0xE1, 0xE1, 0x01, 0xE1, 0xE1, 0xE1, 0x00};
+		static const std::vector<uint8_t> videonow_magic = { 0xE1, 0xE1, 0xE1, 0x01, 0xE1, 0xE1, 0xE1, 0x00 };
 		int32_t byte_offset = byte_offset_by_magic(lba_start, t.lba_end, state_fs, scm_fs, videonow_magic);
 		if(byte_offset != std::numeric_limits<int32_t>::max())
 		{
@@ -1199,7 +1203,7 @@ export void redumper_split(Context &ctx, Options &options)
 
 	auto offset_manager = std::make_shared<const OffsetManager>(offsets);
 
-	//FIXME: rework non-zero area detection
+	// FIXME: rework non-zero area detection
 	if(!options.correct_offset_shift && !scrap && offsets.size() > 1)
 	{
 		LOG("warning: offset shift detected, to apply correction please use an option");
@@ -1246,8 +1250,8 @@ export void redumper_split(Context &ctx, Options &options)
 				auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), !scrap);
 
 				iso9660::PrimaryVolumeDescriptor pvd;
-				if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY) &&
-				   !memcmp(pvd.standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(pvd.standard_identifier)))
+				if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY)
+				    && !memcmp(pvd.standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(pvd.standard_identifier)))
 					t.cdi = true;
 			}
 

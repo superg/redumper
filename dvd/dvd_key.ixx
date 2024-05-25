@@ -78,8 +78,7 @@ std::map<std::pair<uint32_t, uint32_t>, std::vector<uint8_t>> create_vts_groups(
 
 	for(auto const &v : vobs)
 		groups.push_back(v.second);
-	std::sort(groups.begin(), groups.end(), [](const std::pair<uint32_t, uint32_t> &v1, const std::pair<uint32_t, uint32_t> &v2)
-			-> bool { return v1.first < v2.first; });
+	std::sort(groups.begin(), groups.end(), [](const std::pair<uint32_t, uint32_t> &v1, const std::pair<uint32_t, uint32_t> &v2) -> bool { return v1.first < v2.first; });
 	for(bool merge = true; merge;)
 	{
 		merge = false;

@@ -74,12 +74,12 @@ private:
 
 
 	template<bool rec = reciprocal>
-	static constexpr T mask(typename std::enable_if<!rec, void>::type* = nullptr)
+	static constexpr T mask(typename std::enable_if<!rec, void>::type * = nullptr)
 	{
 		return 1 << (sizeof(T) * CHAR_BIT - 1);
 	}
 	template<bool rec = reciprocal>
-	static constexpr T mask(typename std::enable_if<rec, void>::type* = nullptr)
+	static constexpr T mask(typename std::enable_if<rec, void>::type * = nullptr)
 	{
 		return 1;
 	}

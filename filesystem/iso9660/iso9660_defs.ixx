@@ -207,7 +207,7 @@ time_t convert_time(const DateTime &date_time)
 	time_info.tm_sec = ascii_to_decimal(date_time.second, sizeof(date_time.second));
 	time_info.tm_isdst = -1;
 
-	//FIXME: GMT offset
+	// FIXME: GMT offset
 
 	return mktime(&time_info);
 }
@@ -230,7 +230,7 @@ time_t convert_time(const RecordingDateTime &date_time)
 	time_info.tm_sec = date_time.second;
 	time_info.tm_isdst = -1;
 
-	//FIXME: GMT offset
+	// FIXME: GMT offset
 
 	return mktime(&time_info);
 }
@@ -261,10 +261,10 @@ std::vector<std::pair<std::string, DirectoryRecord>> directory_extent_get_record
 			// good DirectoryRecord validity trick is to compare lsb to msb for offset and data_length and make sure it's the same
 			if(!directory_record_is_valid(dr))
 			{
-				//FIXME:
-				// 1) try to find legit entry after garbage, useful for (3)
-//				++i;
-//				continue;
+				// FIXME:
+				//  1) try to find legit entry after garbage, useful for (3)
+				//				++i;
+				//				continue;
 				// 2) skip everything
 				break;
 			}

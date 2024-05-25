@@ -154,12 +154,12 @@ export SPTD::Status cmd_read_toc(SPTD &sptd, std::vector<uint8_t> &response_data
 	cdb.time = time ? 1 : 0;
 	cdb.format = (uint8_t)format;
 	cdb.track_number = track_number;
-	
+
 	return cdb_send_receive(sptd, response_data, cdb);
 }
 
 
-//OBSOLETE: remove after migrating to new CD dump code
+// OBSOLETE: remove after migrating to new CD dump code
 export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> toc;
@@ -190,7 +190,7 @@ export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
 }
 
 
-//OBSOLETE: remove after migrating to new CD dump code
+// OBSOLETE: remove after migrating to new CD dump code
 export std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 {
 	std::vector<uint8_t> full_toc;
@@ -221,7 +221,7 @@ export std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
 }
 
 
-//OBSOLETE: remove after migrating to new CD dump code
+// OBSOLETE: remove after migrating to new CD dump code
 export SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 {
 	SPTD::Status status;
@@ -253,7 +253,8 @@ export SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
 }
 
 
-export SPTD::Status cmd_read_disc_structure(SPTD &sptd, std::vector<uint8_t> &response_data, uint8_t media_type, uint32_t address, uint8_t layer_number, READ_DISC_STRUCTURE_Format format, uint8_t agid)
+export SPTD::Status cmd_read_disc_structure(SPTD &sptd, std::vector<uint8_t> &response_data, uint8_t media_type, uint32_t address, uint8_t layer_number, READ_DISC_STRUCTURE_Format format,
+    uint8_t agid)
 {
 	SPTD::Status status;
 
@@ -322,7 +323,8 @@ export SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, i
 }
 
 
-export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
+export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field,
+    READ_CD_SubChannel sub_channel)
 {
 	CDB12_ReadCD cdb = {};
 
@@ -432,13 +434,13 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
 	uint8_t *fds_start = buffer.data() + sizeof(GET_CONFIGURATION_FeatureHeader);
 	uint8_t *fds_end = fds_start + fds_size;
 
-	//FIXME: support more than 0xFFFF size?
+	// FIXME: support more than 0xFFFF size?
 
 	for(auto fds = (GET_CONFIGURATION_FeatureDescriptor *)fds_start;
-		(uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) <= fds_end &&
-		(uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length <= fds_end; fds = (GET_CONFIGURATION_FeatureDescriptor *)((uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length))
+	    (uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) <= fds_end && (uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length <= fds_end;
+	    fds = (GET_CONFIGURATION_FeatureDescriptor *)((uint8_t *)fds + sizeof(GET_CONFIGURATION_FeatureDescriptor) + fds->additional_length))
 	{
-//		std::cout << endian_swap(fds->feature_code) << std::endl;
+		//		std::cout << endian_swap(fds->feature_code) << std::endl;
 	}
 
 	return status;

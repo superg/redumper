@@ -23,7 +23,7 @@ export class CSS
 {
 public:
 	CSS(SPTD &sptd)
-		: _sptd(sptd)
+	    : _sptd(sptd)
 	{
 		;
 	}
@@ -112,7 +112,6 @@ public:
 			// stop after 2000 blocks if we haven't seen any encrypted blocks
 			if(!encrypted && lba >= lba_start + 2000)
 				break;
-
 		}
 
 		if(title_key.empty() && !encrypted)
@@ -223,7 +222,7 @@ private:
 				lfsr1 = lfsr1 << 1 | lfsr1_o;
 
 				uint8_t combined = !lfsr1_o + carry + !lfsr0_o;
-					
+
 				carry = combined >> 1 & 1;
 				value |= (combined & 1) << bit;
 			}

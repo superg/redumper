@@ -41,18 +41,17 @@ struct Area
 };
 
 
-std::map<Area::Type, std::string> AREA_TYPE_STRING =
-{
-	{Area::Type::SYSTEM_AREA, "SYSTEM_AREA"},
-	{Area::Type::DESCRIPTORS, "DESCRIPTORS"},
-	{Area::Type::PATH_TABLE_L, "PATH_TABLE_L"},
-	{Area::Type::PATH_TABLE_L_OPT, "PATH_TABLE_L_OPT"},
-	{Area::Type::PATH_TABLE_M, "PATH_TABLE_M"},
-	{Area::Type::PATH_TABLE_M_OPT, "PATH_TABLE_M_OPT"},
-	{Area::Type::DIRECTORY_EXTENT, "DIRECTORY_EXTENT"},
-	{Area::Type::FILE_EXTENT, "FILE_EXTENT"},
-	{Area::Type::VOLUME_END_MARKER, "VOLUME_END_MARKER"},
-	{Area::Type::SPACE_END_MARKER, "SPACE_END_MARKER"}
+std::map<Area::Type, std::string> AREA_TYPE_STRING = {
+	{ Area::Type::SYSTEM_AREA,       "SYSTEM_AREA"       },
+    { Area::Type::DESCRIPTORS,       "DESCRIPTORS"       },
+    { Area::Type::PATH_TABLE_L,      "PATH_TABLE_L"      },
+    { Area::Type::PATH_TABLE_L_OPT,  "PATH_TABLE_L_OPT"  },
+	{ Area::Type::PATH_TABLE_M,      "PATH_TABLE_M"      },
+    { Area::Type::PATH_TABLE_M_OPT,  "PATH_TABLE_M_OPT"  },
+    { Area::Type::DIRECTORY_EXTENT,  "DIRECTORY_EXTENT"  },
+	{ Area::Type::FILE_EXTENT,       "FILE_EXTENT"       },
+    { Area::Type::VOLUME_END_MARKER, "VOLUME_END_MARKER" },
+    { Area::Type::SPACE_END_MARKER,  "SPACE_END_MARKER"  }
 };
 
 
@@ -70,8 +69,8 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
 		if(sector_reader->read((uint8_t *)&descriptor, SYSTEM_AREA_SIZE + descriptors_count, 1) != 1)
 			break;
 
-		if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier)) &&
-		   memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
+		if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier))
+		    && memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
 			break;
 
 		++descriptors_count;
@@ -174,7 +173,7 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
 	}
 
 	// directories & files (root directory record traversal)
-	//TODO: needed to overcome 16-bit path table parent limit
+	// TODO: needed to overcome 16-bit path table parent limit
 	;
 
 	// filesystem end marker

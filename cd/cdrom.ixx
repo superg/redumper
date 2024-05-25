@@ -15,22 +15,19 @@ export const uint32_t FORM1_DATA_SIZE = 2048;
 export const uint32_t FORM2_DATA_SIZE = 2324;
 export const uint32_t MODE0_DATA_SIZE = 2336;
 
-export const uint8_t CD_DATA_SYNC[] =
-{
-	0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00
-};
+export const uint8_t CD_DATA_SYNC[] = { 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00 };
 
 
 export enum class CDXAMode : uint8_t
 {
 	EORECORD = 1 << 0,
-	VIDEO    = 1 << 1,
-	AUDIO    = 1 << 2,
-	DATA     = 1 << 3,
-	TRIGGER  = 1 << 4,
-	FORM2    = 1 << 5,
+	VIDEO = 1 << 1,
+	AUDIO = 1 << 2,
+	DATA = 1 << 3,
+	TRIGGER = 1 << 4,
+	FORM2 = 1 << 5,
 	REALTIME = 1 << 6,
-	EOFILE   = 1 << 7
+	EOFILE = 1 << 7
 };
 
 

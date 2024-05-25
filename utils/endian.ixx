@@ -11,7 +11,7 @@ export module utils.endian;
 namespace gpsxre
 {
 
-export template <typename T>
+export template<typename T>
 T endian_swap(const T &v)
 {
 	union U

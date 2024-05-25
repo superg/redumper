@@ -17,8 +17,8 @@ export class SHA1 : public BlockHasher
 {
 public:
 	SHA1()
-		: BlockHasher(16 * sizeof(uint32_t))
-		, _hash(defaultHash())
+	    : BlockHasher(16 * sizeof(uint32_t))
+	    , _hash(defaultHash())
 	{
 		;
 	}
@@ -110,7 +110,7 @@ private:
 
 	std::vector<uint32_t> defaultHash()
 	{
-		return std::vector<uint32_t>{0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0};
+		return std::vector<uint32_t>{ 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
 	}
 };
 

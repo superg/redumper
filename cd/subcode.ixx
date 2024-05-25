@@ -19,7 +19,14 @@ namespace gpsxre
 
 export enum class Subchannel : uint8_t
 {
-	W, V, U, T, S, R, Q, P
+	W,
+	V,
+	U,
+	T,
+	S,
+	R,
+	Q,
+	P
 };
 
 
@@ -35,7 +42,7 @@ export struct ChannelQ
 	{
 		PRE_EMPHASIS = 1 << 0,
 		DIGITAL_COPY = 1 << 1,
-		DATA         = 1 << 2,
+		DATA = 1 << 2,
 		FOUR_CHANNEL = 1 << 3
 	};
 
@@ -43,7 +50,7 @@ export struct ChannelQ
 	{
 		struct
 		{
-			uint8_t adr     :4;
+			uint8_t adr :4;
 			uint8_t control :4;
 
 			union
@@ -86,7 +93,7 @@ export struct ChannelQ
 		return CRC16_GSM().update(raw, sizeof(raw)).final() == endian_swap(crc);
 	}
 
-	
+
 	bool isValid(int32_t lba)
 	{
 		bool valid = isValid();
@@ -103,14 +110,13 @@ export struct ChannelQ
 		switch(adr)
 		{
 		case 1:
-			q_data = std::format("tno: {:02X}, P/I: {:02X}, MSF: {:02X}:{:02X}:{:02X}, zero: {:02X}, A/P MSF: {:02X}:{:02X}:{:02X}",
-								mode1.tno, mode1.point_index, mode1.msf.m, mode1.msf.s, mode1.msf.f, mode1.zero, mode1.a_msf.m, mode1.a_msf.s, mode1.a_msf.f);
+			q_data = std::format("tno: {:02X}, P/I: {:02X}, MSF: {:02X}:{:02X}:{:02X}, zero: {:02X}, A/P MSF: {:02X}:{:02X}:{:02X}", mode1.tno, mode1.point_index, mode1.msf.m, mode1.msf.s,
+			    mode1.msf.f, mode1.zero, mode1.a_msf.m, mode1.a_msf.s, mode1.a_msf.f);
 			break;
 
 			// RAW
 		default:
-			q_data = std::format("{:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}",
-								raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9]);
+			q_data = std::format("{:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}", raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9]);
 		}
 
 		return std::format("control: {:04b}, ADR: {}, {}, crc: {:04X} ({})", control, adr, q_data, crc, isValid() ? "+" : "-");

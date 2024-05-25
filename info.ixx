@@ -3,9 +3,9 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <list>
+#include <sstream>
 #include <string>
 #include <utility>
-#include <sstream>
 #include "systems/system.hh"
 #include "throw_line.hh"
 

@@ -67,7 +67,7 @@ export enum class DumpMode
 };
 
 
-export constexpr int32_t LBA_START = -45150; //MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
+export constexpr int32_t LBA_START = -45150; // MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
 
 
 export enum class State : uint8_t
@@ -188,7 +188,7 @@ export std::vector<uint8_t> subcode_correct_subp(const ChannelP *subp_raw, uint3
 
 		subp[lba_index] = p_bits >= CD_SUBCODE_SIZE / 2 ? 1 : 0;
 	}
-	
+
 	return subp;
 }
 
@@ -298,7 +298,8 @@ export bool subcode_correct_subq(ChannelQ *subq, uint32_t sectors_count)
 			{
 				uint32_t c = 0;
 				for(uint32_t j = 0; j < (uint32_t)candidates.size(); ++j)
-					if(bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[j], sizeof(ChannelQ) / sizeof(uint32_t)) < bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[c], sizeof(ChannelQ) / sizeof(uint32_t)))
+					if(bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[j], sizeof(ChannelQ) / sizeof(uint32_t))
+					    < bit_diff((uint32_t *)&subq[lba_index], (uint32_t *)&candidates[c], sizeof(ChannelQ) / sizeof(uint32_t)))
 						c = j;
 
 				subq[lba_index] = candidates[c];
@@ -313,8 +314,9 @@ export bool subcode_correct_subq(ChannelQ *subq, uint32_t sectors_count)
 export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const ChannelQ &Q)
 {
 	MSF msf = LBA_to_MSF(lba);
-	os << std::format("MSF: {:02}:{:02}:{:02} Q-Data: {:X}{:X}{:02X}{:02X} {:02X}:{:02X}:{:02X} {:02X} {:02X}:{:02X}:{:02X} {:04X}",
-					  msf.m, msf.s, msf.f, (uint8_t)Q.control, (uint8_t)Q.adr, Q.mode1.tno, Q.mode1.point_index, Q.mode1.msf.m, Q.mode1.msf.s, Q.mode1.msf.f, Q.mode1.zero, Q.mode1.a_msf.m, Q.mode1.a_msf.s, Q.mode1.a_msf.f, endian_swap<uint16_t>(Q.crc)) << std::endl;
+	os << std::format("MSF: {:02}:{:02}:{:02} Q-Data: {:X}{:X}{:02X}{:02X} {:02X}:{:02X}:{:02X} {:02X} {:02X}:{:02X}:{:02X} {:04X}", msf.m, msf.s, msf.f, (uint8_t)Q.control, (uint8_t)Q.adr,
+	    Q.mode1.tno, Q.mode1.point_index, Q.mode1.msf.m, Q.mode1.msf.s, Q.mode1.msf.f, Q.mode1.zero, Q.mode1.a_msf.m, Q.mode1.a_msf.s, Q.mode1.a_msf.f, endian_swap<uint16_t>(Q.crc))
+	   << std::endl;
 
 	return os;
 }
@@ -322,49 +324,36 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 
 export bool profile_is_cd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 {
-	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_R
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW;
+	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW;
 }
 
 
 export bool profile_is_dvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 {
-	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL;
+	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM
+	    || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW
+	    || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR
+	    || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R
+	    || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL;
 }
 
 
 export bool profile_is_bluray(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 {
-	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW;
+	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM
+	    || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW;
 }
 
 
 export bool profile_is_hddvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 {
-	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL
-		|| profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL;
+	return profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R
+	    || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW
+	    || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL;
 }
 
 
-//OBSOLETE: remove after migrating to new CD dump code
+// OBSOLETE: remove after migrating to new CD dump code
 export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, const DriveConfig &drive_config, int32_t lba)
 {
 	auto layout = sector_order_layout(drive_config.sector_order);
@@ -379,15 +368,14 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, const DriveConfig &
 	if(drive_config.read_method == DriveConfig::ReadMethod::D8)
 	{
 		status = cmd_read_cdda(sptd, sector_buffer.data(), lba, sectors_count,
-							   drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
+		    drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB);
 	}
 	// BE
 	else
 	{
 		status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count,
-							 drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
-							 layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2,
-							 layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
+		    drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA ? READ_CD_ExpectedSectorType::CD_DA : READ_CD_ExpectedSectorType::ALL_TYPES,
+		    layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2, layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW);
 	}
 
 	if(!status.status_code)
@@ -423,7 +411,7 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types
 	SPTD::Status status;
 
 	auto layout = sector_order_layout(drive_config.sector_order);
-	
+
 	// PLEXTOR: C2 is shifted 294/295 bytes late (drive dependent), read as much sectors as needed to get whole C2
 	// as a consequence, lead-out overread will fail a few sectors earlier
 	uint32_t sectors_count = 1 + scale_up(drive_config.c2_shift, CD_C2_SIZE);
@@ -462,7 +450,7 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types
 		{
 			// read without filter
 			status = cmd_read_cd(sptd, sector_buffer.data(), lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
-				
+
 			// read success
 			if(!status.status_code && layout.data_offset != CD_RAW_DATA_SIZE)
 			{
@@ -525,7 +513,7 @@ export std::optional<int32_t> sector_offset_by_sync(std::span<uint8_t> data, int
 {
 	std::optional<int32_t> offset;
 
-	if(auto it = std::search(data.begin(), data.end(), std::begin(CD_DATA_SYNC), std::end(CD_DATA_SYNC));  it != data.end())
+	if(auto it = std::search(data.begin(), data.end(), std::begin(CD_DATA_SYNC), std::end(CD_DATA_SYNC)); it != data.end())
 	{
 		std::span<uint8_t> sector(it, data.end());
 
@@ -551,7 +539,7 @@ export std::optional<int32_t> sector_offset_by_sync(std::span<uint8_t> data, int
 export std::optional<int32_t> track_offset_by_sync(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs)
 {
 	std::optional<int32_t> offset;
-	
+
 	const uint32_t sectors_to_check = 2;
 	std::vector<uint8_t> data(sectors_to_check * CD_DATA_SIZE);
 	std::vector<State> state(sectors_to_check * CD_DATA_SIZE_SAMPLES);
@@ -561,14 +549,14 @@ export std::optional<int32_t> track_offset_by_sync(int32_t lba_start, int32_t lb
 	{
 		read_entry(scm_fs, data.data(), CD_DATA_SIZE, lba_start + i - LBA_START, sectors_to_check, 0, 0);
 		read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba_start + i - LBA_START, sectors_to_check, 0, (uint8_t)State::ERROR_SKIP);
-		if(std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_SKIP || s == State::ERROR_C2; }))
+		if(std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; }))
 			continue;
 
 		offset = sector_offset_by_sync(data, lba_start + i);
 		if(offset)
 			break;
 	}
-	
+
 	return offset;
 }
 
@@ -634,7 +622,7 @@ export std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesy
 }
 
 
-//FIXME: just do regexp
+// FIXME: just do regexp
 export std::string track_extract_basename(std::string str)
 {
 	std::string basename = str;

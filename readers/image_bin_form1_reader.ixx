@@ -20,10 +20,10 @@ export class Image_BIN_Form1Reader : public SectorReader
 {
 public:
 	Image_BIN_Form1Reader(const std::filesystem::path &image_path)
-		: _fs(_fsProxy)
-		, _fileOffset(0)
-		, _sectorsCount(std::filesystem::file_size(image_path) / CD_DATA_SIZE)
-		, _scrambled(false)
+	    : _fs(_fsProxy)
+	    , _fileOffset(0)
+	    , _sectorsCount(std::filesystem::file_size(image_path) / CD_DATA_SIZE)
+	    , _scrambled(false)
 	{
 		_fs.open(image_path, std::fstream::in | std::fstream::binary);
 		if(!_fs.is_open())
@@ -34,10 +34,10 @@ public:
 
 
 	Image_BIN_Form1Reader(std::fstream &fs, uint32_t file_offset, uint32_t sectors_count, bool scrambled)
-		: _fs(fs)
-		, _fileOffset(file_offset)
-		, _sectorsCount(sectors_count)
-		, _scrambled(scrambled)
+	    : _fs(fs)
+	    , _fileOffset(file_offset)
+	    , _sectorsCount(sectors_count)
+	    , _scrambled(scrambled)
 	{
 		setBaseLBA();
 	}
@@ -97,7 +97,7 @@ public:
 		return form2 ? FORM2_DATA_SIZE : FORM1_DATA_SIZE;
 	}
 
-	
+
 	uint32_t sectorsBase() override
 	{
 		return _baseLBA;

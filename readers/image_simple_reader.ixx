@@ -15,8 +15,8 @@ class Image_SimpleReader : public T
 {
 public:
 	Image_SimpleReader(const std::filesystem::path &image_path)
-		: _fs(image_path, std::fstream::in | std::fstream::binary)
-		, _sectorsCount(std::filesystem::file_size(image_path) / S)
+	    : _fs(image_path, std::fstream::in | std::fstream::binary)
+	    , _sectorsCount(std::filesystem::file_size(image_path) / S)
 	{
 		;
 	}

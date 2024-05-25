@@ -1,7 +1,7 @@
 module;
 #include <filesystem>
-#include <fstream>
 #include <format>
+#include <fstream>
 #include <ostream>
 #include <regex>
 #include <set>
@@ -208,31 +208,32 @@ private:
 		};
 		// clang-format on
 
-		iso9660::Browser::iterate(root_directory, [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
-		{
-			bool exit = false;
+		iso9660::Browser::iterate(root_directory,
+		    [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
+		    {
+			    bool exit = false;
 
-			auto fp((path.empty() ? "" : path + "/") + d->name());
+			    auto fp((path.empty() ? "" : path + "/") + d->name());
 
-			auto data = d->read();
+			    auto data = d->read();
 
-			auto it_en = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_EN), std::end(ANTIMOD_MESSAGE_EN));
-			if(it_en != data.end())
-			{
-				std::stringstream ss;
-				ss << fp << " @ 0x" << std::hex << it_en - data.begin() << ": EN";
-				entries.emplace_back(ss.str());
-			}
-			auto it_jp = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_JP), std::end(ANTIMOD_MESSAGE_JP));
-			if(it_jp != data.end())
-			{
-				std::stringstream ss;
-				ss << fp << " @ 0x" << std::hex << it_jp - data.begin() << ": JP";
-				entries.emplace_back(ss.str());
-			}
+			    auto it_en = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_EN), std::end(ANTIMOD_MESSAGE_EN));
+			    if(it_en != data.end())
+			    {
+				    std::stringstream ss;
+				    ss << fp << " @ 0x" << std::hex << it_en - data.begin() << ": EN";
+				    entries.emplace_back(ss.str());
+			    }
+			    auto it_jp = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_JP), std::end(ANTIMOD_MESSAGE_JP));
+			    if(it_jp != data.end())
+			    {
+				    std::stringstream ss;
+				    ss << fp << " @ 0x" << std::hex << it_jp - data.begin() << ": JP";
+				    entries.emplace_back(ss.str());
+			    }
 
-			return exit;
-		});
+			    return exit;
+		    });
 
 		for(auto const &s : entries)
 			os << s << std::endl;
@@ -343,17 +344,9 @@ private:
 
 const std::string SystemPSX::_EXE_MAGIC("PS-X EXE");
 
-const std::vector<int32_t> SystemPSX::_LIBCRYPT_SECTORS_BASE =
-{
-	13955, 14081, 14335, 14429, 14499, 14749, 14906, 14980,
-	15092, 15162, 15228, 15478, 15769, 15881, 15951, 16017
-};
+const std::vector<int32_t> SystemPSX::_LIBCRYPT_SECTORS_BASE = { 13955, 14081, 14335, 14429, 14499, 14749, 14906, 14980, 15092, 15162, 15228, 15478, 15769, 15881, 15951, 16017 };
 
-const std::vector<int32_t> SystemPSX::_LIBCRYPT_SECTORS_BACKUP =
-{
-	41895, 42016, 42282, 42430, 42521, 42663, 42862, 43027,
-	43139, 43204, 43258, 43484, 43813, 43904, 44009, 44162
-};
+const std::vector<int32_t> SystemPSX::_LIBCRYPT_SECTORS_BACKUP = { 41895, 42016, 42282, 42430, 42521, 42663, 42862, 43027, 43139, 43204, 43258, 43484, 43813, 43904, 44009, 44162 };
 
 const int32_t SystemPSX::_LIBCRYPT_SECTORS_MIRROR_SHIFT = 5;
 const uint32_t SystemPSX::_LIBCRYPT_BITS_COUNT = 8;

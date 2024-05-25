@@ -17,8 +17,8 @@ export class MD5 : public BlockHasher
 {
 public:
 	MD5()
-		: BlockHasher(16 * sizeof(uint32_t))
-		, _hash(defaultHash())
+	    : BlockHasher(16 * sizeof(uint32_t))
+	    , _hash(defaultHash())
 	{
 		for(uint32_t i = 0; i < 64; ++i)
 			_k[i] = (uint32_t)floor((UINT64_C(1) << 32) * std::abs(sin(i + 1)));
@@ -97,9 +97,8 @@ private:
 
 	std::vector<uint32_t> defaultHash()
 	{
-		return std::vector<uint32_t>{0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476};
+		return std::vector<uint32_t>{ 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476 };
 	}
-
 };
 
 

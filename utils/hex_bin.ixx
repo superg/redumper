@@ -72,7 +72,7 @@ export std::string hexdump(const uint8_t *data, uint32_t offset, uint32_t size)
 
 	auto data_offset = data + offset;
 
-	//FIXME: tail < 16 is not included, not needed right now
+	// FIXME: tail < 16 is not included, not needed right now
 	uint32_t rows = size / 16;
 
 	std::stringstream ss;

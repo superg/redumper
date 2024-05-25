@@ -2,8 +2,8 @@ module;
 
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <format>
+#include <fstream>
 #include <ostream>
 #include <string_view>
 #include "system.hh"

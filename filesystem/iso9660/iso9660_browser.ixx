@@ -41,8 +41,8 @@ public:
 
 		for(uint32_t s = SYSTEM_AREA_SIZE; sector_reader->read((uint8_t *)&descriptor, s, 1) == 1; ++s)
 		{
-			if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier)) &&
-			   memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
+			if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier))
+			    && memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
 				break;
 
 			if(descriptor.type == type)

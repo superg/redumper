@@ -15,7 +15,7 @@ export class OffsetManager
 {
 public:
 	OffsetManager(const std::vector<std::pair<int32_t, int32_t>> &offsets)
-		: _offsets(offsets)
+	    : _offsets(offsets)
 	{
 		if(_offsets.empty())
 			throw_line("empty offsets provided");

@@ -46,38 +46,37 @@ import version;
 namespace gpsxre
 {
 
-const std::set<std::string> CD_BATCH_COMMANDS { "cd", "sacd", "dvd", "bd", "new" };
+const std::set<std::string> CD_BATCH_COMMANDS{ "cd", "sacd", "dvd", "bd", "new" };
 
 
-const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_STRING =
-{
-	{GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM, "CD-ROM"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::CD_R, "CD-R"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW, "CD-RW"},
+const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_STRING = {
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM,         "CD-ROM"       },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::CD_R,           "CD-R"         },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW,          "CD-RW"        },
 
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM, "DVD-ROM"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R, "DVD-R"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM, "DVD-RAM"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO, "DVD-RW RO"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW, "DVD-RW"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL, "DVD-R DL"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR, "DVD-R DL LJR"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW, "DVD+RW"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R, "DVD+R"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL, "DVD+RW DL"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL, "DVD+R DL"},
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM,        "DVD-ROM"      },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R,          "DVD-R"        },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM,        "DVD-RAM"      },
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO,      "DVD-RW RO"    },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW,         "DVD-RW"       },
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL,       "DVD-R DL"     },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR,   "DVD-R DL LJR" },
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW,    "DVD+RW"       },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R,     "DVD+R"        },
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL, "DVD+RW DL"    },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL,  "DVD+R DL"     },
 
-	{GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM, "BD-ROM"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::BD_R, "BD-R"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM, "BD-R RRM"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW, "BD-RW"},
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM,         "BD-ROM"       },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_R,           "BD-R"         },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM,       "BD-R RRM"     },
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW,          "BD-RW"        },
 
-	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM, "HD DVD-ROM"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R, "HD DVD-R"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM, "HD DVD-RAM"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW, "HD DVD-RW"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL, "HD DVD-R DL"},
-	{GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL, "HD DVD-RW DL"}
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM,      "HD DVD-ROM"   },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R,        "HD DVD-R"     },
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM,      "HD DVD-RAM"   },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW,       "HD DVD-RW"    },
+	{ GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL,     "HD DVD-R DL"  },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL,    "HD DVD-RW DL" }
 };
 
 
@@ -94,7 +93,7 @@ void redumper_dump_new(Context &ctx, Options &options)
 {
 	if(profile_is_cd(ctx.current_profile))
 		ctx.refine = redumper_refine_cd_new(ctx, options, DumpMode::DUMP);
-//		ctx.refine = redumper_dump_cd_new(ctx, options);
+	//		ctx.refine = redumper_dump_cd_new(ctx, options);
 	else
 		ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
 }
@@ -140,25 +139,24 @@ void redumper_dvdkey(Context &ctx, Options &options)
 }
 
 
-const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS
-{
-	//COMMAND         DRIVE    HANDLER
-	{ "rings"     , { true ,   redumper_rings      }},
-	{ "dump"      , { true ,   redumper_dump       }},
-	{ "dumpnew"   , { true ,   redumper_dump_new   }},
-	{ "refine"    , { true ,   redumper_refine     }},
-	{ "refinenew" , { true ,   redumper_refine_new }},
-	{ "verify"    , { true ,   redumper_verify     }},
-	{ "dvdkey"    , { true ,   redumper_dvdkey     }},
-	{ "dvdisokey" , { false,   redumper_dvdisokey  }},
-	{ "protection", { false,   redumper_protection }},
-	{ "split"     , { false,   redumper_split      }},
-	{ "hash"      , { false,   redumper_hash       }},
-	{ "info"      , { false,   redumper_info       }},
-	{ "skeleton"  , { false,   redumper_skeleton   }},
+const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS{
+	// COMMAND         DRIVE    HANDLER
+	{ "rings",      { true, redumper_rings }       },
+     { "dump",       { true, redumper_dump }        },
+     { "dumpnew",    { true, redumper_dump_new }    },
+     { "refine",     { true, redumper_refine }      },
+	{ "refinenew",  { true, redumper_refine_new }  },
+     { "verify",     { true, redumper_verify }      },
+     { "dvdkey",     { true, redumper_dvdkey }      },
+     { "dvdisokey",  { false, redumper_dvdisokey }  },
+	{ "protection", { false, redumper_protection } },
+     { "split",      { false, redumper_split }      },
+     { "hash",       { false, redumper_hash }       },
+     { "info",       { false, redumper_info }       },
+	{ "skeleton",   { false, redumper_skeleton }   },
 
-	{ "subchannel", { false,   redumper_subchannel }},
-	{ "debug"     , { false,   redumper_debug      }}
+	{ "subchannel", { false, redumper_subchannel } },
+     { "debug",      { false, redumper_debug }      }
 };
 
 
@@ -204,8 +202,8 @@ std::string generate_image_name(std::string drive)
 std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command)
 {
 	if(profile_is_cd(ctx.current_profile))
-		return command == "new" ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info", "skeleton" } :
-			std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info", "skeleton" };
+		return command == "new" ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info", "skeleton" }
+		                        : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info", "skeleton" };
 	else if(profile_is_dvd(ctx.current_profile))
 		return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info", "skeleton" };
 	else if(profile_is_bluray(ctx.current_profile))
@@ -279,16 +277,13 @@ Context initialize(Options &options)
 		if(status.status_code)
 			throw_line("failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
 
-		if(!profile_is_cd(ctx.current_profile) &&
-		   !profile_is_dvd(ctx.current_profile) &&
-		   !profile_is_bluray(ctx.current_profile) &&
-		   !profile_is_hddvd(ctx.current_profile))
+		if(!profile_is_cd(ctx.current_profile) && !profile_is_dvd(ctx.current_profile) && !profile_is_bluray(ctx.current_profile) && !profile_is_hddvd(ctx.current_profile))
 			throw_line("unsupported disc type (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);
 
 		// query/override drive configuration
 		ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
-		drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(),
-							  options.drive_c2_shift.get(), options.drive_pregap_start.get(), options.drive_read_method.get(), options.drive_sector_order.get());
+		drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(),
+		    options.drive_read_method.get(), options.drive_sector_order.get());
 	}
 
 	// substitute cd batch commands

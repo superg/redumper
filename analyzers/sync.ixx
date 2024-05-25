@@ -66,7 +66,7 @@ public:
 				else
 					_scrambler.process((uint8_t *)&msf, (uint8_t *)&samples[i], sizeof(CD_DATA_SYNC), sizeof(msf));
 
-				Record record{BCDMSF_to_LBA(msf), 1, sample_offset_a2r(offset + i - SYNC_SIZE_SAMPLES)};
+				Record record{ BCDMSF_to_LBA(msf), 1, sample_offset_a2r(offset + i - SYNC_SIZE_SAMPLES) };
 
 				if(_records.empty())
 					_records.push_back(record);

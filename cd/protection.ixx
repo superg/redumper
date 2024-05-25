@@ -42,7 +42,7 @@ export void redumper_protection(Context &ctx, Options &options)
 	bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
 	auto scra_path(scrap ? scp_path : scm_path);
 
-	//TODO: rework
+	// TODO: rework
 	uint32_t sectors_count = check_file(state_path, CD_DATA_SIZE_SAMPLES);
 
 	// TOC
@@ -65,7 +65,7 @@ export void redumper_protection(Context &ctx, Options &options)
 		if(t.lba_end < 0)
 		{
 			LOG("warning: fake TOC detected, using default 74min disc size");
-			t.lba_end = MSF_to_LBA(MSF{74, 0, 0});
+			t.lba_end = MSF_to_LBA(MSF{ 74, 0, 0 });
 		}
 
 		// incomplete dump (dumped with --stop-lba)
@@ -132,7 +132,7 @@ export void redumper_protection(Context &ctx, Options &options)
 						{
 							read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -*write_offset, (uint8_t)State::ERROR_SKIP);
 
-							if(std::any_of(state.begin(), state.end(), [](State s){ return s == State::ERROR_C2; }))
+							if(std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_C2; }))
 								errors.push_back(lba);
 						}
 
@@ -143,7 +143,7 @@ export void redumper_protection(Context &ctx, Options &options)
 							for(auto e : errors)
 								ctx.protection.emplace_back(lba_to_sample(e, *write_offset), lba_to_sample(e + 1, *write_offset));
 
-							//FIXME: remove after switch to dumpnew code
+							// FIXME: remove after switch to dumpnew code
 							auto skip_ranges = string_to_ranges(options.skip);
 							for(auto e : errors)
 								skip_ranges.emplace_back(e, e + 1);
@@ -252,7 +252,7 @@ export void redumper_protection(Context &ctx, Options &options)
 
 							ctx.protection.emplace_back(lba_to_sample(range.first, *write_offset), lba_to_sample(range.second, *write_offset));
 
-							//FIXME: remove after switch to dumpnew code
+							// FIXME: remove after switch to dumpnew code
 							auto skip_ranges = string_to_ranges(options.skip);
 							skip_ranges.push_back(range);
 							options.skip = ranges_to_string(skip_ranges);

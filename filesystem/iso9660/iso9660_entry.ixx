@@ -25,10 +25,10 @@ class Entry
 {
 public:
 	Entry(SectorReader *sector_reader, const std::string &name, uint32_t version, const iso9660::DirectoryRecord &directory_record)
-		: _sectorReader(sector_reader)
-		, _name(name)
-		, _version(version)
-		, _directoryRecord(directory_record)
+	    : _sectorReader(sector_reader)
+	    , _name(name)
+	    , _version(version)
+	    , _directoryRecord(directory_record)
 	{
 		;
 	}
@@ -75,11 +75,11 @@ public:
 		return _directoryRecord.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY;
 	}
 
-	
+
 	std::list<std::shared_ptr<Entry>> entries()
 	{
 		std::list<std::shared_ptr<Entry>> entries;
-		
+
 		if(isDirectory())
 		{
 			// read whole directory record to memory
@@ -98,15 +98,15 @@ public:
 				entries.push_back(std::make_shared<Entry>(_sectorReader, name, version, dr.second));
 			}
 		}
-		
+
 		return entries;
 	}
 
-	
+
 	std::shared_ptr<Entry> subEntry(const std::string &path)
 	{
 		std::shared_ptr<Entry> entry;
-		
+
 		auto components = tokenize(path, "/\\", nullptr);
 		for(auto const &c : components)
 		{
@@ -132,7 +132,7 @@ public:
 				break;
 			}
 		}
-			
+
 		return entry;
 	}
 
@@ -140,12 +140,11 @@ public:
 	std::vector<uint8_t> read(bool form2 = false, bool *form_hint = nullptr)
 	{
 		std::vector<uint8_t> sectors(sectorsSize() * _sectorReader->sectorSize(form2));
-		
+
 		uint32_t sectors_read = _sectorReader->read(sectors.data(), sectorsOffset(), sectorsSize(), form2, form_hint);
 
 		// exclude form2 sectors as multiples of form1 size
-		uint32_t size = form2 ? sectors_read * _sectorReader->sectorSize(form2) :
-			_directoryRecord.data_length.lsb - ((sectorsSize() - sectors_read) * _sectorReader->sectorSize(form2));
+		uint32_t size = form2 ? sectors_read * _sectorReader->sectorSize(form2) : _directoryRecord.data_length.lsb - ((sectorsSize() - sectors_read) * _sectorReader->sectorSize(form2));
 
 		sectors.resize(size);
 

@@ -20,14 +20,14 @@ export module utils.misc;
 namespace gpsxre
 {
 
-export template <typename T, size_t N>
-constexpr size_t countof(T(&)[N])
+export template<typename T, size_t N>
+constexpr size_t countof(T (&)[N])
 {
 	return N;
 }
 
 
-export template <typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
+export template<typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
 constexpr T round_up_pow2(T value, T multiple)
 {
 	multiple -= 1;
@@ -35,7 +35,7 @@ constexpr T round_up_pow2(T value, T multiple)
 }
 
 
-export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+export template<typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale_up(T value, U multiple)
 {
 	assert(multiple);
@@ -44,7 +44,7 @@ constexpr T scale_up(T value, U multiple)
 }
 
 
-export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+export template<typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale_down(T value, U multiple)
 {
 	assert(multiple);
@@ -52,28 +52,28 @@ constexpr T scale_down(T value, U multiple)
 }
 
 
-export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+export template<typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale_left(T value, U multiple)
 {
 	return value < 0 ? scale_up(value, multiple) : scale_down(value, multiple);
 }
 
 
-export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+export template<typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T scale_right(T value, U multiple)
 {
 	return value < 0 ? scale_down(value, multiple) : scale_up(value, multiple);
 }
 
 
-export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+export template<typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_up(T value, U multiple)
 {
 	return scale_up(value, multiple) * (T)multiple;
 }
 
 
-export template <typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
+export template<typename T, typename U, class = typename std::enable_if_t<std::is_unsigned_v<U>>>
 constexpr T round_down(T value, U multiple)
 {
 	return scale_down(value, multiple) * (T)multiple;
@@ -91,7 +91,7 @@ void clean_write(T *dst, size_t dst_offset, size_t size, T data)
 export template<typename T>
 bool is_zeroed(const T *data, size_t size)
 {
-	return std::all_of(data, data + size, [](T v){ return v == 0; });
+	return std::all_of(data, data + size, [](T v) { return v == 0; });
 }
 
 
@@ -238,7 +238,6 @@ std::string enum_to_string(T value, const std::map<T, std::string> &dictionary)
 		throw_line("enum_to_string failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary));
 
 	return it->second;
-
 }
 
 
@@ -251,7 +250,7 @@ T string_to_enum(std::string value, const std::map<T, std::string> &dictionary)
 
 	throw_line("string_to_enum failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary));
 
-	//FIXME: find good way to suppress "-Wreturn-type" warning
+	// FIXME: find good way to suppress "-Wreturn-type" warning
 	return (T)0;
 }
 

@@ -3,8 +3,8 @@ module;
 #include <cctype>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <format>
+#include <fstream>
 #include <map>
 #include <ostream>
 #include <set>
@@ -227,55 +227,49 @@ private:
 };
 
 
-const std::map<std::string, long long> SystemMCD::_MONTHS =
-{
-	{"JAN",  1},
-	{"FEB",  2},
-	{"MAR",  3},
-	{"APR",  4},
-	{"MAY",  5},
-	{"JUN",  6},
-	{"JUL",  7},
-	{"AUG",  8},
-	{"SEP",  9},
-	{"OCT", 10},
-	{"NOV", 11},
-	{"DEC", 12},
+const std::map<std::string, long long> SystemMCD::_MONTHS = {
+	{ "JAN", 1  },
+	{ "FEB", 2  },
+	{ "MAR", 3  },
+	{ "APR", 4  },
+	{ "MAY", 5  },
+	{ "JUN", 6  },
+	{ "JUL", 7  },
+	{ "AUG", 8  },
+	{ "SEP", 9  },
+	{ "OCT", 10 },
+	{ "NOV", 11 },
+	{ "DEC", 12 },
 };
 
 
-const std::map<char, std::string> SystemMCD::_REGIONS =
-{
-	{'J', "Japan" },
-	{'U', "USA"   },
-	{'E', "Europe"}
+const std::map<char, std::string> SystemMCD::_REGIONS = {
+	{ 'J', "Japan"  },
+    { 'U', "USA"    },
+    { 'E', "Europe" }
 };
 
 
-const std::map<char, std::string> SystemMCD::_REGIONS_NEW =
-{
-	{'0', ""   },
-	{'1', "J"  },
-	{'2', ""   },
-	{'3', "J"  },
-	{'4', "U"  },
-	{'5', "JU" },
-	{'6', "U"  },
-	{'7', "JU" },
-	{'8', "E"  },
-	{'9', "JE" },
-	{'A', "E"  },
-	{'B', "JE" },
-	{'C', "UE" },
-	{'D', "JUE"},
-//	 'E' - reserved for Europe, prioritize old style
-	{'F', "JUE"}
+const std::map<char, std::string> SystemMCD::_REGIONS_NEW = {
+	{ '0', ""    },
+    { '1', "J"   },
+    { '2', ""    },
+    { '3', "J"   },
+    { '4', "U"   },
+    { '5', "JU"  },
+    { '6', "U"   },
+    { '7', "JU"  },
+    { '8', "E"   },
+    { '9', "JE"  },
+    { 'A', "E"   },
+    { 'B', "JE"  },
+    { 'C', "UE"  },
+	{ 'D', "JUE" },
+	//	 'E' - reserved for Europe, prioritize old style
+	{ 'F', "JUE" }
 };
 
 
-const std::set<char> SystemMCD::_DATE_DELIMITERS =
-{
-	'.', ' ', ',', '_'
-};
+const std::set<char> SystemMCD::_DATE_DELIMITERS = { '.', ' ', ',', '_' };
 
 }

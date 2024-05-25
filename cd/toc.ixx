@@ -69,7 +69,7 @@ export struct TOC
 
 
 	TOC(const std::vector<uint8_t> &toc_buffer, bool full_toc)
-		: qtoc(false)
+	    : qtoc(false)
 	{
 		if(full_toc)
 			initFullTOC(toc_buffer);
@@ -79,7 +79,7 @@ export struct TOC
 
 
 	TOC(const ChannelQ *subq, uint32_t sectors_count, int32_t lba_start)
-		: qtoc(true)
+	    : qtoc(true)
 	{
 		bool track_active = false;
 		for(uint32_t lba_index = 0; lba_index < sectors_count; ++lba_index)
@@ -97,7 +97,8 @@ export struct TOC
 						uint8_t tno = bcd_decode(Q.mode1.tno);
 
 						// new session
-						if(sessions.empty() || !sessions.back().tracks.empty() && sessions.back().tracks.back().track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER) && tno != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+						if(sessions.empty()
+						    || !sessions.back().tracks.empty() && sessions.back().tracks.back().track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER) && tno != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
 						{
 							uint8_t session_number = sessions.empty() ? 1 : sessions.back().session_number + 1;
 							sessions.emplace_back().session_number = session_number;
@@ -388,8 +389,7 @@ export struct TOC
 			case 5:
 				break;
 
-			default:
-				;
+			default:;
 			}
 		}
 	}
@@ -410,10 +410,10 @@ export struct TOC
 		{
 			auto &pack_data = descriptors[i];
 
-			//DEBUG
-//			LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}",
-//									 pack_data.pack_type, pack_data.track_number, pack_data.extension_flag, pack_data.sequence_number, pack_data.character_position, pack_data.block_number, pack_data.unicode,
-//									 DescriptorText(pack_data));
+			// DEBUG
+			//			LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}",
+			//									 pack_data.pack_type, pack_data.track_number, pack_data.extension_flag, pack_data.sequence_number, pack_data.character_position, pack_data.block_number,
+			//pack_data.unicode, 									 DescriptorText(pack_data));
 
 			auto crc = CRC16_GSM().update((uint8_t *)&pack_data, sizeof(pack_data) - sizeof(uint16_t)).final();
 			// PLEXTOR PX-W5224TA: crc of last pack is always zeroed
@@ -547,30 +547,24 @@ export struct TOC
 			{
 				switch(pack_type)
 				{
-				case PackType::DISC_ID:
-					;
+				case PackType::DISC_ID:;
 					break;
 
-				case PackType::GENRE_ID:
-					;
+				case PackType::GENRE_ID:;
 					break;
 
-				case PackType::TOC:
-					;
+				case PackType::TOC:;
 					break;
 
-				case PackType::TOC2:
-					;
+				case PackType::TOC2:;
 					break;
 
 				case PackType::RESERVED1:
 				case PackType::RESERVED2:
-				case PackType::RESERVED3:
-					;
+				case PackType::RESERVED3:;
 					break;
 
-				default:
-					;
+				default:;
 				}
 
 				++i;
@@ -639,9 +633,8 @@ export struct TOC
 					if(index_length > 0)
 					{
 						MSF msf_end = LBA_to_MSF(index_end - 1);
-						index_properties = std::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}",
-													   index_start, index_end - 1, index_length,
-													   msf_start.m, msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
+						index_properties = std::format("LBA: [{:6} .. {:6}], length: {:6}, MSF: {:02}:{:02}:{:02}-{:02}:{:02}:{:02}", index_start, index_end - 1, index_length, msf_start.m,
+						    msf_start.s, msf_start.f, msf_end.m, msf_end.s, msf_end.f);
 					}
 					else
 						index_properties = std::format("LBA: {:6}, MSF: {:02}:{:02}:{:02}", index_start, msf_start.m, msf_start.s, msf_start.f);
@@ -805,7 +798,7 @@ private:
 	{
 		ISO_8859_1,
 		ASCII,
-		MS_JIS = 0x80  // (Japanese Kanji, double byte characters)
+		MS_JIS = 0x80 // (Japanese Kanji, double byte characters)
 	};
 
 	struct BlockSizeInfo
@@ -967,10 +960,10 @@ private:
 			os << std::format("{}PERFORMER \"{}\"", std::string(indent_level, ' '), cdt.performer) << std::endl;
 		if(!cdt.songwriter.empty())
 			os << std::format("{}SONGWRITER \"{}\"", std::string(indent_level, ' '), cdt.songwriter) << std::endl;
-//		if(!cdt.composer.empty())
-//			os << std::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
-//		if(!cdt.arranger.empty())
-//			os << std::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
+		//		if(!cdt.composer.empty())
+		//			os << std::format("{}REM COMPOSER \"{}\"", std::string(indent_level, ' '), cdt.composer) << std::endl;
+		//		if(!cdt.arranger.empty())
+		//			os << std::format("{}REM ARRANGER \"{}\"", std::string(indent_level, ' '), cdt.arranger) << std::endl;
 
 		return os;
 	}
@@ -978,8 +971,8 @@ private:
 
 	static bool isTextPack(PackType pack_type)
 	{
-		return pack_type == PackType::TITLE || pack_type == PackType::PERFORMER || pack_type == PackType::SONGWRITER || pack_type == PackType::COMPOSER || pack_type == PackType::ARRANGER ||
-			pack_type == PackType::MESSAGE || pack_type == PackType::CLOSED_INFO || pack_type == PackType::MCN_ISRC;
+		return pack_type == PackType::TITLE || pack_type == PackType::PERFORMER || pack_type == PackType::SONGWRITER || pack_type == PackType::COMPOSER || pack_type == PackType::ARRANGER
+		    || pack_type == PackType::MESSAGE || pack_type == PackType::CLOSED_INFO || pack_type == PackType::MCN_ISRC;
 	}
 
 
@@ -1031,9 +1024,9 @@ private:
 
 	std::string decodeText(const char *text, bool unicode, uint8_t language_code, CharacterCode character_code) const
 	{
-		//FIXME: codecvt is deprecated
-		// sometimes it's not UTF-16
-//		return unicode ? std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(std::u16string((char16_t*)text)) : std::string(text);
+		// FIXME: codecvt is deprecated
+		//  sometimes it's not UTF-16
+		//		return unicode ? std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(std::u16string((char16_t*)text)) : std::string(text);
 
 		// for now copy verbatim
 		return std::string(text);

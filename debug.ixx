@@ -1,11 +1,11 @@
 module;
 #include <bit>
 #include <cstdint>
-#include <string>
 #include <filesystem>
 #include <fstream>
 #include <map>
 #include <set>
+#include <string>
 #include <vector>
 #include "throw_line.hh"
 
@@ -112,7 +112,7 @@ export void redumper_debug(Context &ctx, Options &options)
 		std::vector<uint8_t> structure = read_vector(physical_path);
 
 		LOG("disc structure:");
-//		print_di_units_structure(&structure[sizeof(CMD_ParameterListHeader)], false);
+		//		print_di_units_structure(&structure[sizeof(CMD_ParameterListHeader)], false);
 
 		LOG("");
 	}
@@ -120,37 +120,37 @@ export void redumper_debug(Context &ctx, Options &options)
 	// DVD sectors count
 	if(0)
 	{
-/*
-		READ_DVD_STRUCTURE_LayerDescriptor layer_descriptor;
-		layer_descriptor.data_start_sector = endian_swap<uint32_t>(0x30000);
-		layer_descriptor.data_end_sector = endian_swap<uint32_t>(0xfff648e8);
-		layer_descriptor.layer0_end_sector = endian_swap<uint32_t>(1569279);
-		layer_descriptor.track_path = 1;
+		/*
+		        READ_DVD_STRUCTURE_LayerDescriptor layer_descriptor;
+		        layer_descriptor.data_start_sector = endian_swap<uint32_t>(0x30000);
+		        layer_descriptor.data_end_sector = endian_swap<uint32_t>(0xfff648e8);
+		        layer_descriptor.layer0_end_sector = endian_swap<uint32_t>(1569279);
+		        layer_descriptor.track_path = 1;
 
-		int32_t test = 0xfff648e8;
+		        int32_t test = 0xfff648e8;
 
-		int32_t test2 = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
+		        int32_t test2 = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
 
-		uint32_t sectors_count = get_layer_length(layer_descriptor);
-		LOG("DVD sectors count: {}", sectors_count);
+		        uint32_t sectors_count = get_layer_length(layer_descriptor);
+		        LOG("DVD sectors count: {}", sectors_count);
 
-		LOG("");
-*/
+		        LOG("");
+		*/
 	}
 
 	// popcnt test
 	if(0)
 	{
-/*
-		for(uint32_t i = 0; i < 0xffffffff; ++i)
-		{
-			uint32_t test = __popcnt(i);
-			uint32_t test2 = bits_count(i);
+		/*
+		        for(uint32_t i = 0; i < 0xffffffff; ++i)
+		        {
+		            uint32_t test = __popcnt(i);
+		            uint32_t test2 = bits_count(i);
 
-			if(test != test2)
-				LOG("{} <=> {}", test, test2);
-		}
-*/
+		            if(test != test2)
+		                LOG("{} <=> {}", test, test2);
+		        }
+		*/
 	}
 
 	// CD-TEXT debug
@@ -187,8 +187,8 @@ export void redumper_debug(Context &ctx, Options &options)
 		auto drive_type = DriveConfig::Type::LG_ASU8C;
 		asus_cache_print_subq(cache, drive_type);
 
-//		auto asd = asus_cache_unroll(cache);
-//		auto asd = asus_cache_extract(cache, 128224, 0);
+		//		auto asd = asus_cache_unroll(cache);
+		//		auto asd = asus_cache_extract(cache, 128224, 0);
 		auto asus_leadout_buffer = asus_cache_extract(cache, 292353, 100, drive_type);
 		uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 

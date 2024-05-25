@@ -79,7 +79,6 @@ export void read_entry(std::fstream &fs, uint8_t *data, uint64_t entry_size, uin
 		fs.read((char *)data + data_offset, size);
 		if(fs.fail())
 			throw_line("read failed");
-
 	}
 }
 
@@ -141,9 +140,9 @@ export uint64_t check_file(const std::filesystem::path &file_path, uint64_t entr
 	if(!file_size)
 		throw_line("file is empty ({})", file_path.filename().string());
 
-	//TODO: improve unaligned handling
-//	if(file_size % entry_size)
-//		throw_line("incomplete file or garbage in the end ({})", file_path.filename().string());
+	// TODO: improve unaligned handling
+	//	if(file_size % entry_size)
+	//		throw_line("incomplete file or garbage in the end ({})", file_path.filename().string());
 
 	return file_size / entry_size;
 }

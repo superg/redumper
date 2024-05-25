@@ -29,174 +29,174 @@ namespace gpsxre
 export class SystemPSX : public System
 {
 public:
-	std::string getName() override
-	{
-		return "PSX";
-	}
+    std::string getName() override
+    {
+        return "PSX";
+    }
 
-	Type getType() override
-	{
-		return Type::ISO;
-	}
+    Type getType() override
+    {
+        return Type::ISO;
+    }
 
-	void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override
-	{
-		iso9660::PrimaryVolumeDescriptor pvd;
-		if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
-			return;
-		auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
+    void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override
+    {
+        iso9660::PrimaryVolumeDescriptor pvd;
+        if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
+            return;
+        auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
 
-		auto exe_path = findEXE(root_directory);
-		if(exe_path.empty())
-			return;
+        auto exe_path = findEXE(root_directory);
+        if(exe_path.empty())
+            return;
 
-		auto exe_file = root_directory->subEntry(exe_path);
-		if(!exe_file)
-			return;
+        auto exe_file = root_directory->subEntry(exe_path);
+        if(!exe_file)
+            return;
 
-		auto exe = exe_file->read();
-		if(exe.size() < _EXE_MAGIC.length() || std::string((char *)exe.data(), _EXE_MAGIC.length()) != _EXE_MAGIC)
-			return;
+        auto exe = exe_file->read();
+        if(exe.size() < _EXE_MAGIC.length() || std::string((char *)exe.data(), _EXE_MAGIC.length()) != _EXE_MAGIC)
+            return;
 
-		os << std::format("  EXE: {}", exe_path) << std::endl;
+        os << std::format("  EXE: {}", exe_path) << std::endl;
 
-		{
-			time_t t = exe_file->dateTime();
-			std::stringstream ss;
-			ss << std::put_time(localtime(&t), "%Y-%m-%d");
-			os << std::format("  EXE date: {}", ss.str()) << std::endl;
-		}
+        {
+            time_t t = exe_file->dateTime();
+            std::stringstream ss;
+            ss << std::put_time(localtime(&t), "%Y-%m-%d");
+            os << std::format("  EXE date: {}", ss.str()) << std::endl;
+        }
 
-		auto serial = deduceSerial(exe_path);
-		if(!serial.first.empty() && !serial.second.empty())
-			os << std::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
+        auto serial = deduceSerial(exe_path);
+        if(!serial.first.empty() && !serial.second.empty())
+            os << std::format("  serial: {}-{}", serial.first, serial.second) << std::endl;
 
-		auto region = detectRegion(serial.first);
-		if(!region.empty())
-			os << std::format("  region: {}", region) << std::endl;
+        auto region = detectRegion(serial.first);
+        if(!region.empty())
+            os << std::format("  region: {}", region) << std::endl;
 
-		{
-			std::stringstream ss;
-			bool antimod = findAntiModchipStrings(ss, root_directory);
-			os << std::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
-			if(antimod)
-				os << ss.str() << std::endl;
-		}
+        {
+            std::stringstream ss;
+            bool antimod = findAntiModchipStrings(ss, root_directory);
+            os << std::format("  anti-modchip: {}", antimod ? "yes" : "no") << std::endl;
+            if(antimod)
+                os << ss.str() << std::endl;
+        }
 
-		std::filesystem::path sub_path = track_extract_basename(track_path.string()) + ".subcode";
-		if(std::filesystem::exists(sub_path))
-		{
-			std::stringstream ss;
-			bool libcrypt = detectLibCrypt(ss, sub_path);
-			os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
-			if(libcrypt)
-				os << ss.str() << std::endl;
-		}
-	}
+        std::filesystem::path sub_path = track_extract_basename(track_path.string()) + ".subcode";
+        if(std::filesystem::exists(sub_path))
+        {
+            std::stringstream ss;
+            bool libcrypt = detectLibCrypt(ss, sub_path);
+            os << std::format("  libcrypt: {}", libcrypt ? "yes" : "no") << std::endl;
+            if(libcrypt)
+                os << ss.str() << std::endl;
+        }
+    }
 
 private:
-	static const std::string _EXE_MAGIC;
-	static const std::vector<int32_t> _LIBCRYPT_SECTORS_BASE;
-	static const std::vector<int32_t> _LIBCRYPT_SECTORS_BACKUP;
-	static const int32_t _LIBCRYPT_SECTORS_MIRROR_SHIFT;
-	static const uint32_t _LIBCRYPT_BITS_COUNT;
-	static const uint32_t _LIBCRYPT_BITS_COUNT_NETYAROZE;
+    static const std::string _EXE_MAGIC;
+    static const std::vector<int32_t> _LIBCRYPT_SECTORS_BASE;
+    static const std::vector<int32_t> _LIBCRYPT_SECTORS_BACKUP;
+    static const int32_t _LIBCRYPT_SECTORS_MIRROR_SHIFT;
+    static const uint32_t _LIBCRYPT_BITS_COUNT;
+    static const uint32_t _LIBCRYPT_BITS_COUNT_NETYAROZE;
 
-	std::string findEXE(std::shared_ptr<iso9660::Entry> root_directory) const
-	{
-		std::string exe_path;
+    std::string findEXE(std::shared_ptr<iso9660::Entry> root_directory) const
+    {
+        std::string exe_path;
 
-		auto system_cnf = root_directory->subEntry("SYSTEM.CNF");
-		if(system_cnf)
-		{
-			auto data = system_cnf->read();
-			std::string data_str(data.begin(), data.end());
-			std::stringstream ss(data_str);
+        auto system_cnf = root_directory->subEntry("SYSTEM.CNF");
+        if(system_cnf)
+        {
+            auto data = system_cnf->read();
+            std::string data_str(data.begin(), data.end());
+            std::stringstream ss(data_str);
 
-			std::string line;
-			while(std::getline(ss, line))
-			{
-				// examples:
-				// BOOT = cdrom:\\SCUS_945.03;1\r"   // 1Xtreme (USA)
-				// BOOT=cdrom:\\SCUS_944.23;1"       // Ape Escape (USA)
-				// BOOT=cdrom:\\SLPS_004.35\r"       // Megatudo 2096 (Japan)
-				// BOOT = cdrom:\SLPM803.96;1"       // Chouzetsu Daigirin '99-nen Natsu-ban (Japan)
-				// BOOT = cdrom:\EXE\PCPX_961.61;1   // Wild Arms - 2nd Ignition (Japan) (Demo)
+            std::string line;
+            while(std::getline(ss, line))
+            {
+                // examples:
+                // BOOT = cdrom:\\SCUS_945.03;1\r"   // 1Xtreme (USA)
+                // BOOT=cdrom:\\SCUS_944.23;1"       // Ape Escape (USA)
+                // BOOT=cdrom:\\SLPS_004.35\r"       // Megatudo 2096 (Japan)
+                // BOOT = cdrom:\SLPM803.96;1"       // Chouzetsu Daigirin '99-nen Natsu-ban (Japan)
+                // BOOT = cdrom:\EXE\PCPX_961.61;1   // Wild Arms - 2nd Ignition (Japan) (Demo)
 
-				std::smatch matches;
-				std::regex_match(line, matches, std::regex("^\\s*BOOT.*=\\s*cdrom.?:\\\\*(.*?)(?:;.*\\s*|\\s*$)"));
-				if(matches.size() == 2)
-				{
-					exe_path = str_uppercase(matches.str(1));
-					break;
-				}
-			}
-		}
-		else
-		{
-			auto psx_exe = root_directory->subEntry("PSX.EXE");
-			if(psx_exe)
-				exe_path = psx_exe->name();
-		}
+                std::smatch matches;
+                std::regex_match(line, matches, std::regex("^\\s*BOOT.*=\\s*cdrom.?:\\\\*(.*?)(?:;.*\\s*|\\s*$)"));
+                if(matches.size() == 2)
+                {
+                    exe_path = str_uppercase(matches.str(1));
+                    break;
+                }
+            }
+        }
+        else
+        {
+            auto psx_exe = root_directory->subEntry("PSX.EXE");
+            if(psx_exe)
+                exe_path = psx_exe->name();
+        }
 
-		return exe_path;
-	}
-
-
-	std::pair<std::string, std::string> deduceSerial(std::string exe_path) const
-	{
-		std::pair<std::string, std::string> serial;
-
-		std::smatch matches;
-		std::regex_match(exe_path, matches, std::regex("(.*\\\\)*([A-Z]*)(_|-)?([A-Z]?[0-9]+)\\.([0-9]+[A-Z]?)"));
-		if(matches.size() == 6)
-		{
-			serial.first = matches.str(2);
-			serial.second = matches.str(4) + matches.str(5);
-
-			// Road Writer (USA)
-			if(serial.first.empty() && serial.second == "907127001")
-				serial.first = "LSP";
-			// GameGenius Ver. 5.0 (Taiwan) (En,Zh) (Unl)
-			else if(serial.first == "PAR" && serial.second == "90001")
-			{
-				serial.first.clear();
-				serial.second.clear();
-			}
-		}
-
-		return serial;
-	}
+        return exe_path;
+    }
 
 
-	std::string detectRegion(std::string prefix) const
-	{
-		std::string region;
+    std::pair<std::string, std::string> deduceSerial(std::string exe_path) const
+    {
+        std::pair<std::string, std::string> serial;
 
-		const std::set<std::string> REGION_J{ "ESPM", "PAPX", "PCPX", "PDPX", "SCPM", "SCPS", "SCZS", "SIPS", "SLKA", "SLPM", "SLPS" };
-		const std::set<std::string> REGION_U{ "LSP", "PUPX", "SCUS", "SLUS", "SLUSP" };
-		const std::set<std::string> REGION_E{ "PEPX", "SCED", "SCES", "SLED", "SLES" };
-		// multi: "DTL", "PBPX"
+        std::smatch matches;
+        std::regex_match(exe_path, matches, std::regex("(.*\\\\)*([A-Z]*)(_|-)?([A-Z]?[0-9]+)\\.([0-9]+[A-Z]?)"));
+        if(matches.size() == 6)
+        {
+            serial.first = matches.str(2);
+            serial.second = matches.str(4) + matches.str(5);
 
-		if(REGION_J.find(prefix) != REGION_J.end())
-			region = "Japan";
-		else if(REGION_U.find(prefix) != REGION_U.end())
-			region = "USA";
-		else if(REGION_E.find(prefix) != REGION_E.end())
-			region = "Europe";
+            // Road Writer (USA)
+            if(serial.first.empty() && serial.second == "907127001")
+                serial.first = "LSP";
+            // GameGenius Ver. 5.0 (Taiwan) (En,Zh) (Unl)
+            else if(serial.first == "PAR" && serial.second == "90001")
+            {
+                serial.first.clear();
+                serial.second.clear();
+            }
+        }
 
-		return region;
-	}
+        return serial;
+    }
 
 
-	bool findAntiModchipStrings(std::ostream &os, std::shared_ptr<iso9660::Entry> root_directory) const
-	{
-		std::vector<std::string> entries;
+    std::string detectRegion(std::string prefix) const
+    {
+        std::string region;
 
-		// taken from DIC
-		const char ANTIMOD_MESSAGE_EN[] = "     SOFTWARE TERMINATED\nCONSOLE MAY HAVE BEEN MODIFIED\n     CALL 1-888-780-7690";
-		// string is encoded with Shift JIS
-		// clang-format off
+        const std::set<std::string> REGION_J{ "ESPM", "PAPX", "PCPX", "PDPX", "SCPM", "SCPS", "SCZS", "SIPS", "SLKA", "SLPM", "SLPS" };
+        const std::set<std::string> REGION_U{ "LSP", "PUPX", "SCUS", "SLUS", "SLUSP" };
+        const std::set<std::string> REGION_E{ "PEPX", "SCED", "SCES", "SLED", "SLES" };
+        // multi: "DTL", "PBPX"
+
+        if(REGION_J.find(prefix) != REGION_J.end())
+            region = "Japan";
+        else if(REGION_U.find(prefix) != REGION_U.end())
+            region = "USA";
+        else if(REGION_E.find(prefix) != REGION_E.end())
+            region = "Europe";
+
+        return region;
+    }
+
+
+    bool findAntiModchipStrings(std::ostream &os, std::shared_ptr<iso9660::Entry> root_directory) const
+    {
+        std::vector<std::string> entries;
+
+        // taken from DIC
+        const char ANTIMOD_MESSAGE_EN[] = "     SOFTWARE TERMINATED\nCONSOLE MAY HAVE BEEN MODIFIED\n     CALL 1-888-780-7690";
+        // string is encoded with Shift JIS
+        // clang-format off
 		const uint8_t ANTIMOD_MESSAGE_JP[] =
 		{
 			// 強制終了しました。
@@ -206,139 +206,139 @@ private:
 			// おそれがあります。
 			0x82, 0xa8, 0x82, 0xbb, 0x82, 0xea, 0x82, 0xaa, 0x82, 0xa0, 0x82, 0xe8, 0x82, 0xdc, 0x82, 0xb7, 0x81, 0x42
 		};
-		// clang-format on
+        // clang-format on
 
-		iso9660::Browser::iterate(root_directory,
-		    [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
-		    {
-			    bool exit = false;
+        iso9660::Browser::iterate(root_directory,
+            [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
+            {
+                bool exit = false;
 
-			    auto fp((path.empty() ? "" : path + "/") + d->name());
+                auto fp((path.empty() ? "" : path + "/") + d->name());
 
-			    auto data = d->read();
+                auto data = d->read();
 
-			    auto it_en = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_EN), std::end(ANTIMOD_MESSAGE_EN));
-			    if(it_en != data.end())
-			    {
-				    std::stringstream ss;
-				    ss << fp << " @ 0x" << std::hex << it_en - data.begin() << ": EN";
-				    entries.emplace_back(ss.str());
-			    }
-			    auto it_jp = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_JP), std::end(ANTIMOD_MESSAGE_JP));
-			    if(it_jp != data.end())
-			    {
-				    std::stringstream ss;
-				    ss << fp << " @ 0x" << std::hex << it_jp - data.begin() << ": JP";
-				    entries.emplace_back(ss.str());
-			    }
+                auto it_en = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_EN), std::end(ANTIMOD_MESSAGE_EN));
+                if(it_en != data.end())
+                {
+                    std::stringstream ss;
+                    ss << fp << " @ 0x" << std::hex << it_en - data.begin() << ": EN";
+                    entries.emplace_back(ss.str());
+                }
+                auto it_jp = std::search(data.begin(), data.end(), std::begin(ANTIMOD_MESSAGE_JP), std::end(ANTIMOD_MESSAGE_JP));
+                if(it_jp != data.end())
+                {
+                    std::stringstream ss;
+                    ss << fp << " @ 0x" << std::hex << it_jp - data.begin() << ": JP";
+                    entries.emplace_back(ss.str());
+                }
 
-			    return exit;
-		    });
+                return exit;
+            });
 
-		for(auto const &s : entries)
-			os << s << std::endl;
+        for(auto const &s : entries)
+            os << s << std::endl;
 
-		return !entries.empty();
-	}
+        return !entries.empty();
+    }
 
-	static std::vector<bool> getLibCryptKey(std::fstream &fs, std::filesystem::path sub_path, const std::vector<int32_t> &sectors, uint32_t sector_shift)
-	{
-		std::vector<bool> key(sectors.size());
+    static std::vector<bool> getLibCryptKey(std::fstream &fs, std::filesystem::path sub_path, const std::vector<int32_t> &sectors, uint32_t sector_shift)
+    {
+        std::vector<bool> key(sectors.size());
 
-		std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
-		int32_t lba_end = std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE + LBA_START;
-		for(uint32_t i = 0; i < key.size(); ++i)
-		{
-			int32_t lba = sectors[i] + sector_shift;
+        std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
+        int32_t lba_end = std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE + LBA_START;
+        for(uint32_t i = 0; i < key.size(); ++i)
+        {
+            int32_t lba = sectors[i] + sector_shift;
 
-			if(lba >= lba_end)
-				continue;
+            if(lba >= lba_end)
+                continue;
 
-			read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba - LBA_START, 1, 0, 0);
-			auto Q = subcode_extract_q(sub_buffer.data());
+            read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), lba - LBA_START, 1, 0, 0);
+            auto Q = subcode_extract_q(sub_buffer.data());
 
-			if(!Q.isValid())
-				key[i] = true;
-		}
+            if(!Q.isValid())
+                key[i] = true;
+        }
 
-		return key;
-	}
+        return key;
+    }
 
-	bool detectLibCrypt(std::ostream &os, std::filesystem::path sub_path) const
-	{
-		bool libcrypt = false;
+    bool detectLibCrypt(std::ostream &os, std::filesystem::path sub_path) const
+    {
+        bool libcrypt = false;
 
-		std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
-		if(!fs.is_open())
-			throw_line("unable to open file ({})", sub_path.filename().string());
+        std::fstream fs(sub_path, std::fstream::in | std::fstream::binary);
+        if(!fs.is_open())
+            throw_line("unable to open file ({})", sub_path.filename().string());
 
-		// read keys from all possible locations
-		auto base = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BASE, 0);
-		auto base_mirror = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BASE, _LIBCRYPT_SECTORS_MIRROR_SHIFT);
-		auto backup = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BACKUP, 0);
-		auto backup_mirror = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BACKUP, _LIBCRYPT_SECTORS_MIRROR_SHIFT);
+        // read keys from all possible locations
+        auto base = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BASE, 0);
+        auto base_mirror = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BASE, _LIBCRYPT_SECTORS_MIRROR_SHIFT);
+        auto backup = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BACKUP, 0);
+        auto backup_mirror = getLibCryptKey(fs, sub_path, _LIBCRYPT_SECTORS_BACKUP, _LIBCRYPT_SECTORS_MIRROR_SHIFT);
 
-		// filter out unintentional Q errors in backup / mirror keys using base key as a reference
-		std::transform(base.begin(), base.end(), base_mirror.begin(), base_mirror.begin(), [](bool b1, bool b2) { return b1 && b2; });
-		std::transform(base.begin(), base.end(), backup.begin(), backup.begin(), [](bool b1, bool b2) { return b1 && b2; });
-		std::transform(base.begin(), base.end(), backup_mirror.begin(), backup_mirror.begin(), [](bool b1, bool b2) { return b1 && b2; });
+        // filter out unintentional Q errors in backup / mirror keys using base key as a reference
+        std::transform(base.begin(), base.end(), base_mirror.begin(), base_mirror.begin(), [](bool b1, bool b2) { return b1 && b2; });
+        std::transform(base.begin(), base.end(), backup.begin(), backup.begin(), [](bool b1, bool b2) { return b1 && b2; });
+        std::transform(base.begin(), base.end(), backup_mirror.begin(), backup_mirror.begin(), [](bool b1, bool b2) { return b1 && b2; });
 
-		auto base_mirror_count = std::count(base_mirror.begin(), base_mirror.end(), true);
-		auto backup_count = std::count(backup.begin(), backup.end(), true);
-		auto backup_mirror_count = std::count(backup_mirror.begin(), backup_mirror.end(), true);
+        auto base_mirror_count = std::count(base_mirror.begin(), base_mirror.end(), true);
+        auto backup_count = std::count(backup.begin(), backup.end(), true);
+        auto backup_mirror_count = std::count(backup_mirror.begin(), backup_mirror.end(), true);
 
-		bool base_mirror_exists = base_mirror_count == _LIBCRYPT_BITS_COUNT;
-		bool backup_exists = backup_count == _LIBCRYPT_BITS_COUNT;
-		bool backup_mirror_exists = backup_mirror_count == _LIBCRYPT_BITS_COUNT;
+        bool base_mirror_exists = base_mirror_count == _LIBCRYPT_BITS_COUNT;
+        bool backup_exists = backup_count == _LIBCRYPT_BITS_COUNT;
+        bool backup_mirror_exists = backup_mirror_count == _LIBCRYPT_BITS_COUNT;
 
-		// filter out unintentional Q errors in base key using backup / mirror keys as a reference
-		if(base_mirror_exists)
-			std::transform(base_mirror.begin(), base_mirror.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
-		if(backup_exists)
-			std::transform(backup.begin(), backup.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
-		if(backup_mirror_exists)
-			std::transform(backup_mirror.begin(), backup_mirror.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
+        // filter out unintentional Q errors in base key using backup / mirror keys as a reference
+        if(base_mirror_exists)
+            std::transform(base_mirror.begin(), base_mirror.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
+        if(backup_exists)
+            std::transform(backup.begin(), backup.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
+        if(backup_mirror_exists)
+            std::transform(backup_mirror.begin(), backup_mirror.end(), base.begin(), base.begin(), [](bool b1, bool b2) { return b1 && b2; });
 
-		auto base_count = std::count(base.begin(), base.end(), true);
+        auto base_count = std::count(base.begin(), base.end(), true);
 
-		std::set<int32_t> candidates;
+        std::set<int32_t> candidates;
 
-		// strong check: base key exists and one of the backup / mirror keys exist
-		// weak check: 6 sectors without backup / mirror (Net Yaroze disc)
-		if(base_count == _LIBCRYPT_BITS_COUNT && (base_mirror_exists || backup_exists || backup_mirror_exists) || base_count == _LIBCRYPT_BITS_COUNT_NETYAROZE)
-		{
-			for(uint32_t i = 0; i < base.size(); ++i)
-			{
-				if(base[i])
-				{
-					candidates.insert(_LIBCRYPT_SECTORS_BASE[i]);
-					if(base_mirror_exists)
-						candidates.insert(_LIBCRYPT_SECTORS_BASE[i] + _LIBCRYPT_SECTORS_MIRROR_SHIFT);
+        // strong check: base key exists and one of the backup / mirror keys exist
+        // weak check: 6 sectors without backup / mirror (Net Yaroze disc)
+        if(base_count == _LIBCRYPT_BITS_COUNT && (base_mirror_exists || backup_exists || backup_mirror_exists) || base_count == _LIBCRYPT_BITS_COUNT_NETYAROZE)
+        {
+            for(uint32_t i = 0; i < base.size(); ++i)
+            {
+                if(base[i])
+                {
+                    candidates.insert(_LIBCRYPT_SECTORS_BASE[i]);
+                    if(base_mirror_exists)
+                        candidates.insert(_LIBCRYPT_SECTORS_BASE[i] + _LIBCRYPT_SECTORS_MIRROR_SHIFT);
 
-					if(backup_exists)
-						candidates.insert(_LIBCRYPT_SECTORS_BACKUP[i]);
-					if(backup_mirror_exists)
-						candidates.insert(_LIBCRYPT_SECTORS_BACKUP[i] + _LIBCRYPT_SECTORS_MIRROR_SHIFT);
-				}
-			}
-		}
+                    if(backup_exists)
+                        candidates.insert(_LIBCRYPT_SECTORS_BACKUP[i]);
+                    if(backup_mirror_exists)
+                        candidates.insert(_LIBCRYPT_SECTORS_BACKUP[i] + _LIBCRYPT_SECTORS_MIRROR_SHIFT);
+                }
+            }
+        }
 
-		if(!candidates.empty())
-		{
-			std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
+        if(!candidates.empty())
+        {
+            std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
 
-			for(auto c : candidates)
-			{
-				read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), c - LBA_START, 1, 0, 0);
-				auto Q = subcode_extract_q(sub_buffer.data());
-				redump_print_subq(os, c, Q);
-			}
+            for(auto c : candidates)
+            {
+                read_entry(fs, sub_buffer.data(), (uint32_t)sub_buffer.size(), c - LBA_START, 1, 0, 0);
+                auto Q = subcode_extract_q(sub_buffer.data());
+                redump_print_subq(os, c, Q);
+            }
 
-			libcrypt = true;
-		}
+            libcrypt = true;
+        }
 
-		return libcrypt;
-	}
+        return libcrypt;
+    }
 };
 
 

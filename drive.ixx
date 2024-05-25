@@ -31,61 +31,61 @@ namespace gpsxre
 
 export struct DriveQuery
 {
-	std::string vendor_id;
-	std::string product_id;
-	std::string product_revision_level;
-	std::string vendor_specific;
+    std::string vendor_id;
+    std::string product_id;
+    std::string product_revision_level;
+    std::string vendor_specific;
 };
 
 export struct DriveConfig
 {
-	std::string vendor_id;
-	std::string product_id;
-	std::string product_revision_level;
-	std::string vendor_specific;
-	int32_t read_offset;
-	uint32_t c2_shift;
-	int32_t pregap_start;
+    std::string vendor_id;
+    std::string product_id;
+    std::string product_revision_level;
+    std::string vendor_specific;
+    int32_t read_offset;
+    uint32_t c2_shift;
+    int32_t pregap_start;
 
-	enum class ReadMethod
-	{
-		BE,
-		D8,
-		BE_CDDA
-	} read_method;
+    enum class ReadMethod
+    {
+        BE,
+        D8,
+        BE_CDDA
+    } read_method;
 
-	enum class SectorOrder
-	{
-		DATA_C2_SUB,
-		DATA_SUB_C2,
-		DATA_SUB,
-		DATA_C2
-	} sector_order;
+    enum class SectorOrder
+    {
+        DATA_C2_SUB,
+        DATA_SUB_C2,
+        DATA_SUB,
+        DATA_C2
+    } sector_order;
 
-	enum class Type
-	{
-		GENERIC,
-		PLEXTOR,
-		LG_ASU8A,
-		LG_ASU8B,
-		LG_ASU8C,
-		LG_ASU3,
-		LG_ASU2
-	} type;
+    enum class Type
+    {
+        GENERIC,
+        PLEXTOR,
+        LG_ASU8A,
+        LG_ASU8B,
+        LG_ASU8C,
+        LG_ASU3,
+        LG_ASU2
+    } type;
 };
 
 struct SectorLayout
 {
-	uint32_t data_offset;
-	uint32_t c2_offset;
-	uint32_t subcode_offset;
-	uint32_t size;
+    uint32_t data_offset;
+    uint32_t c2_offset;
+    uint32_t subcode_offset;
+    uint32_t size;
 };
 
 struct AsusConfig
 {
-	uint32_t size_mb;
-	uint32_t entries_count;
+    uint32_t size_mb;
+    uint32_t entries_count;
 };
 
 export constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
@@ -96,28 +96,28 @@ static const std::unordered_map<std::string, int32_t> DRIVE_READ_OFFSETS = {
 
 
 static const std::map<DriveConfig::Type, std::string> TYPE_STRING = {
-	{ DriveConfig::Type::GENERIC,  "GENERIC"  },
+    { DriveConfig::Type::GENERIC,  "GENERIC"  },
     { DriveConfig::Type::PLEXTOR,  "PLEXTOR"  },
     { DriveConfig::Type::LG_ASU8A, "LG_ASU8A" },
     { DriveConfig::Type::LG_ASU8B, "LG_ASU8B" },
-	{ DriveConfig::Type::LG_ASU8C, "LG_ASU8C" },
+    { DriveConfig::Type::LG_ASU8C, "LG_ASU8C" },
     { DriveConfig::Type::LG_ASU3,  "LG_ASU3"  },
     { DriveConfig::Type::LG_ASU2,  "LG_ASU2"  }
 };
 
 
 static const std::map<DriveConfig::ReadMethod, std::string> READ_METHOD_STRING = {
-	{ DriveConfig::ReadMethod::BE,      "BE"      },
+    { DriveConfig::ReadMethod::BE,      "BE"      },
     { DriveConfig::ReadMethod::D8,      "D8"      },
     { DriveConfig::ReadMethod::BE_CDDA, "BE_CDDA" }
 };
 
 
 static const std::map<DriveConfig::SectorOrder, std::string> SECTOR_ORDER_STRING = {
-	{ DriveConfig::SectorOrder::DATA_C2_SUB, "DATA_C2_SUB" },
+    { DriveConfig::SectorOrder::DATA_C2_SUB, "DATA_C2_SUB" },
     { DriveConfig::SectorOrder::DATA_SUB_C2, "DATA_SUB_C2" },
     { DriveConfig::SectorOrder::DATA_SUB,    "DATA_SUB"    },
-	{ DriveConfig::SectorOrder::DATA_C2,     "DATA_C2"     }
+    { DriveConfig::SectorOrder::DATA_C2,     "DATA_C2"     }
 };
 
 
@@ -252,11 +252,11 @@ static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = { -20150, -1150 };
 constexpr uint32_t ASUS_CACHE_ENTRY_SIZE = 0xB00;
 
 static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG = {
-	{ DriveConfig::Type::LG_ASU8A, { 8, 2806 } },
+    { DriveConfig::Type::LG_ASU8A, { 8, 2806 } },
     { DriveConfig::Type::LG_ASU8B, { 8, 1079 } },
     { DriveConfig::Type::LG_ASU8C, { 8, 1268 } },
     { DriveConfig::Type::LG_ASU3,  { 3, 1070 } },
-	{ DriveConfig::Type::LG_ASU2,  { 2, 586 }  }
+    { DriveConfig::Type::LG_ASU2,  { 2, 586 }  }
 };
 
 
@@ -265,372 +265,372 @@ static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG = {
 // (positive offset means that data has to be shifted left, negative - right)
 int32_t drive_get_generic_read_offset(const std::string &vendor, const std::string &product)
 {
-	int32_t offset = std::numeric_limits<int32_t>::max();
+    int32_t offset = std::numeric_limits<int32_t>::max();
 
-	// FIXME: clean up this AccurateRip mess later
-	std::string v(vendor);
-	if(vendor == "HL-DT-ST")
-		v = "LG Electronics";
-	else if(vendor == "JLMS")
-		v = "Lite-ON";
-	else if(vendor == "Matshita")
-		v = "Panasonic";
-	else
-		v = vendor;
+    // FIXME: clean up this AccurateRip mess later
+    std::string v(vendor);
+    if(vendor == "HL-DT-ST")
+        v = "LG Electronics";
+    else if(vendor == "JLMS")
+        v = "Lite-ON";
+    else if(vendor == "Matshita")
+        v = "Panasonic";
+    else
+        v = vendor;
 
-	std::string vendor_product(std::format("{} - {}", v, product));
-	if(auto it = DRIVE_READ_OFFSETS.find(vendor_product); it != DRIVE_READ_OFFSETS.end())
-		offset = it->second;
+    std::string vendor_product(std::format("{} - {}", v, product));
+    if(auto it = DRIVE_READ_OFFSETS.find(vendor_product); it != DRIVE_READ_OFFSETS.end())
+        offset = it->second;
 
-	return offset;
+    return offset;
 }
 
 
 export DriveQuery cmd_drive_query(SPTD &sptd)
 {
-	DriveQuery drive_query;
+    DriveQuery drive_query;
 
-	INQUIRY_StandardData inquiry_data;
-	auto status = cmd_inquiry(sptd, (uint8_t *)&inquiry_data, sizeof(inquiry_data), INQUIRY_VPDPageCode::SUPPORTED_PAGES, false, false);
-	if(status.status_code)
-		throw_line("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status));
+    INQUIRY_StandardData inquiry_data;
+    auto status = cmd_inquiry(sptd, (uint8_t *)&inquiry_data, sizeof(inquiry_data), INQUIRY_VPDPageCode::SUPPORTED_PAGES, false, false);
+    if(status.status_code)
+        throw_line("unable to query drive info, SCSI ({})", SPTD::StatusMessage(status));
 
-	drive_query.vendor_id = normalize_string(std::string((char *)inquiry_data.vendor_id, sizeof(inquiry_data.vendor_id)));
-	drive_query.product_id = normalize_string(std::string((char *)inquiry_data.product_id, sizeof(inquiry_data.product_id)));
-	drive_query.product_revision_level = normalize_string(std::string((char *)inquiry_data.product_revision_level, sizeof(inquiry_data.product_revision_level)));
-	drive_query.vendor_specific = normalize_string(std::string((char *)inquiry_data.vendor_specific, sizeof(inquiry_data.vendor_specific)));
+    drive_query.vendor_id = normalize_string(std::string((char *)inquiry_data.vendor_id, sizeof(inquiry_data.vendor_id)));
+    drive_query.product_id = normalize_string(std::string((char *)inquiry_data.product_id, sizeof(inquiry_data.product_id)));
+    drive_query.product_revision_level = normalize_string(std::string((char *)inquiry_data.product_revision_level, sizeof(inquiry_data.product_revision_level)));
+    drive_query.vendor_specific = normalize_string(std::string((char *)inquiry_data.vendor_specific, sizeof(inquiry_data.vendor_specific)));
 
-	return drive_query;
+    return drive_query;
 }
 
 
 export DriveConfig drive_get_config(const DriveQuery &drive_query)
 {
-	DriveConfig drive_config = DRIVE_CONFIG_GENERIC;
+    DriveConfig drive_config = DRIVE_CONFIG_GENERIC;
 
-	bool found = false;
-	for(auto const &di : KNOWN_DRIVES)
-	{
-		if((di.vendor_id.empty() || di.vendor_id == drive_query.vendor_id) && (di.product_id.empty() || di.product_id == drive_query.product_id)
-		    && (di.product_revision_level.empty() || di.product_revision_level == drive_query.product_revision_level))
-		{
-			drive_config = di;
-			found = true;
-			break;
-		}
-	}
+    bool found = false;
+    for(auto const &di : KNOWN_DRIVES)
+    {
+        if((di.vendor_id.empty() || di.vendor_id == drive_query.vendor_id) && (di.product_id.empty() || di.product_id == drive_query.product_id)
+            && (di.product_revision_level.empty() || di.product_revision_level == drive_query.product_revision_level))
+        {
+            drive_config = di;
+            found = true;
+            break;
+        }
+    }
 
-	drive_config.vendor_id = drive_query.vendor_id;
-	drive_config.product_id = drive_query.product_id;
-	drive_config.product_revision_level = drive_query.product_revision_level;
-	drive_config.vendor_specific = drive_query.vendor_specific;
+    drive_config.vendor_id = drive_query.vendor_id;
+    drive_config.product_id = drive_query.product_id;
+    drive_config.product_revision_level = drive_query.product_revision_level;
+    drive_config.vendor_specific = drive_query.vendor_specific;
 
-	if(!found)
-	{
-		int32_t database_read_offset = drive_get_generic_read_offset(drive_config.vendor_id, drive_config.product_id);
-		if(database_read_offset == std::numeric_limits<int32_t>::max())
-			LOG("warning: drive read offset not found in the database");
-		else
-			drive_config.read_offset = database_read_offset;
-	}
+    if(!found)
+    {
+        int32_t database_read_offset = drive_get_generic_read_offset(drive_config.vendor_id, drive_config.product_id);
+        if(database_read_offset == std::numeric_limits<int32_t>::max())
+            LOG("warning: drive read offset not found in the database");
+        else
+            drive_config.read_offset = database_read_offset;
+    }
 
-	return drive_config;
+    return drive_config;
 }
 
 
 AsusConfig asus_get_config(DriveConfig::Type type)
 {
-	AsusConfig asus_config = { 0, 0 };
+    AsusConfig asus_config = { 0, 0 };
 
-	auto it = ASUS_CACHE_CONFIG.find(type);
-	if(it != ASUS_CACHE_CONFIG.end())
-		asus_config = it->second;
+    auto it = ASUS_CACHE_CONFIG.find(type);
+    if(it != ASUS_CACHE_CONFIG.end())
+        asus_config = it->second;
 
-	return asus_config;
+    return asus_config;
 }
 
 
 export void drive_override_config(DriveConfig &drive_config, const std::string *type, const int *read_offset, const int *c2_shift, const int *pregap_start, const std::string *read_method,
     const std::string *sector_order)
 {
-	if(type != nullptr)
-		drive_config.type = string_to_enum(*type, TYPE_STRING);
+    if(type != nullptr)
+        drive_config.type = string_to_enum(*type, TYPE_STRING);
 
-	if(read_offset != nullptr)
-		drive_config.read_offset = *read_offset;
+    if(read_offset != nullptr)
+        drive_config.read_offset = *read_offset;
 
-	if(c2_shift != nullptr)
-		drive_config.c2_shift = *c2_shift;
+    if(c2_shift != nullptr)
+        drive_config.c2_shift = *c2_shift;
 
-	if(pregap_start != nullptr)
-		drive_config.pregap_start = *pregap_start;
+    if(pregap_start != nullptr)
+        drive_config.pregap_start = *pregap_start;
 
-	if(read_method != nullptr)
-		drive_config.read_method = string_to_enum(*read_method, READ_METHOD_STRING);
+    if(read_method != nullptr)
+        drive_config.read_method = string_to_enum(*read_method, READ_METHOD_STRING);
 
-	if(sector_order != nullptr)
-		drive_config.sector_order = string_to_enum(*sector_order, SECTOR_ORDER_STRING);
+    if(sector_order != nullptr)
+        drive_config.sector_order = string_to_enum(*sector_order, SECTOR_ORDER_STRING);
 }
 
 
 export std::string drive_info_string(const DriveConfig &drive_config)
 {
-	return std::format("{} - {} (revision level: {}, vendor specific: {})", drive_config.vendor_id, drive_config.product_id,
-	    drive_config.product_revision_level.empty() ? "<empty>" : drive_config.product_revision_level, drive_config.vendor_specific.empty() ? "<empty>" : drive_config.vendor_specific);
+    return std::format("{} - {} (revision level: {}, vendor specific: {})", drive_config.vendor_id, drive_config.product_id,
+        drive_config.product_revision_level.empty() ? "<empty>" : drive_config.product_revision_level, drive_config.vendor_specific.empty() ? "<empty>" : drive_config.vendor_specific);
 }
 
 
 export std::string drive_config_string(const DriveConfig &drive_config)
 {
-	return std::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})", enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset,
-	    drive_config.c2_shift, drive_config.pregap_start, enum_to_string(drive_config.read_method, READ_METHOD_STRING), enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
+    return std::format("{} (read offset: {:+}, C2 shift: {}, pre-gap start: {:+}, read method: {}, sector order: {})", enum_to_string(drive_config.type, TYPE_STRING), drive_config.read_offset,
+        drive_config.c2_shift, drive_config.pregap_start, enum_to_string(drive_config.read_method, READ_METHOD_STRING), enum_to_string(drive_config.sector_order, SECTOR_ORDER_STRING));
 }
 
 
 export bool drive_is_asus(const DriveConfig &drive_config)
 {
-	return ASUS_CACHE_CONFIG.find(drive_config.type) != ASUS_CACHE_CONFIG.end();
+    return ASUS_CACHE_CONFIG.find(drive_config.type) != ASUS_CACHE_CONFIG.end();
 }
 
 
 export void print_supported_drives()
 {
-	LOG("");
-	LOG("supported drives: ");
-	for(auto const &di : KNOWN_DRIVES)
-		if(di.type != DriveConfig::Type::GENERIC)
-			LOG("{}", drive_info_string(di));
-	LOG("");
+    LOG("");
+    LOG("supported drives: ");
+    for(auto const &di : KNOWN_DRIVES)
+        if(di.type != DriveConfig::Type::GENERIC)
+            LOG("{}", drive_info_string(di));
+    LOG("");
 }
 
 
 export SectorLayout sector_order_layout(const DriveConfig::SectorOrder &sector_order)
 {
-	SectorLayout sector_layout;
+    SectorLayout sector_layout;
 
-	switch(sector_order)
-	{
-	default:
-	case DriveConfig::SectorOrder::DATA_C2_SUB:
-		sector_layout.data_offset = 0;
-		sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;
-		sector_layout.subcode_offset = sector_layout.c2_offset + CD_C2_SIZE;
-		sector_layout.size = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
-		break;
+    switch(sector_order)
+    {
+    default:
+    case DriveConfig::SectorOrder::DATA_C2_SUB:
+        sector_layout.data_offset = 0;
+        sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;
+        sector_layout.subcode_offset = sector_layout.c2_offset + CD_C2_SIZE;
+        sector_layout.size = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
+        break;
 
-	case DriveConfig::SectorOrder::DATA_SUB_C2:
-		sector_layout.data_offset = 0;
-		sector_layout.subcode_offset = sector_layout.data_offset + CD_DATA_SIZE;
-		sector_layout.c2_offset = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
-		sector_layout.size = sector_layout.c2_offset + CD_C2_SIZE;
-		break;
+    case DriveConfig::SectorOrder::DATA_SUB_C2:
+        sector_layout.data_offset = 0;
+        sector_layout.subcode_offset = sector_layout.data_offset + CD_DATA_SIZE;
+        sector_layout.c2_offset = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
+        sector_layout.size = sector_layout.c2_offset + CD_C2_SIZE;
+        break;
 
-	case DriveConfig::SectorOrder::DATA_SUB:
-		sector_layout.data_offset = 0;
-		sector_layout.subcode_offset = sector_layout.data_offset + CD_DATA_SIZE;
-		sector_layout.size = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
-		sector_layout.c2_offset = CD_RAW_DATA_SIZE;
-		break;
+    case DriveConfig::SectorOrder::DATA_SUB:
+        sector_layout.data_offset = 0;
+        sector_layout.subcode_offset = sector_layout.data_offset + CD_DATA_SIZE;
+        sector_layout.size = sector_layout.subcode_offset + CD_SUBCODE_SIZE;
+        sector_layout.c2_offset = CD_RAW_DATA_SIZE;
+        break;
 
-	case DriveConfig::SectorOrder::DATA_C2:
-		sector_layout.data_offset = 0;
-		sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;
-		sector_layout.size = sector_layout.c2_offset + CD_C2_SIZE;
-		sector_layout.subcode_offset = CD_RAW_DATA_SIZE;
-		break;
-	}
+    case DriveConfig::SectorOrder::DATA_C2:
+        sector_layout.data_offset = 0;
+        sector_layout.c2_offset = sector_layout.data_offset + CD_DATA_SIZE;
+        sector_layout.size = sector_layout.c2_offset + CD_C2_SIZE;
+        sector_layout.subcode_offset = CD_RAW_DATA_SIZE;
+        break;
+    }
 
-	return sector_layout;
+    return sector_layout;
 }
 
 
 export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 {
-	std::vector<uint8_t> buffer;
+    std::vector<uint8_t> buffer;
 
-	buffer.reserve(5000 * PLEXTOR_LEADIN_ENTRY_SIZE);
+    buffer.reserve(5000 * PLEXTOR_LEADIN_ENTRY_SIZE);
 
-	int32_t neg_start = PLEXTOR_TOC_RANGE.first + 1;
-	int32_t neg_limit = PLEXTOR_TOC_RANGE.second + 1;
-	int32_t neg_end = neg_limit;
+    int32_t neg_start = PLEXTOR_TOC_RANGE.first + 1;
+    int32_t neg_limit = PLEXTOR_TOC_RANGE.second + 1;
+    int32_t neg_end = neg_limit;
 
-	for(int32_t neg = neg_start; neg < neg_end; ++neg)
-	{
-		uint32_t lba_index = neg - neg_start;
-		buffer.resize((lba_index + 1) * PLEXTOR_LEADIN_ENTRY_SIZE);
-		uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE];
-		auto &status = *(SPTD::Status *)entry;
+    for(int32_t neg = neg_start; neg < neg_end; ++neg)
+    {
+        uint32_t lba_index = neg - neg_start;
+        buffer.resize((lba_index + 1) * PLEXTOR_LEADIN_ENTRY_SIZE);
+        uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE];
+        auto &status = *(SPTD::Status *)entry;
 
-		LOGC_RF("{} [LBA: {:6}]", spinner_animation(), neg);
+        LOGC_RF("{} [LBA: {:6}]", spinner_animation(), neg);
 
-		std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
-		status = cmd_read_cdda(sptd, sector_buffer.data(), neg, 1, READ_CDDA_SubCode::DATA_SUB);
+        std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+        status = cmd_read_cdda(sptd, sector_buffer.data(), neg, 1, READ_CDDA_SubCode::DATA_SUB);
 
-		if(!status.status_code)
-		{
-			memcpy(entry + sizeof(SPTD::Status), sector_buffer.data(), sector_order_layout(DriveConfig::SectorOrder::DATA_SUB).size);
-			uint8_t *sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
+        if(!status.status_code)
+        {
+            memcpy(entry + sizeof(SPTD::Status), sector_buffer.data(), sector_order_layout(DriveConfig::SectorOrder::DATA_SUB).size);
+            uint8_t *sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
 
-			ChannelQ Q;
-			subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
+            ChannelQ Q;
+            subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
-			// DEBUG
-			//			LOG_R();
-			//			LOGC("{}", Q.Decode());
+            // DEBUG
+            //			LOG_R();
+            //			LOGC("{}", Q.Decode());
 
-			if(Q.isValid())
-			{
-				if(Q.adr == 1 && Q.mode1.tno && neg_end == neg_limit)
-					neg_end = neg + tail_size;
-			}
-		}
-	}
+            if(Q.isValid())
+            {
+                if(Q.adr == 1 && Q.mode1.tno && neg_end == neg_limit)
+                    neg_end = neg + tail_size;
+            }
+        }
+    }
 
-	LOGC_RF("");
+    LOGC_RF("");
 
-	return buffer;
+    return buffer;
 }
 
 
 export std::vector<uint8_t> asus_cache_read(SPTD &sptd, DriveConfig::Type drive_type)
 {
-	constexpr uint32_t read_size = 1024 * 64; // 64Kb
+    constexpr uint32_t read_size = 1024 * 64; // 64Kb
 
-	std::vector<uint8_t> cache(1024 * 1024 * asus_get_config(drive_type).size_mb);
+    std::vector<uint8_t> cache(1024 * 1024 * asus_get_config(drive_type).size_mb);
 
-	for(uint32_t offset = 0, n = (uint32_t)cache.size(); offset < n; offset += read_size)
-	{
-		SPTD::Status status = cmd_asus_read_cache(sptd, cache.data() + offset, offset, std::min(read_size, n - offset));
-		if(status.status_code)
-			throw_line("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
-	}
+    for(uint32_t offset = 0, n = (uint32_t)cache.size(); offset < n; offset += read_size)
+    {
+        SPTD::Status status = cmd_asus_read_cache(sptd, cache.data() + offset, offset, std::min(read_size, n - offset));
+        if(status.status_code)
+            throw_line("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
+    }
 
-	return cache;
+    return cache;
 }
 
 
 export std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32_t lba_start, uint32_t entries_count, DriveConfig::Type drive_type)
 {
-	uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
+    uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 
-	int32_t index_start = cache_entries_count;
-	std::pair<int32_t, int32_t> index_range = { cache_entries_count, cache_entries_count };
-	std::pair<int32_t, int32_t> lba_range;
+    int32_t index_start = cache_entries_count;
+    std::pair<int32_t, int32_t> index_range = { cache_entries_count, cache_entries_count };
+    std::pair<int32_t, int32_t> lba_range;
 
-	// try to find the exact match
-	for(uint32_t i = 0; i < cache_entries_count; ++i)
-	{
-		auto entry = (uint8_t *)&cache[ASUS_CACHE_ENTRY_SIZE * i];
-		uint8_t *sub_data = entry + 0x0930;
+    // try to find the exact match
+    for(uint32_t i = 0; i < cache_entries_count; ++i)
+    {
+        auto entry = (uint8_t *)&cache[ASUS_CACHE_ENTRY_SIZE * i];
+        uint8_t *sub_data = entry + 0x0930;
 
-		ChannelQ Q;
-		subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
+        ChannelQ Q;
+        subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
-		if(!Q.isValid())
-			continue;
+        if(!Q.isValid())
+            continue;
 
-		if(Q.adr != 1 || !Q.mode1.tno)
-			continue;
+        if(Q.adr != 1 || !Q.mode1.tno)
+            continue;
 
-		int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
-		if(lba == lba_start)
-		{
-			index_start = i;
-			break;
-		}
-		else if(lba < lba_start)
-		{
-			if(index_range.first == cache_entries_count || lba > lba_range.first)
-			{
-				index_range.first = i;
-				lba_range.first = lba;
-			}
-		}
-		else if(lba > lba_start)
-		{
-			if(index_range.second == cache_entries_count || lba < lba_range.second)
-			{
-				index_range.second = i;
-				lba_range.second = lba;
-			}
-		}
-	}
+        int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
+        if(lba == lba_start)
+        {
+            index_start = i;
+            break;
+        }
+        else if(lba < lba_start)
+        {
+            if(index_range.first == cache_entries_count || lba > lba_range.first)
+            {
+                index_range.first = i;
+                lba_range.first = lba;
+            }
+        }
+        else if(lba > lba_start)
+        {
+            if(index_range.second == cache_entries_count || lba < lba_range.second)
+            {
+                index_range.second = i;
+                lba_range.second = lba;
+            }
+        }
+    }
 
-	// calculate index_start based on valid range boundaries
-	if(index_start == cache_entries_count && index_range.first != cache_entries_count && index_range.second != cache_entries_count)
-	{
-		if(index_range.first > index_range.second)
-			index_range.second += cache_entries_count;
+    // calculate index_start based on valid range boundaries
+    if(index_start == cache_entries_count && index_range.first != cache_entries_count && index_range.second != cache_entries_count)
+    {
+        if(index_range.first > index_range.second)
+            index_range.second += cache_entries_count;
 
-		if(lba_range.second - lba_range.first == index_range.second - index_range.first)
-			index_start = (index_range.first + lba_start - lba_range.first) % cache_entries_count;
-	}
+        if(lba_range.second - lba_range.first == index_range.second - index_range.first)
+            index_start = (index_range.first + lba_start - lba_range.first) % cache_entries_count;
+    }
 
-	std::vector<uint8_t> data;
+    std::vector<uint8_t> data;
 
-	if(!entries_count || entries_count > cache_entries_count)
-		entries_count = cache_entries_count;
+    if(!entries_count || entries_count > cache_entries_count)
+        entries_count = cache_entries_count;
 
-	if(index_start != cache_entries_count)
-	{
-		data.reserve(entries_count * CD_RAW_DATA_SIZE);
+    if(index_start != cache_entries_count)
+    {
+        data.reserve(entries_count * CD_RAW_DATA_SIZE);
 
-		bool last_valid = true;
-		for(uint32_t i = 0; i < entries_count; ++i)
-		{
-			uint32_t index = (index_start + i) % cache_entries_count;
-			auto entry = (uint8_t *)&cache[ASUS_CACHE_ENTRY_SIZE * index];
-			uint8_t *main_data = entry + 0x0000;
-			uint8_t *c2_data = entry + 0x09A4;
-			uint8_t *sub_data = entry + 0x0930;
+        bool last_valid = true;
+        for(uint32_t i = 0; i < entries_count; ++i)
+        {
+            uint32_t index = (index_start + i) % cache_entries_count;
+            auto entry = (uint8_t *)&cache[ASUS_CACHE_ENTRY_SIZE * index];
+            uint8_t *main_data = entry + 0x0000;
+            uint8_t *c2_data = entry + 0x09A4;
+            uint8_t *sub_data = entry + 0x0930;
 
-			ChannelQ Q;
-			subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
+            ChannelQ Q;
+            subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
-			if(Q.isValid())
-			{
-				if(Q.adr == 1 && Q.mode1.tno && lba_start + i != BCDMSF_to_LBA(Q.mode1.a_msf))
-					break;
+            if(Q.isValid())
+            {
+                if(Q.adr == 1 && Q.mode1.tno && lba_start + i != BCDMSF_to_LBA(Q.mode1.a_msf))
+                    break;
 
-				last_valid = true;
-			}
-			else
-				last_valid = false;
+                last_valid = true;
+            }
+            else
+                last_valid = false;
 
-			data.insert(data.end(), main_data, main_data + CD_DATA_SIZE);
-			data.insert(data.end(), c2_data, c2_data + CD_C2_SIZE);
-			data.insert(data.end(), sub_data, sub_data + CD_SUBCODE_SIZE);
-		}
+            data.insert(data.end(), main_data, main_data + CD_DATA_SIZE);
+            data.insert(data.end(), c2_data, c2_data + CD_C2_SIZE);
+            data.insert(data.end(), sub_data, sub_data + CD_SUBCODE_SIZE);
+        }
 
-		// pop back last cache entry as it's likely incomplete if Q is invalid
-		// confirmed by analyzing cache dump where Q was partially overwritten with newer data
-		if(!last_valid)
-		{
-			constexpr uint32_t trim_size = 1 * CD_RAW_DATA_SIZE;
-			uint32_t new_size = data.size() < trim_size ? 0 : data.size() - trim_size;
-			data.resize(new_size);
-		}
-	}
+        // pop back last cache entry as it's likely incomplete if Q is invalid
+        // confirmed by analyzing cache dump where Q was partially overwritten with newer data
+        if(!last_valid)
+        {
+            constexpr uint32_t trim_size = 1 * CD_RAW_DATA_SIZE;
+            uint32_t new_size = data.size() < trim_size ? 0 : data.size() - trim_size;
+            data.resize(new_size);
+        }
+    }
 
-	return data;
+    return data;
 }
 
 
 export void asus_cache_print_subq(const std::vector<uint8_t> &cache, DriveConfig::Type drive_type)
 {
-	uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
+    uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 
-	for(uint32_t i = 0; i < cache_entries_count; ++i)
-	{
-		auto entry = (uint8_t *)&cache[ASUS_CACHE_ENTRY_SIZE * i];
-		uint8_t *sub_data = entry + 0x0930;
+    for(uint32_t i = 0; i < cache_entries_count; ++i)
+    {
+        auto entry = (uint8_t *)&cache[ASUS_CACHE_ENTRY_SIZE * i];
+        uint8_t *sub_data = entry + 0x0930;
 
-		ChannelQ Q;
-		subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
+        ChannelQ Q;
+        subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
 
-		int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
-		LOG("{:4} {:6}: {}", i, lba, Q.Decode());
-	}
+        int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
+        LOG("{:4} {:6}: {}", i, lba, Q.Decode());
+    }
 }
 
 }

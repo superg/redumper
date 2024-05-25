@@ -2,7 +2,8 @@ name: CMake
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
+  pull_request:
 
 env:
   build_directory: ${{github.workspace}}/BUILD
@@ -46,7 +47,7 @@ jobs:
         brew install cmake
 
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: 'true'
 
@@ -84,7 +85,7 @@ jobs:
       run: cpack -G ZIP --config CPackConfig.cmake
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{env.release_name}}
         path: ${{env.build_directory}}/redumper-*.zip
@@ -94,10 +95,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Download Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         id: download
         with:
           name: ${{env.release_name}}

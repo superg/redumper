@@ -41,6 +41,7 @@ enum class LayerType : uint8_t
 };
 
 
+// clang-format off
 static const std::string BOOK_TYPE[] =
 {
 	"DVD-ROM",
@@ -153,6 +154,7 @@ static const std::string BLURAY_CHANNEL_LENGTH[] =
 	"reserved12",
 	"reserved13"
 };
+// clang-format on
 
 
 uint32_t get_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor)

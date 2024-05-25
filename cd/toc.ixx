@@ -312,6 +312,7 @@ export struct TOC
 
 	void updateMCN(const ChannelQ *subq, uint32_t sectors_count)
 	{
+		// clang-format off
 		constexpr char ISRC_TABLE[] =
 		{
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_', '_', '_', '_', '_', '_',
@@ -319,6 +320,7 @@ export struct TOC
 			'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '_', '_', '_', '_', '_',
 			'_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'
 		};
+		// clang-format on
 
 		// build linear track array
 		std::vector<Session::Track *> tracks;

@@ -196,6 +196,7 @@ private:
 		// taken from DIC
 		const char ANTIMOD_MESSAGE_EN[] = "     SOFTWARE TERMINATED\nCONSOLE MAY HAVE BEEN MODIFIED\n     CALL 1-888-780-7690";
 		// string is encoded with Shift JIS
+		// clang-format off
 		const uint8_t ANTIMOD_MESSAGE_JP[] =
 		{
 			// 強制終了しました。
@@ -205,6 +206,7 @@ private:
 			// おそれがあります。
 			0x82, 0xa8, 0x82, 0xbb, 0x82, 0xea, 0x82, 0xaa, 0x82, 0xa0, 0x82, 0xe8, 0x82, 0xdc, 0x82, 0xb7, 0x81, 0x42
 		};
+		// clang-format on
 
 		iso9660::Browser::iterate(root_directory, [&](const std::string &path, std::shared_ptr<iso9660::Entry> d)
 		{

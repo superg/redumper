@@ -132,6 +132,7 @@ static const DriveConfig DRIVE_CONFIG_GENERIC = {"", "", "", "", 0, 0, 0, DriveC
 // the same normalize operation is performed when detecting the drive and looking up the read offset
 // match is performed on the vendor / product / revision level, vendor specific is just for my reference for the drives I own
 // if string is empty, the match is always true
+// clang-format off
 static const std::vector<DriveConfig> KNOWN_DRIVES =
 {
 	// PLEXTOR OLD
@@ -220,6 +221,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 	{"ASUS"    , "DRW-24D5MT"      , "1.00", "O01790C K82G7MG1309",    +6, 0, -135, DriveConfig::ReadMethod::BE_CDDA, DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC}, // Silent
 //	{"hp"      , "DVD-RAM SW810"   , "HA05", "1228TP0310"         ,    +6, 0, -135, DriveConfig::ReadMethod::BE     , DriveConfig::SectorOrder::DATA_SUB_C2, DriveConfig::Type::GENERIC},
 };
+// clang-format on
 
 
 // Plextor firmware blocked LBA ranges:

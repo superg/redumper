@@ -16,6 +16,7 @@ import utils.misc;
 namespace gpsxre
 {
 
+// clang-format off
 static const uint32_t READ_CD_C2_SIZES[] =
 {
 	0,
@@ -48,6 +49,7 @@ static const uint32_t READ_CDDA_SIZES[] =
 	0,
 	CD_RAW_DATA_SIZE
 };
+// clang-format on
 
 
 export void strip_response_header(std::vector<uint8_t> &data)

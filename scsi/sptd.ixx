@@ -11,9 +11,9 @@ module;
 #include "throw_line.hh"
 
 #if defined(_WIN32)
+#include <windows.h>
 #include <ntddscsi.h>
 #include <scsi.h>
-#include <windows.h>
 #elif defined(__APPLE__)
 #include <IOKit/IOBSD.h>
 #include <IOKit/scsi/SCSITaskLib.h>

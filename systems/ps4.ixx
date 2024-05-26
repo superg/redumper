@@ -27,12 +27,6 @@ public:
     }
 
 
-    Type getType() override
-    {
-        return Type::ISO;
-    }
-
-
     void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override
     {
         iso9660::PrimaryVolumeDescriptor pvd;

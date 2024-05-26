@@ -12,7 +12,7 @@ Available for Windows, Linux and macOS.
 
 ## General
 redumper operates using commands.
-The preferred way is to run it without command argument (equivalent to running `redumper cd`). This is the most common use case that will dump the disc and generate the dump files. Everything that can be automated, is automated. If `--drive` option is not specified, the first available drive with the inserted disc will be used. If `--image-name` option is not specified, it will be generated based on the current date and drive name.
+The preferred way is to run it without arguments (equivalent to running `redumper cd`). This is the most common use case that will dump the disc and generate the dump files. Everything that can be automated, is automated. If `--drive` option is not specified, the first available drive with the inserted disc will be used. If `--image-name` option is not specified, it will be generated based on the current date and drive name.
 
 The updated command list is always available by running `redumper --help`.
 
@@ -140,8 +140,12 @@ Force generation of track split with track errors, just because you really want 
 
 ## Building from Source
 
-redumper is using C++20 standard features such as modules, this requires latest C++ compiler. Currently that limits you to latest MSVC and LLVM/Clang 16 with supported libc++.
-Also you will need latest CMake and ninja. For the detail build instructions, please check my GitHub Actions workflow [HERE](.github/workflows/cmake.yml). I do not provide Docker container and I will not be able to troubleshoot your build issues. If my GitHub Action CI/CD can build it, so can you.
+redumper is using C++ modules, this requires latest C++20 compiler and build tools:
+- LLVM/Clang 18 (Linux & macOS) or Microsoft Visual Studio 2022 (Windows)
+- Ninja 1.11 (Linux & macOS only)
+- CMake 3.28
 
-## Help
-My Discord username: *supermegag*, no guarantees.
+For the detail build instructions, please check my GitHub Actions workflow [HERE](.github/workflows/cmake.yml). I do not provide Docker container and I will not be able to troubleshoot your build issues. If my GitHub Actions CI/CD can build it, so can you.
+
+## Contact
+Discord: **supermegag**

@@ -3,9 +3,9 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <list>
+#include <sstream>
 #include <string>
 #include <utility>
-#include <sstream>
 #include "systems/system.hh"
 #include "throw_line.hh"
 
@@ -32,67 +32,67 @@ namespace gpsxre
 
 enum class TrackType
 {
-	DATA,
-	AUDIO,
-	ISO
+    DATA,
+    AUDIO,
+    ISO
 };
 
 
 export void redumper_info(Context &ctx, Options &options)
 {
-	image_check_empty(options);
+    image_check_empty(options);
 
-	auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
-	std::list<std::pair<std::filesystem::path, TrackType>> tracks;
-	if(std::filesystem::exists(image_prefix + ".cue"))
-	{
-		for(auto const &t : cue_get_entries(image_prefix + ".cue"))
-			tracks.emplace_back(std::filesystem::path(options.image_path) / t.first, t.second ? TrackType::DATA : TrackType::AUDIO);
-	}
-	else if(std::filesystem::exists(image_prefix + ".iso"))
-	{
-		tracks.emplace_back(image_prefix + ".iso", TrackType::ISO);
-	}
-	else
-		throw_line("image file not found");
+    std::list<std::pair<std::filesystem::path, TrackType>> tracks;
+    if(std::filesystem::exists(image_prefix + ".cue"))
+    {
+        for(auto const &t : cue_get_entries(image_prefix + ".cue"))
+            tracks.emplace_back(std::filesystem::path(options.image_path) / t.first, t.second ? TrackType::DATA : TrackType::AUDIO);
+    }
+    else if(std::filesystem::exists(image_prefix + ".iso"))
+    {
+        tracks.emplace_back(image_prefix + ".iso", TrackType::ISO);
+    }
+    else
+        throw_line("image file not found");
 
-	bool separate_nl = false;
-	for(auto const &t : tracks)
-	{
-		std::shared_ptr<SectorReader> raw_reader;
-		std::shared_ptr<SectorReader> form1_reader;
+    bool separate_nl = false;
+    for(auto const &t : tracks)
+    {
+        std::shared_ptr<SectorReader> raw_reader;
+        std::shared_ptr<SectorReader> form1_reader;
 
-		if(t.second == TrackType::ISO)
-			form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
-		else if(t.second == TrackType::DATA)
-		{
-			raw_reader = std::make_shared<Image_RawReader>(t.first);
-			form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);
-		}
+        if(t.second == TrackType::ISO)
+            form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
+        else if(t.second == TrackType::DATA)
+        {
+            raw_reader = std::make_shared<Image_RawReader>(t.first);
+            form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);
+        }
 
-		for(auto const &s : Systems::get())
-		{
-			auto system = s();
+        for(auto const &s : Systems::get())
+        {
+            auto system = s();
 
-			auto reader = system->getType() == System::Type::ISO ? form1_reader : raw_reader;
-			if(!reader)
-				continue;
+            auto reader = system->getType() == System::Type::ISO ? form1_reader : raw_reader;
+            if(!reader)
+                continue;
 
-			std::stringstream ss;
-			system->printInfo(ss, reader.get(), t.first);
+            std::stringstream ss;
+            system->printInfo(ss, reader.get(), t.first);
 
-			if(ss.rdbuf()->in_avail())
-			{
-				if(separate_nl)
-					LOG("");
-				separate_nl = true;
+            if(ss.rdbuf()->in_avail())
+            {
+                if(separate_nl)
+                    LOG("");
+                separate_nl = true;
 
-				LOG("{} [{}]:", system->getName(), t.first.filename().string());
-				LOG_F("{}", ss.str());
-			}
-		}
-	}
+                LOG("{} [{}]:", system->getName(), t.first.filename().string());
+                LOG_F("{}", ss.str());
+            }
+        }
+    }
 }
 
 }

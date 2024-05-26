@@ -32,210 +32,209 @@ namespace gpsxre
 
 std::string region_string(uint8_t region_bits)
 {
-	std::string region;
+    std::string region;
 
-	for(uint32_t i = 0; i < CHAR_BIT; ++i)
-		if(!(region_bits & 1 << i))
-			region += std::to_string(i + 1) + " ";
+    for(uint32_t i = 0; i < CHAR_BIT; ++i)
+        if(!(region_bits & 1 << i))
+            region += std::to_string(i + 1) + " ";
 
-	if(!region.empty())
-		region.pop_back();
+    if(!region.empty())
+        region.pop_back();
 
-	return region;
+    return region;
 }
 
 
 std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(SectorReader *sector_reader)
 {
-	std::map<std::string, std::pair<uint32_t, uint32_t>> titles;
+    std::map<std::string, std::pair<uint32_t, uint32_t>> titles;
 
-	iso9660::PrimaryVolumeDescriptor pvd;
-	if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
-		return titles;
+    iso9660::PrimaryVolumeDescriptor pvd;
+    if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
+        return titles;
 
-	auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
-	auto video_ts = root_directory->subEntry("VIDEO_TS");
-	if(!video_ts)
-		return titles;
+    auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
+    auto video_ts = root_directory->subEntry("VIDEO_TS");
+    if(!video_ts)
+        return titles;
 
-	auto entries = video_ts->entries();
-	for(auto e : entries)
-	{
-		if(e->isDirectory())
-			continue;
+    auto entries = video_ts->entries();
+    for(auto e : entries)
+    {
+        if(e->isDirectory())
+            continue;
 
-		if(e->name().ends_with(".VOB"))
-			titles[e->name()] = std::pair(e->sectorsOffset(), e->sectorsOffset() + e->sectorsSize());
-	}
+        if(e->name().ends_with(".VOB"))
+            titles[e->name()] = std::pair(e->sectorsOffset(), e->sectorsOffset() + e->sectorsSize());
+    }
 
-	return titles;
+    return titles;
 }
 
 
 std::map<std::pair<uint32_t, uint32_t>, std::vector<uint8_t>> create_vts_groups(const std::map<std::string, std::pair<uint32_t, uint32_t>> &vobs)
 {
-	std::vector<std::pair<uint32_t, uint32_t>> groups;
+    std::vector<std::pair<uint32_t, uint32_t>> groups;
 
-	for(auto const &v : vobs)
-		groups.push_back(v.second);
-	std::sort(groups.begin(), groups.end(), [](const std::pair<uint32_t, uint32_t> &v1, const std::pair<uint32_t, uint32_t> &v2)
-			-> bool { return v1.first < v2.first; });
-	for(bool merge = true; merge;)
-	{
-		merge = false;
-		for(uint32_t i = 0; i + 1 < groups.size(); ++i)
-		{
-			if(groups[i].second == groups[i + 1].first)
-			{
-				groups[i].second = groups[i + 1].second;
-				groups.erase(groups.begin() + i + 1);
+    for(auto const &v : vobs)
+        groups.push_back(v.second);
+    std::sort(groups.begin(), groups.end(), [](const std::pair<uint32_t, uint32_t> &v1, const std::pair<uint32_t, uint32_t> &v2) -> bool { return v1.first < v2.first; });
+    for(bool merge = true; merge;)
+    {
+        merge = false;
+        for(uint32_t i = 0; i + 1 < groups.size(); ++i)
+        {
+            if(groups[i].second == groups[i + 1].first)
+            {
+                groups[i].second = groups[i + 1].second;
+                groups.erase(groups.begin() + i + 1);
 
-				merge = true;
-				break;
-			}
-		}
-	}
+                merge = true;
+                break;
+            }
+        }
+    }
 
-	std::map<std::pair<uint32_t, uint32_t>, std::vector<uint8_t>> vts;
-	for(auto const &g : groups)
-		vts[g] = std::vector<uint8_t>();
+    std::map<std::pair<uint32_t, uint32_t>, std::vector<uint8_t>> vts;
+    for(auto const &g : groups)
+        vts[g] = std::vector<uint8_t>();
 
-	return vts;
+    return vts;
 }
 
 
 export void dvd_key(Context &ctx, const Options &options)
 {
-	// protection
-	std::vector<uint8_t> copyright;
-	auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
-	if(!status.status_code)
-	{
-		strip_response_header(copyright);
+    // protection
+    std::vector<uint8_t> copyright;
+    auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
+    if(!status.status_code)
+    {
+        strip_response_header(copyright);
 
-		auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
-		auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
+        auto ci = (READ_DVD_STRUCTURE_CopyrightInformation *)copyright.data();
+        auto cpst = (READ_DVD_STRUCTURE_CopyrightInformation_CPST)ci->copyright_protection_system_type;
 
-		LOG("copyright: ");
+        LOG("copyright: ");
 
-		std::string protection("unknown");
-		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::NONE)
-			protection = "<none>";
-		else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
-			protection = "CSS/CPPM";
-		else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
-			protection = "CPRM";
-		LOG("  protection system type: {}", protection);
-		LOG("  region management information: {}", region_string(ci->region_management_information));
+        std::string protection("unknown");
+        if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::NONE)
+            protection = "<none>";
+        else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
+            protection = "CSS/CPPM";
+        else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
+            protection = "CPRM";
+        LOG("  protection system type: {}", protection);
+        LOG("  region management information: {}", region_string(ci->region_management_information));
 
-		if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
-		{
-			Disc_READ_Reader reader(*ctx.sptd, 0);
-			auto vobs = extract_vob_list(&reader);
+        if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
+        {
+            Disc_READ_Reader reader(*ctx.sptd, 0);
+            auto vobs = extract_vob_list(&reader);
 
-			bool cppm = false;
+            bool cppm = false;
 
-			CSS css(*ctx.sptd);
+            CSS css(*ctx.sptd);
 
-			auto disc_key = css.getDiscKey(cppm);
-			if(!disc_key.empty())
-				LOG("  disc key: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}", disc_key[0], disc_key[1], disc_key[2], disc_key[3], disc_key[4]);
+            auto disc_key = css.getDiscKey(cppm);
+            if(!disc_key.empty())
+                LOG("  disc key: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}", disc_key[0], disc_key[1], disc_key[2], disc_key[3], disc_key[4]);
 
-			if(!vobs.empty())
-			{
-				// determine continuous VTS groups
-				auto vts = create_vts_groups(vobs);
+            if(!vobs.empty())
+            {
+                // determine continuous VTS groups
+                auto vts = create_vts_groups(vobs);
 
-				// attempt to get title keys from the disc
-				for(auto &v : vts)
-					v.second = css.getTitleKey(disc_key, v.first.first, cppm);
+                // attempt to get title keys from the disc
+                for(auto &v : vts)
+                    v.second = css.getTitleKey(disc_key, v.first.first, cppm);
 
-				// authenticate for reading
-				css.getDiscKey(cppm);
+                // authenticate for reading
+                css.getDiscKey(cppm);
 
-				// crack remaining title keys (region lock)
-				for(auto &v : vts)
-					if(v.second.empty())
-						v.second = CSS::crackTitleKey(v.first.first, v.first.second, reader);
+                // crack remaining title keys (region lock)
+                for(auto &v : vts)
+                    if(v.second.empty())
+                        v.second = CSS::crackTitleKey(v.first.first, v.first.second, reader);
 
-				// assign keys from VTS groups to individual files
-				std::map<std::string, std::vector<uint8_t>> title_keys;
-				for(auto const &v : vobs)
-				{
-					for(auto const &vv : vts)
-						if(v.second.first >= vv.first.first && v.second.second <= vv.first.second)
-						{
-							title_keys[v.first] = vv.second;
-							break;
-						}
-				}
+                // assign keys from VTS groups to individual files
+                std::map<std::string, std::vector<uint8_t>> title_keys;
+                for(auto const &v : vobs)
+                {
+                    for(auto const &vv : vts)
+                        if(v.second.first >= vv.first.first && v.second.second <= vv.first.second)
+                        {
+                            title_keys[v.first] = vv.second;
+                            break;
+                        }
+                }
 
-				LOG("  title keys:");
-				for(auto const &t : title_keys)
-				{
-					std::string title_key;
-					if(t.second.empty())
-						title_key = "<error>";
-					else if(is_zeroed(t.second.data(), t.second.size()))
-						title_key = "<none>";
-					else
-						title_key = std::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.second[0], t.second[1], t.second[2], t.second[3], t.second[4]);
+                LOG("  title keys:");
+                for(auto const &t : title_keys)
+                {
+                    std::string title_key;
+                    if(t.second.empty())
+                        title_key = "<error>";
+                    else if(is_zeroed(t.second.data(), t.second.size()))
+                        title_key = "<none>";
+                    else
+                        title_key = std::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.second[0], t.second[1], t.second[2], t.second[3], t.second[4]);
 
-					LOG("    {}: {}", t.first, title_key);
-				}
-			}
-		}
-		else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
-		{
-			LOG("warning: CPRM protection is unsupported");
-		}
-	}
+                    LOG("    {}: {}", t.first, title_key);
+                }
+            }
+        }
+        else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
+        {
+            LOG("warning: CPRM protection is unsupported");
+        }
+    }
 }
 
 
 export void redumper_dvdisokey(Context &ctx, Options &options)
 {
-	image_check_empty(options);
+    image_check_empty(options);
 
-	std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
+    std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
 
-	Image_ISO_Reader reader(scm_path);
-	auto vobs = extract_vob_list(&reader);
-	if(!vobs.empty())
-	{
-		// determine continuous VTS groups
-		auto vts = create_vts_groups(vobs);
+    Image_ISO_Reader reader(scm_path);
+    auto vobs = extract_vob_list(&reader);
+    if(!vobs.empty())
+    {
+        // determine continuous VTS groups
+        auto vts = create_vts_groups(vobs);
 
-		// crack title keys
-		for(auto &v : vts)
-			v.second = CSS::crackTitleKey(v.first.first, v.first.second, reader);
+        // crack title keys
+        for(auto &v : vts)
+            v.second = CSS::crackTitleKey(v.first.first, v.first.second, reader);
 
-		// assign keys from VTS groups to individual files
-		std::map<std::string, std::vector<uint8_t>> title_keys;
-		for(auto const &v : vobs)
-		{
-			for(auto const &vv : vts)
-				if(v.second.first >= vv.first.first && v.second.second <= vv.first.second)
-				{
-					title_keys[v.first] = vv.second;
-					break;
-				}
-		}
+        // assign keys from VTS groups to individual files
+        std::map<std::string, std::vector<uint8_t>> title_keys;
+        for(auto const &v : vobs)
+        {
+            for(auto const &vv : vts)
+                if(v.second.first >= vv.first.first && v.second.second <= vv.first.second)
+                {
+                    title_keys[v.first] = vv.second;
+                    break;
+                }
+        }
 
-		LOG("title keys:");
-		for(auto const &t : title_keys)
-		{
-			std::string title_key;
-			if(t.second.empty())
-				title_key = "<error>";
-			else if(is_zeroed(t.second.data(), t.second.size()))
-				title_key = "<none>";
-			else
-				title_key = std::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.second[0], t.second[1], t.second[2], t.second[3], t.second[4]);
+        LOG("title keys:");
+        for(auto const &t : title_keys)
+        {
+            std::string title_key;
+            if(t.second.empty())
+                title_key = "<error>";
+            else if(is_zeroed(t.second.data(), t.second.size()))
+                title_key = "<none>";
+            else
+                title_key = std::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.second[0], t.second[1], t.second[2], t.second[3], t.second[4]);
 
-			LOG("  {}: {}", t.first, title_key);
-		}
-	}
+            LOG("  {}: {}", t.first, title_key);
+        }
+    }
 }
 
 }

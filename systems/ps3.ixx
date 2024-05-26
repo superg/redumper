@@ -1,10 +1,10 @@
 module;
-#include <algorithm>
-#include <array>
 #include <filesystem>
 #include <format>
 #include <map>
 #include <ostream>
+#include <span>
+#include <string_view>
 #include "system.hh"
 #include "throw_line.hh"
 
@@ -13,7 +13,6 @@ export module systems.ps3;
 import filesystem.iso9660;
 import readers.sector_reader;
 import utils.endian;
-import utils.misc;
 import utils.strings;
 
 
@@ -43,171 +42,149 @@ public:
             return;
         auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
 
-        // Parse SFB and SFO files, if present
-        auto ps3_disc_sfb = loadSFB(root_directory, "PS3_DISC.SFB");
-        auto param_sfo = loadSFO(root_directory, "PS3_GAME/PARAM.SFO");
+        auto ps3_disc_sfb = loadSFB(root_directory->subEntry("PS3_DISC.SFB"));
 
-        // Print version, prefer SFB over SFO
-        auto it = ps3_disc_sfb.find("VERSION");
-        if(it != ps3_disc_sfb.end())
-            os << std::format("  version: {}", it->second) << std::endl;
-        else
+        std::string serial;
+        if(auto it = ps3_disc_sfb.find("TITLE_ID"); it != ps3_disc_sfb.end())
+            serial = it->second;
+
+        std::string version;
+        if(auto it = ps3_disc_sfb.find("VERSION"); it != ps3_disc_sfb.end())
+            version = it->second;
+
+        // update missing info from SFO
+        if(serial.empty() || version.empty())
         {
-            auto it = param_sfo.find("VERSION");
-            if(it != param_sfo.end())
-                os << std::format("  version: {}", it->second) << std::endl;
+            auto sfo_entry = root_directory->subEntry("PS3_GAME/PARAM.SFO");
+            if(sfo_entry)
+            {
+                auto sfo_raw = sfo_entry->read();
+                auto param_sfo = parseSFO(sfo_raw);
+
+                if(auto it = param_sfo.find("TITLE_ID"); it != param_sfo.end() && serial.empty())
+                {
+                    serial = it->second;
+                    serial.insert(4, "-");
+                }
+
+                if(auto it = param_sfo.find("VERSION"); it != param_sfo.end() && version.empty())
+                    version = it->second;
+            }
         }
 
-        // Print serial, prefer SFB over SFO
-        it = ps3_disc_sfb.find("TITLE_ID");
-        if(it != ps3_disc_sfb.end())
-            os << std::format("  serial: {}", it->second) << std::endl;
-        else
-        {
-            it = param_sfo.find("TITLE_ID");
-            if(it != param_sfo.end())
-                os << std::format("  serial: {}", it->second.insert(4, "-")) << std::endl;
-        }
+        if(!version.empty())
+            os << std::format("  version: {}", version) << std::endl;
+
+        if(!serial.empty())
+            os << std::format("  serial: {}", serial) << std::endl;
     }
 
 private:
-    static constexpr std::array<char, 4> _SFB_MAGIC = { 0x2E, 0x53, 0x46, 0x42 };
-    static constexpr std::array<char, 4> _SFO_MAGIC = { 0x00, 0x50, 0x53, 0x46 };
-
     struct SFBHeader
     {
-        char magic[4];
+        uint8_t magic[4];
         uint32_t version;
-        char unknown[24];
-        struct
+        uint8_t reserved[24];
+        struct Field
         {
-            char key[16];
+            uint8_t key[16];
             uint32_t offset;
             uint32_t length;
-            char reserved[8];
+            uint8_t reserved[8];
         } field[15];
     };
 
-
     struct SFOHeader
     {
-        char magic[4];
+        uint8_t magic[4];
         uint32_t version;
         uint32_t key_table;
         uint32_t value_table;
         uint32_t param_count;
     };
 
-
     struct SFOParam
     {
         uint16_t key_offset;
-        uint16_t value_format;
+        enum class ValueFormat : uint16_t
+        {
+            UTF8_S = 0x0400,
+            UTF8 = 0x0402,
+            NUMERIC = 0x0404
+        } value_format;
         uint32_t value_length;
         uint32_t value_max_len;
         uint32_t value_offset;
     };
 
 
-    std::map<std::string, std::string> loadSFB(std::shared_ptr<iso9660::Entry> root_directory, std::string sfb_file) const
+    std::map<std::string, std::string> loadSFB(std::shared_ptr<iso9660::Entry> sfb_entry) const
     {
         std::map<std::string, std::string> sfb;
 
-        auto sfb_entry = root_directory->subEntry(sfb_file);
-        if(sfb_entry)
+        if(!sfb_entry)
+            return sfb;
+
+        auto sfb_raw = sfb_entry->read();
+        if(sfb_raw.size() < sizeof(SFBHeader))
+            return sfb;
+
+        auto sfb_header = (SFBHeader &)sfb_raw[0];
+        if(std::string_view((char *)sfb_header.magic, sizeof(sfb_header.magic)) != ".SFB")
+            return sfb;
+
+        for(auto const &f : sfb_header.field)
         {
-            auto sfb_raw = sfb_entry->read();
-            if(sfb_raw.size() < sizeof(SFBHeader))
-                return sfb;
+            std::string key(std::string((char *)f.key, sizeof(f.key)).c_str());
+            if(key.empty())
+                break;
 
-            auto sfb_header = (SFBHeader *)sfb_raw.data();
+            uint32_t offset = endian_swap(f.offset);
+            uint32_t length = endian_swap(f.length);
+            if(offset + length > sfb_raw.size())
+                continue;
 
-            if(memcmp(sfb_header->magic, _SFB_MAGIC.data(), _SFB_MAGIC.size()))
-                return sfb;
+            std::string value(std::string((char *)&sfb_raw[offset], length).c_str());
 
-            for(int i = 0; i < 15; ++i)
-            {
-                std::string key(sfb_header->field[i].key, sizeof(sfb_header->field[i].key));
-                erase_all_inplace(key, '\0');
-                trim_inplace(key);
-                if(key.empty())
-                    return sfb;
-
-                uint32_t offset = endian_swap(sfb_header->field[i].offset);
-                uint32_t length = endian_swap(sfb_header->field[i].length);
-                if(sfb_raw.size() < offset + length)
-                    return sfb;
-
-                std::string value(sfb_raw.begin() + offset, sfb_raw.begin() + offset + length);
-                erase_all_inplace(value, '\0');
-
-                sfb.emplace(key, value);
-            }
+            sfb.emplace(key, value);
         }
 
         return sfb;
     }
 
-
-    std::map<std::string, std::string> loadSFO(std::shared_ptr<iso9660::Entry> root_directory, std::string sfo_file) const
+protected:
+    std::map<std::string, std::string> parseSFO(std::span<uint8_t> sfo_raw) const
     {
         std::map<std::string, std::string> sfo;
 
-        auto sfo_entry = root_directory->subEntry(sfo_file);
-        if(sfo_entry)
+        if(sfo_raw.size() < sizeof(SFOHeader))
+            return sfo;
+
+        auto sfo_header = (SFOHeader &)sfo_raw[0];
+        if(std::string_view((char *)sfo_header.magic, sizeof(sfo_header.magic)) != std::string("\0PSF", 4))
+            return sfo;
+
+        if(sfo_header.param_count > 255 || sizeof(SFOHeader) + sfo_header.param_count * sizeof(SFOParam) > sfo_raw.size())
+            return sfo;
+
+        auto params = (SFOParam *)&sfo_raw[sizeof(SFOHeader)];
+        for(uint32_t i = 0; i < sfo_header.param_count; ++i)
         {
-            auto sfo_raw = sfo_entry->read();
-            if(sfo_raw.size() < sizeof(SFOHeader))
-                return sfo;
+            auto const &p = params[i];
 
-            auto sfo_header = (SFOHeader *)sfo_raw.data();
+            uint32_t key_length = (i + 1 == sfo_header.param_count ? sfo_header.value_table - sfo_header.key_table : params[i + 1].key_offset) - p.key_offset;
 
-            if(memcmp(sfo_header->magic, _SFO_MAGIC.data(), _SFO_MAGIC.size()))
-                return sfo;
-            if(sfo_header->param_count > 255)
-                return sfo;
-            if(sfo_raw.size() < sizeof(SFOHeader) + sfo_header->param_count * sizeof(SFOParam))
-                return sfo;
+            bool numeric = p.value_format == SFOParam::ValueFormat::NUMERIC;
+            uint32_t value_length = numeric ? sizeof(uint32_t) : p.value_length;
 
-            for(int i = 0; i < sfo_header->param_count; ++i)
-            {
-                auto param = (SFOParam *)(sfo_raw.data() + sizeof(SFOHeader) + i * sizeof(SFOParam));
+            if(sfo_header.key_table + p.key_offset + key_length > sfo_raw.size() || sfo_header.value_table + p.value_offset + value_length > sfo_raw.size())
+                continue;
 
-                uint32_t key_length;
-                if(i == sfo_header->param_count - 1)
-                    key_length = sfo_header->value_table - sfo_header->key_table - param->key_offset;
-                else
-                {
-                    auto next_param = (SFOParam *)(sfo_raw.data() + sizeof(SFOHeader) + (i + 1) * sizeof(SFOParam));
-                    key_length = next_param->key_offset - param->key_offset;
-                }
+            std::string key(std::string((char *)&sfo_raw[sfo_header.key_table + p.key_offset], key_length).c_str());
+            std::string value(
+                numeric ? std::to_string((uint32_t &)sfo_raw[sfo_header.value_table + p.value_offset]) : std::string((char *)&sfo_raw[sfo_header.value_table + p.value_offset], value_length).c_str());
 
-                if(sfo_raw.size() < sfo_header->key_table + param->key_offset + key_length)
-                    return sfo;
-
-                std::string key(sfo_raw.begin() + sfo_header->key_table + param->key_offset, sfo_raw.begin() + sfo_header->key_table + param->key_offset + key_length);
-                erase_all_inplace(key, '\0');
-                trim_inplace(key);
-
-                std::string value;
-                if(param->value_format == 0x0404)
-                {
-                    if(sfo_raw.size() < sfo_header->value_table + param->value_offset + 4)
-                        return sfo;
-
-                    uint32_t value_num = *(uint32_t *)(sfo_raw.data() + sfo_header->value_table + param->value_offset);
-                    value.assign(std::to_string(value_num));
-                }
-                else
-                {
-                    if(sfo_raw.size() < sfo_header->value_table + param->value_offset + param->value_length)
-                        return sfo;
-                    value.assign(sfo_raw.begin() + sfo_header->value_table + param->value_offset, sfo_raw.begin() + sfo_header->value_table + param->value_offset + param->value_length);
-                }
-                erase_all_inplace(value, '\0');
-
-                sfo.emplace(key, value);
-            }
+            sfo.emplace(key, value);
         }
 
         return sfo;

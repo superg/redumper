@@ -84,6 +84,7 @@ jobs:
         path: ${{env.build_directory}}/redumper-*.zip
 
   release:
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-24.04
     steps:

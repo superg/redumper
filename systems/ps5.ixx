@@ -1,9 +1,8 @@
 module;
-#include <algorithm>
-#include <array>
 #include <filesystem>
 #include <format>
 #include <map>
+#include <span>
 #include <ostream>
 #include "system.hh"
 #include "throw_line.hh"
@@ -42,106 +41,103 @@ public:
             return;
         auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
 
-        auto param_json = loadJSON(root_directory, "bd/param.json");
+        auto param_json = loadJSON(root_directory->subEntry("bd/param.json"));
 
-        auto it = param_json.find("masterVersion");
-        if(it != param_json.end())
+        if(auto it = param_json.find("masterVersion"); it != param_json.end())
             os << std::format("  version: {}", it->second) << std::endl;
 
-        it = param_json.find("masterDataId");
-        if(it != param_json.end())
+        if(auto it = param_json.find("masterDataId") ; it != param_json.end())
             os << std::format("  serial: {}", it->second) << std::endl;
     }
 
 private:
-    std::map<std::string, std::string> loadJSON(std::shared_ptr<iso9660::Entry> root_directory, std::string json_file) const
+    std::map<std::string, std::string> loadJSON(std::shared_ptr<iso9660::Entry> json_entry) const
     {
         std::map<std::string, std::string> json;
 
-        auto json_entry = root_directory->subEntry(json_file);
-        if(json_entry)
+        if(!json_entry)
+            return json;
+
+        const uint32_t payload_skip = 0x800;
+        auto data = json_entry->read();
+        if(data.size() <= payload_skip)
+            return json;
+
+        auto json_raw = std::span<uint8_t>(data.begin() + payload_skip, data.end());
+
+        // Parse JSON into key/value pairs
+        for(size_t cur = 0; cur < json_raw.size(); )
         {
-            auto data = json_entry->read();
-            if(data.size() <= 0x800)
-                return json;
-
-            data.erase(data.begin(), data.begin() + 0x800);
-
-            // Parse JSON into key/value pairs
-            size_t cur = 0;
-            while(cur < data.size())
+            // Find start of key
+            while(cur < json_raw.size())
             {
-                // Find start of key
-                while(cur < data.size())
-                {
-                    if(data[cur] == '"')
-                        break;
-                    ++cur;
-                }
-                if(cur >= data.size())
+                if(json_raw[cur] == '"')
                     break;
                 ++cur;
-                size_t keyStart = cur;
-
-                // Find end of key
-                while(cur < data.size())
-                {
-                    if(data[cur] == '"')
-                        break;
-                    ++cur;
-                }
-                if(cur >= data.size())
-                    break;
-                size_t keyEnd = cur;
-                ++cur;
-
-                // Find start of value
-                while(cur < data.size())
-                {
-                    if(data[cur] == ':')
-                        break;
-                    ++cur;
-                }
-                if(cur >= data.size())
-                    break;
-                ++cur;
-                size_t valueStart = cur;
-
-                // Find end of value
-                while(cur < data.size())
-                {
-                    if(data[cur] == '[' || data[cur] == ',' || data[cur] == '}')
-                        break;
-                    ++cur;
-                }
-                if(cur >= data.size())
-                    break;
-                size_t valueEnd = cur;
-                ++cur;
-
-                // Don't parse arrays, treat JSON as flat
-                if(data[cur - 1] == '[')
-                    continue;
-
-                // Assign key and value
-                std::string key(data.begin() + keyStart, data.begin() + keyEnd);
-                std::string value(data.begin() + valueStart, data.begin() + valueEnd);
-                erase_all_inplace(key, '\0');
-                erase_all_inplace(key, '\r');
-                erase_all_inplace(key, '\n');
-                erase_all_inplace(value, '\0');
-                erase_all_inplace(value, '\r');
-                erase_all_inplace(value, '\n');
-                trim_inplace(key);
-                trim_inplace(value);
-
-                // Remove leading/trailing quotes if present
-                if(value.size() >= 2 && value.front() == '"' && value.back() == '"')
-                    value = value.substr(1, value.size() - 2);
-
-                // Add key/value pair to map
-                json.emplace(key, value);
             }
+            if(cur >= json_raw.size())
+                break;
+            ++cur;
+            size_t keyStart = cur;
+
+            // Find end of key
+            while(cur < json_raw.size())
+            {
+                if(json_raw[cur] == '"')
+                    break;
+                ++cur;
+            }
+            if(cur >= json_raw.size())
+                break;
+            size_t keyEnd = cur;
+            ++cur;
+
+            // Find start of value
+            while(cur < json_raw.size())
+            {
+                if(json_raw[cur] == ':')
+                    break;
+                ++cur;
+            }
+            if(cur >= json_raw.size())
+                break;
+            ++cur;
+            size_t valueStart = cur;
+
+            // Find end of value
+            while(cur < json_raw.size())
+            {
+                if(json_raw[cur] == '[' || json_raw[cur] == ',' || json_raw[cur] == '}')
+                    break;
+                ++cur;
+            }
+            if(cur >= json_raw.size())
+                break;
+            size_t valueEnd = cur;
+            ++cur;
+
+            // Don't parse arrays, treat JSON as flat
+            if(json_raw[cur - 1] == '[')
+                continue;
+
+            // Assign key and value
+            std::string key(json_raw.begin() + keyStart, json_raw.begin() + keyEnd);
+            std::string value(json_raw.begin() + valueStart, json_raw.begin() + valueEnd);
+            erase_all_inplace(key, '\0');
+            erase_all_inplace(key, '\r');
+            erase_all_inplace(key, '\n');
+            erase_all_inplace(value, '\0');
+            erase_all_inplace(value, '\r');
+            erase_all_inplace(value, '\n');
+            trim_inplace(key);
+            trim_inplace(value);
+
+            // Remove leading/trailing quotes if present
+            if(value.size() >= 2 && value.front() == '"' && value.back() == '"')
+                value = std::string_view(value.data() + 1, value.size() - 2);
+
+            // Add key/value pair to map
+            json.emplace(key, value);
         }
 
         return json;

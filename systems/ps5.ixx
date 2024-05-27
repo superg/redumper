@@ -2,8 +2,8 @@ module;
 #include <filesystem>
 #include <format>
 #include <map>
-#include <span>
 #include <ostream>
+#include <span>
 #include "system.hh"
 #include "throw_line.hh"
 
@@ -46,7 +46,7 @@ public:
         if(auto it = param_json.find("masterVersion"); it != param_json.end())
             os << std::format("  version: {}", it->second) << std::endl;
 
-        if(auto it = param_json.find("masterDataId") ; it != param_json.end())
+        if(auto it = param_json.find("masterDataId"); it != param_json.end())
             os << std::format("  serial: {}", it->second) << std::endl;
     }
 
@@ -66,7 +66,7 @@ private:
         auto json_raw = std::span<uint8_t>(data.begin() + payload_skip, data.end());
 
         // Parse JSON into key/value pairs
-        for(size_t cur = 0; cur < json_raw.size(); )
+        for(size_t cur = 0; cur < json_raw.size();)
         {
             // Find start of key
             while(cur < json_raw.size())

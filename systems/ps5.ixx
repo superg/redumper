@@ -47,7 +47,7 @@ public:
             os << std::format("  version: {}", it->second) << std::endl;
 
         if(auto it = param_json.find("masterDataId"); it != param_json.end())
-            os << std::format("  serial: {}", it->second) << std::endl;
+            os << std::format("  serial: {}", it->second.insert(4, "-")) << std::endl;
     }
 
 private:

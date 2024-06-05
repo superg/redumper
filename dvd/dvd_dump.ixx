@@ -541,7 +541,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             }
         }
         // compare physical structures to stored to make sure it's the same disc
-        else
+        else if(!options.force_refine)
         {
             for(uint32_t i = 0; i < physical_structures.size(); ++i)
             {

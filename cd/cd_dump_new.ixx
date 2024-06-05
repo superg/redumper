@@ -100,7 +100,7 @@ TOC toc_process(Context &ctx, const Options &options, bool store)
             write_vector(cdtext_path, cd_text_buffer);
     }
     // compare disc / file TOC to make sure it's the same disc
-    else
+    else if(!options.force_refine)
     {
         std::vector<uint8_t> toc_buffer_file = read_vector(toc_path);
         if(toc_buffer != toc_buffer_file)

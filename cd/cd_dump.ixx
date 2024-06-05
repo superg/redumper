@@ -410,9 +410,12 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
     // compare disc / file TOC to make sure it's the same disc
     if(refine)
     {
-        std::vector<uint8_t> toc_buffer_file = read_vector(toc_path);
-        if(toc_buffer != toc_buffer_file)
-            throw_line("disc / file TOC don't match, refining from a different disc?");
+        if(!options.force_refine)
+        {
+            std::vector<uint8_t> toc_buffer_file = read_vector(toc_path);
+            if(toc_buffer != toc_buffer_file)
+                throw_line("disc / file TOC don't match, refining from a different disc?");
+        }
     }
     // store TOC
     else

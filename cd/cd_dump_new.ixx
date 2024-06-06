@@ -497,6 +497,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 
             auto gap_range = inside_range(lba, gaps);
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
+            bool store = true;
             if(gap_range != nullptr && slow_sector)
             {
                 if(dump_mode == DumpMode::REFINE)
@@ -507,6 +508,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 
             if(status.status_code)
             {
+                store = false;
                 if(gap_range == nullptr && lba < lba_end)
                 {
                     if(dump_mode != DumpMode::REFINE)
@@ -523,6 +525,17 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
                     ++lba_overread;
 
                 check_subcode_shift(subcode_shift, lba, sector_subcode, options);
+                if(options.skip_desynced_sectors && subcode_shift != 0)
+                {
+                    if(dump_mode != DumpMode::REFINE)
+                        ++errors.scsi;
+                    cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
+                    store = false;
+                }
+            }
+
+            if(store)
+            {
                 if(!retries)
                     check_fix_byte_desync(ctx, subcode_byte_desync_counter, lba, sector_subcode);
 

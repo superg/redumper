@@ -766,28 +766,37 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
             }
         }
 
-        if(store)
+        // some drives desync at a random sector
+        if(store && subcode)
         {
-            // some drives desync at a random sector
-            if(subcode)
+            ChannelQ Q;
+            subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+            if(Q.isValid())
             {
-                ChannelQ Q;
-                subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
-                if(Q.isValid())
+                if(Q.adr == 1 && Q.mode1.tno)
                 {
-                    if(Q.adr == 1 && Q.mode1.tno)
-                    {
-                        int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
+                    int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
 
-                        int32_t shift = lbaq - lba;
-                        if(subcode_shift != shift)
-                        {
-                            subcode_shift = shift;
-                            LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
-                        }
+                    int32_t shift = lbaq - lba;
+                    if(subcode_shift != shift)
+                    {
+                        subcode_shift = shift;
+                        LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
+                    }
+
+                    if(options.skip_desynced_sectors && subcode_shift != 0)
+                    {
+                        if(!refine)
+                            ++errors_scsi;
+                        cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
+                        store = false;
                     }
                 }
             }
+        }
+
+        if(store)
+        {
 
             if(refine)
             {

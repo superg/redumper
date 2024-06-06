@@ -69,6 +69,7 @@ export struct Options
     std::string firmware;
     bool drive_test_skip_plextor_leadin;
     bool drive_test_skip_cache_read;
+    bool skip_desynced_sectors;
 
 
     Options(int argc, const char *argv[])
@@ -101,6 +102,7 @@ export struct Options
         , force_refine(false)
         , drive_test_skip_plextor_leadin(false)
         , drive_test_skip_cache_read(false)
+        , skip_desynced_sectors(false)
     {
         for(int i = 1; i < argc; ++i)
             arguments += str_quoted_if_space(argv[i]) + " ";
@@ -265,6 +267,8 @@ export struct Options
                         drive_test_skip_plextor_leadin = true;
                     else if(key == "--drive-test-skip-cache-read")
                         drive_test_skip_cache_read = true;
+                    else if(key == "--skip-desynced-sectors")
+                        skip_desynced_sectors = true;
                     // unknown option
                     else
                     {
@@ -387,6 +391,7 @@ export struct Options
         LOG("\t--force-unscrambled             \tdo not attempt to read data sectors as audio (BE read method only)");
         LOG("\t--force-refine                  \tdo not check TOC when refining a disc");
         LOG("\t--firmware=VALUE                \tfirmware filename");
+        LOG("\t--skip-desynced-sectors        \tskip sectors that are read after a subcode desyc");
     }
 };
 

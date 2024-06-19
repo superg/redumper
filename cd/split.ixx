@@ -1287,7 +1287,7 @@ export void redumper_split(Context &ctx, Options &options)
         auto &s = toc.sessions[i];
         auto &t = s.tracks.front();
 
-        int32_t leadin_start = i ? toc.sessions[i - 1].tracks.back().lba_end : sample_to_lba(nonzero_data_range.first);
+        int32_t leadin_start = i ? toc.sessions[i - 1].tracks.back().lba_end : sample_to_lba(nonzero_data_range.first, offset_manager->getOffset(sample_to_lba(nonzero_data_range.first)));
         int32_t leadin_end = i ? t.indices.front() : 0;
 
         // do this before new track insertion

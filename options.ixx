@@ -63,6 +63,7 @@ export struct Options
     int dump_read_size;
     bool overread_leadout;
     bool force_unscrambled;
+    bool skip_toc_check;
 
 
     Options(int argc, const char *argv[])
@@ -90,6 +91,7 @@ export struct Options
         , dump_read_size(32)
         , overread_leadout(false)
         , force_unscrambled(false)
+        , skip_toc_check(false)
     {
         for(int i = 1; i < argc; ++i)
             arguments += str_quoted_if_space(argv[i]) + " ";
@@ -232,6 +234,8 @@ export struct Options
                         overread_leadout = true;
                     else if(key == "--force-unscrambled")
                         force_unscrambled = true;
+                    else if(key == "--skip-toc-check")
+                        skip_toc_check = true;
                     // unknown option
                     else
                     {
@@ -334,6 +338,7 @@ export struct Options
         LOG("\t--dump-read-size=VALUE         \tnumber of sectors to read at once on initial dump, DVD only (default: {})", dump_read_size);
         LOG("\t--overread-leadout             \tdo not limit lead-out to the first hundred sectors, read until drive returns SCSI error");
         LOG("\t--force-unscrambled            \tdo not attempt to read data sectors as audio (BE read method only)");
+        LOG("\t--skip-toc-check               \tdo not check TOC when refining a disc");
     }
 };
 

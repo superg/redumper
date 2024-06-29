@@ -421,14 +421,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
         if(!full_toc_buffer.empty())
             write_vector(fulltoc_path, full_toc_buffer);
 
-        bool read_cdtext = !options.disable_cdtext;
-        // disable multisession CD-TEXT for certain drives that hang indefinitely
-        if(toc.sessions.size() > 1 && ctx.drive_config.vendor_id == "PLEXTOR" && ctx.drive_config.product_id == "CD-R PX-W4824A" && !options.force_cdtext_reading)
-            read_cdtext = false;
-
         // CD-TEXT
         std::vector<uint8_t> cd_text_buffer;
-        if(read_cdtext)
+        if(toc_enable_cdtext(ctx, toc, options))
         {
             auto status = cmd_read_cd_text(*ctx.sptd, cd_text_buffer);
             if(status.status_code)

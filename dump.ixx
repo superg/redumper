@@ -154,6 +154,17 @@ export TOC choose_toc(const std::vector<uint8_t> &toc_buffer, const std::vector<
 }
 
 
+export bool toc_enable_cdtext(const Context &ctx, const TOC &toc, const Options &options)
+{
+    if(options.disable_cdtext)
+        return false;
+    else if(options.force_cdtext_reading)
+        return true;
+    else
+        return !(ctx.drive_config.vendor_id == "PLEXTOR" && ctx.drive_config.product_id == "CD-R PX-W4824A") || toc.sessions.size() <= 1;
+}
+
+
 export void subcode_load_subpq(std::vector<ChannelP> &subp, std::vector<ChannelQ> &subq, const std::filesystem::path &sub_path)
 {
     uint32_t sectors_count = std::filesystem::file_size(sub_path) / CD_SUBCODE_SIZE;

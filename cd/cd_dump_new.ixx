@@ -83,12 +83,8 @@ TOC toc_process(Context &ctx, const Options &options, bool store)
             write_vector(atip_path, atip_buffer);
 
         // CD-TEXT
-        bool read_cdtext = !options.disable_cdtext;
-        // disable multisession CD-TEXT for certain drives that hang indefinitely
-        if(toc.sessions.size() > 1 && ctx.drive_config.vendor_id == "PLEXTOR" && ctx.drive_config.product_id == "CD-R PX-W4824A" && !options.force_cdtext_reading)
-            read_cdtext = false;
         std::vector<uint8_t> cd_text_buffer;
-        if(read_cdtext)
+        if(toc_enable_cdtext(ctx, toc, options))
         {
             status = cmd_read_toc(*ctx.sptd, cd_text_buffer, false, READ_TOC_Format::CD_TEXT, 0);
             if(status.status_code)

@@ -54,7 +54,7 @@ export struct Options
     int plextor_leadin_retries;
     bool asus_skip_leadout;
     bool disable_cdtext;
-    bool enable_multisession_cdtext;
+    bool force_cdtext_reading;
     bool correct_offset_shift;
     bool offset_shift_relocate;
     std::unique_ptr<int> force_offset;
@@ -83,7 +83,7 @@ export struct Options
         , plextor_leadin_retries(4)
         , asus_skip_leadout(false)
         , disable_cdtext(false)
-        , enable_multisession_cdtext(false)
+        , force_cdtext_reading(false)
         , correct_offset_shift(false)
         , offset_shift_relocate(false)
         , audio_silence_threshold(32)
@@ -208,8 +208,8 @@ export struct Options
                         asus_skip_leadout = true;
                     else if(key == "--disable-cdtext")
                         disable_cdtext = true;
-                    else if(key == "--enable-multisession-cdtext")
-                        enable_multisession_cdtext = true;
+                    else if(key == "--force-cdtext-reading")
+                        force_cdtext_reading = true;
                     else if(key == "--correct-offset-shift")
                         correct_offset_shift = true;
                     else if(key == "--offset-shift-relocate")
@@ -309,8 +309,7 @@ export struct Options
         LOG("\t--plextor-leadin-retries=VALUE \tmaximum number of lead-in retries per session (default: {})", plextor_leadin_retries);
         LOG("\t--asus-skip-leadout            \tskip extracting lead-out from drive cache");
         LOG("\t--disable-cdtext               \tdisable CD-TEXT reading");
-        LOG("\t--enable-multisession-cdtext   \tenable PX-4824 multisession CD-TEXT reading");
-        
+        LOG("\t--force-cdtext-reading         \tforce multisession CD-TEXT reading for all drives");
         LOG("");
         LOG("\t(offset)");
         LOG("\t--force-offset=VALUE           \toverride offset autodetection and use supplied value");

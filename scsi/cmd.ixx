@@ -411,7 +411,24 @@ export SPTD::Status cmd_get_configuration_current_profile(SPTD &sptd, GET_CONFIG
     auto status = sptd.sendCommand(&cdb, sizeof(cdb), &feature_header, size);
 
     current_profile = (GET_CONFIGURATION_FeatureCode_ProfileList)endian_swap(feature_header.current_profile);
-
+    // Fallback for drives that don't properly return whether disc is recordable with the previous command.
+    // Won't differentiate between CD-R and CD-RW, but will at least pick up that the media is recordable.
+    if(current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM)
+    {
+        CDB10_ReadTOC cdb_atip = {};
+        cdb_atip = {};
+        cdb_atip.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
+        cdb_atip.format = (uint8_t)READ_TOC_Format::ATIP;
+        cdb_atip.track_number = 1;
+        // read TOC header first to get the full TOC size
+        CMD_ParameterListHeader toc_response;
+        *(uint16_t *)cdb_atip.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
+        auto status_atip = sptd.sendCommand(&cdb_atip, sizeof(cdb_atip), &toc_response, sizeof(toc_response));
+        if(!status_atip.status_code)
+        {
+            current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::CD_R;
+        }
+    }
     return status;
 }
 

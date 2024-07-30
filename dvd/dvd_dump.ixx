@@ -462,7 +462,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     auto di_units = &structure[sizeof(CMD_ParameterListHeader)];
                     for(uint32_t j = 0; j < 32; ++j)
                     {
-                        auto& unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)di_units[j * unit_size];
+                        auto &unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)di_units[j * unit_size];
                         std::string identifier((char *)unit.header.identifier, sizeof(unit.header.identifier));
                         if(identifier != "DI")
                             break;

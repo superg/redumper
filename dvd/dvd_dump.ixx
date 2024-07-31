@@ -301,53 +301,52 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool blur
 {
     std::vector<std::vector<uint8_t>> structures;
 
-    for(uint32_t i = 0, layers_count = 0; !layers_count || i < layers_count; ++i)
+    if(bluray)
     {
         std::vector<uint8_t> structure;
-        auto status = cmd_read_disc_structure(sptd, structure, bluray ? 1 : 0, 0, i, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
+        auto status = cmd_read_disc_structure(sptd, structure, 1, 0, 0, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
         if(status.status_code)
-            throw_line("failed to read disc physical structure, SCSI ({})", SPTD::StatusMessage(status));
+            throw_line("failed to read blu-ray disc physical structure, SCSI ({})", SPTD::StatusMessage(status));
 
         structures.push_back(structure);
 
-        if(!layers_count)
+        uint8_t *di_units = &structure[sizeof(CMD_ParameterListHeader)];
+        for(uint32_t j = 0; j < 32; ++j)
         {
-            if(bluray)
-            {
-                uint8_t *di_units = &structure[sizeof(CMD_ParameterListHeader)];
-                for(uint32_t j = 0; j < 32; ++j)
-                {
-                    uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
+            uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
 
-                    auto unit = (READ_DISC_STRUCTURE_DiscInformationUnit *)&di_units[j * unit_size];
-                    std::string identifier((char *)unit->header.identifier, sizeof(unit->header.identifier));
-                    if(identifier != "DI")
-                        break;
+            auto unit = (READ_DISC_STRUCTURE_DiscInformationUnit *)&di_units[j * unit_size];
+            std::string identifier((char *)unit->header.identifier, sizeof(unit->header.identifier));
+            if(identifier != "DI")
+                break;
 
-                    // some BD-R discs (not finalized?) are incorrectly identified as BD-ROM profile
-                    std::string disc_type_identifier((char *)unit->body_common.disc_type_identifier, sizeof(unit->body_common.disc_type_identifier));
-                    // BDO: BD-ROM, BDW: BD-RE, BDR: BD-R, BDU: UHD-BD, XG4: Xbox One XGD4
-                    if(rom && disc_type_identifier == "BDR")
-                        rom = false;
+            // some BD-R discs (not finalized?) are incorrectly identified as BD-ROM profile
+            std::string disc_type_identifier((char *)unit->body_common.disc_type_identifier, sizeof(unit->body_common.disc_type_identifier));
+            // BDO: BD-ROM, BDW: BD-RE, BDR: BD-R, BDU: UHD-BD, XG4: Xbox One XGD4
+            if(rom && disc_type_identifier == "BDR")
+                rom = false;
+        }
+    }
+    else
+    {
+        for(uint32_t i = 0, layers_count = 0; !layers_count || i < layers_count; ++i)
+        {
+            std::vector<uint8_t> structure;
+            auto status = cmd_read_disc_structure(sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::PHYSICAL, 0);
+            if(status.status_code)
+                throw_line("failed to read dvd disc physical structure, SCSI ({})", SPTD::StatusMessage(status));
 
-                    if(unit->header.format == 1)
-                    {
-                        auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit->body;
+            structures.push_back(structure);
 
-                        layers_count = body->layers_count;
-                        break;
-                    }
-                }
-            }
-            else
+            if(!layers_count)
             {
                 auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor *)&structure[sizeof(CMD_ParameterListHeader)];
                 layers_count = (layer_descriptor->track_path ? 0 : layer_descriptor->layers_number) + 1;
-            }
 
-            // fallback
-            if(!layers_count)
-                layers_count = 1;
+                // fallback
+                if(!layers_count)
+                    layers_count = 1;
+            }
         }
     }
 

@@ -246,6 +246,14 @@ export enum class REPORT_KEY_KeyFormat : uint8_t
 };
 
 
+export enum class KREON_LockState : uint8_t
+{
+    LOCKED,
+    XTREME,
+    WXRIPPER
+};
+
+
 export struct CMD_ParameterListHeader
 {
     uint16_t data_length;

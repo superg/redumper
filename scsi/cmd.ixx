@@ -469,4 +469,26 @@ export SPTD::Status cmd_kreon_get_security_sectors(SPTD &sptd, uint8_t response_
     return status;
 }
 
+export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_state)
+{
+    SPTD::Status status;
+
+    // FF 08 01 11 xx
+    CDB6_Generic cdb = {};
+    cdb.operation_code = 0xFF;
+    cdb.command_unique_bits = 0x04; // xxx0 100x
+    cdb.command_unique_bytes[0] = 0x01;
+    cdb.command_unique_bytes[1] = 0x11;
+    cdb.command_unique_bytes[2] = lock_state;
+
+    uint8_t *dump = (uint8_t *)&cdb;
+    for (int i = 0; i < sizeof(struct CDB6_Generic); i++) {
+        printf("%02x ", dump[i]);
+    }
+    printf("\n");
+    // status = sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+
+    return status;
+}
+
 }

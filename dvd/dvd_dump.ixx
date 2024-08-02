@@ -581,6 +581,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
+    // Get XBOX Security sectors (Currently works with Kreon 1.00 only)
+    if (dump_mode == DumpMode::DUMP && ctx.drive_config.vendor_specific.starts_with("KREON V1.00")) { // && "is an Xbox Disc"
+        std::filesystem::path ss_path(image_prefix + ".raw_ss");
+        std::fstream fs_ss(ss_path, std::fstream::out | std::fstream::trunc | std::fstream::binary);
+
+        uint8_t security_sectors[0x800] = {};
+        cmd_kreon_get_security_sectors(*ctx.sptd, security_sectors);
+
+        write_entry(fs_ss, security_sectors, sizeof(security_sectors), 0, 1, 0);
+    }
+
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
     std::vector<uint8_t> file_data(sectors_at_once * FORM1_DATA_SIZE);

@@ -446,4 +446,27 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
     return status;
 }
 
+
+export SPTD::Status cmd_kreon_get_security_sectors(SPTD &sptd, uint8_t response_data[0x800])
+{
+    SPTD::Status status;
+
+    // AD 00 FF 02 FD FF FE 00 08 00 xx C0
+    CDB12_ReadDiscStructure cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::READ_DISC_STRUCTURE;
+    *(uint32_t *)cdb.address = endian_swap<uint32_t>(0xFF02FDFF);
+    cdb.layer_number = 0xFE;
+    *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(0x800);
+    cdb.control = 0xC0;
+
+    uint8_t kreon_ss_vals[] = { 0x01, 0x03, 0x05, 0x07 };
+    for (uint32_t i = 0; i < sizeof(kreon_ss_vals); i++) {
+        cdb.reserved2 = kreon_ss_vals[i];
+        status = sptd.sendCommand(&cdb, sizeof(cdb), response_data, 0x800);
+        // TODO: check status in between sequence?
+    }
+
+    return status;
+}
+
 }

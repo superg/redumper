@@ -386,6 +386,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     auto readable_formats = get_readable_formats(*ctx.sptd, profile_is_bluray(ctx.current_profile));
 
     bool trim_to_filesystem_size = false;
+    bool sector_count_mismatch = false;
     if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
     {
         // function call changes rom flag if discrepancy is detected
@@ -416,6 +417,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             if(physical_sectors_count != sectors_count)
             {
                 LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");
+                sector_count_mismatch = true;
                 sectors_count = physical_sectors_count;
             }
         }
@@ -581,15 +583,62 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    // Get XBOX Security sectors (Currently works with Kreon 1.00 only)
-    if (dump_mode == DumpMode::DUMP && ctx.drive_config.vendor_specific.starts_with("KREON V1.00")) { // && "is an Xbox Disc"
+    // Get XBOX Security sectors (Currently works with Kreon 1.00 only), XGD when sector count mismatch
+    bool is_xbox = ctx.drive_config.vendor_specific.starts_with("KREON V1.00") && sector_count_mismatch;
+    // TODO: Is there a way to do this so it isn't unused during all DVD dumps?
+    std::vector<std::array<uint32_t, 2>> xbox_ss_ranges;
+    if(is_xbox)
+    {
+        puts("Kreon Drive with XGD detected..."); // TODO: remove when debugging finished, maybe log something?
+
+        std::vector<uint8_t> security_sectors(0x800);
+        status = cmd_kreon_get_security_sectors(*ctx.sptd, security_sectors);
+        if(status.status_code)
+            throw_line("failed to get security sectors, SCSI ({})", SPTD::StatusMessage(status));
+
         std::filesystem::path ss_path(image_prefix + ".raw_ss");
         std::fstream fs_ss(ss_path, std::fstream::out | std::fstream::trunc | std::fstream::binary);
 
-        uint8_t security_sectors[0x800] = {};
-        cmd_kreon_get_security_sectors(*ctx.sptd, security_sectors);
+        write_entry(fs_ss, security_sectors.data(), security_sectors.size(), 0, 1, 0);
 
-        write_entry(fs_ss, security_sectors, sizeof(security_sectors), 0, 1, 0);
+        uint8_t num_ss_regions = security_sectors[1632];
+        xbox_ss_ranges.resize(num_ss_regions);
+
+        // TODO: Actually read this instead of hardcoding it
+        uint32_t layer_break_psn = 1913776;
+        uint32_t layer_break_lba = layer_break_psn + 0x30000;
+
+        for(int ss_pos = 1633, i = 0; i < num_ss_regions; ss_pos += 9, i++)
+        {
+            uint32_t start_psn = ((uint32_t)security_sectors[ss_pos + 3] << 16) | ((uint32_t)security_sectors[ss_pos + 4] << 8) | (uint32_t)security_sectors[ss_pos + 5];
+            uint32_t end_psn = ((uint32_t)security_sectors[ss_pos + 6] << 16) | ((uint32_t)security_sectors[ss_pos + 7] << 8) | (uint32_t)security_sectors[ss_pos + 8];
+            if(i < 8)
+            {
+                // Layer 0
+                xbox_ss_ranges[i][0] = start_psn - 0x30000;
+                xbox_ss_ranges[i][1] = end_psn - 0x30000;
+                printf("Adding SS Range %d: %u - %u\n", i, xbox_ss_ranges[i][0], xbox_ss_ranges[i][1]);
+            }
+            else if(i < 16)
+            {
+                // Layer 1
+                xbox_ss_ranges[i][0] = layer_break_lba * 2 - (start_psn ^ 0xFFFFFF) - 0x30000 - 1;
+                xbox_ss_ranges[i][1] = layer_break_lba * 2 - (end_psn ^ 0xFFFFFF) - 0x30000 - 1;
+                printf("Adding SS Range %d: %u - %u\n", i, xbox_ss_ranges[i][0], xbox_ss_ranges[i][1]);
+            }
+        }
+
+        status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
+        if(status.status_code)
+            throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
+
+        status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
+        if(status.status_code)
+            throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
+        if(block_length != FORM1_DATA_SIZE)
+            throw_line("unsupported block size (block size: {})", block_length);
+
+        sectors_count = sector_last + 1;
     }
 
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
@@ -616,11 +665,42 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     SignalINT signal;
 
+    uint8_t ss_range_idx = 0;
     for(uint32_t s = 0; s < sectors_count;)
     {
         bool increment = true;
 
         uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
+
+        // Skip Xbox Security Sector Ranges
+        if(is_xbox && ss_range_idx < xbox_ss_ranges.size())
+        {
+            // If in SS range then write zeroes until end of region
+            if(xbox_ss_ranges[ss_range_idx][0] <= s && s <= xbox_ss_ranges[ss_range_idx][1] + 1)
+            {
+                if(s == xbox_ss_ranges[ss_range_idx][1] + 1)
+                {
+                    ss_range_idx++;
+                }
+                else
+                {
+                    // Make sure we don't blow past the end of the ss range when zeroing
+                    sectors_to_read = std::min(sectors_to_read, xbox_ss_ranges[ss_range_idx][1] + 1 - s);
+                    progress_output(s, sectors_count, errors_scsi);
+
+                    std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
+                    write_entry(fs_iso, zeroes.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
+                    rom_entry.update(zeroes.data(), sectors_to_read * FORM1_DATA_SIZE);
+
+                    s += sectors_to_read;
+                    continue;
+                }
+            }
+            else
+            {
+                sectors_to_read = std::min(sectors_to_read, xbox_ss_ranges[ss_range_idx][0] - s);
+            }
+        }
 
         bool read = false;
         if(dump_mode == DumpMode::DUMP)
@@ -750,6 +830,32 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     {
         progress_output(sectors_count, sectors_count, errors_scsi);
         LOG("");
+
+        if(is_xbox)
+        {
+            puts("Writing Xbox Zero Padding..."); // TODO: remove when debugging finished
+
+            // Write L1 Middle/Filler padding
+            std::vector<uint8_t> zeroes(sectors_at_once * FORM1_DATA_SIZE);
+            // TODO: Add to this value to get middle position
+            uint32_t end_l1_middle = sectors_count;
+
+            printf("Zeroing sectors %d - %d", sectors_count, end_l1_middle); // TODO: remove when debugging finished
+            for(uint32_t zero_sectors = sectors_count; zero_sectors < end_l1_middle;)
+            {
+                uint32_t sectors_to_write = std::min(sectors_at_once, end_l1_middle - zero_sectors);
+
+                write_entry(fs_iso, zeroes.data(), FORM1_DATA_SIZE, zero_sectors, sectors_to_write, 0);
+                rom_entry.update(zeroes.data(), sectors_to_write * FORM1_DATA_SIZE);
+                zero_sectors += sectors_to_write;
+            }
+
+            status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
+            if(status.status_code)
+                throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
+
+            // TODO: Write L1 Video
+        }
     }
     LOG("");
 

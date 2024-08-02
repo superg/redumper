@@ -447,7 +447,7 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
 }
 
 
-export SPTD::Status cmd_kreon_get_security_sectors(SPTD &sptd, uint8_t response_data[0x800])
+export SPTD::Status cmd_kreon_get_security_sectors(SPTD &sptd, std::vector<uint8_t> &response_data)
 {
     SPTD::Status status;
 
@@ -456,14 +456,16 @@ export SPTD::Status cmd_kreon_get_security_sectors(SPTD &sptd, uint8_t response_
     cdb.operation_code = (uint8_t)CDB_OperationCode::READ_DISC_STRUCTURE;
     *(uint32_t *)cdb.address = endian_swap<uint32_t>(0xFF02FDFF);
     cdb.layer_number = 0xFE;
-    *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(0x800);
+    *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>((uint16_t)response_data.size());
     cdb.control = 0xC0;
 
-    uint8_t kreon_ss_vals[] = { 0x01, 0x03, 0x05, 0x07 };
-    for (uint32_t i = 0; i < sizeof(kreon_ss_vals); i++) {
-        cdb.reserved2 = kreon_ss_vals[i];
-        status = sptd.sendCommand(&cdb, sizeof(cdb), response_data, 0x800);
-        // TODO: check status in between sequence?
+    std::vector<uint8_t> kreon_ss_vals = { 0x01, 0x03, 0x05, 0x07 };
+    for(auto ss_val : kreon_ss_vals)
+    {
+        cdb.reserved2 = ss_val;
+        status = sptd.sendCommand(&cdb, sizeof(cdb), response_data.data(), response_data.size());
+        if(status.status_code)
+            break;
     }
 
     return status;
@@ -479,14 +481,9 @@ export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_st
     cdb.command_unique_bits = 0x04; // xxx0 100x
     cdb.command_unique_bytes[0] = 0x01;
     cdb.command_unique_bytes[1] = 0x11;
-    cdb.command_unique_bytes[2] = lock_state;
+    cdb.command_unique_bytes[2] = (uint8_t)lock_state;
 
-    uint8_t *dump = (uint8_t *)&cdb;
-    for (int i = 0; i < sizeof(struct CDB6_Generic); i++) {
-        printf("%02x ", dump[i]);
-    }
-    printf("\n");
-    // status = sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+    status = sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
 
     return status;
 }

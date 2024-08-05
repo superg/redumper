@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -387,7 +388,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     bool trim_to_filesystem_size = false;
     bool sector_count_mismatch = false;
+    // TODO: Rename these
     uint32_t initial_layer_break = 0;
+    int32_t initial_layer0_last = 0;
+    uint32_t initial_layer0_length = 0;
     if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
     {
         // function call changes rom flag if discrepancy is detected
@@ -523,9 +527,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     if(layer_descriptor.track_path)
                     {
                         int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
-                        int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
+                        initial_layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
 
-                        initial_layer_break = layer0_last + 1 - lba_first;
+                        initial_layer_break = initial_layer0_last + 1 - lba_first;
+                        initial_layer0_length = get_layer_length(layer_descriptor);
                     }
                     // parallel
                     else if(physical_structures.size() > 1)
@@ -586,8 +591,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     bool is_xbox = ctx.drive_config.vendor_specific.starts_with("KREON V1.00") && sector_count_mismatch;
     // TODO: Is there a way to do this so these aren't unused during all DVD dumps?
     std::vector<std::array<uint32_t, 2>> xbox_ss_ranges;
-    // TODO: Get L0 Middle break
-    uint32_t xbox_middle_break = 191312;
+    uint32_t xbox_middle_break = 0;
     if(is_xbox)
     {
         LOG("Kreon Drive with XGD detected...");
@@ -619,28 +623,32 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         // Read actual game PFI data from Security Sectors
         LOG("unlocked disc structure:");
-        auto layer_descriptor = reinterpret_cast<const READ_DVD_STRUCTURE_LayerDescriptor *>(security_sectors.data());
-        print_physical_structure(*layer_descriptor, 0);
+        auto ss_layer_descriptor = reinterpret_cast<const READ_DVD_STRUCTURE_LayerDescriptor *>(security_sectors.data());
+        print_physical_structure(*ss_layer_descriptor, 0);
         LOG("");
 
         uint32_t ss_layer_break = 0;
 
-        int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
-        int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
+        int32_t lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor->data_start_sector));
+        int32_t layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor->layer0_end_sector));
 
         ss_layer_break = layer0_last + 1 - lba_first;
 
         LOG("layer break: {}", ss_layer_break);
         LOG("");
 
-        // Extract Security Sector ranges
-        uint8_t num_ss_regions = security_sectors[1632];
-        xbox_ss_ranges.resize(num_ss_regions);
+        xbox_middle_break = ss_layer_descriptor->data_start_sector - initial_layer0_last - 1;
 
         uint32_t layer_break_psn = initial_layer_break + ss_layer_break + xbox_middle_break;
         uint32_t layer_break_lba = layer_break_psn + 0x30000;
 
-        printf("Actual Layer Break of %d\n\n", layer_break_psn); // TODO: remove when done debugging
+        LOG("Actual Layer Break of {}", layer_break_psn);
+        LOG("");
+
+        // Extract Security Sector ranges
+        uint8_t num_ss_regions = security_sectors[1632];
+        xbox_ss_ranges.resize(num_ss_regions);
+
         for(int ss_pos = 1633, i = 0; i < num_ss_regions; ss_pos += 9, i++)
         {
             uint32_t start_psn = ((uint32_t)security_sectors[ss_pos + 3] << 16) | ((uint32_t)security_sectors[ss_pos + 4] << 8) | (uint32_t)security_sectors[ss_pos + 5];
@@ -871,7 +879,50 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             if(status.status_code)
                 throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
 
-            // TODO: Write L1 Video
+            // Write L1 Video
+            printf("Dumping L1 Video from: %d - %d\n\n", initial_layer_break, initial_layer0_length); // TODO: remove when debugging finished
+            for(uint32_t s = initial_layer_break; s < initial_layer0_length;)
+            {
+                uint32_t sectors_to_read = std::min(sectors_at_once, initial_layer0_length - s);
+
+                progress_output(s, initial_layer0_length, errors_scsi);
+
+                std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
+                auto status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, false);
+
+                if(status.status_code)
+                {
+                    if(options.verbose)
+                    {
+                        std::string status_retries;
+                        for(uint32_t i = 0; i < sectors_to_read; ++i)
+                            LOG_R("[sector: {}] SCSI error ({}{})", s + i, SPTD::StatusMessage(status), status_retries);
+                    }
+
+                    errors_scsi += sectors_to_read;
+                }
+                else
+                {
+                    file_data.swap(drive_data);
+
+                    // (s - initial_layer_break) to turn into 0 indexed sector, add end_l1_middle to put at the end of file
+                    write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, end_l1_middle + s - initial_layer_break, sectors_to_read, 0);
+                    std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
+                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+                }
+
+
+                if(!errors_scsi)
+                    rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
+
+                if(signal.interrupt())
+                {
+                    LOG_R("[sector: {:6}] forced stop ", s);
+                    break;
+                }
+
+                s += sectors_to_read;
+            }
         }
     }
     LOG("");

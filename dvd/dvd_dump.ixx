@@ -27,7 +27,7 @@ import utils.logger;
 import utils.misc;
 import utils.signal;
 import utils.strings;
-
+import utils.xbox;
 
 
 namespace gpsxre
@@ -387,7 +387,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     auto readable_formats = get_readable_formats(*ctx.sptd, profile_is_bluray(ctx.current_profile));
 
     bool trim_to_filesystem_size = false;
-    bool sector_count_mismatch = false;
+    bool is_xbox = false;
     // TODO: Rename these
     uint32_t initial_layer_break = 0;
     int32_t initial_layer0_last = 0;
@@ -422,7 +422,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             if(physical_sectors_count != sectors_count)
             {
                 LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");
-                sector_count_mismatch = true;
+                is_xbox = ctx.drive_config.vendor_specific.starts_with("KREON V1.00");
                 sectors_count = physical_sectors_count;
             }
         }
@@ -588,7 +588,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     }
 
     // Get XBOX Security sectors (Currently works with Kreon 1.00 only), XGD when sector count mismatch
-    bool is_xbox = ctx.drive_config.vendor_specific.starts_with("KREON V1.00") && sector_count_mismatch;
     // TODO: Is there a way to do this so these aren't unused during all DVD dumps?
     std::vector<std::array<uint32_t, 2>> xbox_ss_ranges;
     uint32_t xbox_middle_break = 0;
@@ -603,69 +602,80 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(status.status_code)
             throw_line("failed to get security sectors, SCSI ({})", SPTD::StatusMessage(status));
 
-        std::filesystem::path ss_path(image_prefix + ".raw_ss");
-        std::fstream fs_ss(ss_path, std::fstream::out | std::fstream::trunc | std::fstream::binary);
+        write_vector(image_prefix + ".raw_ss", security_sectors);
 
-        write_entry(fs_ss, security_sectors.data(), security_sectors.size(), 0, 1, 0);
-
-        // Unlock Drive and get updated capacity
-        status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
-        if(status.status_code)
-            throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
-
-        status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
-        if(status.status_code)
-            throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
-        if(block_length != FORM1_DATA_SIZE)
-            throw_line("unsupported block size (block size: {})", block_length);
-
-        sectors_count = sector_last + 1;
-
-        // Read actual game PFI data from Security Sectors
-        LOG("unlocked disc structure:");
-        auto ss_layer_descriptor = reinterpret_cast<const READ_DVD_STRUCTURE_LayerDescriptor *>(security_sectors.data());
-        print_physical_structure(*ss_layer_descriptor, 0);
-        LOG("");
-
-        uint32_t ss_layer_break = 0;
-
-        int32_t lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor->data_start_sector));
-        int32_t layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor->layer0_end_sector));
-
-        ss_layer_break = layer0_last + 1 - lba_first;
-
-        LOG("layer break: {}", ss_layer_break);
-        LOG("");
-
-        xbox_middle_break = ss_layer_descriptor->data_start_sector - initial_layer0_last - 1;
-
-        uint32_t layer_break_psn = initial_layer_break + ss_layer_break + xbox_middle_break;
-        uint32_t layer_break_lba = layer_break_psn + 0x30000;
-
-        LOG("Actual Layer Break of {}", layer_break_psn);
-        LOG("");
-
-        // Extract Security Sector ranges
-        uint8_t num_ss_regions = security_sectors[1632];
-        xbox_ss_ranges.resize(num_ss_regions);
-
-        for(int ss_pos = 1633, i = 0; i < num_ss_regions; ss_pos += 9, i++)
+        // Make sure valid XDG detected from security sectors
+        XDG_Type xdg_type = get_xdg_type(security_sectors);
+        if(xdg_type == XDG_Type::UNKNOWN)
         {
-            uint32_t start_psn = ((uint32_t)security_sectors[ss_pos + 3] << 16) | ((uint32_t)security_sectors[ss_pos + 4] << 8) | (uint32_t)security_sectors[ss_pos + 5];
-            uint32_t end_psn = ((uint32_t)security_sectors[ss_pos + 6] << 16) | ((uint32_t)security_sectors[ss_pos + 7] << 8) | (uint32_t)security_sectors[ss_pos + 8];
-            if(i < 8)
+            LOG("Invalid XDG, reverting to normal DVD mode");
+            LOG("");
+            is_xbox = false;
+        }
+        else
+        {
+            printf("XDG %d detected\n", (uint8_t)xdg_type);
+
+            // Unlock Drive and get updated capacity
+            status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
+            if(status.status_code)
+                throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
+
+            status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
+            if(status.status_code)
+                throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
+            if(block_length != FORM1_DATA_SIZE)
+                throw_line("unsupported block size (block size: {})", block_length);
+
+            sectors_count = sector_last + 1;
+
+            // Read actual game PFI data from Security Sectors
+            LOG("unlocked disc structure:");
+            auto ss_layer_descriptor = reinterpret_cast<const READ_DVD_STRUCTURE_LayerDescriptor *>(security_sectors.data());
+            print_physical_structure(*ss_layer_descriptor, 0);
+            LOG("");
+
+            uint32_t ss_layer_break = 0;
+
+            int32_t lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor->data_start_sector));
+            int32_t layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor->layer0_end_sector));
+
+            ss_layer_break = layer0_last + 1 - lba_first;
+
+            LOG("layer break: {}", ss_layer_break);
+            LOG("");
+
+            xbox_middle_break = ss_layer_descriptor->data_start_sector - initial_layer0_last - 1;
+
+            uint32_t layer_break_psn = initial_layer_break + ss_layer_break + xbox_middle_break;
+            uint32_t layer_break_lba = layer_break_psn + 0x30000;
+
+            LOG("Actual Layer Break of {}", layer_break_psn);
+            LOG("");
+
+            // Extract Security Sector ranges
+            bool is_xdg1 = xdg_type == XDG_Type::XDG1;
+            uint8_t num_ss_regions = security_sectors[1632];
+            xbox_ss_ranges.resize(num_ss_regions);
+
+            for(int ss_pos = 1633, i = 0; i < num_ss_regions; ss_pos += 9, i++)
             {
-                // Layer 0
-                xbox_ss_ranges[i][0] = start_psn - 0x30000;
-                xbox_ss_ranges[i][1] = end_psn - 0x30000;
+                uint32_t start_psn = ((uint32_t)security_sectors[ss_pos + 3] << 16) | ((uint32_t)security_sectors[ss_pos + 4] << 8) | (uint32_t)security_sectors[ss_pos + 5];
+                uint32_t end_psn = ((uint32_t)security_sectors[ss_pos + 6] << 16) | ((uint32_t)security_sectors[ss_pos + 7] << 8) | (uint32_t)security_sectors[ss_pos + 8];
+                if((i < 8 && is_xdg1) || (i == 0 && !is_xdg1))
+                {
+                    // Layer 0
+                    xbox_ss_ranges[i][0] = start_psn - 0x30000;
+                    xbox_ss_ranges[i][1] = end_psn - 0x30000;
+                }
+                else if((i < 16 && is_xdg1) || (i == 3 && !is_xdg1))
+                {
+                    // Layer 1
+                    xbox_ss_ranges[i][0] = layer_break_lba * 2 - (start_psn ^ 0xFFFFFF) - 0x30000 - 1;
+                    xbox_ss_ranges[i][1] = layer_break_lba * 2 - (end_psn ^ 0xFFFFFF) - 0x30000 - 1;
+                }
+                // TODO: What to do with remaining "unkown" sector ranges?
             }
-            else if(i < 16)
-            {
-                // Layer 1
-                xbox_ss_ranges[i][0] = layer_break_lba * 2 - (start_psn ^ 0xFFFFFF) - 0x30000 - 1;
-                xbox_ss_ranges[i][1] = layer_break_lba * 2 - (end_psn ^ 0xFFFFFF) - 0x30000 - 1;
-            }
-            // TODO: What to do with remaining "unkown" sector ranges?
         }
     }
 

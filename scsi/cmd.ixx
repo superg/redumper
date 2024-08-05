@@ -475,13 +475,18 @@ export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_st
 {
     SPTD::Status status;
 
+    // FF 08 01 01 (Legacy)
     // FF 08 01 11 xx
+    bool is_legacy = (lock_state == KREON_LockState::LEGACY);
     CDB6_Generic cdb = {};
     cdb.operation_code = 0xFF;
     cdb.command_unique_bits = 0x04; // xxx0 100x
     cdb.command_unique_bytes[0] = 0x01;
-    cdb.command_unique_bytes[1] = 0x11;
-    cdb.command_unique_bytes[2] = (uint8_t)lock_state;
+    cdb.command_unique_bytes[1] = is_legacy ? 0x01 : 0x11;
+    if(!is_legacy)
+    {
+        cdb.command_unique_bytes[2] = (uint8_t)lock_state;
+    }
 
     status = sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
 

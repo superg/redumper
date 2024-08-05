@@ -250,7 +250,8 @@ export enum class KREON_LockState : uint8_t
 {
     LOCKED,
     XTREME,
-    WXRIPPER
+    WXRIPPER,
+    LEGACY
 };
 
 

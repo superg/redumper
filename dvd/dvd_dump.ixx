@@ -387,6 +387,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     bool trim_to_filesystem_size = false;
     bool sector_count_mismatch = false;
+    uint32_t initial_layer_break = 0;
     if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
     {
         // function call changes rom flag if discrepancy is detected
@@ -518,23 +519,21 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                     auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
 
-                    uint32_t layer_break = 0;
-
                     // opposite
                     if(layer_descriptor.track_path)
                     {
                         int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
                         int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
 
-                        layer_break = layer0_last + 1 - lba_first;
+                        initial_layer_break = layer0_last + 1 - lba_first;
                     }
                     // parallel
                     else if(physical_structures.size() > 1)
-                        layer_break = get_layer_length(layer_descriptor);
+                        initial_layer_break = get_layer_length(layer_descriptor);
 
-                    if(layer_break)
+                    if(initial_layer_break)
                     {
-                        LOG("layer break: {}", layer_break);
+                        LOG("layer break: {}", initial_layer_break);
                         LOG("");
                     }
                 }
@@ -585,12 +584,16 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     // Get XBOX Security sectors (Currently works with Kreon 1.00 only), XGD when sector count mismatch
     bool is_xbox = ctx.drive_config.vendor_specific.starts_with("KREON V1.00") && sector_count_mismatch;
-    // TODO: Is there a way to do this so it isn't unused during all DVD dumps?
+    // TODO: Is there a way to do this so these aren't unused during all DVD dumps?
     std::vector<std::array<uint32_t, 2>> xbox_ss_ranges;
+    // TODO: Get L0 Middle break
+    uint32_t xbox_middle_break = 191312;
     if(is_xbox)
     {
-        puts("Kreon Drive with XGD detected..."); // TODO: remove when debugging finished, maybe log something?
+        LOG("Kreon Drive with XGD detected...");
+        LOG("");
 
+        // Dump Security Sectors
         std::vector<uint8_t> security_sectors(0x800);
         status = cmd_kreon_get_security_sectors(*ctx.sptd, security_sectors);
         if(status.status_code)
@@ -601,33 +604,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         write_entry(fs_ss, security_sectors.data(), security_sectors.size(), 0, 1, 0);
 
-        uint8_t num_ss_regions = security_sectors[1632];
-        xbox_ss_ranges.resize(num_ss_regions);
-
-        // TODO: Actually read this instead of hardcoding it
-        uint32_t layer_break_psn = 1913776;
-        uint32_t layer_break_lba = layer_break_psn + 0x30000;
-
-        for(int ss_pos = 1633, i = 0; i < num_ss_regions; ss_pos += 9, i++)
-        {
-            uint32_t start_psn = ((uint32_t)security_sectors[ss_pos + 3] << 16) | ((uint32_t)security_sectors[ss_pos + 4] << 8) | (uint32_t)security_sectors[ss_pos + 5];
-            uint32_t end_psn = ((uint32_t)security_sectors[ss_pos + 6] << 16) | ((uint32_t)security_sectors[ss_pos + 7] << 8) | (uint32_t)security_sectors[ss_pos + 8];
-            if(i < 8)
-            {
-                // Layer 0
-                xbox_ss_ranges[i][0] = start_psn - 0x30000;
-                xbox_ss_ranges[i][1] = end_psn - 0x30000;
-                printf("Adding SS Range %d: %u - %u\n", i, xbox_ss_ranges[i][0], xbox_ss_ranges[i][1]);
-            }
-            else if(i < 16)
-            {
-                // Layer 1
-                xbox_ss_ranges[i][0] = layer_break_lba * 2 - (start_psn ^ 0xFFFFFF) - 0x30000 - 1;
-                xbox_ss_ranges[i][1] = layer_break_lba * 2 - (end_psn ^ 0xFFFFFF) - 0x30000 - 1;
-                printf("Adding SS Range %d: %u - %u\n", i, xbox_ss_ranges[i][0], xbox_ss_ranges[i][1]);
-            }
-        }
-
+        // Unlock Drive and get updated capacity
         status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)
             throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
@@ -639,6 +616,49 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             throw_line("unsupported block size (block size: {})", block_length);
 
         sectors_count = sector_last + 1;
+
+        // Read actual game PFI data from Security Sectors
+        LOG("unlocked disc structure:");
+        auto layer_descriptor = reinterpret_cast<const READ_DVD_STRUCTURE_LayerDescriptor *>(security_sectors.data());
+        print_physical_structure(*layer_descriptor, 0);
+        LOG("");
+
+        uint32_t ss_layer_break = 0;
+
+        int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor->data_start_sector));
+        int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor->layer0_end_sector));
+
+        ss_layer_break = layer0_last + 1 - lba_first;
+
+        LOG("layer break: {}", ss_layer_break);
+        LOG("");
+
+        // Extract Security Sector ranges
+        uint8_t num_ss_regions = security_sectors[1632];
+        xbox_ss_ranges.resize(num_ss_regions);
+
+        uint32_t layer_break_psn = initial_layer_break + ss_layer_break + xbox_middle_break;
+        uint32_t layer_break_lba = layer_break_psn + 0x30000;
+
+        printf("Actual Layer Break of %d\n\n", layer_break_psn); // TODO: remove when done debugging
+        for(int ss_pos = 1633, i = 0; i < num_ss_regions; ss_pos += 9, i++)
+        {
+            uint32_t start_psn = ((uint32_t)security_sectors[ss_pos + 3] << 16) | ((uint32_t)security_sectors[ss_pos + 4] << 8) | (uint32_t)security_sectors[ss_pos + 5];
+            uint32_t end_psn = ((uint32_t)security_sectors[ss_pos + 6] << 16) | ((uint32_t)security_sectors[ss_pos + 7] << 8) | (uint32_t)security_sectors[ss_pos + 8];
+            if(i < 8)
+            {
+                // Layer 0
+                xbox_ss_ranges[i][0] = start_psn - 0x30000;
+                xbox_ss_ranges[i][1] = end_psn - 0x30000;
+            }
+            else if(i < 16)
+            {
+                // Layer 1
+                xbox_ss_ranges[i][0] = layer_break_lba * 2 - (start_psn ^ 0xFFFFFF) - 0x30000 - 1;
+                xbox_ss_ranges[i][1] = layer_break_lba * 2 - (end_psn ^ 0xFFFFFF) - 0x30000 - 1;
+            }
+            // TODO: What to do with remaining "unkown" sector ranges?
+        }
     }
 
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
@@ -833,14 +853,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(is_xbox)
         {
-            puts("Writing Xbox Zero Padding..."); // TODO: remove when debugging finished
-
             // Write L1 Middle/Filler padding
             std::vector<uint8_t> zeroes(sectors_at_once * FORM1_DATA_SIZE);
-            // TODO: Add to this value to get middle position
-            uint32_t end_l1_middle = sectors_count;
+            uint32_t end_l1_middle = sectors_count + xbox_middle_break;
 
-            printf("Zeroing sectors %d - %d", sectors_count, end_l1_middle); // TODO: remove when debugging finished
+            printf("Zeroing sectors %d - %d\n", sectors_count, end_l1_middle); // TODO: remove when debugging finished
             for(uint32_t zero_sectors = sectors_count; zero_sectors < end_l1_middle;)
             {
                 uint32_t sectors_to_write = std::min(sectors_at_once, end_l1_middle - zero_sectors);

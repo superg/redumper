@@ -392,6 +392,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     uint32_t initial_layer_break = 0;
     int32_t initial_layer0_last = 0;
     uint32_t initial_layer0_length = 0;
+    uint32_t pfi_data_start = 0;
     if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
     {
         // function call changes rom flag if discrepancy is detected
@@ -416,6 +417,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
 
                 physical_sectors_count += get_layer_length(layer_descriptor);
+                pfi_data_start = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
             }
 
             // Kreon drives return incorrect sectors count
@@ -604,17 +606,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         write_vector(image_prefix + ".raw_ss", security_sectors);
 
-        // Make sure valid XDG detected from security sectors
-        XDG_Type xdg_type = get_xdg_type(security_sectors);
-        if(xdg_type == XDG_Type::UNKNOWN)
+        // Make sure valid XGD detected from security sectors
+        XGD_Type xgd_type = get_xgd_type(security_sectors);
+        if(xgd_type == XGD_Type::UNKNOWN)
         {
-            LOG("Invalid XDG, reverting to normal DVD mode");
+            LOG("Invalid XGD, reverting to normal DVD mode");
             LOG("");
             is_xbox = false;
         }
         else
         {
-            printf("XDG %d detected\n", (uint8_t)xdg_type);
+            printf("XGD %d detected\n", (uint8_t)xgd_type);
 
             // Unlock Drive and get updated capacity
             status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
@@ -645,34 +647,31 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             LOG("layer break: {}", ss_layer_break);
             LOG("");
 
-            xbox_middle_break = ss_layer_descriptor->data_start_sector - initial_layer0_last - 1;
-
-            uint32_t layer_break_psn = initial_layer_break + ss_layer_break + xbox_middle_break;
+            uint32_t layer_break_psn = layer0_last - pfi_data_start + 1;
             uint32_t layer_break_lba = layer_break_psn + 0x30000;
+            uint32_t layer1_offset = layer_break_lba * 2 - 0x30000 - 1;
+
+            xbox_middle_break = layer_break_psn - initial_layer_break - ss_layer_break;
 
             LOG("Actual Layer Break of {}", layer_break_psn);
             LOG("");
 
             // Extract Security Sector ranges
-            bool is_xdg1 = xdg_type == XDG_Type::XDG1;
+            bool is_xgd1 = xgd_type == XGD_Type::XGD1;
             uint8_t num_ss_regions = security_sectors[1632];
-            xbox_ss_ranges.resize(num_ss_regions);
-
             for(int ss_pos = 1633, i = 0; i < num_ss_regions; ss_pos += 9, i++)
             {
                 uint32_t start_psn = ((uint32_t)security_sectors[ss_pos + 3] << 16) | ((uint32_t)security_sectors[ss_pos + 4] << 8) | (uint32_t)security_sectors[ss_pos + 5];
                 uint32_t end_psn = ((uint32_t)security_sectors[ss_pos + 6] << 16) | ((uint32_t)security_sectors[ss_pos + 7] << 8) | (uint32_t)security_sectors[ss_pos + 8];
-                if((i < 8 && is_xdg1) || (i == 0 && !is_xdg1))
+                if((i < 8 && is_xgd1) || (i == 0 && !is_xgd1))
                 {
                     // Layer 0
-                    xbox_ss_ranges[i][0] = start_psn - 0x30000;
-                    xbox_ss_ranges[i][1] = end_psn - 0x30000;
+                    xbox_ss_ranges.push_back({ start_psn - 0x30000, end_psn - 0x30000 });
                 }
-                else if((i < 16 && is_xdg1) || (i == 3 && !is_xdg1))
+                else if((i < 16 && is_xgd1) || (i == 3 && !is_xgd1))
                 {
                     // Layer 1
-                    xbox_ss_ranges[i][0] = layer_break_lba * 2 - (start_psn ^ 0xFFFFFF) - 0x30000 - 1;
-                    xbox_ss_ranges[i][1] = layer_break_lba * 2 - (end_psn ^ 0xFFFFFF) - 0x30000 - 1;
+                    xbox_ss_ranges.push_back({ layer1_offset - (start_psn ^ 0xFFFFFF), layer1_offset - (end_psn ^ 0xFFFFFF) });
                 }
                 // TODO: What to do with remaining "unkown" sector ranges?
             }

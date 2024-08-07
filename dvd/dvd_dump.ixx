@@ -637,28 +637,22 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             print_physical_structure(*ss_layer_descriptor, 0);
             LOG("");
 
-            uint32_t ss_layer_break = 0;
-
             int32_t lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor->data_start_sector));
             int32_t layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor->layer0_end_sector));
 
-            ss_layer_break = layer0_last + 1 - lba_first;
-
-            LOG("layer break: {}", ss_layer_break);
+            LOG("actual layer break: {}", layer0_last + 1 - pfi_data_start);
             LOG("");
 
-            uint32_t layer_break_psn = layer0_last - pfi_data_start + 1;
-            uint32_t layer_break_lba = layer_break_psn + 0x30000;
-            uint32_t layer1_offset = layer_break_lba * 2 - 0x30000 - 1;
-
-            xbox_middle_break = layer_break_psn - initial_layer_break - ss_layer_break;
-
-            LOG("Actual Layer Break of {}", layer_break_psn);
-            LOG("");
+            xbox_middle_break = lba_first - pfi_data_start - initial_layer_break;
+            if(xgd_type == XGD_Type::XGD3)
+                xbox_middle_break += 4096;
 
             // Extract Security Sector ranges
             bool is_xgd1 = xgd_type == XGD_Type::XGD1;
             uint8_t num_ss_regions = security_sectors[1632];
+            // Partial pre-compute of conversion to Layer 1
+            const uint32_t layer1_offset = (layer0_last * 2) - 0x030000 + 1;
+
             for(int ss_pos = 1633, i = 0; i < num_ss_regions; ss_pos += 9, i++)
             {
                 uint32_t start_psn = ((uint32_t)security_sectors[ss_pos + 3] << 16) | ((uint32_t)security_sectors[ss_pos + 4] << 8) | (uint32_t)security_sectors[ss_pos + 5];

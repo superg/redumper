@@ -447,7 +447,7 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
 }
 
 
-export SPTD::Status cmd_kreon_get_security_sectors(SPTD &sptd, std::vector<uint8_t> &response_data)
+export SPTD::Status cmd_kreon_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_data)
 {
     SPTD::Status status;
 

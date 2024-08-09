@@ -459,7 +459,7 @@ export SPTD::Status cmd_kreon_get_security_sectors(SPTD &sptd, std::vector<uint8
     *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>((uint16_t)response_data.size());
     cdb.control = 0xC0;
 
-    std::vector<uint8_t> kreon_ss_vals = { 0x01, 0x03, 0x05, 0x07 };
+    const uint8_t kreon_ss_vals[4] = { 0x01, 0x03, 0x05, 0x07 };
     for(auto ss_val : kreon_ss_vals)
     {
         cdb.reserved2 = ss_val;
@@ -482,9 +482,13 @@ export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_st
     cdb.operation_code = 0xFF;
     cdb.command_unique_bits = 0x04; // xxx0 100x
     cdb.command_unique_bytes[0] = 0x01;
-    cdb.command_unique_bytes[1] = is_legacy ? 0x01 : 0x11;
-    if(!is_legacy)
+    if(is_legacy)
     {
+        cdb.command_unique_bytes[1] = 0x01;
+    }
+    else
+    {
+        cdb.command_unique_bytes[1] = 0x11;
         cdb.command_unique_bytes[2] = (uint8_t)lock_state;
     }
 

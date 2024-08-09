@@ -17,13 +17,13 @@ export enum class XGD_Type : uint8_t
     XGD3
 };
 
-export XGD_Type get_xgd_type(std::vector<uint8_t> &ss)
+export XGD_Type get_xgd_type(const std::vector<uint8_t> &ss)
 {
     if(ss.size() != 2048)
         return XGD_Type::UNKNOWN;
 
     // Concatenate the last three values
-    uint32_t xgd_type = ((uint32_t)ss[13] << 16) | ((uint32_t)ss[14] << 8) | ss[15];
+    const uint32_t xgd_type = ((uint32_t)ss[13] << 16) | ((uint32_t)ss[14] << 8) | ss[15];
 
     // Return XGD type based on value
     switch(xgd_type)

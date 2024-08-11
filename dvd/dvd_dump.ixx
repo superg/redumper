@@ -555,20 +555,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     // Sort the skip ranges
                     std::sort(xbox_skip_ranges.begin(), xbox_skip_ranges.end(), [](const std::array<uint32_t, 2> &a, const std::array<uint32_t, 2> &b) { return (a[0] < b[0]) || (a[1] < b[1]); });
 
-                    for(const auto &arr : xbox_skip_ranges)
-                    {
-                        printf("{");
-                        for(size_t i = 0; i < arr.size(); ++i)
-                        {
-                            printf("%d", arr[i]);
-                            if(i < arr.size() - 1)
-                            {
-                                printf(", ");
-                            }
-                        }
-                        puts("}");
-                    }
-
                     // add L1 padding to sectors count
                     sectors_count += l1_padding;
 
@@ -816,9 +802,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     {
                         if(options.verbose)
                             LOG_R("skipped sectors: {}-{}", xbox_skip_ranges[skip_range_idx][0], xbox_skip_ranges[skip_range_idx][1]);
+
                         skip_range_idx++;
-                        while(s > xbox_skip_ranges[skip_range_idx][1] + 1)
+                        // if more completed skip ranges remove them
+                        while(skip_range_idx < xbox_skip_ranges.size() && s >= xbox_skip_ranges[skip_range_idx][1] + 1)
                             skip_range_idx++;
+
+                        // if still in a security sector range do not allow later read to happen
+                        if(skip_range_idx < xbox_skip_ranges.size() && xbox_skip_ranges[skip_range_idx][0] <= s)
+                            continue;
                     }
                     else
                     {

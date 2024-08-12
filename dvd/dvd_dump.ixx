@@ -516,22 +516,24 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                     int32_t lba_first = sign_extend<24>(endian_swap(pfi_layer_descriptor.data_start_sector));
                     uint32_t l1_video_start = layer0_last + 1 - lba_first;
-                    uint32_t l1_video = get_layer_length(pfi_layer_descriptor) - l1_video_start;
+                    uint32_t l1_video_length = get_layer_length(pfi_layer_descriptor) - l1_video_start;
 
                     int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor->data_start_sector));
                     int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor->layer0_end_sector));
 
-                    uint32_t l1_padding = ss_lba_first - layer0_last - 1;
+                    uint32_t l1_padding_length = ss_lba_first - layer0_last - 1;
                     if(xgd_type == XGD_Type::XGD3)
-                        l1_padding += 4096;
+                        l1_padding_length += 4096;
 
                     // extract security sector ranges
-                    bool is_xgd1 = xgd_type == XGD_Type::XGD1;
-                    uint8_t num_ss_regions = ss_layer_descriptor->media_specific[1632 - 17];
+                    bool is_xgd1 = (xgd_type == XGD_Type::XGD1);
+
+                    const auto media_specific_offset = offsetof(READ_DVD_STRUCTURE_LayerDescriptor, media_specific);
+                    uint8_t num_ss_regions = ss_layer_descriptor->media_specific[1632 - media_specific_offset];
                     // partial pre-compute of conversion to Layer 1
                     const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x030000 + 1;
 
-                    for(int ss_pos = 1633 - 17, i = 0; i < num_ss_regions; ss_pos += 9, i++)
+                    for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, i++)
                     {
                         uint32_t start_psn = ((uint32_t)ss_layer_descriptor->media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor->media_specific[ss_pos + 4] << 8)
                                            | (uint32_t)ss_layer_descriptor->media_specific[ss_pos + 5];
@@ -549,21 +551,21 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         }
                     }
 
-                    // Append L1 padding to ranges
-                    xbox_skip_ranges.push_back({ sectors_count, sectors_count + l1_padding - 1 });
+                    // append L1 padding to ranges
+                    xbox_skip_ranges.push_back({ sectors_count, sectors_count + l1_padding_length - 1 });
 
-                    // Sort the skip ranges
-                    std::sort(xbox_skip_ranges.begin(), xbox_skip_ranges.end(), [](const std::array<uint32_t, 2> &a, const std::array<uint32_t, 2> &b) { return (a[0] < b[0]) || (a[1] < b[1]); });
+                    // sort the skip ranges
+                    std::sort(xbox_skip_ranges.begin(), xbox_skip_ranges.end(), [](const std::array<uint32_t, 2> &a, const std::array<uint32_t, 2> &b) { return a[0] < b[0]; });
 
                     // add L1 padding to sectors count
-                    sectors_count += l1_padding;
+                    sectors_count += l1_padding_length;
 
                     // must relock drive to read L1 video
                     xbox_lock_sector = sectors_count;
                     xbox_l1_video_shift = xbox_lock_sector - l1_video_start;
 
                     // add L1 video to sectors count
-                    sectors_count += l1_video;
+                    sectors_count += l1_video_length;
 
                     // overwrite physical structure with true layer0_last from SS, so that disc structure logging is correct
                     pfi_layer_descriptor.layer0_end_sector = ss_layer_descriptor->layer0_end_sector;
@@ -684,7 +686,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             {
                 std::vector<uint8_t> security_sector(0x800);
 
-                // retry security sector 16 times
+                // retry get security sector
                 for(uint32_t i = 0;; i++)
                 {
                     status = cmd_kreon_get_security_sector(*ctx.sptd, security_sector);
@@ -780,19 +782,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(is_xbox && !kreon_locked)
         {
-            // check if Kreon drive needs locking
-            if(s < xbox_lock_sector && s + sectors_to_read >= xbox_lock_sector)
-                sectors_to_read = std::min(sectors_to_read, xbox_lock_sector - s);
-            else if(s == xbox_lock_sector)
-            {
-                status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
-                if(status.status_code)
-                    throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
-                if(options.verbose)
-                    LOG_R("locked kreon drive at sector: {}", s);
-                kreon_locked = true;
-            }
-
             // skip xbox security sector ranges and L1 filler range
             if(skip_range_idx < xbox_skip_ranges.size())
             {
@@ -804,7 +793,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                             LOG_R("skipped sectors: {}-{}", xbox_skip_ranges[skip_range_idx][0], xbox_skip_ranges[skip_range_idx][1]);
 
                         skip_range_idx++;
-                        // if more completed skip ranges remove them
+                        // skip any overlapping ranges we have already completed
                         while(skip_range_idx < xbox_skip_ranges.size() && s >= xbox_skip_ranges[skip_range_idx][1] + 1)
                             skip_range_idx++;
 
@@ -830,6 +819,19 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 {
                     sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx][0] - s);
                 }
+            }
+
+            // check if Kreon drive needs locking
+            if(s < xbox_lock_sector && s + sectors_to_read >= xbox_lock_sector)
+                sectors_to_read = std::min(sectors_to_read, xbox_lock_sector - s);
+            else if(s == xbox_lock_sector)
+            {
+                status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
+                if(status.status_code)
+                    throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
+                if(options.verbose)
+                    LOG_R("locked kreon drive at sector: {}", s);
+                kreon_locked = true;
             }
         }
 

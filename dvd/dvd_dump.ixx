@@ -443,7 +443,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 for(uint32_t i = 0; i < physical_structures.size(); ++i)
                 {
                     std::vector<uint8_t> structure;
-                    cmd_read_disc_structure(*ctx.sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
+                    status = cmd_read_disc_structure(*ctx.sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
                     if(status.status_code)
                         throw_line("failed to read disc manufacturer structure, SCSI ({})", SPTD::StatusMessage(status));
 
@@ -724,7 +724,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(dump_mode == DumpMode::DUMP && readable_formats.find(READ_DISC_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
     {
         std::vector<uint8_t> copyright;
-        auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
+        status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
         if(!status.status_code)
         {
             strip_response_header(copyright);
@@ -826,9 +826,18 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 sectors_to_read = std::min(sectors_to_read, xbox_lock_sector - s);
             else if(s == xbox_lock_sector)
             {
+                status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
+                if(status.status_code)
+                    throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
                 status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
                 if(status.status_code)
                     throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
+                uint32_t locked_sector_last;
+                status = cmd_read_capacity(*ctx.sptd, locked_sector_last, block_length, false, 0, false);
+                if(status.status_code)
+                    throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
+                if(locked_sector_last == sector_last)
+                    throw_line("failed to set lock state, cannot read L1 video. dumping on linux?");
                 if(options.verbose)
                     LOG_R("locked kreon drive at sector: {}", s);
                 kreon_locked = true;
@@ -859,7 +868,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
             std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
 
-            SPTD::Status status;
             if(kreon_locked)
                 status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s - xbox_l1_video_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
             else
@@ -962,6 +970,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(increment)
             s += sectors_to_read;
+    }
+
+    if(is_xbox)
+    {
+        // re-unlock drive before returning
+        status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
+        if(status.status_code)
+            LOG("warnibng: failed to unlock drive at end of dump, SCSI ({})", SPTD::StatusMessage(status));
     }
 
     if(!signal.interrupt())

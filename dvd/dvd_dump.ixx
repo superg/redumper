@@ -378,7 +378,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     SPTD::Status status;
 
-    // try unlock drive if Kreon firmware detected
+    // unlock drive if Kreon firmware detected so we can identify XGD later
     if(ctx.drive_config.vendor_specific.starts_with("KREON V1.00"))
     {
         status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
@@ -430,15 +430,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 physical_sectors_count += get_layer_length(layer_descriptor);
             }
 
-            // Kreon drives return incorrect sectors count
             if(physical_sectors_count != sectors_count)
             {
-                sectors_count = physical_sectors_count;
-
+                // Kreon PFI sector count is only for Video portion when XGD present
                 if(ctx.drive_config.vendor_specific.starts_with("KREON V1.00"))
                     is_xbox = true;
                 else
                 {
+                    sectors_count = physical_sectors_count;
+
                     LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");
                     LOG("");
                 }
@@ -471,16 +471,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             {
                 std::vector<uint8_t> security_sector(0x800);
 
-                // retry get security sector
-                for(uint32_t i = 0;; i++)
-                {
-                    status = cmd_kreon_get_security_sector(*ctx.sptd, security_sector);
-                    if(!status.status_code)
-                        break;
-                    else if(i == 10)
-                        throw_line("failed to get security sectors, SCSI ({})", SPTD::StatusMessage(status));
-                    LOG("failed to get security sector, retrying {}/10", i + 1);
-                }
+                status = cmd_kreon_get_security_sector(*ctx.sptd, security_sector);
+                if(status.status_code)
+                    throw_line("failed to get security sectors, SCSI ({})", SPTD::StatusMessage(status));
 
                 // store security sector
                 write_vector(image_prefix + ".raw_ss", security_sector);
@@ -505,31 +498,18 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
                         throw_line("invalid layer descriptor size (layer: {})", 0);
 
-                    // unlock drive and get last game partition sector
-                    status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
-                    if(status.status_code)
-                        throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
-
-                    status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
-                    if(status.status_code)
-                        throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
-                    if(block_length != FORM1_DATA_SIZE)
-                        throw_line("unsupported block size (block size: {})", block_length);
-
-                    sectors_count = sector_last + 1;
-
                     auto &pfi_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
 
-                    auto ss_layer_descriptor = reinterpret_cast<const READ_DVD_STRUCTURE_LayerDescriptor *>(security_sector.data());
-
-                    int32_t layer0_last = sign_extend<24>(endian_swap(pfi_layer_descriptor.layer0_end_sector));
+                    auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
 
                     int32_t lba_first = sign_extend<24>(endian_swap(pfi_layer_descriptor.data_start_sector));
+                    int32_t layer0_last = sign_extend<24>(endian_swap(pfi_layer_descriptor.layer0_end_sector));
+
                     uint32_t l1_video_start = layer0_last + 1 - lba_first;
                     uint32_t l1_video_length = get_layer_length(pfi_layer_descriptor) - l1_video_start;
 
-                    int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor->data_start_sector));
-                    int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor->layer0_end_sector));
+                    int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor.data_start_sector));
+                    int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
 
                     uint32_t l1_padding_length = ss_lba_first - layer0_last - 1;
                     if(xgd_type == XGD_Type::XGD3)
@@ -539,16 +519,16 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     bool is_xgd1 = (xgd_type == XGD_Type::XGD1);
 
                     const auto media_specific_offset = offsetof(READ_DVD_STRUCTURE_LayerDescriptor, media_specific);
-                    uint8_t num_ss_regions = ss_layer_descriptor->media_specific[1632 - media_specific_offset];
+                    uint8_t num_ss_regions = ss_layer_descriptor.media_specific[1632 - media_specific_offset];
                     // partial pre-compute of conversion to Layer 1
                     const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x030000 + 1;
 
                     for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, i++)
                     {
-                        uint32_t start_psn = ((uint32_t)ss_layer_descriptor->media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor->media_specific[ss_pos + 4] << 8)
-                                           | (uint32_t)ss_layer_descriptor->media_specific[ss_pos + 5];
-                        uint32_t end_psn = ((uint32_t)ss_layer_descriptor->media_specific[ss_pos + 6] << 16) | ((uint32_t)ss_layer_descriptor->media_specific[ss_pos + 7] << 8)
-                                         | (uint32_t)ss_layer_descriptor->media_specific[ss_pos + 8];
+                        uint32_t start_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 4] << 8)
+                                           | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 5];
+                        uint32_t end_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 6] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 7] << 8)
+                                         | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 8];
                         if((i < 8 && is_xgd1) || (i == 0 && !is_xgd1))
                         {
                             // Layer 0
@@ -578,7 +558,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     sectors_count += l1_video_length;
 
                     // overwrite physical structure with true layer0_last from SS, so that disc structure logging is correct
-                    pfi_layer_descriptor.layer0_end_sector = ss_layer_descriptor->layer0_end_sector;
+                    pfi_layer_descriptor.layer0_end_sector = ss_layer_descriptor.layer0_end_sector;
                 }
             }
 
@@ -696,16 +676,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             {
                 std::vector<uint8_t> security_sector(0x800);
 
-                // retry get security sector
-                for(uint32_t i = 0;; i++)
-                {
-                    status = cmd_kreon_get_security_sector(*ctx.sptd, security_sector);
-                    if(!status.status_code)
-                        break;
-                    else if(i == 10)
-                        throw_line("failed to get security sectors, SCSI ({})", SPTD::StatusMessage(status));
-                    LOG("failed to get security sector, retrying {}/10", i + 1);
-                }
+                status = cmd_kreon_get_security_sector(*ctx.sptd, security_sector);
+                if(status.status_code)
+                    throw_line("failed to get security sectors, SCSI ({})", SPTD::StatusMessage(status));
 
                 // validate security sector
                 XGD_Type xgd_type = get_xgd_type(security_sector);
@@ -978,7 +951,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         // re-unlock drive before returning
         status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)
-            LOG("warnibng: failed to unlock drive at end of dump, SCSI ({})", SPTD::StatusMessage(status));
+            LOG("warning: failed to unlock drive at end of dump, SCSI ({})", SPTD::StatusMessage(status));
     }
 
     if(!signal.interrupt())

@@ -839,12 +839,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
                 if(status.status_code)
                     throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
-                uint32_t locked_sector_last;
-                status = cmd_read_capacity(*ctx.sptd, locked_sector_last, block_length, false, 0, false);
-                if(status.status_code)
-                    throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
-                if(locked_sector_last == sector_last)
-                    throw_line("failed to set lock state, cannot read L1 video. dumping on linux?");
                 if(options.verbose)
                     LOG_R("locked kreon drive at sector: {}", s);
                 kreon_locked = true;

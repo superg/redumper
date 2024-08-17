@@ -496,17 +496,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     auto &structure = physical_structures.front();
 
                     if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-                        throw_line("invalid layer descriptor size (layer: {})", 0);
+                        throw_line("invalid layer descriptor size (layer: 0)");
 
                     auto &pfi_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
-
-                    auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
 
                     int32_t lba_first = sign_extend<24>(endian_swap(pfi_layer_descriptor.data_start_sector));
                     int32_t layer0_last = sign_extend<24>(endian_swap(pfi_layer_descriptor.layer0_end_sector));
 
                     uint32_t l1_video_start = layer0_last + 1 - lba_first;
                     uint32_t l1_video_length = get_layer_length(pfi_layer_descriptor) - l1_video_start;
+
+                    auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
 
                     int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor.data_start_sector));
                     int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
@@ -521,7 +521,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     const auto media_specific_offset = offsetof(READ_DVD_STRUCTURE_LayerDescriptor, media_specific);
                     uint8_t num_ss_regions = ss_layer_descriptor.media_specific[1632 - media_specific_offset];
                     // partial pre-compute of conversion to Layer 1
-                    const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x030000 + 1;
+                    const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x30000 + 1;
 
                     for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, i++)
                     {
@@ -792,6 +792,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                         std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
                         write_entry(fs_iso, zeroes.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
+                        std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
+                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+
                         rom_entry.update(zeroes.data(), sectors_to_read * FORM1_DATA_SIZE);
 
                         s += sectors_to_read;
@@ -842,10 +845,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
             std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
 
+            uint32_t dump_sector = s;
             if(kreon_locked)
-                status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s - xbox_l1_video_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
-            else
-                status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+                dump_sector -= xbox_l1_video_shift;
+
+            status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, dump_sector, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
 
             if(status.status_code)
             {

@@ -5,6 +5,8 @@ module;
 
 export module utils.xbox;
 
+import utils.endian;
+
 
 
 namespace gpsxre
@@ -24,7 +26,7 @@ export XGD_Type get_xgd_type(const std::vector<uint8_t> &ss)
         return XGD_Type::UNKNOWN;
 
     // Concatenate the last three values
-    const uint32_t xgd_type = ((uint32_t)ss[13] << 16) | ((uint32_t)ss[14] << 8) | ss[15];
+    const uint32_t xgd_type = endian_swap<uint32_t>(*(uint32_t *)&ss[12]);
 
     // Return XGD type based on value
     switch(xgd_type)

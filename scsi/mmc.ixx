@@ -629,6 +629,16 @@ export struct CDB10_ASUS_ReadCache
 };
 #pragma pack(pop)
 
+export struct CDB10_KREON_SetLockState
+{
+    uint8_t operation_code;
+    uint8_t unknown1;
+    uint8_t unknown2;
+    uint8_t lock_mode; // 0x01 - legacy, 0x11 - extended
+    uint8_t extended;
+    uint8_t reserved[5];
+};
+
 
 export struct CDB10_GetConfiguration
 {

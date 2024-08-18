@@ -1,11 +1,11 @@
 module;
 #include <algorithm>
-#include <array>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <map>
 #include <set>
+#include <utility>
 #include "throw_line.hh"
 
 export module dvd.dump;
@@ -400,7 +400,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     bool trim_to_filesystem_size = false;
 
     bool is_xbox = false;
-    std::vector<std::array<uint32_t, 2>> xbox_skip_ranges;
+    std::vector<std::pair<uint32_t, uint32_t>> xbox_skip_ranges;
     uint32_t xbox_lock_sector = 0;
     uint32_t xbox_l1_video_shift = 0;
 
@@ -471,8 +471,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 LOG("Kreon Drive with XGD{} detected", (uint8_t)xgd_type);
                 LOG("");
 
-                std::vector<uint8_t> clean_ss = security_sector;
-                clean_xbox_security_sector(clean_ss);
+                clean_xbox_security_sector(security_sector);
 
                 // TODO: when 0800 support added check for `v2`
                 auto security_sector_fn = std::format("{}.ss{}", image_prefix, xgd_type == XGD_Type::XGD1 ? "" : "v1");
@@ -480,12 +479,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 if(dump_mode == DumpMode::DUMP)
                 {
                     // store cleaned security sector
-                    write_vector(security_sector_fn, clean_ss);
+                    write_vector(security_sector_fn, security_sector);
                 }
                 else if(!options.force_refine)
                 {
                     // if not dumping, compare security sector to stored to make sure it's the same disc
-                    if(!std::filesystem::exists(security_sector_fn) || read_vector(security_sector_fn) != clean_ss)
+                    if(!std::filesystem::exists(security_sector_fn) || read_vector(security_sector_fn) != security_sector)
                         throw_line("disc / file security sector doesn't match, refining from a different disc?");
                 }
 
@@ -519,7 +518,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 // partial pre-compute of conversion to Layer 1
                 const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x30000 + 1;
 
-                for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, i++)
+                for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, ++i)
                 {
                     uint32_t start_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 4] << 8)
                                        | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 5];
@@ -541,7 +540,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 xbox_skip_ranges.push_back({ sectors_count, sectors_count + l1_padding_length - 1 });
 
                 // sort the skip ranges
-                std::sort(xbox_skip_ranges.begin(), xbox_skip_ranges.end(), [](const std::array<uint32_t, 2> &a, const std::array<uint32_t, 2> &b) { return a[0] < b[0]; });
+                std::sort(xbox_skip_ranges.begin(), xbox_skip_ranges.end(), [](const std::pair<uint32_t, uint32_t> &a, const std::pair<uint32_t, uint32_t> &b) { return a.first < b.first; });
 
                 // add L1 padding to sectors count
                 sectors_count += l1_padding_length;
@@ -553,7 +552,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 // add L1 video to sectors count
                 sectors_count += l1_video_length;
 
-                // overwrite physical structure with true layer0_last from SS, so that disc structure logging is correct
+                // store true layer0_last from SS, so that disc structure logging is correct
                 xbox_layer0_end_sector = ss_layer_descriptor.layer0_end_sector;
             }
         }
@@ -762,26 +761,26 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             // skip xbox security sector ranges and L1 filler range
             if(skip_range_idx < xbox_skip_ranges.size())
             {
-                if(xbox_skip_ranges[skip_range_idx][0] <= s && s <= xbox_skip_ranges[skip_range_idx][1] + 1)
+                if(xbox_skip_ranges[skip_range_idx].first <= s && s <= xbox_skip_ranges[skip_range_idx].second + 1)
                 {
-                    if(s == xbox_skip_ranges[skip_range_idx][1] + 1)
+                    if(s == xbox_skip_ranges[skip_range_idx].second + 1)
                     {
                         if(options.verbose)
-                            LOG_R("skipped sectors: {}-{}", xbox_skip_ranges[skip_range_idx][0], xbox_skip_ranges[skip_range_idx][1]);
+                            LOG_R("skipped sectors: {}-{}", xbox_skip_ranges[skip_range_idx].first, xbox_skip_ranges[skip_range_idx].second);
 
-                        skip_range_idx++;
+                        ++skip_range_idx;
                         // skip any overlapping ranges we have already completed
-                        while(skip_range_idx < xbox_skip_ranges.size() && s >= xbox_skip_ranges[skip_range_idx][1] + 1)
-                            skip_range_idx++;
+                        while(skip_range_idx < xbox_skip_ranges.size() && s >= xbox_skip_ranges[skip_range_idx].second + 1)
+                            ++skip_range_idx;
 
                         // if still in a security sector range do not allow later read to happen
-                        if(skip_range_idx < xbox_skip_ranges.size() && xbox_skip_ranges[skip_range_idx][0] <= s)
+                        if(skip_range_idx < xbox_skip_ranges.size() && xbox_skip_ranges[skip_range_idx].first <= s)
                             continue;
                     }
                     else
                     {
                         // skip at most to the end of the security sector range
-                        sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx][1] + 1 - s);
+                        sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].second + 1 - s);
                         progress_output(s, sectors_count, errors_scsi);
 
                         std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
@@ -797,7 +796,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 }
                 else
                 {
-                    sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx][0] - s);
+                    sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].first - s);
                 }
             }
 

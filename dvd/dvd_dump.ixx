@@ -437,10 +437,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     is_xbox = true;
                 else
                 {
-                    sectors_count = physical_sectors_count;
-
                     LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");
-                    LOG("");
+                    sectors_count = physical_sectors_count;
                 }
             }
         }
@@ -454,7 +452,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 throw_line("failed to get security sectors, SCSI ({})", SPTD::StatusMessage(status));
 
             // store security sector
-            write_vector(image_prefix + ".raw_ss", security_sector);
+            if(dump_mode == DumpMode::DUMP)
+                write_vector(image_prefix + ".raw_ss", security_sector);
 
             // validate security sector
             XGD_Type xgd_type = get_xgd_type(security_sector);
@@ -471,12 +470,21 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 LOG("Kreon Drive with XGD{} detected", (uint8_t)xgd_type);
                 LOG("");
 
-                // if not dumping, compare security sector to stored to make sure it's the same disc
-                if(dump_mode != DumpMode::DUMP && !options.force_refine)
-                {
-                    auto security_sector_fn = image_prefix + ".raw_ss";
+                std::vector<uint8_t> clean_ss = security_sector;
+                clean_xbox_security_sector(clean_ss);
 
-                    if(!std::filesystem::exists(security_sector_fn) || read_vector(security_sector_fn) != security_sector)
+                // TODO: when 0800 support added check for `v2`
+                auto security_sector_fn = std::format("{}.ss{}", image_prefix, xgd_type == XGD_Type::XGD1 ? "" : "v1");
+
+                if(dump_mode == DumpMode::DUMP)
+                {
+                    // store cleaned security sector
+                    write_vector(security_sector_fn, clean_ss);
+                }
+                else if(!options.force_refine)
+                {
+                    // if not dumping, compare security sector to stored to make sure it's the same disc
+                    if(!std::filesystem::exists(security_sector_fn) || read_vector(security_sector_fn) != clean_ss)
                         throw_line("disc / file security sector doesn't match, refining from a different disc?");
                 }
 

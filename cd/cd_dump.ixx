@@ -712,7 +712,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
             // PLEXTOR: multisession lead-out overread
             // usually there are couple of slow sectors before SCSI error is generated
             // some models (PX-708UF) exit on I/O semaphore timeout on such slow sectors
-            if((ctx.drive_config.type == DriveConfig::Type::PLEXTOR || ctx.drive_config.product_id == "CD-R PX-W4824A") && slow && inside_range(lba, error_ranges) != nullptr)
+            if((ctx.drive_config.type == DriveConfig::Type::PLEXTOR || drive_is_plextor4824(ctx.drive_config)) && slow && inside_range(lba, error_ranges) != nullptr)
             {
                 // skip sector in refine mode
                 //                lba_next = lba + 1; //FIXME:

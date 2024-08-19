@@ -5,6 +5,7 @@ module;
 
 export module utils.xbox;
 
+import scsi.mmc;
 import utils.endian;
 
 
@@ -20,13 +21,9 @@ export enum class XGD_Type : uint8_t
     XGD3
 };
 
-export XGD_Type get_xgd_type(const std::vector<uint8_t> &ss)
+export XGD_Type get_xgd_type(const READ_DVD_STRUCTURE_LayerDescriptor &ss_layer_descriptor)
 {
-    if(ss.size() != 2048)
-        return XGD_Type::UNKNOWN;
-
-    // Concatenate the last three values
-    const uint32_t xgd_type = endian_swap<uint32_t>(*(uint32_t *)&ss[12]);
+    const uint32_t xgd_type = endian_swap<uint32_t>(ss_layer_descriptor.layer0_end_sector);
 
     // Return XGD type based on value
     switch(xgd_type)
@@ -42,9 +39,9 @@ export XGD_Type get_xgd_type(const std::vector<uint8_t> &ss)
     }
 }
 
-export void clean_xbox_security_sector(std::vector<uint8_t> &ss)
+export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
 {
-    XGD_Type xgd_type = get_xgd_type(ss);
+    XGD_Type xgd_type = get_xgd_type((READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0]);
 
     bool ssv2 = false;
     switch(xgd_type)
@@ -54,66 +51,66 @@ export void clean_xbox_security_sector(std::vector<uint8_t> &ss)
         break;
 
     case XGD_Type::XGD2:
-        ss[552] = 0x01;
-        ss[553] = 0x00;
-        ss[555] = 0x00;
-        ss[556] = 0x00;
+        security_sector[552] = 0x01;
+        security_sector[553] = 0x00;
+        security_sector[555] = 0x00;
+        security_sector[556] = 0x00;
 
-        ss[561] = 0x5B;
-        ss[562] = 0x00;
-        ss[564] = 0x00;
-        ss[565] = 0x00;
+        security_sector[561] = 0x5B;
+        security_sector[562] = 0x00;
+        security_sector[564] = 0x00;
+        security_sector[565] = 0x00;
 
-        ss[570] = 0xB5;
-        ss[571] = 0x00;
-        ss[573] = 0x00;
-        ss[574] = 0x00;
+        security_sector[570] = 0xB5;
+        security_sector[571] = 0x00;
+        security_sector[573] = 0x00;
+        security_sector[574] = 0x00;
 
-        ss[579] = 0x0F;
-        ss[580] = 0x01;
-        ss[582] = 0x00;
-        ss[583] = 0x00;
+        security_sector[579] = 0x0F;
+        security_sector[580] = 0x01;
+        security_sector[582] = 0x00;
+        security_sector[583] = 0x00;
         break;
 
     case XGD_Type::XGD3:
         // determine if ssv1 (Kreon) or ssv2 (0800)
-        ssv2 = std::any_of(ss.begin() + 32, ss.begin() + 32 + 72, [](uint8_t x) { return x != 0; });
+        ssv2 = std::any_of(security_sector.begin() + 32, security_sector.begin() + 32 + 72, [](uint8_t x) { return x != 0; });
 
         if(ssv2)
         {
-            ss[72] = 0x01;
-            ss[73] = 0x00;
-            ss[75] = 0x01;
-            ss[76] = 0x00;
+            security_sector[72] = 0x01;
+            security_sector[73] = 0x00;
+            security_sector[75] = 0x01;
+            security_sector[76] = 0x00;
 
-            ss[81] = 0x5B;
-            ss[82] = 0x00;
-            ss[84] = 0x5B;
-            ss[85] = 0x00;
+            security_sector[81] = 0x5B;
+            security_sector[82] = 0x00;
+            security_sector[84] = 0x5B;
+            security_sector[85] = 0x00;
 
-            ss[90] = 0xB5;
-            ss[91] = 0x00;
-            ss[93] = 0xB5;
-            ss[94] = 0x00;
+            security_sector[90] = 0xB5;
+            security_sector[91] = 0x00;
+            security_sector[93] = 0xB5;
+            security_sector[94] = 0x00;
 
-            ss[99] = 0x0F;
-            ss[100] = 0x01;
-            ss[102] = 0x0F;
-            ss[103] = 0x01;
+            security_sector[99] = 0x0F;
+            security_sector[100] = 0x01;
+            security_sector[102] = 0x0F;
+            security_sector[103] = 0x01;
         }
         else
         {
-            ss[552] = 0x01;
-            ss[553] = 0x00;
+            security_sector[552] = 0x01;
+            security_sector[553] = 0x00;
 
-            ss[561] = 0x5B;
-            ss[562] = 0x00;
+            security_sector[561] = 0x5B;
+            security_sector[562] = 0x00;
 
-            ss[570] = 0xB5;
-            ss[571] = 0x00;
+            security_sector[570] = 0xB5;
+            security_sector[571] = 0x00;
 
-            ss[579] = 0x0F;
-            ss[580] = 0x01;
+            security_sector[579] = 0x0F;
+            security_sector[580] = 0x01;
         }
         break;
 

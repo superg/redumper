@@ -454,10 +454,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
             // store security sector
             if(dump_mode == DumpMode::DUMP)
-                write_vector(image_prefix + ".raw_ss", security_sector);
+                write_vector(image_prefix + ".security", security_sector);
 
             // validate security sector
-            XGD_Type xgd_type = get_xgd_type(security_sector);
+            XGD_Type xgd_type = get_xgd_type((READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0]);
             if(xgd_type == XGD_Type::UNKNOWN)
             {
                 LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");

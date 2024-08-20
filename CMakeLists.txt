@@ -148,6 +148,7 @@ target_sources(redumper
     "systems/securom.ixx"
     "systems/s_cdrom.ixx"
     "systems/s_iso.ixx"
+    "systems/dc.ixx"
     "systems/mcd.ixx"
     "systems/psx.ixx"
     "systems/ps2.ixx"

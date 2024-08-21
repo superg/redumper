@@ -52,6 +52,10 @@ public:
         if(!date.empty())
             os << std::format("  build date: {}", date) << std::endl;
 
+        std::string version = extractVersion(std::string(rom_header->version, sizeof(rom_header->version)));
+        if(!version.empty())
+            os << std::format("  version: {}", version) << std::endl;
+
         std::string serial(rom_header->serial, sizeof(rom_header->serial));
         erase_all_inplace(serial, ' ');
         if(!serial.empty())
@@ -91,6 +95,7 @@ private:
     static constexpr uint32_t _YEAR_SYMBOLS = 4;
     static constexpr uint32_t _MONTH_SYMBOLS = 2;
     static constexpr uint32_t _DAY_SYMBOLS = 2;
+    static constexpr uint32_t _VERSION_SYMBOLS = 6;
     static const std::map<char, std::string> _REGIONS;
 
     struct ROMHeader
@@ -137,6 +142,28 @@ private:
         date.insert(7, "-");
 
         return date;
+    }
+
+
+    std::string extractVersion(std::string version) const
+    {
+        if(version.length() != _VERSION_SYMBOLS)
+            return "";
+
+        if(version[0] != 'V')
+            return "";
+
+        version.erase(0, 1);
+        erase_all_inplace(version, ' ');
+
+        for(uint32_t i = 0; i < str.length(); ++i)
+        {
+            char ch = str[i];
+            if(!std::isdigit(ch) && ch != '.')
+                return "";
+        }
+
+        return version;
     }
 };
 

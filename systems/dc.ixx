@@ -156,9 +156,9 @@ private:
         version.erase(0, 1);
         erase_all_inplace(version, ' ');
 
-        for(uint32_t i = 0; i < str.length(); ++i)
+        for(uint32_t i = 0; i < version.length(); ++i)
         {
-            char ch = str[i];
+            char ch = version[i];
             if(!std::isdigit(ch) && ch != '.')
                 return "";
         }

@@ -447,34 +447,22 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
 }
 
 
-export SPTD::Status cmd_kreon_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_data)
+export SPTD::Status cmd_kreon_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_data, uint8_t ss_val)
 {
-    SPTD::Status status;
-
     // AD 00 FF 02 FD FF FE 00 08 00 xx C0
     CDB12_ReadDiscStructure cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::READ_DISC_STRUCTURE;
     *(uint32_t *)cdb.address = endian_swap<uint32_t>(0xFF02FDFF);
     cdb.layer_number = 0xFE;
     *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>((uint16_t)response_data.size());
+    cdb.reserved2 = ss_val;
     cdb.control = 0xC0;
 
-    const uint8_t kreon_ss_vals[4] = { 0x01, 0x03, 0x05, 0x07 };
-    for(auto ss_val : kreon_ss_vals)
-    {
-        cdb.reserved2 = ss_val;
-        status = sptd.sendCommand(&cdb, sizeof(cdb), response_data.data(), response_data.size());
-        if(status.status_code)
-            break;
-    }
-
-    return status;
+    return sptd.sendCommand(&cdb, sizeof(cdb), response_data.data(), response_data.size());
 }
 
 export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_state)
 {
-    SPTD::Status status;
-
     // FF 08 01 01 (Legacy)
     // FF 08 01 11 xx
     bool is_legacy = (lock_state == KREON_LockState::LEGACY);
@@ -492,9 +480,7 @@ export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_st
         cdb.extended = (uint8_t)lock_state;
     }
 
-    status = sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
-
-    return status;
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
 }
 
 }

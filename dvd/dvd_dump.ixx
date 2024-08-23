@@ -448,9 +448,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         {
             std::vector<uint8_t> security_sector(0x800);
 
-            status = cmd_kreon_get_security_sector(*ctx.sptd, security_sector);
-            if(status.status_code)
-                throw_line("failed to get security sectors, SCSI ({})", SPTD::StatusMessage(status));
+            bool complete_ss = xbox_get_security_sector(*ctx.sptd, security_sector);
+            if(!complete_ss)
+                LOG("warning: could not get complete security sector, attempting to continue");
 
             // store security sector
             if(dump_mode == DumpMode::DUMP)
@@ -478,8 +478,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                 if(dump_mode == DumpMode::DUMP)
                 {
-                    // store cleaned security sector
-                    write_vector(security_sector_fn, security_sector);
+                    // don't write cleaned version if security sector incomplete
+                    if(complete_ss)
+                        write_vector(security_sector_fn, security_sector);
                 }
                 else if(!options.force_refine)
                 {

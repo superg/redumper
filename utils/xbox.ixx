@@ -2,10 +2,13 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <vector>
+#include "throw_line.hh"
 
 export module utils.xbox;
 
+import scsi.cmd;
 import scsi.mmc;
+import scsi.sptd;
 import utils.endian;
 
 
@@ -119,6 +122,27 @@ export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
         // cannot clean
         break;
     }
+}
+
+export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_data)
+{
+    SPTD::Status status;
+
+    const uint8_t ss_vals[4] = { 0x01, 0x03, 0x05, 0x07 };
+    for(int i = 0; i < sizeof(ss_vals); ++i)
+    {
+        status = cmd_kreon_get_security_sector(sptd, response_data, ss_vals[i]);
+        if(status.status_code)
+        {
+            // fail if cannot get initial response
+            if(i == 0)
+                throw_line("failed to get security sector, SCSI ({})", SPTD::StatusMessage(status));
+
+            return false;
+        }
+    }
+
+    return true;
 }
 
 }

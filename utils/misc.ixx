@@ -342,4 +342,10 @@ export bool number_is_month(uint32_t month)
     return month >= 1 && month <= 12;
 }
 
+
+export bool number_is_day(uint32_t day)
+{
+    return day >= 1 && day <= 31;
+}
+
 }

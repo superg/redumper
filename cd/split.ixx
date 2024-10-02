@@ -50,6 +50,10 @@ int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &s
 {
     int32_t write_offset = std::numeric_limits<int32_t>::max();
 
+    if(lba_start > lba_end)
+    {
+        return write_offset;
+    }
     const uint32_t sectors_to_check = lba_end - lba_start;
 
     std::vector<uint8_t> data(sectors_to_check * CD_DATA_SIZE);

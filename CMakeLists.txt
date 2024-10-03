@@ -165,6 +165,7 @@ target_sources(redumper
     "utils/misc.ixx"
     "utils/signal.ixx"
     "utils/strings.ixx"
+    "utils/xbox.ixx"
     "debug.ixx"
     "dump.ixx"
     "drive.ixx"

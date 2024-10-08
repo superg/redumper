@@ -14,6 +14,7 @@ target_sources(tests
         "${CMAKE_SOURCE_DIR}/cd/cdrom.ixx"
         "${CMAKE_SOURCE_DIR}/cd/edc.ixx"
         "${CMAKE_SOURCE_DIR}/cd/scrambler.ixx"
+        "${CMAKE_SOURCE_DIR}/cd/subcode_rw.ixx"
         "${CMAKE_SOURCE_DIR}/crc/crc.ixx"
         "${CMAKE_SOURCE_DIR}/crc/crc16_gsm.ixx"
         "${CMAKE_SOURCE_DIR}/crc/crc32.ixx"

@@ -19,6 +19,7 @@ import cd.cd;
 import cd.scrambler;
 import cd.split;
 import cd.subcode;
+import cd.subcode_rw;
 import cd.toc;
 import crc.crc32;
 import drive;
@@ -467,10 +468,12 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
     uint32_t errors_scsi = 0;
     uint32_t errors_c2 = 0;
     uint32_t errors_q = 0;
+    uint32_t errors_rw = 0;
 
     // buffers
     std::vector<uint8_t> sector_data(CD_DATA_SIZE);
     std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
+    std::array<uint8_t, CD_SUBCODE_SIZE * CD_RW_PACK_CONTEXT_SECTORS> sector_subcode_rw_context;
     std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
 
     int32_t subcode_shift = 0;
@@ -530,6 +533,19 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
                     ++errors_q;
                     if(options.refine_subchannel)
                         refine_sector = true;
+                }
+
+                if(options.check_subchannel_rw && lba >= 2 && lba + 2 < lba_end)
+                {
+                    read_entry(fs_sub, (uint8_t *)sector_subcode_rw_context.data(), CD_SUBCODE_SIZE, lba_index - 2, CD_RW_PACK_CONTEXT_SECTORS, 0, 0);
+                    if(!valid_rw_packs(sector_subcode_rw_context))
+                    {
+                        if(options.verbose)
+                            LOG_R("[LBA: {:6}] R-W pack error", lba);
+                        ++errors_rw;
+                        if(options.refine_subchannel)
+                            refine_sector = true;
+                    }
                 }
             }
 
@@ -652,14 +668,24 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
             if(c2_exists)
                 flush = true;
 
-            // refine subchannel (based on Q crc)
+            // refine subchannel
             if(options.refine_subchannel && subcode && !read)
             {
+                // check Q crc
                 read_entry(fs_sub, (uint8_t *)sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
                 ChannelQ Q;
                 subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
                 if(!Q.isValid())
                     read = true;
+
+                // optionally check R-W pack parity
+                if(options.check_subchannel_rw && lba >= 2 && lba + 2 < lba_overread && !read)
+                {
+                    read_entry(fs_sub, (uint8_t *)sector_subcode_rw_context.data(), CD_SUBCODE_SIZE, lba_index - 2, CD_RW_PACK_CONTEXT_SECTORS, 0, 0);
+
+                    if(!valid_rw_packs(sector_subcode_rw_context))
+                        read = true;
+                }
             }
 
             // read sector
@@ -853,11 +879,34 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
                         read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
                         ChannelQ Q_file;
                         subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
+
+
                         if(!Q_file.isValid())
                         {
                             write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
                             if(inside_range(lba, error_ranges) == nullptr)
                                 --errors_q;
+                        }
+
+                        if(options.check_subchannel_rw && lba >= 2 && lba + 2 < lba_overread)
+                        {
+                            read_entry(fs_sub, (uint8_t *)sector_subcode_rw_context.data(), CD_SUBCODE_SIZE, lba_index - 2, CD_RW_PACK_CONTEXT_SECTORS, 0, 0);
+
+                            if(!valid_rw_packs(sector_subcode_rw_context))
+                            {
+                                // place the new center sector in context to see if it is fixed
+                                memcpy((uint8_t *)sector_subcode_rw_context.data() + CD_SUBCODE_SIZE * 2, sector_subcode.data(), CD_SUBCODE_SIZE);
+                                if(valid_rw_packs(sector_subcode_rw_context))
+                                {
+                                    if(Q_file.isValid())
+                                    {
+                                        // Q was already valid in the file, so the fixed sector wasn't written above
+                                        write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
+                                    }
+                                    if(inside_range(lba, error_ranges) == nullptr)
+                                        --errors_rw;
+                                }
+                            }
                         }
                     }
                 }
@@ -917,8 +966,12 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
         {
             if(lba == lba_refine)
             {
-                LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {} }}", spinner_animation(),
-                    percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q);
+                std::string rw_log;
+                if(options.check_subchannel_rw)
+                    rw_log = std::format(", RW: {}", errors_rw);
+
+                LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {}{} }}", spinner_animation(),
+                    percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q, rw_log);
             }
         }
         else
@@ -933,6 +986,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
     LOG("  SCSI: {}", errors_scsi);
     LOG("  C2: {}", errors_c2);
     LOG("  Q: {}", errors_q);
+    if(refine && options.check_subchannel_rw)
+        LOG("  RW: {}", errors_rw);
 
     if(signal.interrupt())
         signal.raiseDefault();

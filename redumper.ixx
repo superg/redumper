@@ -385,7 +385,7 @@ export int redumper(Options &options)
         time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
 
         // if auto eject enabled, check if drive is no longer in use
-        if(options.eject && !ejected)
+        if(options.auto_eject && !ejected)
         {
             bool drive_complete = true;
             for(auto next_it = std::next(it); next_it != options.commands.end(); ++next_it)

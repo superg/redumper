@@ -446,4 +446,16 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
     return status;
 }
 
+
+export SPTD::Status cmd_start_stop_unit(SPTD &sptd, uint8_t load_eject, uint8_t start)
+{
+    CDB6_StartStopUnit cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::START_STOP_UNIT;
+    cdb.load_eject = load_eject;
+    cdb.start = start;
+
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+}
+
 }

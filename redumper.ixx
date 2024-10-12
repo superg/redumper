@@ -366,10 +366,13 @@ export int redumper(Options &options)
     }
 
     std::chrono::seconds time_check = std::chrono::seconds::zero();
-    for(auto const &c : options.commands)
+    bool ejected = false;
+    for(auto it = options.commands.begin(); it != options.commands.end(); ++it)
     {
-        auto it = COMMAND_HANDLERS.find(c);
-        if(it == COMMAND_HANDLERS.end())
+        const auto &c = *it;
+
+        auto cmd = COMMAND_HANDLERS.find(c);
+        if(cmd == COMMAND_HANDLERS.end())
             throw_line("unknown command (command: {})", c);
 
         LOG("");
@@ -377,9 +380,32 @@ export int redumper(Options &options)
         LOG("");
 
         auto time_start = std::chrono::high_resolution_clock::now();
-        it->second.second(ctx, options);
+        cmd->second.second(ctx, options);
         auto time_stop = std::chrono::high_resolution_clock::now();
         time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
+
+        // if auto eject enabled, check if drive is no longer in use
+        if(options.eject && !ejected)
+        {
+            bool drive_complete = true;
+            for(auto next_it = std::next(it); next_it != options.commands.end(); ++next_it)
+            {
+                auto next_cmd = COMMAND_HANDLERS.find(*next_it);
+                if(next_cmd != COMMAND_HANDLERS.end() && next_cmd->second.first)
+                {
+                    drive_complete = false;
+                    break;
+                }
+            }
+            if(drive_complete)
+            {
+                // eject drive
+                auto status = cmd_start_stop_unit(*ctx.sptd, 1, 0);
+                if(status.status_code)
+                    LOG("warning: failed to eject, SCSI ({})", SPTD::StatusMessage(status));
+                ejected = true;
+            }
+        }
     }
     LOG("");
     LOG("*** END{}", time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));

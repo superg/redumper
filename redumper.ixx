@@ -16,6 +16,7 @@ export module redumper;
 import cd.cd;
 import cd.dump;
 import cd.dump_new;
+import cd.fix_msf;
 import cd.protection;
 import cd.scrambler;
 import cd.split;
@@ -156,7 +157,8 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
     { "skeleton",   { false, redumper_skeleton }   },
 
     { "subchannel", { false, redumper_subchannel } },
-    { "debug",      { false, redumper_debug }      }
+    { "debug",      { false, redumper_debug }      },
+    { "fixmsf",     { false, redumper_fix_msf }    }
 };
 
 

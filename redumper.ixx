@@ -316,7 +316,7 @@ Context initialize(Options &options)
             options.commands.push_back(c);
         else
         {
-            auto cd_batch_commands = get_cd_batch_commands(ctx, c, Options.auto_eject);
+            auto cd_batch_commands = get_cd_batch_commands(ctx, c, options.auto_eject);
             options.commands.insert(options.commands.end(), cd_batch_commands.begin(), cd_batch_commands.end());
         }
     }

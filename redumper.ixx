@@ -204,14 +204,14 @@ std::string generate_image_name(std::string drive)
 std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command)
 {
     if(profile_is_cd(ctx.current_profile))
-        return command == "new" ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info", "skeleton" }
-                                : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info", "skeleton" };
+        return command == "new" ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info" }
+                                : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
     else if(profile_is_dvd(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info", "skeleton" };
+        return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info" };
     else if(profile_is_bluray(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "hash", "info", "skeleton" };
+        return std::list<std::string>{ "dump", "refine", "hash", "info" };
     else if(profile_is_hddvd(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "hash", "info", "skeleton" };
+        return std::list<std::string>{ "dump", "refine", "hash", "info" };
     else
         return std::list<std::string>{};
 }

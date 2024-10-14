@@ -140,6 +140,17 @@ void redumper_dvdkey(Context &ctx, Options &options)
 }
 
 
+void redumper_eject(Context &ctx, Options &options)
+{
+    if(ctx.sptd)
+    {
+        auto status = cmd_start_stop_unit(*ctx.sptd, 1, 0);
+        if(status.status_code)
+            LOG("warning: failed to eject, SCSI ({})", SPTD::StatusMessage(status));
+    }
+}
+
+
 const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS{
     // COMMAND         DRIVE    HANDLER
     { "rings",      { true, redumper_rings }       },
@@ -149,6 +160,7 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
     { "refinenew",  { true, redumper_refine_new }  },
     { "verify",     { true, redumper_verify }      },
     { "dvdkey",     { true, redumper_dvdkey }      },
+    { "eject",      { true, redumper_eject }       },
     { "dvdisokey",  { false, redumper_dvdisokey }  },
     { "protection", { false, redumper_protection } },
     { "split",      { false, redumper_split }      },
@@ -203,6 +215,7 @@ std::string generate_image_name(std::string drive)
 
 std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command, bool eject)
 {
+    // clang-format off
     if(profile_is_cd(ctx.current_profile))
         return command == "new" ? eject ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "eject", "split", "hash", "info" }
                                         : std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info" }
@@ -219,6 +232,7 @@ std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &co
                      : std::list<std::string>{ "dump", "refine", "hash", "info" };
     else
         return std::list<std::string>{};
+    // clang-format on
 }
 
 

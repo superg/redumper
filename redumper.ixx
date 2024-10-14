@@ -201,17 +201,22 @@ std::string generate_image_name(std::string drive)
 }
 
 
-std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command)
+std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command, bool eject)
 {
     if(profile_is_cd(ctx.current_profile))
-        return command == "new" ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info" }
-                                : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
+        return command == "new" ? eject ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "eject", "split", "hash", "info" }
+                                        : std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info" }
+                                : eject ? std::list<std::string>{ "dump", "protection", "refine", "eject", "split", "hash", "info" }
+                                        : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
     else if(profile_is_dvd(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info" };
+        return eject ? std::list<std::string>{ "dump", "refine", "dvdkey", "eject", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info" };
     else if(profile_is_bluray(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "hash", "info" };
+        return eject ? std::list<std::string>{ "dump", "refine", "eject", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "hash", "info" };
     else if(profile_is_hddvd(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "hash", "info" };
+        return eject ? std::list<std::string>{ "dump", "refine", "eject", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "hash", "info" };
     else
         return std::list<std::string>{};
 }
@@ -297,7 +302,7 @@ Context initialize(Options &options)
             options.commands.push_back(c);
         else
         {
-            auto cd_batch_commands = get_cd_batch_commands(ctx, c);
+            auto cd_batch_commands = get_cd_batch_commands(ctx, c, Options.auto_eject);
             options.commands.insert(options.commands.end(), cd_batch_commands.begin(), cd_batch_commands.end());
         }
     }

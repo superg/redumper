@@ -12,6 +12,7 @@ module;
 
 export module cd.fix_msf;
 
+import cd.cd;
 import cd.cdrom;
 import dump;
 import filesystem.iso9660;

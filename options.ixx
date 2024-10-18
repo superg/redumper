@@ -65,6 +65,7 @@ export struct Options
     bool overread_leadout;
     bool force_unscrambled;
     bool force_refine;
+    bool skip_desynced_sectors;
 
 
     Options(int argc, const char *argv[])
@@ -94,6 +95,7 @@ export struct Options
         , overread_leadout(false)
         , force_unscrambled(false)
         , force_refine(false)
+        , skip_desynced_sectors(false)
     {
         for(int i = 1; i < argc; ++i)
             arguments += str_quoted_if_space(argv[i]) + " ";
@@ -240,6 +242,8 @@ export struct Options
                         force_unscrambled = true;
                     else if(key == "--force-refine")
                         force_refine = true;
+                    else if(key == "--skip-desynced-sectors")
+                        skip_desynced_sectors = true;
                     // unknown option
                     else
                     {
@@ -346,6 +350,7 @@ export struct Options
         LOG("\t--overread-leadout             \tdo not limit lead-out to the first hundred sectors, read until drive returns SCSI error");
         LOG("\t--force-unscrambled            \tdo not attempt to read data sectors as audio (BE read method only)");
         LOG("\t--force-refine                 \tdo not check TOC when refining a disc");
+        LOG("\t--skip-desynced-sectors        \tskip sectors that are read after a subcode desyc");
     }
 };
 

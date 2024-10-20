@@ -156,14 +156,14 @@ export void redumper_fix_msf(Context &ctx, Options &options)
             if(memcmp(sector.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
                 sector_correct = false;
             if(lba_base && *lba_base + s != BCDMSF_to_LBA(sector.header.address))
-                    sector_correct = false;
+                sector_correct = false;
 
             if(sector_correct)
             {
                 // store base LBA address once
                 if(!lba_base)
                     lba_base = BCDMSF_to_LBA(sector.header.address);
-                
+
                 // always cache last good sector to be used as a repair template
                 if(!data_sector_is_dummy(sector))
                     sector_last = sector;

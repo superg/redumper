@@ -24,6 +24,76 @@ export enum class XGD_Type : uint8_t
     XGD3
 };
 
+export struct XGD1_SecuritySector
+{
+    uint8_t reserved1[703];
+    uint32_t cpr_mai;
+    uint8_t reserved2[44];
+    uint8_t ccrt_version;
+    uint8_t ccrt_length;
+    uint8_t ccrt[285];
+    uint64_t creation_filetime;
+    uint8_t unknown2[16];
+    uint32_t reserved3;
+    uint8_t unknown3[16];
+    uint8_t reserved4[84];
+    uint64_t authoring_filetime;
+    uint32_t cert_time_t;
+    uint8_t reserved5[15];
+    uint8_t typeA;
+    uint8_t game_id[16];
+    uint8_t sha1A[20];
+    uint8_t signatureA[256];
+    uint64_t mastering_filetime;
+    uint8_t reserved6[19];
+    uint8_t typeB;
+    uint8_t factory_id[16];
+    uint8_t sha1B[20];
+    uint8_t signatureB[64];
+    uint8_t ss_version;
+    uint8_t ranges_length;
+    uint8_t security_ranges[207];
+    uint8_t security_ranges_duplicate[207];
+    uint8_t reserved7;
+};
+
+export struct XGD2_SecuritySector
+{
+    uint8_t reserved1[239];
+    uint64_t unknown1;
+    uint8_t sha1X[20];
+    uint8_t reserved2[228];
+    uint8_t cr_data[207];
+    uint8_t reserved3;
+    uint32_t cpr_mai;
+    uint8_t reserved4[44];
+    uint8_t ccrt_version;
+    uint8_t ccrt_length;
+    uint8_t reserved5[2];
+    uint8_t ccrt[252];
+    uint8_t reserved6[96];
+    uint8_t media_id[16];
+    uint8_t reserved7[46];
+    uint8_t unknown2;
+    uint64_t authoring_filetime;
+    uint8_t reserved8[19];
+    uint8_t typeA;
+    uint8_t game_id[16];
+    uint8_t sha1A[20];
+    uint8_t signatureA[256];
+    uint64_t mastering_filetime;
+    uint8_t reserved9[19];
+    uint8_t typeB;
+    uint8_t factory_id[16];
+    uint8_t sha1B[20];
+    uint8_t signatureB[64];
+    uint8_t ss_version;
+    uint8_t ranges_length;
+    uint8_t security_ranges[207];
+    uint8_t security_ranges_duplicate[207];
+    uint8_t reserved10;
+};
+
 export XGD_Type get_xgd_type(const READ_DVD_STRUCTURE_LayerDescriptor &ss_layer_descriptor)
 {
     const uint32_t xgd_type = endian_swap<uint32_t>(ss_layer_descriptor.layer0_end_sector);

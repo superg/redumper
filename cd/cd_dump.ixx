@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cstdint>
 #include <filesystem>

@@ -291,7 +291,6 @@ export struct Options
         LOG("\thash      \toutputs XML DAT hash entries (CUE/BIN or ISO)");
         LOG("\tinfo      \toutputs basic image information (CUE/BIN or ISO)");
         LOG("\tskeleton  \tgenerates image file with zeroed content");
-        LOG("\tfixmsf    \tcorrects unexpected MSF in all data tracks (only mode2 sectors)");
         LOG("");
 
         LOG("OPTIONS:");

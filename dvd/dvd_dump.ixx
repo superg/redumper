@@ -452,9 +452,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             if(!complete_ss)
                 LOG("warning: could not get complete security sector, attempting to continue");
 
+            auto security_sector_fn = image_prefix + ".security";
             // store security sector
             if(dump_mode == DumpMode::DUMP)
-                write_vector(image_prefix + ".security", security_sector);
+                write_vector(security_sector_fn, security_sector);
 
             // validate security sector
             XGD_Type xgd_type = get_xgd_type((READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0]);
@@ -473,20 +474,21 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                 clean_xbox_security_sector(security_sector);
 
-                // TODO: when 0800 support added check for `v2`
-                auto security_sector_fn = std::format("{}.ss{}", image_prefix, xgd_type == XGD_Type::XGD1 ? "" : "v1");
-
-                if(dump_mode == DumpMode::DUMP)
-                {
-                    // don't write cleaned version if security sector incomplete
-                    if(complete_ss)
-                        write_vector(security_sector_fn, security_sector);
-                }
-                else if(!options.force_refine)
+                if(dump_mode == DumpMode::REFINE && !options.force_refine)
                 {
                     // if not dumping, compare security sector to stored to make sure it's the same disc
-                    if(!std::filesystem::exists(security_sector_fn) || read_vector(security_sector_fn) != security_sector)
+                    if(!std::filesystem::exists(security_sector_fn))
+                    {
                         throw_line("disc / file security sector doesn't match, refining from a different disc?");
+                    }
+                    else
+                    {
+                        auto refined_security_sector = read_vector(security_sector_fn);
+                        clean_xbox_security_sector(refined_security_sector);
+
+                        if(refined_security_sector != security_sector)
+                            throw_line("disc / file security sector doesn't match, refining from a different disc?");
+                    }
                 }
 
                 auto &structure = physical_structures.front();

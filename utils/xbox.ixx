@@ -134,7 +134,7 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
         status = cmd_kreon_get_security_sector(sptd, response_data, ss_vals[i]);
         if(status.status_code)
         {
-            // fail if cannot get initial response
+            // fail if cannot get initial response, otherwise just note partial response
             if(i == 0)
                 throw_line("failed to get security sector, SCSI ({})", SPTD::StatusMessage(status));
 

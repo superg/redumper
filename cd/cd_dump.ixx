@@ -969,7 +969,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
             {
                 std::string rw_log;
                 if(options.check_subchannel_rw)
-                    rw_log = std::format(", RW: {}", errors_rw);
+                    rw_log = std::format(", R-W: {}", errors_rw);
 
                 LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI: {}, C2: {}, Q: {}{} }}", spinner_animation(),
                     percentage(refine_processed * refine_retries + refine_counter, refine_count * refine_retries), lba, lba_overread, errors_scsi, errors_c2, errors_q, rw_log);
@@ -988,7 +988,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
     LOG("  C2: {}", errors_c2);
     LOG("  Q: {}", errors_q);
     if(refine && options.check_subchannel_rw)
-        LOG("  RW: {}", errors_rw);
+        LOG("  R-W: {}", errors_rw);
 
     if(signal.interrupt())
         signal.raiseDefault();

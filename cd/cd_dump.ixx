@@ -876,15 +876,15 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
                     subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
                     if(Q.isValid())
                     {
+                        bool store_subcode = false;
                         std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
                         read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
                         ChannelQ Q_file;
                         subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
 
-
                         if(!Q_file.isValid())
                         {
-                            write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
+                            store_subcode = true;
                             if(inside_range(lba, error_ranges) == nullptr)
                                 --errors_q;
                         }
@@ -899,16 +899,15 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
                                 memcpy((uint8_t *)sector_subcode_rw_context.data() + CD_SUBCODE_SIZE * 2, sector_subcode.data(), CD_SUBCODE_SIZE);
                                 if(valid_rw_packs(sector_subcode_rw_context))
                                 {
-                                    if(Q_file.isValid())
-                                    {
-                                        // Q was already valid in the file, so the fixed sector wasn't written above
-                                        write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
-                                    }
+                                    store_subcode = true;
                                     if(inside_range(lba, error_ranges) == nullptr)
                                         --errors_rw;
                                 }
                             }
                         }
+
+                        if(store_subcode)
+                            write_entry(fs_sub, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
                     }
                 }
             }

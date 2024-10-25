@@ -39,6 +39,14 @@ export struct Sector
         uint8_t q_parity[104];
     };
 
+    struct SubHeader
+    {
+        uint8_t file_number;
+        uint8_t channel;
+        uint8_t submode;
+        uint8_t coding_info;
+    };
+
     uint8_t sync[12];
 
     struct Header
@@ -64,13 +72,7 @@ export struct Sector
 
                 struct
                 {
-                    struct SubHeader
-                    {
-                        uint8_t file_number;
-                        uint8_t channel;
-                        uint8_t submode;
-                        uint8_t coding_info;
-                    } sub_header;
+                    SubHeader sub_header;
                     SubHeader sub_header_copy;
 
                     union

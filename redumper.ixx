@@ -16,6 +16,7 @@ export module redumper;
 import cd.cd;
 import cd.dump;
 import cd.dump_new;
+import cd.fix_msf;
 import cd.protection;
 import cd.scrambler;
 import cd.split;
@@ -139,6 +140,17 @@ void redumper_dvdkey(Context &ctx, Options &options)
 }
 
 
+void redumper_eject(Context &ctx, Options &options)
+{
+    if(ctx.sptd)
+    {
+        auto status = cmd_start_stop_unit(*ctx.sptd, 1, 0);
+        if(status.status_code)
+            LOG("warning: failed to eject, SCSI ({})", SPTD::StatusMessage(status));
+    }
+}
+
+
 const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS{
     // COMMAND         DRIVE    HANDLER
     { "rings",      { true, redumper_rings }       },
@@ -148,6 +160,7 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
     { "refinenew",  { true, redumper_refine_new }  },
     { "verify",     { true, redumper_verify }      },
     { "dvdkey",     { true, redumper_dvdkey }      },
+    { "eject",      { true, redumper_eject }       },
     { "dvdisokey",  { false, redumper_dvdisokey }  },
     { "protection", { false, redumper_protection } },
     { "split",      { false, redumper_split }      },
@@ -156,7 +169,8 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
     { "skeleton",   { false, redumper_skeleton }   },
 
     { "subchannel", { false, redumper_subchannel } },
-    { "debug",      { false, redumper_debug }      }
+    { "debug",      { false, redumper_debug }      },
+    { "fixmsf",     { false, redumper_fix_msf }    }
 };
 
 
@@ -199,19 +213,26 @@ std::string generate_image_name(std::string drive)
 }
 
 
-std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command)
+std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command, bool eject)
 {
+    // clang-format off
     if(profile_is_cd(ctx.current_profile))
-        return command == "new" ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info", "skeleton" }
-                                : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info", "skeleton" };
+        return command == "new" ? eject ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "eject", "split", "hash", "info" }
+                                        : std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info" }
+                                : eject ? std::list<std::string>{ "dump", "protection", "refine", "eject", "split", "hash", "info" }
+                                        : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
     else if(profile_is_dvd(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info", "skeleton" };
+        return eject ? std::list<std::string>{ "dump", "refine", "dvdkey", "eject", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info" };
     else if(profile_is_bluray(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "hash", "info", "skeleton" };
+        return eject ? std::list<std::string>{ "dump", "refine", "eject", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "hash", "info" };
     else if(profile_is_hddvd(ctx.current_profile))
-        return std::list<std::string>{ "dump", "refine", "hash", "info", "skeleton" };
+        return eject ? std::list<std::string>{ "dump", "refine", "eject", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "hash", "info" };
     else
         return std::list<std::string>{};
+    // clang-format on
 }
 
 
@@ -295,7 +316,7 @@ Context initialize(Options &options)
             options.commands.push_back(c);
         else
         {
-            auto cd_batch_commands = get_cd_batch_commands(ctx, c);
+            auto cd_batch_commands = get_cd_batch_commands(ctx, c, options.auto_eject);
             options.commands.insert(options.commands.end(), cd_batch_commands.begin(), cd_batch_commands.end());
         }
     }

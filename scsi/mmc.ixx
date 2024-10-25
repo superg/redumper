@@ -12,6 +12,7 @@ export enum class CDB_OperationCode : uint8_t
 {
     TEST_UNIT_READY = 0x00,
     INQUIRY = 0x12,
+    START_STOP_UNIT = 0x1B,
     READ_CAPACITY = 0x25,
     SYNCHRONIZE_CACHE = 0x35,
     READ_TOC = 0x43,
@@ -584,6 +585,23 @@ export struct CDB6_Inquiry
     uint8_t reserved1                 :6;
     uint8_t page_code;
     uint8_t allocation_length[2]; // unaligned
+    uint8_t control;
+};
+
+
+export struct CDB6_StartStopUnit
+{
+    uint8_t operation_code;
+    uint8_t immediate :1;
+    uint8_t reserved1 :7;
+    uint8_t reserved2;
+    uint8_t power_condition_modifier :4;
+    uint8_t reserved3                :4;
+    uint8_t start                    :1;
+    uint8_t load_eject               :1;
+    uint8_t no_flush                 :1;
+    uint8_t reserved4                :1;
+    uint8_t power_condition          :4;
     uint8_t control;
 };
 

@@ -25,6 +25,7 @@ export struct Options
     bool help;
     bool version;
     bool verbose;
+    bool auto_eject;
     bool debug;
 
     std::string image_path;
@@ -70,6 +71,7 @@ export struct Options
         : help(false)
         , version(false)
         , verbose(false)
+        , auto_eject(false)
         , debug(false)
         , overwrite(false)
         , force_split(false)
@@ -129,6 +131,8 @@ export struct Options
                         version = true;
                     else if(key == "--verbose")
                         verbose = true;
+                    else if(key == "--auto-eject")
+                        auto_eject = true;
                     else if(key == "--debug")
                         debug = true;
                     else if(key == "--image-path")
@@ -286,6 +290,7 @@ export struct Options
         LOG("\tsplit     \tgenerates BIN/CUE track split from dump files");
         LOG("\thash      \toutputs XML DAT hash entries (CUE/BIN or ISO)");
         LOG("\tinfo      \toutputs basic image information (CUE/BIN or ISO)");
+        LOG("\tskeleton  \tgenerates image file with zeroed content");
         LOG("");
 
         LOG("OPTIONS:");
@@ -293,6 +298,7 @@ export struct Options
         LOG("\t--help,-h                      \tprint usage");
         LOG("\t--version                      \tprint version");
         LOG("\t--verbose                      \tverbose output");
+        LOG("\t--auto-eject                   \tauto eject after dump");
         LOG("\t--drive=VALUE                  \tdrive to use, first available drive with disc, if not provided");
         LOG("\t--speed=VALUE                  \tdrive read speed, optimal drive speed will be used if not provided");
         LOG("\t--retries=VALUE                \tnumber of sector retries in case of SCSI/C2 error (default: {})", retries);

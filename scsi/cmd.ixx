@@ -461,6 +461,7 @@ export SPTD::Status cmd_kreon_get_security_sector(SPTD &sptd, std::vector<uint8_
     return sptd.sendCommand(&cdb, sizeof(cdb), response_data.data(), response_data.size());
 }
 
+
 export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_state)
 {
     // FF 08 01 01 (Legacy)
@@ -479,6 +480,18 @@ export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_st
         cdb.lock_mode = 0x11;
         cdb.extended = (uint8_t)lock_state;
     }
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+}
+
+
+export SPTD::Status cmd_start_stop_unit(SPTD &sptd, uint8_t load_eject, uint8_t start)
+{
+    CDB6_StartStopUnit cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::START_STOP_UNIT;
+    cdb.load_eject = load_eject;
+    cdb.start = start;
+
 
     return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
 }

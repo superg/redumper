@@ -154,6 +154,12 @@ export TOC choose_toc(const std::vector<uint8_t> &toc_buffer, const std::vector<
 }
 
 
+export bool drive_is_plextor4824(const DriveConfig &drive_config)
+{
+    return drive_config.vendor_id == "PLEXTOR" && drive_config.product_id == "CD-R PX-W4824A";
+}
+
+
 export bool toc_enable_cdtext(const Context &ctx, const TOC &toc, const Options &options)
 {
     if(options.disable_cdtext)
@@ -161,7 +167,7 @@ export bool toc_enable_cdtext(const Context &ctx, const TOC &toc, const Options 
     else if(options.force_cdtext_reading)
         return true;
     else
-        return !(ctx.drive_config.vendor_id == "PLEXTOR" && ctx.drive_config.product_id == "CD-R PX-W4824A") || toc.sessions.size() <= 1;
+        return !drive_is_plextor4824(ctx.drive_config) || toc.sessions.size() <= 1;
 }
 
 

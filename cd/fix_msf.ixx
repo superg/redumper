@@ -35,14 +35,6 @@ import utils.strings;
 namespace gpsxre
 {
 
-enum class TrackType
-{
-    DATA,
-    AUDIO,
-    ISO
-};
-
-
 void regenerate_data_sector(Sector &sector, int32_t lba)
 {
     std::copy_n(CD_DATA_SYNC, sizeof(CD_DATA_SYNC), sector.sync);

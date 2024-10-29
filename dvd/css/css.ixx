@@ -2,6 +2,7 @@
 
 module;
 #include <algorithm>
+#include <cstring>
 #include <vector>
 #include "throw_line.hh"
 

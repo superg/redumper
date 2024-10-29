@@ -1,6 +1,7 @@
 module;
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <format>
 #include <fstream>
 #include <iostream>

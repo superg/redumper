@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <climits>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>

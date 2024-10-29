@@ -6,6 +6,7 @@ module;
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <iomanip>
 #include <map>

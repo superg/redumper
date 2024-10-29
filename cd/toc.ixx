@@ -1,6 +1,8 @@
 module;
 #include <cctype>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <format>
 #include <map>
 #include <ostream>

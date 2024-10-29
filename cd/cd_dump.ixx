@@ -2,6 +2,7 @@ module;
 #include <algorithm>
 #include <bit>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <fstream>

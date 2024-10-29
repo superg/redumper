@@ -1,5 +1,6 @@
 module;
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <queue>

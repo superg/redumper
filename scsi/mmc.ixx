@@ -247,6 +247,15 @@ export enum class REPORT_KEY_KeyFormat : uint8_t
 };
 
 
+export enum class KREON_LockState : uint8_t
+{
+    LOCKED,
+    XTREME,
+    WXRIPPER,
+    LEGACY
+};
+
+
 export struct CMD_ParameterListHeader
 {
     uint16_t data_length;
@@ -637,6 +646,16 @@ export struct CDB10_ASUS_ReadCache
     uint32_t size;
 };
 #pragma pack(pop)
+
+export struct CDB10_KREON_SetLockState
+{
+    uint8_t operation_code;
+    uint8_t unknown1;
+    uint8_t unknown2;
+    uint8_t lock_mode; // 0x01 - legacy, 0x11 - extended
+    uint8_t extended;
+    uint8_t reserved[5];
+};
 
 
 export struct CDB10_GetConfiguration

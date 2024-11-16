@@ -45,6 +45,14 @@ export void redumper_hash(Context &ctx, Options &options)
         else if(std::filesystem::exists(image_prefix + ".iso"))
         {
             files.push_back(image_prefix + ".iso");
+
+            // hash xbox extras
+            if(std::filesystem::exists(image_prefix + ".dmi"))
+                files.push_back(image_prefix + ".dmi");
+            if(std::filesystem::exists(image_prefix + ".pfi"))
+                files.push_back(image_prefix + ".pfi");
+            if(std::filesystem::exists(image_prefix + ".ss"))
+                files.push_back(image_prefix + ".ss");
         }
         else
             throw_line("image file not found");

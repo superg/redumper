@@ -1,15 +1,24 @@
 module;
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <string>
 #include <vector>
 #include "throw_line.hh"
 
 export module utils.xbox;
 
+import dump;
+import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import utils.endian;
+import utils.file_io;
+import utils.logger;
+import utils.misc;
 
 
 
@@ -110,6 +119,38 @@ export XGD_Type get_xgd_type(const READ_DVD_STRUCTURE_LayerDescriptor &ss_layer_
     default:
         return XGD_Type::UNKNOWN;
     }
+}
+
+export std::vector<std::pair<uint32_t, uint32_t>> get_security_sector_ranges(const READ_DVD_STRUCTURE_LayerDescriptor &ss_layer_descriptor)
+{
+    std::vector<std::pair<uint32_t, uint32_t>> ss_ranges;
+
+    const auto media_specific_offset = offsetof(READ_DVD_STRUCTURE_LayerDescriptor, media_specific);
+    uint8_t num_ss_regions = ss_layer_descriptor.media_specific[1632 - media_specific_offset];
+    bool is_xgd1 = (get_xgd_type(ss_layer_descriptor) == XGD_Type::XGD1);
+    // partial pre-compute of conversion to Layer 1
+    int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
+    const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x30000 + 1;
+
+    for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, ++i)
+    {
+        uint32_t start_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 4] << 8)
+                           | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 5];
+        uint32_t end_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 6] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 7] << 8)
+                         | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 8];
+        if((i < 8 && is_xgd1) || (i == 0 && !is_xgd1))
+        {
+            // Layer 0
+            ss_ranges.push_back({ start_psn - 0x30000, end_psn - 0x30000 });
+        }
+        else if((i < 16 && is_xgd1) || (i == 3 && !is_xgd1))
+        {
+            // Layer 1
+            ss_ranges.push_back({ layer1_offset - (start_psn ^ 0xFFFFFF), layer1_offset - (end_psn ^ 0xFFFFFF) });
+        }
+    }
+
+    return ss_ranges;
 }
 
 export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
@@ -213,6 +254,59 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
     }
 
     return true;
+}
+
+export void generate_extra_xbox(std::string &image_prefix)
+{
+    std::filesystem::path manufacturer_path(image_prefix + ".manufacturer");
+    std::filesystem::path physical_path(image_prefix + ".physical");
+    std::filesystem::path security_path(image_prefix + ".security");
+
+    if(std::filesystem::exists(security_path))
+    {
+        std::filesystem::path dmi_path(image_prefix + ".dmi");
+        std::filesystem::path pfi_path(image_prefix + ".pfi");
+        std::filesystem::path ss_path(image_prefix + ".ss");
+
+        // Trim the 4 byte header from .manufacturer and write it to a .dmi
+        auto manufacturer = read_vector(manufacturer_path);
+        if(!manufacturer.empty() && manufacturer.size() == 2052)
+        {
+            manufacturer.erase(manufacturer.begin(), manufacturer.begin() + 4);
+            write_vector(dmi_path, manufacturer);
+        }
+        else
+        {
+            LOG("warning: could not generate DMI, unexpected file size ({})", manufacturer_path.filename().string());
+        }
+
+        // Trim the 4 byte header from .physical and write it to a .pfi
+        auto physical = read_vector(physical_path);
+        if(!physical.empty() && physical.size() == 2052)
+        {
+            physical.erase(physical.begin(), physical.begin() + 4);
+            write_vector(pfi_path, physical);
+        }
+        else
+        {
+            LOG("warning: could not generate PFI, unexpected file size ({})", physical_path.filename().string());
+        }
+
+        // Clean the .security and write to a .ss
+        auto security = read_vector(security_path);
+        if(!security.empty() && security.size() == 2048)
+        {
+            clean_xbox_security_sector(security);
+            write_vector(ss_path, security);
+
+            LOG("security sectors:");
+            auto security_ranges = get_security_sector_ranges((READ_DVD_STRUCTURE_LayerDescriptor &)security[0]);
+            for(const auto &range : security_ranges)
+            {
+                LOG("{}-{}", range.first, range.second);
+            }
+        }
+    }
 }
 
 }

@@ -299,7 +299,7 @@ export void generate_extra_xbox(std::string &image_prefix)
             clean_xbox_security_sector(security);
             write_vector(ss_path, security);
 
-            LOG("security sectors:");
+            LOG("security sector ranges:");
             auto security_ranges = get_security_sector_ranges((READ_DVD_STRUCTURE_LayerDescriptor &)security[0]);
             for(const auto &range : security_ranges)
             {

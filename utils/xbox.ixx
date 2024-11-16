@@ -268,7 +268,7 @@ export void generate_extra_xbox(std::string &image_prefix)
         std::filesystem::path pfi_path(image_prefix + ".pfi");
         std::filesystem::path ss_path(image_prefix + ".ss");
 
-        // Trim the 4 byte header from .manufacturer and write it to a .dmi
+        // trim the 4 byte header from .manufacturer and write it to a .dmi
         auto manufacturer = read_vector(manufacturer_path);
         if(!manufacturer.empty() && manufacturer.size() == 2052)
         {
@@ -280,7 +280,7 @@ export void generate_extra_xbox(std::string &image_prefix)
             LOG("warning: could not generate DMI, unexpected file size ({})", manufacturer_path.filename().string());
         }
 
-        // Trim the 4 byte header from .physical and write it to a .pfi
+        // trim the 4 byte header from .physical and write it to a .pfi
         auto physical = read_vector(physical_path);
         if(!physical.empty() && physical.size() == 2052)
         {
@@ -292,7 +292,7 @@ export void generate_extra_xbox(std::string &image_prefix)
             LOG("warning: could not generate PFI, unexpected file size ({})", physical_path.filename().string());
         }
 
-        // Clean the .security and write to a .ss
+        // clean the .security and write to a .ss
         auto security = read_vector(security_path);
         if(!security.empty() && security.size() == 2048)
         {
@@ -303,7 +303,7 @@ export void generate_extra_xbox(std::string &image_prefix)
             auto security_ranges = get_security_sector_ranges((READ_DVD_STRUCTURE_LayerDescriptor &)security[0]);
             for(const auto &range : security_ranges)
             {
-                LOG("{}-{}", range.first, range.second);
+                LOG("  {}-{}", range.first, range.second);
             }
         }
     }

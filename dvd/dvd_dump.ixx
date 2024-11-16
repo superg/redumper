@@ -507,39 +507,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
 
                 int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor.data_start_sector));
-                int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
 
                 uint32_t l1_padding_length = ss_lba_first - layer0_last - 1;
                 if(xgd_type == XGD_Type::XGD3)
                     l1_padding_length += 4096;
 
-                // extract security sector ranges
-                bool is_xgd1 = (xgd_type == XGD_Type::XGD1);
+                // extract security sector ranges from security sector
+                xbox_skip_ranges = get_security_sector_ranges(ss_layer_descriptor);
 
-                const auto media_specific_offset = offsetof(READ_DVD_STRUCTURE_LayerDescriptor, media_specific);
-                uint8_t num_ss_regions = ss_layer_descriptor.media_specific[1632 - media_specific_offset];
-                // partial pre-compute of conversion to Layer 1
-                const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x30000 + 1;
-
-                for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, ++i)
-                {
-                    uint32_t start_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 4] << 8)
-                                       | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 5];
-                    uint32_t end_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 6] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 7] << 8)
-                                     | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 8];
-                    if((i < 8 && is_xgd1) || (i == 0 && !is_xgd1))
-                    {
-                        // Layer 0
-                        xbox_skip_ranges.push_back({ start_psn - 0x30000, end_psn - 0x30000 });
-                    }
-                    else if((i < 16 && is_xgd1) || (i == 3 && !is_xgd1))
-                    {
-                        // Layer 1
-                        xbox_skip_ranges.push_back({ layer1_offset - (start_psn ^ 0xFFFFFF), layer1_offset - (end_psn ^ 0xFFFFFF) });
-                    }
-                }
-
-                // append L1 padding to ranges
+                // append L1 padding to skip ranges
                 xbox_skip_ranges.push_back({ sectors_count, sectors_count + l1_padding_length - 1 });
 
                 // sort the skip ranges
@@ -952,6 +928,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)
             LOG("warning: failed to unlock drive at end of dump, SCSI ({})", SPTD::StatusMessage(status));
+
+        // generate .dmi, .pfi, .ss if requested
+        if(options.generate_extra_xbox)
+        {
+            auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+            generate_extra_xbox(image_prefix);
+        }
     }
 
     if(!signal.interrupt())

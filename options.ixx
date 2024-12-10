@@ -65,6 +65,7 @@ export struct Options
     bool overread_leadout;
     bool force_unscrambled;
     bool force_refine;
+    bool generate_extra_xbox;
 
 
     Options(int argc, const char *argv[])
@@ -94,6 +95,7 @@ export struct Options
         , overread_leadout(false)
         , force_unscrambled(false)
         , force_refine(false)
+        , generate_extra_xbox(false)
     {
         for(int i = 1; i < argc; ++i)
             arguments += str_quoted_if_space(argv[i]) + " ";
@@ -240,6 +242,8 @@ export struct Options
                         force_unscrambled = true;
                     else if(key == "--force-refine")
                         force_refine = true;
+                    else if(key == "--generate-extra-xbox")
+                        generate_extra_xbox = true;
                     // unknown option
                     else
                     {
@@ -334,6 +338,7 @@ export struct Options
         LOG("\t--legacy-subs                  \treplicate DIC style subchannel based track split");
         LOG("\t--skip-fill=VALUE              \tfill byte value for skipped sectors (default: 0x{:02X})", skip_fill);
         LOG("\t--iso9660-trim                 \ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
+        LOG("\t--generate-extra-xbox          \tgenerate extra xbox files (.dmi/.pfi/.ss from .manufacturer/.physical/.security)");
         LOG("");
         LOG("\t(miscellaneous)");
         LOG("\t--lba-start=VALUE              \tLBA to start dumping from");

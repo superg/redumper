@@ -929,10 +929,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         // generate .dmi, .pfi, .ss if requested
         if(options.generate_extra_xbox)
-        {
-            auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
             generate_extra_xbox(image_prefix);
-        }
     }
 
     if(!signal.interrupt())

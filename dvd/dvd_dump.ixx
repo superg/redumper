@@ -476,19 +476,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                 if(dump_mode == DumpMode::REFINE && !options.force_refine)
                 {
-                    // if not dumping, compare security sector to stored to make sure it's the same disc
-                    if(!std::filesystem::exists(security_sector_fn))
-                    {
-                        throw_line("disc / file security sector doesn't match, refining from a different disc?");
-                    }
-                    else
+                    // if not dumping, compare cleaned security sector to stored to make sure it's the same disc
+                    bool invalid_ss = true;
+                    if(std::filesystem::exists(security_sector_fn))
                     {
                         auto refined_security_sector = read_vector(security_sector_fn);
                         clean_xbox_security_sector(refined_security_sector);
-
-                        if(refined_security_sector != security_sector)
-                            throw_line("disc / file security sector doesn't match, refining from a different disc?");
+                        invalid_ss = (refined_security_sector != security_sector);
                     }
+
+                    if(invalid_ss)
+                        throw_line("disc / file security sector doesn't match, refining from a different disc?");
                 }
 
                 auto &structure = physical_structures.front();

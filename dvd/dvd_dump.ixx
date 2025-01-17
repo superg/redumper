@@ -928,7 +928,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             LOG("warning: failed to unlock drive at end of dump, SCSI ({})", SPTD::StatusMessage(status));
 
         // generate .dmi, .pfi, .ss if requested
-        if(options.generate_extra_xbox)
+        if(dump_mode == DumpMode::DUMP && options.generate_extra_xbox)
             generate_extra_xbox(image_prefix);
     }
 

@@ -12,6 +12,7 @@ export module dvd.split;
 import dump;
 import options;
 import rom_entry;
+import scsi.mmc;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
@@ -23,7 +24,7 @@ namespace gpsxre
 {
 
 
-void generate_extra_xbox(Options &options)
+void generate_extra_xbox(Context &ctx, Options &options)
 {
     image_check_empty(options);
 
@@ -51,7 +52,7 @@ void generate_extra_xbox(Options &options)
                     write_vector(dmi_path, manufacturer);
 
                     ROMEntry dmi_rom_entry(dmi_path.filename().string());
-                    dmi_rom_entry.update(manufacturer.data(), FORM1_DATA_SIZE);
+                    dmi_rom_entry.update(manufacturer.data(), 2048);
                     if(!ctx.dat.has_value())
                         ctx.dat = std::vector<std::string>();
                     ctx.dat->push_back(dmi_rom_entry.xmlLine());
@@ -138,7 +139,7 @@ export void redumper_split_dvd(Context &ctx, Options &options)
 
     // generate .dmi, .pfi, .ss if requested
     if(options.generate_extra_xbox)
-        generate_extra_xbox(options);
+        generate_extra_xbox(ctx, options);
 
     // prevent hash generation for ISO with scsi errors
     if(ctx.dump_errors->scsi && !options.force_split)

@@ -98,7 +98,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
 
         // clean the .security and write it to a .ss (if it doesn't exist)
         std::filesystem::path ss_path(image_prefix + ".ss");
-        if(!std::filesystem::exists(ss_path) && !options.overwrite)
+        if(std::filesystem::exists(ss_path) && !options.overwrite)
         {
             LOG("warning: file already exists ({}.ss)", options.image_name);
         }
@@ -144,7 +144,7 @@ export void redumper_split_dvd(Context &ctx, Options &options)
         generate_extra_xbox(ctx, options);
 
     // prevent hash generation for ISO with scsi errors
-    if(ctx.dump_errors->scsi && !options.force_split)
+    if(ctx.dump_errors && ctx.dump_errors->scsi && !options.force_split)
         throw_line("{} scsi errors detected, unable to continue (use --force-split to ignore)", ctx.dump_errors->scsi);
 }
 

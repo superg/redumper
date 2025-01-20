@@ -23,6 +23,8 @@ import utils.xbox;
 namespace gpsxre
 {
 
+const uint32_t DVD_DESCRIPTOR_SIZE = 2048;
+
 
 void generate_extra_xbox(Context &ctx, Options &options)
 {
@@ -46,13 +48,13 @@ void generate_extra_xbox(Context &ctx, Options &options)
             else
             {
                 auto manufacturer = read_vector(manufacturer_path);
-                if(!manufacturer.empty() && manufacturer.size() == 2052)
+                if(!manufacturer.empty() && manufacturer.size() == DVD_DESCRIPTOR_SIZE + 4)
                 {
                     manufacturer.erase(manufacturer.begin(), manufacturer.begin() + 4);
                     write_vector(dmi_path, manufacturer);
 
                     ROMEntry dmi_rom_entry(dmi_path.filename().string());
-                    dmi_rom_entry.update(manufacturer.data(), 2048);
+                    dmi_rom_entry.update(manufacturer.data(), DVD_DESCRIPTOR_SIZE);
                     if(!ctx.dat.has_value())
                         ctx.dat = std::vector<std::string>();
                     ctx.dat->push_back(dmi_rom_entry.xmlLine());
@@ -76,13 +78,13 @@ void generate_extra_xbox(Context &ctx, Options &options)
             else
             {
                 auto physical = read_vector(physical_path);
-                if(!physical.empty() && physical.size() == 2052)
+                if(!physical.empty() && physical.size() == DVD_DESCRIPTOR_SIZE + 4)
                 {
                     physical.erase(physical.begin(), physical.begin() + 4);
                     write_vector(pfi_path, physical);
 
                     ROMEntry pfi_rom_entry(pfi_path.filename().string());
-                    pfi_rom_entry.update(physical.data(), FORM1_DATA_SIZE);
+                    pfi_rom_entry.update(physical.data(), DVD_DESCRIPTOR_SIZE);
                     if(!ctx.dat.has_value())
                         ctx.dat = std::vector<std::string>();
                     ctx.dat->push_back(pfi_rom_entry.xmlLine());
@@ -103,13 +105,13 @@ void generate_extra_xbox(Context &ctx, Options &options)
         else
         {
             auto security = read_vector(security_path);
-            if(!security.empty() && security.size() == 2048)
+            if(!security.empty() && security.size() == DVD_DESCRIPTOR_SIZE)
             {
                 clean_xbox_security_sector(security);
                 write_vector(ss_path, security);
 
                 ROMEntry ss_rom_entry(ss_path.filename().string());
-                ss_rom_entry.update(security.data(), FORM1_DATA_SIZE);
+                ss_rom_entry.update(security.data(), DVD_DESCRIPTOR_SIZE);
                 if(!ctx.dat.has_value())
                     ctx.dat = std::vector<std::string>();
                 ctx.dat->push_back(ss_rom_entry.xmlLine());

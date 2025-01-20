@@ -11,6 +11,7 @@ import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import utils.endian;
+import utils.misc;
 
 
 

@@ -37,7 +37,7 @@ void generate_extra_xbox(Options &options)
         std::filesystem::path dmi_path(image_prefix + ".dmi");
         if(std::filesystem::exists(manufacturer_path))
         {
-            if (std::filesystem::exists(dmi_path) && !options.overwrite)
+            if(std::filesystem::exists(dmi_path) && !options.overwrite)
             {
                 LOG("warning: file already exists ({}.dmi)", options.image_name);
             }
@@ -51,7 +51,7 @@ void generate_extra_xbox(Options &options)
 
                     ROMEntry dmi_rom_entry(dmi_path.filename().string());
                     dmi_rom_entry.update(manufacturer.data(), FORM1_DATA_SIZE);
-                    if (!ctx.dat.has_value())
+                    if(!ctx.dat.has_value())
                         ctx.dat = std::vector<std::string>();
                     ctx.dat->push_back(dmi_rom_entry.xmlLine());
                 }
@@ -67,7 +67,7 @@ void generate_extra_xbox(Options &options)
         std::filesystem::path pfi_path(image_prefix + ".pfi");
         if(std::filesystem::exists(physical_path))
         {
-            if (std::filesystem::exists(pfi_path) && !options.overwrite)
+            if(std::filesystem::exists(pfi_path) && !options.overwrite)
             {
                 LOG("warning: file already exists ({}.pfi)", options.image_name);
             }
@@ -81,7 +81,7 @@ void generate_extra_xbox(Options &options)
 
                     ROMEntry pfi_rom_entry(pfi_path.filename().string());
                     pfi_rom_entry.update(physical.data(), FORM1_DATA_SIZE);
-                    if (!ctx.dat.has_value())
+                    if(!ctx.dat.has_value())
                         ctx.dat = std::vector<std::string>();
                     ctx.dat->push_back(pfi_rom_entry.xmlLine());
                 }
@@ -108,7 +108,7 @@ void generate_extra_xbox(Options &options)
 
                 ROMEntry ss_rom_entry(ss_path.filename().string());
                 ss_rom_entry.update(security.data(), FORM1_DATA_SIZE);
-                if (!ctx.dat.has_value())
+                if(!ctx.dat.has_value())
                     ctx.dat = std::vector<std::string>();
                 ctx.dat->push_back(ss_rom_entry.xmlLine());
 
@@ -130,10 +130,10 @@ void generate_extra_xbox(Options &options)
 
 export void redumper_split_dvd(Context &ctx, Options &options)
 {
-    //image_check_empty(options);
-    //auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    //std::filesystem::path iso_path(image_prefix + ".iso");
-    //std::filesystem::path state_path(image_prefix + ".state");
+    // image_check_empty(options);
+    // auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+    // std::filesystem::path iso_path(image_prefix + ".iso");
+    // std::filesystem::path state_path(image_prefix + ".state");
 
     // generate .dmi, .pfi, .ss if requested
     if(options.generate_extra_xbox)

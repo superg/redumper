@@ -711,7 +711,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     uint32_t refine_counter = 0;
     uint32_t refine_retries = options.retries ? options.retries : 1;
-    
+
     Errors errors = {};
     errors.scsi = 0;
     // FIXME: verify memory usage for largest bluray and chunk it if needed

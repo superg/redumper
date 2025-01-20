@@ -862,7 +862,7 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
 }
 
 
-export void redumper_split(Context &ctx, Options &options)
+export void redumper_split_cd(Context &ctx, Options &options)
 {
     image_check_empty(options);
 

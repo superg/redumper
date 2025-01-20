@@ -27,6 +27,7 @@ import drive;
 import dump;
 import dvd.dump;
 import dvd.key;
+import dvd.split;
 import hash;
 import info;
 import options;
@@ -151,6 +152,15 @@ void redumper_eject(Context &ctx, Options &options)
 }
 
 
+void redumper_split(Context &ctx, Options &options)
+{
+    if(profile_is_cd(ctx.current_profile))
+        redumper_split_cd(ctx, options);
+    else
+        redumper_split_dvd(ctx, options);
+}
+
+
 const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS{
     // COMMAND         DRIVE    HANDLER
     { "rings",      { true, redumper_rings }       },
@@ -222,14 +232,14 @@ std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &co
                                 : eject ? std::list<std::string>{ "dump", "protection", "refine", "eject", "split", "hash", "info" }
                                         : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
     else if(profile_is_dvd(ctx.current_profile))
-        return eject ? std::list<std::string>{ "dump", "refine", "dvdkey", "eject", "hash", "info" }
-                     : std::list<std::string>{ "dump", "refine", "dvdkey", "hash", "info" };
+        return eject ? std::list<std::string>{ "dump", "refine", "dvdkey", "eject", "split", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "dvdkey", "split", "hash", "info" };
     else if(profile_is_bluray(ctx.current_profile))
-        return eject ? std::list<std::string>{ "dump", "refine", "eject", "hash", "info" }
-                     : std::list<std::string>{ "dump", "refine", "hash", "info" };
+        return eject ? std::list<std::string>{ "dump", "refine", "eject", "split", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "split", "hash", "info" };
     else if(profile_is_hddvd(ctx.current_profile))
-        return eject ? std::list<std::string>{ "dump", "refine", "eject", "hash", "info" }
-                     : std::list<std::string>{ "dump", "refine", "hash", "info" };
+        return eject ? std::list<std::string>{ "dump", "refine", "eject", "split", "hash", "info" }
+                     : std::list<std::string>{ "dump", "refine", "split", "hash", "info" };
     else
         return std::list<std::string>{};
     // clang-format on

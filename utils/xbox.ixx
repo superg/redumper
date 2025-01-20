@@ -2,23 +2,15 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <string>
 #include <vector>
 #include "throw_line.hh"
 
 export module utils.xbox;
 
-import dump;
-import options;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import utils.endian;
-import utils.file_io;
-import utils.logger;
-import utils.misc;
 
 
 
@@ -254,72 +246,6 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
     }
 
     return true;
-}
-
-export void generate_extra_xbox(std::string &image_prefix)
-{
-    // Only generate extra xbox files if a .security exists
-    std::filesystem::path security_path(image_prefix + ".security");
-    std::filesystem::path ss_path(image_prefix + ".security");
-    if(std::filesystem::exists(security_path))
-    {
-        // trim the 4 byte header from .manufacturer and write it to a .dmi (if it doesn't exist)
-        std::filesystem::path manufacturer_path(image_prefix + ".manufacturer");
-        std::filesystem::path dmi_path(image_prefix + ".dmi");
-        if(std::filesystem::exists(manufacturer_path) && !std::filesystem::exists(dmi_path))
-        {
-            auto manufacturer = read_vector(manufacturer_path);
-            if(!manufacturer.empty() && manufacturer.size() == 2052)
-            {
-                manufacturer.erase(manufacturer.begin(), manufacturer.begin() + 4);
-                write_vector(dmi_path, manufacturer);
-            }
-            else
-            {
-                LOG("warning: could not generate DMI, unexpected file size ({})", manufacturer_path.filename().string());
-            }
-        }
-
-        // trim the 4 byte header from .physical and write it to a .pfi (if it doesn't exist)
-        std::filesystem::path physical_path(image_prefix + ".physical");
-        std::filesystem::path pfi_path(image_prefix + ".pfi");
-        if(std::filesystem::exists(physical_path) && !std::filesystem::exists(pfi_path))
-        {
-            auto physical = read_vector(physical_path);
-            if(!physical.empty() && physical.size() == 2052)
-            {
-                physical.erase(physical.begin(), physical.begin() + 4);
-                write_vector(pfi_path, physical);
-            }
-            else
-            {
-                LOG("warning: could not generate PFI, unexpected file size ({})", physical_path.filename().string());
-            }
-        }
-
-        // clean the .security and write it to a .ss (if it doesn't exist)
-        std::filesystem::path ss_path(image_prefix + ".ss");
-        if(!std::filesystem::exists(ss_path))
-        {
-            auto security = read_vector(security_path);
-            if(!security.empty() && security.size() == 2048)
-            {
-                clean_xbox_security_sector(security);
-                write_vector(ss_path, security);
-
-                LOG("security sector ranges:");
-                auto security_ranges = get_security_sector_ranges((READ_DVD_STRUCTURE_LayerDescriptor &)security[0]);
-                for(const auto &range : security_ranges)
-                {
-                    LOG("  {}-{}", range.first, range.second);
-                }
-            }
-            else
-            {
-                LOG("warning: could not generate SS, unexpected file size ({})", security_path.filename().string());
-            }
-        }
-    }
 }
 
 }

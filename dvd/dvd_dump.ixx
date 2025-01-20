@@ -711,14 +711,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     uint32_t refine_counter = 0;
     uint32_t refine_retries = options.retries ? options.retries : 1;
-
-    uint32_t errors_scsi = 0;
+    
+    Errors errors = {};
+    errors.scsi = 0;
     // FIXME: verify memory usage for largest bluray and chunk it if needed
     if(dump_mode != DumpMode::DUMP)
     {
         std::vector<State> state_buffer(sectors_count);
         read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), 0, sectors_count, 0, (uint8_t)State::ERROR_SKIP);
-        errors_scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
+        errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
     }
 
     ROMEntry rom_entry(iso_path.filename().string());
@@ -758,7 +759,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     {
                         // skip at most to the end of the security sector range
                         sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].second + 1 - s);
-                        progress_output(s, sectors_count, errors_scsi);
+                        progress_output(s, sectors_count, errors.scsi);
 
                         std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
                         write_entry(fs_iso, zeroes.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
@@ -811,7 +812,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(read)
         {
-            progress_output(s, sectors_count, errors_scsi);
+            progress_output(s, sectors_count, errors.scsi);
 
             std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
 
@@ -833,7 +834,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 }
 
                 if(dump_mode == DumpMode::DUMP)
-                    errors_scsi += sectors_to_read;
+                    errors.scsi += sectors_to_read;
                 else if(dump_mode == DumpMode::REFINE)
                 {
                     ++refine_counter;
@@ -872,7 +873,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         std::copy(drive_data.begin() + i * FORM1_DATA_SIZE, drive_data.begin() + (i + 1) * FORM1_DATA_SIZE, file_data.begin() + i * FORM1_DATA_SIZE);
                         file_state[i] = State::SUCCESS;
 
-                        --errors_scsi;
+                        --errors.scsi;
                     }
 
                     refine_counter = 0;
@@ -897,7 +898,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                             file_state[i] = State::ERROR_SKIP;
                             update = true;
 
-                            ++errors_scsi;
+                            ++errors.scsi;
                         }
                     }
 
@@ -907,7 +908,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             }
         }
 
-        if(dump_mode == DumpMode::DUMP && !errors_scsi)
+        if(dump_mode == DumpMode::DUMP && !errors.scsi)
             rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
 
         if(signal.interrupt())
@@ -926,29 +927,26 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)
             LOG("warning: failed to unlock drive at end of dump, SCSI ({})", SPTD::StatusMessage(status));
-
-        // generate .dmi, .pfi, .ss if requested
-        if(dump_mode == DumpMode::DUMP && options.generate_extra_xbox)
-            generate_extra_xbox(image_prefix);
     }
 
     if(!signal.interrupt())
     {
-        progress_output(sectors_count, sectors_count, errors_scsi);
+        progress_output(sectors_count, sectors_count, errors.scsi);
         LOG("");
     }
     LOG("");
 
     LOG("media errors: ");
-    LOG("  SCSI: {}", errors_scsi);
+    LOG("  SCSI: {}", errors.scsi);
+    ctx.dump_errors = errors;
 
     if(signal.interrupt())
         signal.raiseDefault();
 
-    if(dump_mode == DumpMode::DUMP && !errors_scsi)
+    if(dump_mode == DumpMode::DUMP && !errors.scsi)
         ctx.dat = std::vector<std::string>(1, rom_entry.xmlLine());
 
-    return errors_scsi;
+    return errors.scsi;
 }
 
 }

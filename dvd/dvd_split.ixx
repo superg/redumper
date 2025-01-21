@@ -134,18 +134,12 @@ void generate_extra_xbox(Context &ctx, Options &options)
 
 export void redumper_split_dvd(Context &ctx, Options &options)
 {
-    // image_check_empty(options);
-    // auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    // std::filesystem::path iso_path(image_prefix + ".iso");
-    // std::filesystem::path state_path(image_prefix + ".state");
-
-    // generate .dmi, .pfi, .ss if requested
-    if(options.generate_extra_xbox)
-        generate_extra_xbox(ctx, options);
+    // generate .dmi, .pfi, .ss if xbox disc
+    generate_extra_xbox(ctx, options);
 
     // prevent hash generation for ISO with scsi errors
     if(ctx.dump_errors && ctx.dump_errors->scsi && !options.force_split)
-        throw_line("{} scsi errors detected, unable to continue (use --force-split to ignore)", ctx.dump_errors->scsi);
+        throw_line("{} scsi errors detected, unable to continue", ctx.dump_errors->scsi);
 }
 
 }

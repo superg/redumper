@@ -476,19 +476,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                 if(dump_mode == DumpMode::REFINE && !options.force_refine)
                 {
-                    // if not dumping, compare security sector to stored to make sure it's the same disc
-                    if(!std::filesystem::exists(security_sector_fn))
-                    {
-                        throw_line("disc / file security sector doesn't match, refining from a different disc?");
-                    }
-                    else
+                    // if not dumping, compare cleaned security sector to stored to make sure it's the same disc
+                    bool invalid_ss = true;
+                    if(std::filesystem::exists(security_sector_fn))
                     {
                         auto refined_security_sector = read_vector(security_sector_fn);
                         clean_xbox_security_sector(refined_security_sector);
-
-                        if(refined_security_sector != security_sector)
-                            throw_line("disc / file security sector doesn't match, refining from a different disc?");
+                        invalid_ss = (refined_security_sector != security_sector);
                     }
+
+                    if(invalid_ss)
+                        throw_line("disc / file security sector doesn't match, refining from a different disc?");
                 }
 
                 auto &structure = physical_structures.front();
@@ -507,39 +505,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
 
                 int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor.data_start_sector));
-                int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
 
                 uint32_t l1_padding_length = ss_lba_first - layer0_last - 1;
                 if(xgd_type == XGD_Type::XGD3)
                     l1_padding_length += 4096;
 
-                // extract security sector ranges
-                bool is_xgd1 = (xgd_type == XGD_Type::XGD1);
+                // extract security sector ranges from security sector
+                xbox_skip_ranges = get_security_sector_ranges(ss_layer_descriptor);
 
-                const auto media_specific_offset = offsetof(READ_DVD_STRUCTURE_LayerDescriptor, media_specific);
-                uint8_t num_ss_regions = ss_layer_descriptor.media_specific[1632 - media_specific_offset];
-                // partial pre-compute of conversion to Layer 1
-                const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x30000 + 1;
-
-                for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, ++i)
-                {
-                    uint32_t start_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 4] << 8)
-                                       | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 5];
-                    uint32_t end_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 6] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 7] << 8)
-                                     | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 8];
-                    if((i < 8 && is_xgd1) || (i == 0 && !is_xgd1))
-                    {
-                        // Layer 0
-                        xbox_skip_ranges.push_back({ start_psn - 0x30000, end_psn - 0x30000 });
-                    }
-                    else if((i < 16 && is_xgd1) || (i == 3 && !is_xgd1))
-                    {
-                        // Layer 1
-                        xbox_skip_ranges.push_back({ layer1_offset - (start_psn ^ 0xFFFFFF), layer1_offset - (end_psn ^ 0xFFFFFF) });
-                    }
-                }
-
-                // append L1 padding to ranges
+                // append L1 padding to skip ranges
                 xbox_skip_ranges.push_back({ sectors_count, sectors_count + l1_padding_length - 1 });
 
                 // sort the skip ranges
@@ -738,13 +712,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     uint32_t refine_counter = 0;
     uint32_t refine_retries = options.retries ? options.retries : 1;
 
-    uint32_t errors_scsi = 0;
+    Errors errors = {};
     // FIXME: verify memory usage for largest bluray and chunk it if needed
     if(dump_mode != DumpMode::DUMP)
     {
         std::vector<State> state_buffer(sectors_count);
         read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), 0, sectors_count, 0, (uint8_t)State::ERROR_SKIP);
-        errors_scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
+        errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
     }
 
     ROMEntry rom_entry(iso_path.filename().string());
@@ -784,7 +758,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     {
                         // skip at most to the end of the security sector range
                         sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].second + 1 - s);
-                        progress_output(s, sectors_count, errors_scsi);
+                        progress_output(s, sectors_count, errors.scsi);
 
                         std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
                         write_entry(fs_iso, zeroes.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
@@ -837,7 +811,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(read)
         {
-            progress_output(s, sectors_count, errors_scsi);
+            progress_output(s, sectors_count, errors.scsi);
 
             std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
 
@@ -859,7 +833,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 }
 
                 if(dump_mode == DumpMode::DUMP)
-                    errors_scsi += sectors_to_read;
+                    errors.scsi += sectors_to_read;
                 else if(dump_mode == DumpMode::REFINE)
                 {
                     ++refine_counter;
@@ -898,7 +872,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         std::copy(drive_data.begin() + i * FORM1_DATA_SIZE, drive_data.begin() + (i + 1) * FORM1_DATA_SIZE, file_data.begin() + i * FORM1_DATA_SIZE);
                         file_state[i] = State::SUCCESS;
 
-                        --errors_scsi;
+                        --errors.scsi;
                     }
 
                     refine_counter = 0;
@@ -923,7 +897,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                             file_state[i] = State::ERROR_SKIP;
                             update = true;
 
-                            ++errors_scsi;
+                            ++errors.scsi;
                         }
                     }
 
@@ -933,7 +907,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             }
         }
 
-        if(dump_mode == DumpMode::DUMP && !errors_scsi)
+        if(dump_mode == DumpMode::DUMP && !errors.scsi)
             rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
 
         if(signal.interrupt())
@@ -956,21 +930,22 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     if(!signal.interrupt())
     {
-        progress_output(sectors_count, sectors_count, errors_scsi);
+        progress_output(sectors_count, sectors_count, errors.scsi);
         LOG("");
     }
     LOG("");
 
     LOG("media errors: ");
-    LOG("  SCSI: {}", errors_scsi);
+    LOG("  SCSI: {}", errors.scsi);
+    ctx.dump_errors = errors;
 
     if(signal.interrupt())
         signal.raiseDefault();
 
-    if(dump_mode == DumpMode::DUMP && !errors_scsi)
+    if(dump_mode == DumpMode::DUMP && !errors.scsi)
         ctx.dat = std::vector<std::string>(1, rom_entry.xmlLine());
 
-    return errors_scsi;
+    return errors.scsi;
 }
 
 }

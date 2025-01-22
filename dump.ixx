@@ -157,13 +157,8 @@ export TOC choose_toc(const std::vector<uint8_t> &toc_buffer, const std::vector<
 
 export bool drive_is_asus_ribshark(const DriveConfig &drive_config)
 {
-    return drive_config.vendor_id == "ASUS"
-           && drive_config.product_id == "BW-16D1HT"
-           && drive_config.product_revision_level == "3.10"
-           && drive_config.vendor_specific == "WM01601KLZL4TG5625"
-           && drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA
-           && drive_config.sector_order == DriveConfig::SectorOrder::DATA_C2_SUB
-           && ctx.drive_config.type == DriveConfig::Type::GENERIC;
+    return drive_config.vendor_id == "ASUS" && drive_config.product_id == "BW-16D1HT" && drive_config.product_revision_level == "3.10" && drive_config.vendor_specific == "WM01601KLZL4TG5625"
+        && drive_config.read_method == DriveConfig::ReadMethod::BE_CDDA && drive_config.sector_order == DriveConfig::SectorOrder::DATA_C2_SUB && ctx.drive_config.type == DriveConfig::Type::GENERIC;
 }
 
 

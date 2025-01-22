@@ -764,9 +764,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
                 }
 
                 store = true;
-
-                if(lba == lba_end && drive_is_asus_ribshark(ctx.drive_config))
-                    LOG_R("RibShark FW: Reading lead-out");
             }
         }
 
@@ -900,6 +897,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
             // grow lead-out overread if we still can read
             if(lba + 1 == lba_overread && !options.lba_end && (lba_overread - lba_end <= 100 || options.overread_leadout))
                 ++lba_overread;
+
+            if(lba_overread == lba_end + 1 && drive_is_asus_ribshark(ctx.drive_config))
+                LOG_R("RibShark FW: Reading lead-out");
         }
         else
         {

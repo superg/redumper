@@ -765,7 +765,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 
                 store = true;
 
-                if (lba == lba_end && drive_is_asus_ribshark(ctx.drive_config))
+                if(lba == lba_end && drive_is_asus_ribshark(ctx.drive_config))
                     LOG_R("RibShark FW: Reading lead-out");
             }
         }

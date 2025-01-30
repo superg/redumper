@@ -154,10 +154,10 @@ void redumper_eject(Context &ctx, Options &options)
 
 void redumper_split(Context &ctx, Options &options)
 {
-    if(profile_is_cd(ctx.current_profile))
-        redumper_split_cd(ctx, options);
-    else
+    if(profile_is_dvd(ctx.current_profile) || profile_is_bluray(ctx.current_profile) || profile_is_hddvd(ctx.current_profile))
         redumper_split_dvd(ctx, options);
+    else
+        redumper_split_cd(ctx, options);
 }
 
 

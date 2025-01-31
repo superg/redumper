@@ -154,10 +154,11 @@ void redumper_eject(Context &ctx, Options &options)
 
 void redumper_split(Context &ctx, Options &options)
 {
-    if(profile_is_cd(ctx.current_profile))
-        redumper_split_cd(ctx, options);
-    else
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+    if(std::filesystem::exists(image_prefix + ".iso"))
         redumper_split_dvd(ctx, options);
+    else
+        redumper_split_cd(ctx, options);
 }
 
 

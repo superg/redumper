@@ -4,6 +4,7 @@ module;
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <map>
 #include <set>
 #include <string>
@@ -284,6 +285,53 @@ export void redumper_debug(Context &ctx, Options &options)
     }
 
     LOG("");
+}
+
+export void redumper_flip(Context &ctx, Options &options)
+{
+    image_check_empty(options);
+
+    std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+
+    std::filesystem::path state_path(image_prefix + ".state");
+    std::filesystem::path scram_path(image_prefix + ".scram");
+    std::filesystem::path flip_path(image_prefix + ".flip");
+
+    if(std::filesystem::exists(flip_path) && !options.overwrite)
+        throw_line("file already exists ({})", flip_path.filename().string());
+
+    std::fstream scram_fs(scram_path, std::fstream::in | std::fstream::binary);
+    if(!scram_fs.is_open())
+        throw_line("unable to open file ({})", scram_path.filename().string());
+
+    std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
+    if(!state_fs.is_open())
+        throw_line("unable to open file ({})", state_path.filename().string());
+
+    std::fstream flip_fs(flip_path, std::fstream::out | std::fstream::binary);
+    if(!flip_fs.is_open())
+        throw_line("unable to open file ({})", flip_path.filename().string());
+
+    uint32_t samples_count = std::filesystem::file_size(state_path);
+    for(uint32_t i = 0; i < samples_count; ++i)
+    {
+        State state;
+        state_fs.read((char *)&state, sizeof(state));
+        if(state_fs.fail())
+            throw_line("state read failed");
+
+        uint32_t sample;
+        scram_fs.read((char *)&sample, sizeof(sample));
+        if(scram_fs.fail())
+            throw_line("sample read failed");
+
+        if(state != State::SUCCESS)
+            sample = ~sample;
+
+        flip_fs.write((char *)&sample, sizeof(sample));
+        if(flip_fs.fail())
+            throw_line("flip write failed");
+    }
 }
 
 }

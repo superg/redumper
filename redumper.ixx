@@ -164,14 +164,14 @@ void redumper_split(Context &ctx, Options &options)
 
 const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS{
     // COMMAND         DRIVE    HANDLER
-    { "rings",       { true,  redumper_rings }       },
-    { "dump",        { true,  redumper_dump }        },
-    { "dumpnew",     { true,  redumper_dump_new }    },
-    { "refine",      { true,  redumper_refine }      },
-    { "refinenew",   { true,  redumper_refine_new }  },
-    { "verify",      { true,  redumper_verify }      },
-    { "dvdkey",      { true,  redumper_dvdkey }      },
-    { "eject",       { true,  redumper_eject }       },
+    { "rings",       { true, redumper_rings }       },
+    { "dump",        { true, redumper_dump }        },
+    { "dumpnew",     { true, redumper_dump_new }    },
+    { "refine",      { true, redumper_refine }      },
+    { "refinenew",   { true, redumper_refine_new }  },
+    { "verify",      { true, redumper_verify }      },
+    { "dvdkey",      { true, redumper_dvdkey }      },
+    { "eject",       { true, redumper_eject }       },
     { "dvdisokey",   { false, redumper_dvdisokey }  },
     { "protection",  { false, redumper_protection } },
     { "split",       { false, redumper_split }      },
@@ -182,7 +182,7 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
     { "subchannel",  { false, redumper_subchannel } },
     { "debug",       { false, redumper_debug }      },
     { "fixmsf",      { false, redumper_fix_msf }    },
-    { "debug::flip", { false, redumper_flip } },
+    { "debug::flip", { false, redumper_flip }       },
 };
 
 

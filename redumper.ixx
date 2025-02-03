@@ -267,7 +267,7 @@ Context initialize(Options &options)
         if(it == COMMAND_HANDLERS.end())
             throw_line("unknown command (command: {})", c);
 
-        if(c == "dump")
+        if(c == "dump" || c == "dumpnew")
             generate_name = true;
 
         if(it->second.first)

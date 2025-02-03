@@ -29,6 +29,14 @@ import utils.signal;
 
 
 
+// positive disc write offset shifts data to the right (into lead-out)
+// negative disc write offset shifts data to the left (into lead-in)
+// positive drive read offset reads data earlier than requested (reads into lead-in)
+// negative drive read offset reads data later than requested (reads into lead-out)
+// .scram LBA 0 starts at 0x6545FA0 byte offset
+
+
+
 namespace gpsxre
 {
 

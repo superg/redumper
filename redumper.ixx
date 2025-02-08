@@ -308,7 +308,11 @@ Context initialize(Options &options)
     {
         auto status = cmd_get_configuration_current_profile(*ctx.sptd, ctx.current_profile);
         if(status.status_code)
-            throw_line("failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
+        {
+            // some drives don't have this command implemented, fallback to CD
+            LOG("warning: failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
+            ctx.current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM;
+        }
 
         if(!profile_is_cd(ctx.current_profile) && !profile_is_dvd(ctx.current_profile) && !profile_is_bluray(ctx.current_profile) && !profile_is_hddvd(ctx.current_profile))
             throw_line("unsupported disc type (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);

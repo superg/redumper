@@ -67,7 +67,7 @@ jobs:
       run: CC=$(brew --prefix llvm@18)/bin/clang CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{env.build_directory}} -G "Ninja" -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Build
-      run: cmake --verbose --build ${{env.build_directory}} --config ${{env.build_type}}
+      run: cmake --build ${{env.build_directory}} --config ${{env.build_type}} --verbose
 
     - name: CTest
       working-directory: ${{env.build_directory}}

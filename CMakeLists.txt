@@ -2,9 +2,13 @@ cmake_minimum_required(VERSION 3.28)
 
 # project / version
 set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
-string(TIMESTAMP REDUMPER_VERSION_MAJOR "%Y")
-string(TIMESTAMP REDUMPER_VERSION_MINOR "%m")
-string(TIMESTAMP REDUMPER_VERSION_PATCH "%d")
+string(TIMESTAMP version_major "%Y")
+string(TIMESTAMP version_minor "%m")
+string(TIMESTAMP version_patch "%d")
+set(REDUMPER_VERSION_MAJOR ${version_major} CACHE STRING "Major version number")
+set(REDUMPER_VERSION_MINOR ${version_minor} CACHE STRING "Minor version number")
+set(REDUMPER_VERSION_PATCH ${version_patch} CACHE STRING "Patch version number")
+
 set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Version patch")
 project(${REDUMPER_PROJECT_NAME} VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
 

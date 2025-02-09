@@ -24,17 +24,12 @@ set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE} CACHE INTERNAL "Active configu
 # packaging
 set(CPACK_GENERATOR "ZIP")
 # add build number to a package file name if it was provided
-if(NOT REDUMPER_VERSION_BUILD STREQUAL "LOCAL")
-    set(system_name__ ${CMAKE_SYSTEM_NAME})
-    if(system_name__ STREQUAL "Windows")
-        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-            set(system_name__ "win64")
-        else()
-            set(system_name__ "win32")
-        endif()
-    endif()
-    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${CMAKE_PROJECT_VERSION}_build${REDUMPER_VERSION_BUILD}-${system_name__}")
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(system_suffix__ "64")
+else()
+    set(system_suffix__ "32")
 endif()
+set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${CMAKE_PROJECT_VERSION}_build${REDUMPER_VERSION_BUILD}-${CMAKE_SYSTEM_NAME}${system_suffix__}")
 include(CPack)
 
 # platform

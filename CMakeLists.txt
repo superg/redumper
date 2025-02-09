@@ -12,7 +12,7 @@ set(REDUMPER_VERSION_PATCH ${version_patch} CACHE STRING "Patch version number")
 set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Version patch")
 project(${REDUMPER_PROJECT_NAME} VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
 
-set(REDUMPER_CLANG_LINK_OPTIONS "-static" CACHE STRING "Extra LLVM/Clang linker options")
+set(REDUMPER_CLANG_LINK_OPTIONS "" CACHE STRING "Extra LLVM/Clang linker options")
 
 # build type
 if(NOT CMAKE_BUILD_TYPE)
@@ -55,9 +55,15 @@ add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
                 -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH}
                 -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
+option(REDUMPER_CLANG_USE_LIBCPP "Link to libc++ instead of system default" OFF)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
-    add_link_options(-stdlib=libc++ ${REDUMPER_CLANG_LINK_OPTIONS})
+    if(REDUMPER_CLANG_USE_LIBCPP)
+        add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
+        add_link_options(-stdlib=libc++)
+    endif()
+
+    add_link_options(${REDUMPER_CLANG_LINK_OPTIONS})
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     add_compile_options(-Wall -Wextra -Werror)
 

@@ -42,7 +42,7 @@ struct Area
 };
 
 
-std::map<Area::Type, std::string> AREA_TYPE_STRING = {
+const std::map<Area::Type, std::string> AREA_TYPE_STRING = {
     { Area::Type::SYSTEM_AREA,       "SYSTEM_AREA"       },
     { Area::Type::DESCRIPTORS,       "DESCRIPTORS"       },
     { Area::Type::PATH_TABLE_L,      "PATH_TABLE_L"      },
@@ -192,6 +192,15 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
         area_vector.push_back(a.second);
 
     return area_vector;
+}
+
+
+// this helper function is needed to avoid unresolved externals when linking with libstdc++
+// if enum_to_string() is used outside of this module with iso9660::AREA_TYPE_STRING map,
+// probably related to modules support and might be fixed eventually
+std::string area_type_to_string(iso9660::Area::Type value)
+{
+    return enum_to_string(value, AREA_TYPE_STRING);
 }
 
 }

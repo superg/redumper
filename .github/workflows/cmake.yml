@@ -64,7 +64,7 @@ jobs:
 
     - name: CMake Configure (macos64)
       if: ${{ matrix.os == 'macos-14' }}
-      run: CC=$(brew --prefix llvm@18)/bin/clang CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{env.build_directory}} -G "Ninja" -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: CC=$(brew --prefix llvm@18)/bin/clang CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{env.build_directory}} -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}} --verbose

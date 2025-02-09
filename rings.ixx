@@ -25,7 +25,6 @@ import utils.misc;
 namespace gpsxre
 {
 
-
 export void redumper_rings(Context &ctx, Options &options)
 {
     if(!profile_is_cd(ctx.current_profile))
@@ -67,7 +66,7 @@ export void redumper_rings(Context &ctx, Options &options)
         [](const iso9660::Area &area)
         {
             auto count = scale_up(area.size, FORM1_DATA_SIZE);
-            LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.offset, area.offset + count - 1, count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
+            LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.offset, area.offset + count - 1, count, iso9660::area_type_to_string(area.type),
                 area.name.empty() ? "" : std::format(", name: {}", area.name));
         });
 

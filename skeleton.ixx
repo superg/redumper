@@ -234,7 +234,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
             [](const iso9660::Area &area)
             {
                 auto count = scale_up(area.size, FORM1_DATA_SIZE);
-                LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.offset, area.offset + count - 1, count, enum_to_string(area.type, iso9660::AREA_TYPE_STRING),
+                LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.offset, area.offset + count - 1, count, iso9660::area_type_to_string(area.type),
                     area.name.empty() ? "" : std::format(", name: {}", area.name));
             });
     }
@@ -244,7 +244,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
     {
         auto const &a = area_map[i];
 
-        std::string name(a.name.empty() ? enum_to_string(a.type, iso9660::AREA_TYPE_STRING) : a.name);
+        std::string name(a.name.empty() ? iso9660::area_type_to_string(a.type) : a.name);
 
         if(a.type == iso9660::Area::Type::SYSTEM_AREA || a.type == iso9660::Area::Type::FILE_EXTENT)
             contents.emplace_back(name, a.offset, scale_up(a.size, sector_reader->sectorSize()), a.size);

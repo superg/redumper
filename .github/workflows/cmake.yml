@@ -39,7 +39,7 @@ jobs:
       run: |
         sudo dpkg --add-architecture i386
         sudo apt-get update
-        sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev:i386 ninja-build
+        sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev:i386 ninja-build libc6-dev-i386
 
     - name: Customize Software (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 64 }}

@@ -168,7 +168,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
     std::fstream skeleton_fs(skeleton_path, std::fstream::out | std::fstream::binary);
     if(!skeleton_fs.is_open())
         throw_line("unable to create file ({})", skeleton_path.filename().string());
-        
+
     std::vector<uint8_t> sector(iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
     for(uint32_t s = 0; s < sectors_count; ++s)
     {

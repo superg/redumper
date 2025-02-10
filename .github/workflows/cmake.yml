@@ -64,15 +64,15 @@ jobs:
 
     - name: CMake Configure (linux32)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 32 }}
-      run: CC=clang-18 CXX=clang++-18 CFLAGS="-target i686-linux-gnu" CXXFLAGS="-target i686-linux-gnu" cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: CXX=clang++-18 CXXFLAGS="-target i686-linux-gnu" cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Configure (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 64 }}
-      run: CC=clang-18 CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Configure (macos64)
       if: ${{ matrix.os == 'macos-14' }}
-      run: CC=$(brew --prefix llvm@18)/bin/clang CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{env.build_directory}} -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{env.build_directory}} -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}} --verbose

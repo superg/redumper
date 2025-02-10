@@ -10,7 +10,7 @@ set(REDUMPER_VERSION_MINOR ${version_minor} CACHE STRING "Minor version number")
 set(REDUMPER_VERSION_PATCH ${version_patch} CACHE STRING "Patch version number")
 
 set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Version patch")
-project(${REDUMPER_PROJECT_NAME} VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
+project(${REDUMPER_PROJECT_NAME} LANGUAGES CXX VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
 
 set(REDUMPER_CLANG_LINK_OPTIONS "" CACHE STRING "Extra LLVM/Clang linker options")
 
@@ -194,7 +194,6 @@ target_include_directories(redumper
 )
 
 set(libs
-    "lzma"
 )
 
 if(REDUMPER_TARGET_MACOSX)
@@ -217,5 +216,4 @@ endif()
 
 enable_testing()
 
-add_subdirectory("lzma")
 add_subdirectory("tests")

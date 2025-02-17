@@ -82,11 +82,11 @@ int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &s
 }
 
 
-int32_t iso9660_trim_if_needed(const TOC::Session::Track &t, std::fstream &scm_fs, bool scrap, std::shared_ptr<const OffsetManager> offset_manager, const Options &options)
+int32_t iso9660_trim_if_needed(Context &ctx, const TOC::Session::Track &t, std::fstream &scm_fs, bool scrap, std::shared_ptr<const OffsetManager> offset_manager, const Options &options)
 {
     int32_t lba_end = t.lba_end;
 
-    if(options.iso9660_trim && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty())
+    if((ctx.protection_trim && *ctx.protection_trim || options.iso9660_trim) && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty())
     {
         uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE;
         auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), !scrap);
@@ -106,8 +106,8 @@ bool optional_track(uint32_t track_number)
 }
 
 
-void fill_track_modes(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges,
-    bool scrap, const Options &options)
+void fill_track_modes(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
+    const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
 {
     Scrambler scrambler;
     std::vector<uint8_t> sector(CD_DATA_SIZE);
@@ -131,7 +131,7 @@ void fill_track_modes(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, st
 
             const uint8_t data_mode_invalid = 3;
 
-            auto lba_end = iso9660_trim_if_needed(t, scm_fs, scrap, offset_manager, options);
+            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, scrap, offset_manager, options);
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
@@ -166,8 +166,8 @@ void fill_track_modes(TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, st
 }
 
 
-bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<std::pair<int32_t, int32_t>> &skip_ranges,
-    bool scrap, const Options &options)
+bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
+    const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
 {
     bool no_errors = true;
 
@@ -188,7 +188,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
             uint32_t skip_sectors = 0;
             uint32_t c2_sectors = 0;
 
-            auto lba_end = iso9660_trim_if_needed(t, scm_fs, scrap, offset_manager, options);
+            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, scrap, offset_manager, options);
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
@@ -231,7 +231,7 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 }
 
 
-std::vector<std::string> write_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
+std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
     const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
 {
     std::vector<std::string> xml_lines;
@@ -274,7 +274,7 @@ std::vector<std::string> write_tracks(const TOC &toc, std::fstream &scm_fs, std:
 
             std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
-            auto lba_end = iso9660_trim_if_needed(t, scm_fs, scrap, offset_manager, options);
+            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, scrap, offset_manager, options);
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
@@ -894,7 +894,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
     if(std::filesystem::exists(fulltoc_path))
         full_toc_buffer = read_vector(fulltoc_path);
 
-    auto toc = choose_toc(toc_buffer, full_toc_buffer);
+    auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
     // preload subchannel P/Q
     std::vector<uint8_t> subp;
@@ -1355,20 +1355,23 @@ export void redumper_split_cd(Context &ctx, Options &options)
     }
 
     std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
+    // FIXME: negated offset is confusing, simplify
+    std::vector<std::pair<int32_t, int32_t>> protection_ranges = get_protection_sectors(ctx, -offset_manager->getOffset(0));
+    skip_ranges.insert(skip_ranges.begin(), protection_ranges.begin(), protection_ranges.end());
 
     // determine data track modes
-    fill_track_modes(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
+    fill_track_modes(ctx, toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
 
     // check tracks
     LOG("checking tracks");
-    if(!check_tracks(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options) && !options.force_split)
+    if(!check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options) && !options.force_split)
         throw_line("data errors detected, unable to continue");
     LOG("done");
     LOG("");
 
     // write tracks
     LOG("writing tracks");
-    ctx.dat = write_tracks(toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
+    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
     LOG("done");
     LOG("");
 

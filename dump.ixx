@@ -55,6 +55,7 @@ export struct Context
     std::optional<std::vector<std::pair<int32_t, int32_t>>> rings;
     std::optional<Errors> dump_errors;
     std::vector<std::pair<int32_t, int32_t>> protection;
+    std::optional<bool> protection_trim;
     std::optional<bool> refine;
     std::optional<std::vector<std::string>> dat;
 };
@@ -133,7 +134,18 @@ export int32_t sample_to_lba(int32_t sample, int32_t offset = 0)
 }
 
 
-export TOC choose_toc(const std::vector<uint8_t> &toc_buffer, const std::vector<uint8_t> &full_toc_buffer)
+export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &ctx, int32_t offset)
+{
+    std::vector<std::pair<int32_t, int32_t>> protection;
+
+    for(auto const &e : ctx.protection)
+        protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
+
+    return protection;
+}
+
+
+export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<uint8_t> &full_toc_buffer)
 {
     TOC toc(toc_buffer, false);
 

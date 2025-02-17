@@ -32,7 +32,7 @@ export void redumper_rings(Context &ctx, Options &options)
 
     std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
     std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
-    auto toc = choose_toc(toc_buffer, full_toc_buffer);
+    auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
     std::optional<int32_t> write_offset;
 

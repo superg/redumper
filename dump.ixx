@@ -134,6 +134,17 @@ export int32_t sample_to_lba(int32_t sample, int32_t offset = 0)
 }
 
 
+export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &ctx, int32_t offset)
+{
+    std::vector<std::pair<int32_t, int32_t>> protection;
+
+    for(auto const &e : ctx.protection)
+        protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
+
+    return protection;
+}
+
+
 export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<uint8_t> &full_toc_buffer)
 {
     TOC toc(toc_buffer, false);

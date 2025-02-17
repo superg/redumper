@@ -308,17 +308,6 @@ uint32_t percentage(int32_t value, uint32_t value_max)
 }
 
 
-std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &ctx, int32_t offset)
-{
-    std::vector<std::pair<int32_t, int32_t>> protection;
-
-    for(auto const &e : ctx.protection)
-        protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
-
-    return protection;
-}
-
-
 export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 {
     image_check_empty(options);

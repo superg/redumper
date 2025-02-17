@@ -1355,6 +1355,9 @@ export void redumper_split_cd(Context &ctx, Options &options)
     }
 
     std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
+    // FIXME: negated offset is confusing, simplify
+    std::vector<std::pair<int32_t, int32_t>> protection_ranges = get_protection_sectors(ctx, -offset_manager->getOffset(0));
+    skip_ranges.insert(skip_ranges.begin(), protection_ranges.begin(), protection_ranges.end());
 
     // determine data track modes
     fill_track_modes(ctx, toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);

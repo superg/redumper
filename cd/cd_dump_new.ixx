@@ -68,7 +68,7 @@ TOC toc_process(Context &ctx, const Options &options, bool store)
     if(status.status_code)
         LOG("warning: FULL_TOC is unavailable (no multisession information), SCSI ({})", SPTD::StatusMessage(status));
 
-    auto toc = choose_toc(toc_buffer, full_toc_buffer);
+    auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
     // store TOC information
     if(store)
@@ -112,17 +112,6 @@ TOC toc_process(Context &ctx, const Options &options, bool store)
     }
 
     return toc;
-}
-
-
-void toc_fix_faketoc(TOC &toc)
-{
-    // [PSX] Breaker Pro
-    if(toc.sessions.back().tracks.back().lba_end < 0)
-    {
-        toc.sessions.back().tracks.back().lba_end = MSF_to_LBA(MSF{ 74, 0, 0 }); // default: 74min / 650Mb
-        LOG("warning: fake TOC detected, using default 74min disc size");
-    }
 }
 
 
@@ -373,8 +362,6 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
         print_toc(toc);
         LOG("");
     }
-
-    toc_fix_faketoc(toc);
 
     int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
     int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;

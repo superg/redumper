@@ -308,6 +308,17 @@ uint32_t percentage(int32_t value, uint32_t value_max)
 }
 
 
+std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &ctx, int32_t offset)
+{
+    std::vector<std::pair<int32_t, int32_t>> protection;
+
+    for(auto const &e : ctx.protection)
+        protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
+
+    return protection;
+}
+
+
 export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 {
     image_check_empty(options);
@@ -327,7 +338,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
     if(!refine)
         image_check_overwrite(options);
 
-    std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip); // FIXME: transition to samples?
+    std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
+    std::vector<std::pair<int32_t, int32_t>> protection_ranges = get_protection_sectors(ctx, ctx.drive_config.read_offset);
+    skip_ranges.insert(skip_ranges.begin(), protection_ranges.begin(), protection_ranges.end());
     std::vector<std::pair<int32_t, int32_t>> error_ranges;
 
     int32_t lba_start = ctx.drive_config.pregap_start;
@@ -335,7 +348,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 
     std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
     std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
-    auto toc = choose_toc(toc_buffer, full_toc_buffer);
+    auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
     if(!refine)
     {
@@ -396,13 +409,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
         fs_sub.open(sub_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
     std::fstream fs_state(state_path, std::fstream::out | (refine ? std::fstream::in : std::fstream::trunc) | std::fstream::binary);
 
-    // fake TOC
-    // [PSX] Breaker Pro
-    if(toc.sessions.back().tracks.back().lba_end < 0)
-        LOG("warning: fake TOC detected, using default 74min disc size");
-    // last session last track end
-    else
-        lba_end = toc.sessions.back().tracks.back().lba_end;
+    lba_end = toc.sessions.back().tracks.back().lba_end;
 
     // multisession gaps
     for(uint32_t i = 1; i < toc.sessions.size(); ++i)

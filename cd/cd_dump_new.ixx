@@ -127,6 +127,26 @@ std::vector<std::pair<int32_t, int32_t>> toc_get_gaps(const TOC &toc, int32_t pr
 }
 
 
+void skip_ranges_from_toc(std::vector<Range<int32_t, bool>> &ranges, const TOC &toc, const DriveConfig &drive_config)
+{
+    for(uint32_t i = 1; i < toc.sessions.size(); ++i)
+    {
+        Range r{ lba_to_sample(toc.sessions[i - 1].tracks.back().lba_end, -drive_config.read_offset),
+            lba_to_sample(toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start, -drive_config.read_offset), true };
+        if(!insert_range(ranges, r))
+            throw_line("invalid session gap configuration");
+    }
+}
+
+
+void skip_ranges_from_protection(std::vector<Range<int32_t, bool>> &ranges, const std::vector<std::pair<int32_t, int32_t>> &protection, const DriveConfig &drive_config)
+{
+    for(auto const &e : protection)
+        if(!insert_range(ranges, {e.first, e.second, false}))
+            throw_line("invalid protection configuration");
+}
+
+
 std::vector<State> c2_to_state(const uint8_t *c2_data)
 {
     std::vector<State> state(CD_DATA_SIZE_SAMPLES);
@@ -384,33 +404,37 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
     std::vector<State> sector_state_file_d(CD_DATA_SIZE_SAMPLES);
     std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
 
-    int32_t data_offset = ctx.drive_config.read_offset;
+    int32_t data_drive_offset = ctx.drive_config.read_offset;
     if(options.dump_write_offset)
-        data_offset = -*options.dump_write_offset;
+        data_drive_offset = -*options.dump_write_offset;
     else if(dump_mode != DumpMode::DUMP)
     {
         auto disc_offset = find_disc_offset(toc, fs_state, fs_scram);
         if(disc_offset)
         {
-            data_offset = -*disc_offset;
+            data_drive_offset = -*disc_offset;
             LOG("disc write offset: {:+}", *disc_offset);
             LOG("");
         }
     }
 
     std::vector<Range<int32_t, bool>> skip_ranges;
+    skip_ranges_from_toc(skip_ranges, toc, ctx.drive_config);
+    skip_ranges_from_protection(skip_ranges, ctx.protection, ctx.drive_config);
+    //TODO: skip ranges from command line arguments
+
     auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
-    auto protection = get_protection_sectors(ctx, ctx.drive_config.read_offset, data_offset);
+    auto protection = get_protection_sectors(ctx, ctx.drive_config.read_offset, data_drive_offset);
 
     Errors errors_initial = {};
     if(dump_mode != DumpMode::DUMP)
-        refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_offset);
+        refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_drive_offset);
     Errors errors = errors_initial;
 
     uint32_t refine_sectors_processed = 0;
     uint32_t refine_sectors_count = 0;
     if(dump_mode == DumpMode::REFINE)
-        refine_sectors_count = refine_count_sectors(fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_offset, options);
+        refine_sectors_count = refine_count_sectors(fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_drive_offset, options);
 
     int32_t subcode_shift = 0;
     uint32_t subcode_byte_desync_counter = 0;
@@ -431,7 +455,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
         if(protection_range != nullptr)
         {
             if(dump_mode == DumpMode::REFINE)
-                refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba, protection_range->second, ctx.drive_config.read_offset, data_offset, options);
+                refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba, protection_range->second, ctx.drive_config.read_offset, data_drive_offset, options);
             lba = protection_range->second - 1;
             continue;
         }
@@ -439,9 +463,9 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
         int32_t lba_index = lba - LBA_START;
 
         read_entry(fs_scram, sector_data_file_a.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE, 0);
-        read_entry(fs_scram, sector_data_file_d.data(), CD_DATA_SIZE, lba_index, 1, data_offset * CD_SAMPLE_SIZE, 0);
+        read_entry(fs_scram, sector_data_file_d.data(), CD_DATA_SIZE, lba_index, 1, data_drive_offset * CD_SAMPLE_SIZE, 0);
         read_entry(fs_state, (uint8_t *)sector_state_file_a.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
-        read_entry(fs_state, (uint8_t *)sector_state_file_d.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, data_offset, (uint8_t)State::ERROR_SKIP);
+        read_entry(fs_state, (uint8_t *)sector_state_file_d.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, data_drive_offset, (uint8_t)State::ERROR_SKIP);
         read_entry(fs_subcode, sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 
         if(sector_data_complete(sector_state_file_a) && sector_data_complete(sector_state_file_d) && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
@@ -492,7 +516,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
             if(gap_range != nullptr && slow_sector)
             {
                 if(dump_mode == DumpMode::REFINE)
-                    refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba + 1, gap_range->second, ctx.drive_config.read_offset, data_offset, options);
+                    refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba + 1, gap_range->second, ctx.drive_config.read_offset, data_drive_offset, options);
                 lba = gap_range->second - 1;
                 break;
             }
@@ -559,7 +583,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 
                     if(sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data()), sector_data))
                     {
-                        int32_t offset = all_types ? data_offset : ctx.drive_config.read_offset;
+                        int32_t offset = all_types ? data_drive_offset : ctx.drive_config.read_offset;
                         write_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
                         write_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
 

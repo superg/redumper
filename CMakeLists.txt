@@ -179,6 +179,7 @@ target_sources(redumper
     "hash.ixx"
     "info.ixx"
     "options.ixx"
+    "range.ixx"
     "redumper.ixx"
     "rings.ixx"
     "rom_entry.ixx"

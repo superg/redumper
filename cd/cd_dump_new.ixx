@@ -18,6 +18,7 @@ import cd.toc;
 import drive;
 import dump;
 import options;
+import range;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -366,10 +367,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
     int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
     int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
 
-    auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
-
-    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    std::fstream::openmode mode = std::fstream::out | std::fstream::binary | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in);
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
+    auto mode = std::fstream::out | std::fstream::binary | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in);
     std::fstream fs_scram(image_prefix + ".scram", mode);
     std::fstream fs_state(image_prefix + ".state", mode);
     std::fstream fs_subcode(image_prefix + ".subcode", mode);
@@ -399,6 +398,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
         }
     }
 
+    std::vector<Range<int32_t, bool>> skip_ranges;
+    auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
     auto protection = get_protection_sectors(ctx, ctx.drive_config.read_offset, data_offset);
 
     Errors errors_initial = {};

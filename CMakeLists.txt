@@ -91,6 +91,22 @@ if(MSVC)
     endforeach()
 endif()
 
+# code formatting
+find_program(CLANG_FORMAT "clang-format-18")
+
+if(CLANG_FORMAT)
+    file(GLOB_RECURSE ALL_SOURCE_FILES
+        "${PROJECT_SOURCE_DIR}/*.cc"
+        "${PROJECT_SOURCE_DIR}/*.hh"
+        "${PROJECT_SOURCE_DIR}/*.ixx"
+    )
+    
+    add_custom_target(format COMMAND ${CLANG_FORMAT} -i ${ALL_SOURCE_FILES})
+    add_custom_target(check-format COMMAND ${CLANG_FORMAT} --dry-run --Werror ${ALL_SOURCE_FILES})
+else()
+    message(WARNING "clang-format-18 not found, source code formatting targets will not be available")
+endif()
+
 # generated source file
 set(DRIVEOFFSETS_FN "${CMAKE_CURRENT_BINARY_DIR}/driveoffsets.inc")
 add_executable(generate_offsets generate_offsets.cc)

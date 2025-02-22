@@ -142,7 +142,7 @@ void skip_ranges_from_toc(std::vector<Range<int32_t, bool>> &ranges, const TOC &
 void skip_ranges_from_protection(std::vector<Range<int32_t, bool>> &ranges, const std::vector<std::pair<int32_t, int32_t>> &protection, const DriveConfig &drive_config)
 {
     for(auto const &e : protection)
-        if(!insert_range(ranges, {e.first, e.second, false}))
+        if(!insert_range(ranges, { e.first, e.second, false }))
             throw_line("invalid protection configuration");
 }
 
@@ -421,7 +421,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
     std::vector<Range<int32_t, bool>> skip_ranges;
     skip_ranges_from_toc(skip_ranges, toc, ctx.drive_config);
     skip_ranges_from_protection(skip_ranges, ctx.protection, ctx.drive_config);
-    //TODO: skip ranges from command line arguments
+    // TODO: skip ranges from command line arguments
 
     auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
     auto protection = get_protection_sectors(ctx, ctx.drive_config.read_offset, data_drive_offset);

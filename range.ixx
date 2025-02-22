@@ -27,7 +27,7 @@ struct Range
 export template<typename T, typename U>
 const Range<T, U> *find_range(const std::vector<Range<T, U>> &ranges, T number)
 {
-    auto it = std::upper_bound(ranges.begin(), ranges.end(), number, [](T value, const Range<T> &range) { return value < range.start; });
+    auto it = std::upper_bound(ranges.begin(), ranges.end(), number, [](T value, const Range<T, U> &range) { return value < range.start; });
 
     if(it != ranges.begin())
     {

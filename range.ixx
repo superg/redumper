@@ -68,7 +68,7 @@ bool insert_range(std::vector<Range<T, U>> &ranges, Range<T, U> range)
         return false;
 
     ranges.insert(it, range);
-    
+
     return true;
 }
 

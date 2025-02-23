@@ -122,13 +122,13 @@ export uint32_t sample_offset_r2a(int32_t relative)
 }
 
 
-export int32_t lba_to_sample(int32_t lba, int32_t offset = 0)
+export int32_t lba_to_sample(int32_t lba, int32_t offset)
 {
     return lba * CD_DATA_SIZE_SAMPLES + offset;
 }
 
 
-export int32_t sample_to_lba(int32_t sample, int32_t offset = 0)
+export int32_t sample_to_lba(int32_t sample, int32_t offset)
 {
     return scale_left(sample - offset, CD_DATA_SIZE_SAMPLES);
 }

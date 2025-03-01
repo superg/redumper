@@ -10,13 +10,11 @@ export module range;
 namespace gpsxre
 {
 
-export template<typename T, typename U>
+export template<typename T>
 struct Range
 {
     T start;
     T end;
-
-    U data;
 
     bool contains(T value) const
     {
@@ -28,19 +26,19 @@ struct Range
         return start < end;
     }
 
-    bool operator<(const Range<T, U> &range) const
+    bool operator<(const Range<T> &range) const
     {
         return start < range;
     }
 
-    friend bool operator<(T value, const Range<T, U> &range)
+    friend bool operator<(T value, const Range<T> &range)
     {
         return value < range.start;
     }
 };
 
-export template<typename T, typename U>
-const Range<T, U> *find_range(const std::vector<Range<T, U>> &ranges, T number)
+export template<typename T>
+const Range<T> *find_range(const std::vector<Range<T>> &ranges, T number)
 {
     auto it = std::upper_bound(ranges.begin(), ranges.end(), number);
     if(it != ranges.begin())
@@ -53,8 +51,8 @@ const Range<T, U> *find_range(const std::vector<Range<T, U>> &ranges, T number)
     return nullptr;
 }
 
-export template<typename T, typename U>
-bool insert_range(std::vector<Range<T, U>> &ranges, Range<T, U> range)
+export template<typename T>
+bool insert_range(std::vector<Range<T>> &ranges, Range<T> range)
 {
     if(!range.valid())
         return false;

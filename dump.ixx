@@ -54,7 +54,8 @@ export struct Context
 
     std::optional<std::vector<std::pair<int32_t, int32_t>>> rings;
     std::optional<Errors> dump_errors;
-    std::vector<std::pair<int32_t, int32_t>> protection;
+    std::vector<std::pair<int32_t, int32_t>> protection_hard;
+    std::vector<std::pair<int32_t, int32_t>> protection_soft;
     std::optional<bool> protection_trim;
     std::optional<bool> refine;
     std::optional<std::vector<std::string>> dat;
@@ -138,7 +139,7 @@ export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Con
 {
     std::vector<std::pair<int32_t, int32_t>> protection;
 
-    for(auto const &e : ctx.protection)
+    for(auto const &e : ctx.protection_hard)
         protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
 
     return protection;

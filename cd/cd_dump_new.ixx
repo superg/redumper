@@ -116,34 +116,49 @@ TOC toc_process(Context &ctx, const Options &options, bool store)
 }
 
 
-std::vector<std::pair<int32_t, int32_t>> toc_get_gaps(const TOC &toc, int32_t pregap_start)
+std::vector<Range<int32_t>> protection_to_ranges(std::span<const std::pair<int32_t, int32_t>> protection)
 {
-    std::vector<std::pair<int32_t, int32_t>> gaps;
+    std::vector<Range<int32_t>> ranges;
 
-    for(uint32_t i = 1; i < toc.sessions.size(); ++i)
-        gaps.emplace_back(toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + pregap_start);
+    for(auto const &p : protection)
+        if(!insert_range(ranges, { p.first, p.second }))
+            throw_line("invalid protection configuration");
 
-    return gaps;
+    return ranges;
 }
 
 
-void skip_ranges_from_toc(std::vector<Range<int32_t, bool>> &ranges, const TOC &toc, const DriveConfig &drive_config)
+void protection_ranges_from_toc(std::vector<Range<int32_t>> &ranges, const TOC &toc, const DriveConfig &drive_config)
 {
     for(uint32_t i = 1; i < toc.sessions.size(); ++i)
     {
         Range r{ lba_to_sample(toc.sessions[i - 1].tracks.back().lba_end, -drive_config.read_offset),
-            lba_to_sample(toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start, -drive_config.read_offset), true };
+            lba_to_sample(toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start, -drive_config.read_offset) };
         if(!insert_range(ranges, r))
-            throw_line("invalid session gap configuration");
+            throw_line("invalid protection configuration");
     }
 }
 
 
-void skip_ranges_from_protection(std::vector<Range<int32_t, bool>> &ranges, const std::vector<std::pair<int32_t, int32_t>> &protection, const DriveConfig &drive_config)
+void protection_fill(std::vector<uint8_t> &sector_protection, const std::vector<Range<int32_t>> &ranges, int32_t sample_base)
 {
-    for(auto const &e : protection)
-        if(!insert_range(ranges, { e.first, e.second, false }))
-            throw_line("invalid protection configuration");
+    for(int32_t i = 0; i < sector_protection.size(); ++i)
+        sector_protection[i] = find_range(ranges, sample_base + i) != nullptr;
+}
+
+
+const Range<int32_t> *protection_full_sector(const std::vector<Range<int32_t>> &ranges, int32_t sample_base)
+{
+    const Range<int32_t> *range = nullptr;
+
+    for(int32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
+    {
+        range = find_range(ranges, sample_base + i);
+        if(range == nullptr)
+            break;
+    }
+
+    return range;
 }
 
 
@@ -173,9 +188,27 @@ uint32_t c2_bits_count(std::span<const uint8_t> c2_data)
 }
 
 
+// FIXME: old, remove later
 bool sector_data_complete(std::span<const State> sector_state)
 {
     return std::all_of(sector_state.begin(), sector_state.end(), [](State s) { return s == State::SUCCESS; });
+}
+
+
+bool sector_data_complete(std::span<const State> sector_state, std::span<const uint8_t> sector_protection)
+{
+    bool complete = true;
+
+    for(int32_t i = 0; i < sector_state.size(); ++i)
+    {
+        if(!sector_protection[i] && sector_state[i] != State::SUCCESS)
+        {
+            complete = false;
+            break;
+        }
+    }
+
+    return complete;
 }
 
 
@@ -291,7 +324,7 @@ std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &c
 {
     std::vector<std::pair<int32_t, int32_t>> protection;
 
-    for(auto const &e : ctx.protection)
+    for(auto const &e : ctx.protection_hard)
         protection.emplace_back(std::min(sample_to_lba(e.first, -offset), sample_to_lba(e.first, -data_offset)), std::max(sample_to_lba(e.second, -offset), sample_to_lba(e.second, -data_offset)));
 
     return protection;
@@ -402,6 +435,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
     std::vector<uint8_t> sector_data_file_d(CD_DATA_SIZE);
     std::vector<State> sector_state_file_a(CD_DATA_SIZE_SAMPLES);
     std::vector<State> sector_state_file_d(CD_DATA_SIZE_SAMPLES);
+    std::vector<uint8_t> sector_protection_a(CD_DATA_SIZE_SAMPLES);
+    std::vector<uint8_t> sector_protection_d(CD_DATA_SIZE_SAMPLES);
     std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
 
     int32_t data_drive_offset = ctx.drive_config.read_offset;
@@ -418,23 +453,20 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
         }
     }
 
-    std::vector<Range<int32_t, bool>> skip_ranges;
-    skip_ranges_from_toc(skip_ranges, toc, ctx.drive_config);
-    skip_ranges_from_protection(skip_ranges, ctx.protection, ctx.drive_config);
-    // TODO: skip ranges from command line arguments
-
-    auto gaps = toc_get_gaps(toc, ctx.drive_config.pregap_start);
-    auto protection = get_protection_sectors(ctx, ctx.drive_config.read_offset, data_drive_offset);
+    std::vector<Range<int32_t>> protection_hard(protection_to_ranges(ctx.protection_hard));
+    std::vector<Range<int32_t>> protection_soft(protection_to_ranges(ctx.protection_soft));
+    protection_ranges_from_toc(protection_soft, toc, ctx.drive_config);
+    // TODO: skip ranges from command line arguments? (imprecise because of disc offset)
 
     Errors errors_initial = {};
-    if(dump_mode != DumpMode::DUMP)
-        refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_drive_offset);
+    // if(dump_mode != DumpMode::DUMP)
+    //     refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_drive_offset);
     Errors errors = errors_initial;
 
-    uint32_t refine_sectors_processed = 0;
-    uint32_t refine_sectors_count = 0;
-    if(dump_mode == DumpMode::REFINE)
-        refine_sectors_count = refine_count_sectors(fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_drive_offset, options);
+    // uint32_t refine_sectors_processed = 0;
+    // uint32_t refine_sectors_count = 0;
+    // if(dump_mode == DumpMode::REFINE)
+    //     refine_sectors_count = refine_count_sectors(fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_drive_offset, options);
 
     int32_t subcode_shift = 0;
     uint32_t subcode_byte_desync_counter = 0;
@@ -451,14 +483,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
             break;
         }
 
-        auto protection_range = inside_range(lba, protection);
-        if(protection_range != nullptr)
-        {
-            if(dump_mode == DumpMode::REFINE)
-                refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba, protection_range->second, ctx.drive_config.read_offset, data_drive_offset, options);
-            lba = protection_range->second - 1;
-            continue;
-        }
+        protection_fill(sector_protection_a, protection_hard, lba_to_sample(lba, -ctx.drive_config.read_offset));
+        protection_fill(sector_protection_d, protection_hard, lba_to_sample(lba, -data_drive_offset));
 
         int32_t lba_index = lba - LBA_START;
 
@@ -468,7 +494,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
         read_entry(fs_state, (uint8_t *)sector_state_file_d.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, data_drive_offset, (uint8_t)State::ERROR_SKIP);
         read_entry(fs_subcode, sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 
-        if(sector_data_complete(sector_state_file_a) && sector_data_complete(sector_state_file_d) && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
+        if(sector_data_complete(sector_state_file_a, sector_protection_a) && sector_data_complete(sector_state_file_d, sector_protection_d)
+            && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
             continue;
 
         uint32_t retries = dump_mode == DumpMode::REFINE ? options.retries : 0;
@@ -482,27 +509,30 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
             }
 
             std::string status_message;
+            /* OUTPUT (REFINE)
+                        if(r)
+                        {
+                            std::string data_message;
+                            if(read_as_data)
+                            {
+                                std::span<State> sector_state_file(*read_as_data ? sector_state_file_d : sector_state_file_a);
+                                uint32_t samples_good = std::count(sector_state_file.begin(), sector_state_file.end(), State::SUCCESS);
+                                data_message = std::format(", data: {:3}%", 100 * samples_good / CD_DATA_SIZE_SAMPLES);
+                            }
+
+                            status_message = std::format(", retry: {}{}", r, data_message);
+                        }
+            */
+
+            // flush cache
             if(r)
-            {
-                std::string data_message;
-                if(read_as_data)
-                {
-                    std::span<State> sector_state_file(*read_as_data ? sector_state_file_d : sector_state_file_a);
-                    uint32_t samples_good = std::count(sector_state_file.begin(), sector_state_file.end(), State::SUCCESS);
-                    data_message = std::format(", data: {:3}%", 100 * samples_good / CD_DATA_SIZE_SAMPLES);
-                }
-
-                status_message = std::format(", retry: {}{}", r, data_message);
-
-                // flush cache
                 cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
-            }
 
-            uint32_t percentage;
-            if(dump_mode == DumpMode::REFINE)
-                percentage = 100 * (refine_sectors_processed * (options.retries + 1) + r) / (refine_sectors_count * (options.retries + 1));
-            else
-                percentage = 100 * (lba - lba_start) / (lba_overread - lba_start);
+            // OUTPUT
+            uint32_t percentage = 100 * (lba - lba_start) / (lba_overread - lba_start);
+            // OUTPUT (REFINE)
+            // if(dump_mode == DumpMode::REFINE)
+            // percentage = 100 * (refine_sectors_processed * (options.retries + 1) + r) / (refine_sectors_count * (options.retries + 1));
             LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), percentage > 100 ? 100 : percentage, lba, lba_overread,
                 dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi, dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
 
@@ -511,19 +541,22 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
             auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
             auto read_time_stop = std::chrono::high_resolution_clock::now();
 
-            auto gap_range = inside_range(lba, gaps);
+            auto protection_range = protection_full_sector(protection_soft, lba_to_sample(lba, all_types ? -data_drive_offset : -ctx.drive_config.read_offset));
+
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
-            if(gap_range != nullptr && slow_sector)
+            if(protection_range != nullptr && slow_sector)
             {
-                if(dump_mode == DumpMode::REFINE)
-                    refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba + 1, gap_range->second, ctx.drive_config.read_offset, data_drive_offset, options);
-                lba = gap_range->second - 1;
+                int32_t lba_jump = std::min(sample_to_lba(protection_range->end, -data_drive_offset), sample_to_lba(protection_range->end, -ctx.drive_config.read_offset));
+                // OUTPUT (REFINE)
+                // if(dump_mode == DumpMode::REFINE)
+                //     refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba + 1, lba_jump, ctx.drive_config.read_offset, data_drive_offset, options);
+                lba = lba_jump - 1;
                 break;
             }
 
             if(status.status_code)
             {
-                if(gap_range == nullptr && lba < lba_end)
+                if(protection_range == nullptr && lba < lba_end)
                 {
                     if(dump_mode != DumpMode::REFINE)
                         ++errors.scsi;
@@ -636,8 +669,9 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
             }
         }
 
-        if(dump_mode == DumpMode::REFINE && lba < lba_end)
-            ++refine_sectors_processed;
+        // OUTPUT (REFINE)
+        // if(dump_mode == DumpMode::REFINE && lba < lba_end)
+        //     ++refine_sectors_processed;
     }
 
     if(!signal.interrupt())

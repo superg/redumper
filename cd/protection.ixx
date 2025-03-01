@@ -101,7 +101,7 @@ std::string detect_datel(Context &ctx, const TOC &toc, std::fstream &fs_scram, s
         {
             protection = std::format("PS2/Datel {}, C2: {}, range: {}-{}", protected_filename, range.second - range.first, range.first, range.second - 1);
 
-            ctx.protection.emplace_back(lba_to_sample(range.first, *write_offset), lba_to_sample(range.second, *write_offset));
+            ctx.protection_hard.emplace_back(lba_to_sample(range.first, *write_offset), lba_to_sample(range.second, *write_offset));
         }
     }
 
@@ -170,7 +170,7 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
                 protection = std::format("SafeDisc {}, C2: {}, gap range: {}-{}", entry->name(), errors.size(), lba_start, lba_end - 1);
 
                 for(auto e : errors)
-                    ctx.protection.emplace_back(lba_to_sample(e, *write_offset), lba_to_sample(e + 1, *write_offset));
+                    ctx.protection_hard.emplace_back(lba_to_sample(e, *write_offset), lba_to_sample(e + 1, *write_offset));
             }
         }
     }

@@ -54,7 +54,8 @@ export struct Context
 
     std::optional<std::vector<std::pair<int32_t, int32_t>>> rings;
     std::optional<Errors> dump_errors;
-    std::vector<std::pair<int32_t, int32_t>> protection;
+    std::vector<std::pair<int32_t, int32_t>> protection_hard;
+    std::vector<std::pair<int32_t, int32_t>> protection_soft;
     std::optional<bool> protection_trim;
     std::optional<bool> refine;
     std::optional<std::vector<std::string>> dat;
@@ -122,13 +123,13 @@ export uint32_t sample_offset_r2a(int32_t relative)
 }
 
 
-export int32_t lba_to_sample(int32_t lba, int32_t offset = 0)
+export int32_t lba_to_sample(int32_t lba, int32_t offset)
 {
     return lba * CD_DATA_SIZE_SAMPLES + offset;
 }
 
 
-export int32_t sample_to_lba(int32_t sample, int32_t offset = 0)
+export int32_t sample_to_lba(int32_t sample, int32_t offset)
 {
     return scale_left(sample - offset, CD_DATA_SIZE_SAMPLES);
 }
@@ -138,7 +139,7 @@ export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Con
 {
     std::vector<std::pair<int32_t, int32_t>> protection;
 
-    for(auto const &e : ctx.protection)
+    for(auto const &e : ctx.protection_hard)
         protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
 
     return protection;

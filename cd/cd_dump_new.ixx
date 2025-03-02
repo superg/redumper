@@ -386,6 +386,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
     std::fstream fs_subcode(image_prefix + ".subcode", mode);
 
     std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+    std::vector<uint8_t> sector_c2_backup(CD_C2_SIZE);
     std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
     std::span<const uint8_t> sector_c2(sector_buffer.begin() + CD_DATA_SIZE, CD_C2_SIZE);
     std::span<const uint8_t> sector_subcode(sector_buffer.begin() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
@@ -565,7 +566,16 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 
                         if(options.verbose)
                         {
-                            LOG_R("[LBA: {:6}] C2 error (bits: {:4})", lba, c2_bits);
+                            std::string difference_message;
+                            if(r)
+                            {
+                                bool c2_match = std::equal(sector_c2.begin(), sector_c2.end(), sector_c2_backup.begin());
+                                difference_message = std::format(", difference: {}", c2_match ? "-" : "+");
+                            }
+
+                            sector_c2_backup.assign(sector_c2.begin(), sector_c2.end());
+
+                            LOG_R("[LBA: {:6}] C2 error (bits: {:4}{})", lba, c2_bits, difference_message);
                         }
                     }
 

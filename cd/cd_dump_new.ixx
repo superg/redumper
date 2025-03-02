@@ -28,6 +28,7 @@ import utils.file_io;
 import utils.logger;
 import utils.misc;
 import utils.signal;
+import utils.strings;
 
 
 
@@ -135,6 +136,17 @@ void protection_ranges_from_toc(std::vector<Range<int32_t>> &ranges, const TOC &
     {
         Range r{ lba_to_sample(toc.sessions[i - 1].tracks.back().lba_end, -drive_config.read_offset),
             lba_to_sample(toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start, -drive_config.read_offset) };
+        if(!insert_range(ranges, r))
+            throw_line("invalid protection configuration");
+    }
+}
+
+
+void protection_ranges_from_lba_ranges(std::vector<Range<int32_t>> &ranges, std::span<const std::pair<int32_t, int32_t>> lba_ranges, int32_t offset)
+{
+    for(auto const &p : lba_ranges)
+    {
+        Range r{ lba_to_sample(p.first, offset), lba_to_sample(p.second, offset) };
         if(!insert_range(ranges, r))
             throw_line("invalid protection configuration");
     }
@@ -401,9 +413,9 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
     }
 
     std::vector<Range<int32_t>> protection_hard(protection_to_ranges(ctx.protection_hard));
+    protection_ranges_from_lba_ranges(protection_hard, string_to_ranges(options.skip), -ctx.drive_config.read_offset);
     std::vector<Range<int32_t>> protection_soft(protection_to_ranges(ctx.protection_soft));
     protection_ranges_from_toc(protection_soft, toc, ctx.drive_config);
-    // TODO: skip ranges from command line arguments? (imprecise because of disc offset)
 
     Errors errors_initial = {};
     if(dump_mode != DumpMode::DUMP)

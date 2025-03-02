@@ -420,7 +420,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 
     Errors errors_initial = {};
     if(dump_mode != DumpMode::DUMP)
-         refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, -ctx.drive_config.read_offset, -data_drive_offset);
+        refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, -ctx.drive_config.read_offset, -data_drive_offset);
     Errors errors = errors_initial;
 
     int32_t subcode_shift = 0;
@@ -584,7 +584,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 
                     uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
                     uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
-                    
+
                     if(sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data()), sector_data, sector_protection))
                     {
                         int32_t offset = all_types ? data_drive_offset : ctx.drive_config.read_offset;

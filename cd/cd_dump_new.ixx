@@ -182,32 +182,9 @@ std::vector<State> c2_to_state(const uint8_t *c2_data)
 }
 
 
-uint32_t c2_bits_count(std::span<const uint8_t> c2_data, std::span<const uint8_t> sector_protection)
+uint32_t c2_bits_count(std::span<const uint8_t> c2_data)
 {
-    uint32_t count = 0;
-
-    for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
-    {
-        if(sector_protection[i])
-            continue;
-
-        uint8_t c2_quad = c2_data[i / 2];
-        if(i % 2)
-            c2_quad &= 0x0F;
-        else
-            c2_quad >>= 4;
-
-        count += std::popcount(c2_quad);
-    }
-
-    return count;
-}
-
-
-// FIXME: old, remove later
-bool sector_data_complete(std::span<const State> sector_state)
-{
-    return std::all_of(sector_state.begin(), sector_state.end(), [](State s) { return s == State::SUCCESS; });
+    return std::accumulate(c2_data.begin(), c2_data.end(), 0, [](uint32_t accumulator, uint8_t c2) { return accumulator + std::popcount(c2); });
 }
 
 
@@ -225,23 +202,6 @@ bool sector_data_complete(std::span<const State> sector_state, std::span<const u
     }
 
     return complete;
-}
-
-
-uint32_t sector_state_count(std::span<const State> sector_state, std::span<const uint8_t> sector_protection, State state)
-{
-    uint32_t count = 0;
-
-    for(int32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
-    {
-        if(sector_protection[i])
-            continue;
-
-        if(sector_state[i] == state)
-            ++count;
-    }
-
-    return count;
 }
 
 
@@ -351,62 +311,17 @@ std::optional<int32_t> find_disc_offset(const TOC &toc, std::fstream &fs_state, 
 }
 
 
-std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &ctx, int32_t offset, int32_t data_offset)
-{
-    std::vector<std::pair<int32_t, int32_t>> protection;
-
-    for(auto const &e : ctx.protection_hard)
-        protection.emplace_back(std::min(sample_to_lba(e.first, -offset), sample_to_lba(e.first, -data_offset)), std::max(sample_to_lba(e.second, -offset), sample_to_lba(e.second, -data_offset)));
-
-    return protection;
-}
-
-
-uint32_t refine_count_sectors(std::fstream &fs_state, std::fstream &fs_subcode, int32_t lba_start, int32_t lba_end, int32_t offset, int32_t data_offset, const Options &options)
-{
-    uint32_t sectors_count = 0;
-
-    std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
-    std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
-
-    for(int32_t lba = lba_start; lba < lba_end; ++lba)
-    {
-        int32_t lba_index = lba - LBA_START;
-
-        read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset, (uint8_t)State::ERROR_SKIP);
-        if(!sector_data_complete(sector_state))
-        {
-            ++sectors_count;
-            continue;
-        }
-
-        read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, data_offset, (uint8_t)State::ERROR_SKIP);
-        if(!sector_data_complete(sector_state))
-        {
-            ++sectors_count;
-            continue;
-        }
-
-        read_entry(fs_subcode, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
-        if(options.refine_subchannel && !subcode_extract_q(sector_subcode.data()).isValid())
-            ++sectors_count;
-    }
-
-    return sectors_count;
-}
-
-
 void refine_init_errors(Errors &errors, std::fstream &fs_state, std::fstream &fs_subcode, int32_t lba_start, int32_t lba_end, int32_t offset, int32_t data_offset)
 {
     std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
     std::vector<uint8_t> sector_subcode(CD_SUBCODE_SIZE);
 
-    uint32_t sample_start = sample_offset_r2a(lba_to_sample(lba_start, -std::max(offset, data_offset)));
-    uint32_t sample_end = sample_offset_r2a(lba_to_sample(lba_end, -std::min(offset, data_offset)));
+    uint32_t file_sample_start = sample_offset_r2a(std::min(lba_to_sample(lba_start, offset), lba_to_sample(lba_start, data_offset)));
+    uint32_t file_sample_end = sample_offset_r2a(std::max(lba_to_sample(lba_end, offset), lba_to_sample(lba_end, data_offset)));
 
-    for(uint32_t i = sample_start; i < sample_end;)
+    for(uint32_t i = file_sample_start; i < file_sample_end;)
     {
-        uint32_t size = std::min(CD_DATA_SIZE_SAMPLES, sample_end - i);
+        uint32_t size = std::min(CD_DATA_SIZE_SAMPLES, file_sample_end - i);
         std::span ss(sector_state.begin(), sector_state.begin() + size);
 
         read_entry(fs_state, (uint8_t *)ss.data(), sizeof(State), i, size, 0, (uint8_t)State::ERROR_SKIP);
@@ -490,14 +405,9 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
     // TODO: skip ranges from command line arguments? (imprecise because of disc offset)
 
     Errors errors_initial = {};
-    // if(dump_mode != DumpMode::DUMP)
-    //     refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_drive_offset);
+    if(dump_mode != DumpMode::DUMP)
+         refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, -ctx.drive_config.read_offset, -data_drive_offset);
     Errors errors = errors_initial;
-
-    // uint32_t refine_sectors_processed = 0;
-    // uint32_t refine_sectors_count = 0;
-    // if(dump_mode == DumpMode::REFINE)
-    //     refine_sectors_count = refine_count_sectors(fs_state, fs_subcode, lba_start, lba_end, ctx.drive_config.read_offset, data_drive_offset, options);
 
     int32_t subcode_shift = 0;
     uint32_t subcode_byte_desync_counter = 0;
@@ -540,33 +450,31 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
             }
 
             std::string status_message;
-            /* OUTPUT (REFINE)
-                        if(r)
-                        {
-                            std::string data_message;
-                            if(read_as_data)
-                            {
-                                std::span<State> sector_state_file(*read_as_data ? sector_state_file_d : sector_state_file_a);
-                                uint32_t samples_good = std::count(sector_state_file.begin(), sector_state_file.end(), State::SUCCESS);
-                                data_message = std::format(", data: {:3}%", 100 * samples_good / CD_DATA_SIZE_SAMPLES);
-                            }
+            if(r)
+            {
+                std::string data_message;
+                if(read_as_data)
+                {
+                    std::span<const State> sector_state_file(*read_as_data ? sector_state_file_d : sector_state_file_a);
+                    uint32_t samples_good = std::count(sector_state_file.begin(), sector_state_file.end(), State::SUCCESS);
+                    data_message = std::format(", data: {:3}%", 100 * samples_good / CD_DATA_SIZE_SAMPLES);
+                }
 
-                            status_message = std::format(", retry: {}{}", r, data_message);
-                        }
-            */
+                status_message = std::format(", retry: {}{}", r, data_message);
+            }
+
+            std::string percentage_message;
+            if(dump_mode == DumpMode::DUMP)
+                percentage_message = std::format(" [{:3}%]", std::min(100 * (lba - lba_start) / (lba_overread - lba_start), 100));
+
+            LOGC_RF("{}{} LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), percentage_message, lba, lba_overread, dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi,
+                dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
 
             // flush cache
             if(r)
                 cmd_read(*ctx.sptd, nullptr, 0, lba, 0, true);
 
-            // OUTPUT
-            uint32_t percentage = 100 * (lba - lba_start) / (lba_overread - lba_start);
-            // OUTPUT (REFINE)
-            // if(dump_mode == DumpMode::REFINE)
-            // percentage = 100 * (refine_sectors_processed * (options.retries + 1) + r) / (refine_sectors_count * (options.retries + 1));
-            LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), percentage > 100 ? 100 : percentage, lba, lba_overread,
-                dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi, dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
-
+            // read sector
             auto read_time_start = std::chrono::high_resolution_clock::now();
             bool all_types = options.force_unscrambled;
             auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
@@ -579,9 +487,6 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
                 int32_t lba_jump = std::min(sample_to_lba(protection_range->end, -data_drive_offset), sample_to_lba(protection_range->end, -ctx.drive_config.read_offset));
                 LOG_R("[LBA: {:6}] jump (LBA: {:6})", lba, lba_jump);
 
-                // OUTPUT (REFINE)
-                // if(dump_mode == DumpMode::REFINE)
-                //     refine_sectors_processed += refine_count_sectors(fs_state, fs_subcode, lba + 1, lba_jump, ctx.drive_config.read_offset, data_drive_offset, options);
                 lba = lba_jump - 1;
                 break;
             }
@@ -632,22 +537,24 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
                 {
                     std::span<const uint8_t> sector_protection(all_types ? sector_protection_d : sector_protection_a);
 
-                    uint32_t c2_bits = c2_bits_count(sector_c2, sector_protection);
+                    uint32_t c2_bits = c2_bits_count(sector_c2);
                     if(c2_bits)
                     {
                         if(dump_mode != DumpMode::REFINE)
                             ++errors.c2;
 
                         if(options.verbose)
+                        {
                             LOG_R("[LBA: {:6}] C2 error (bits: {:4})", lba, c2_bits);
+                        }
                     }
 
                     std::span<State> sector_state_file(all_types ? sector_state_file_d : sector_state_file_a);
                     std::span<uint8_t> sector_data_file(all_types ? sector_data_file_d : sector_data_file_a);
 
-                    uint32_t scsi_before = sector_state_count(sector_state_file, sector_protection, State::ERROR_SKIP);
-                    uint32_t c2_before = sector_state_count(sector_state_file, sector_protection, State::ERROR_C2);
-
+                    uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
+                    uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
+                    
                     if(sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data()), sector_data, sector_protection))
                     {
                         int32_t offset = all_types ? data_drive_offset : ctx.drive_config.read_offset;
@@ -656,8 +563,8 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
 
                         if(dump_mode == DumpMode::REFINE && lba < lba_end)
                         {
-                            uint32_t scsi_after = sector_state_count(sector_state_file, sector_protection, State::ERROR_SKIP);
-                            uint32_t c2_after = sector_state_count(sector_state_file, sector_protection, State::ERROR_C2);
+                            uint32_t scsi_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
+                            uint32_t c2_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
 
                             errors.scsi -= scsi_before - scsi_after;
                             errors.c2 -= c2_before - c2_after;
@@ -685,10 +592,9 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
                 std::string data_message;
                 if(read_as_data)
                 {
-                    std::span<const uint8_t> sector_protection(all_types ? sector_protection_d : sector_protection_a);
                     std::span<const State> sector_state_file(*read_as_data ? sector_state_file_d : sector_state_file_a);
-                    uint32_t samples_good = sector_state_count(sector_state_file, sector_protection, State::SUCCESS);
-                    if(samples_good + std::count_if(sector_protection.begin(), sector_protection.end(), [](uint8_t p) { return p; }) != CD_DATA_SIZE_SAMPLES)
+                    uint32_t samples_good = std::count(sector_state_file.begin(), sector_state_file.end(), State::SUCCESS);
+                    if(samples_good != CD_DATA_SIZE_SAMPLES)
                     {
                         data_message = std::format(", data: {:3}%", 100 * samples_good / CD_DATA_SIZE_SAMPLES);
                         failure = true;
@@ -703,10 +609,6 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
                     LOG_R("[LBA: {:6}] correction failure{}", lba, data_message);
             }
         }
-
-        // OUTPUT (REFINE)
-        // if(dump_mode == DumpMode::REFINE && lba < lba_end)
-        //     ++refine_sectors_processed;
     }
 
     if(!signal.interrupt())

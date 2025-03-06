@@ -89,7 +89,7 @@ struct AsusConfig
     uint32_t entries_count;
 };
 
-export constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
+export constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE_ = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
 
 static const std::unordered_map<std::string, int32_t> DRIVE_READ_OFFSETS = {
 #include "driveoffsets.inc"
@@ -221,25 +221,7 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 // clang-format on
 
 
-// Plextor firmware blocked LBA ranges:
-// BE [-inf .. -20000], (-1000 .. -75)
-// D8 [-inf .. -20150], (-1150 .. -75)
-//
-// BE is having trouble reading LBA close to -1150]
-// D8 range boundaries are shifted left by 150 sectors comparing to BE
-//
-// It is also possible to read large negative offset ranges (starting from 0xFFFFFFFF - smallest negative 32-bit integer)
-// with BE command with disabled C2 if the disc first track is a data track. Regardless of a starting point, such reads
-// are "virtualized" by Plextor drive and will always start somewhere in the lead-in toc area and sequentially read until
-// the end of the data track under normal circumstances. After some point, the drive will wrap around and start in
-// the lead-in toc area again. This process will continue until drive reaches firmware blocked LBA ranges specified here.
-// However, any external pause between sequential reads (Debugger pause, sleep() call etc.) will lead to drive counter
-// resetting and starting reading in the lead-in toc area again.
-//
-// However the following range, while preserving the above behavior, is unlocked for both BE and D8 commands with
-// disabled C2. Use it to dynamically find first second of pre-gap based on the Q subcode and prepend it to the rest of
-// [-75 .. leadout) Plextor dump, optionally saving the lead-in
-static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = { -20150, -1150 };
+static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE_ = { -20150, -1150 };
 
 
 // LG/ASUS cache map:
@@ -445,21 +427,21 @@ export SectorLayout sector_order_layout(const DriveConfig::SectorOrder &sector_o
 }
 
 
-export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
+export std::vector<uint8_t> plextor_read_leadin_(SPTD &sptd, uint32_t tail_size)
 {
     std::vector<uint8_t> buffer;
 
-    buffer.reserve(5000 * PLEXTOR_LEADIN_ENTRY_SIZE);
+    buffer.reserve(5000 * PLEXTOR_LEADIN_ENTRY_SIZE_);
 
-    int32_t neg_start = PLEXTOR_TOC_RANGE.first + 1;
-    int32_t neg_limit = PLEXTOR_TOC_RANGE.second + 1;
+    int32_t neg_start = PLEXTOR_TOC_RANGE_.first + 1;
+    int32_t neg_limit = PLEXTOR_TOC_RANGE_.second + 1;
     int32_t neg_end = neg_limit;
 
     for(int32_t neg = neg_start; neg < neg_end; ++neg)
     {
         uint32_t lba_index = neg - neg_start;
-        buffer.resize((lba_index + 1) * PLEXTOR_LEADIN_ENTRY_SIZE);
-        uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE];
+        buffer.resize((lba_index + 1) * PLEXTOR_LEADIN_ENTRY_SIZE_);
+        uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE_];
         auto &status = *(SPTD::Status *)entry;
 
         LOGC_RF("{} [LBA: {:6}]", spinner_animation(), neg);

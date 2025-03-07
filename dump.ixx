@@ -258,8 +258,7 @@ export bool subcode_correct_subq(ChannelQ *subq, uint32_t sectors_count)
         if(!memcmp(&subq[lba_index], &q_empty, sizeof(q_empty)))
             continue;
 
-        // treat unexpected MSF as invalid (SecuROM)
-        if(subq[lba_index].isValid(lba_index + LBA_START))
+        if(subq[lba_index].isValid())
         {
             if(subq[lba_index].adr == 1)
             {
@@ -276,7 +275,7 @@ export bool subcode_correct_subq(ChannelQ *subq, uint32_t sectors_count)
             {
                 q_next = lba_index + 1;
                 for(; q_next < sectors_count; ++q_next)
-                    if(subq[q_next].isValid(q_next + LBA_START))
+                    if(subq[q_next].isValid())
                     {
                         if(subq[q_next].adr == 1)
                         {

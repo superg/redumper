@@ -107,6 +107,39 @@ export void redumper_debug(Context &ctx, Options &options)
     std::filesystem::path cdtext_path(image_prefix + ".cdtext");
     std::filesystem::path cue_path(image_prefix + ".cue");
     std::filesystem::path physical_path(image_prefix + ".physical");
+    std::filesystem::path sub_path(image_prefix + ".subcode");
+
+    // TOC bad split
+    if(0)
+    {
+        std::vector<uint8_t> toc_buffer = read_vector(toc_path);
+        TOC toc(toc_buffer, false);
+
+        uint32_t subcode_sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
+
+        // preload subchannel P/Q
+        std::vector<uint8_t> subp;
+        std::vector<ChannelQ> subq;
+        if(std::filesystem::exists(sub_path))
+        {
+            std::vector<ChannelP> subp_raw;
+            subcode_load_subpq(subp_raw, subq, sub_path);
+
+            LOG_F("correcting P... ");
+            subp = subcode_correct_subp(subp_raw.data(), subcode_sectors_count);
+            LOG("done");
+
+            LOG_F("correcting Q... ");
+            if(!subcode_correct_subq(subq.data(), subcode_sectors_count))
+                subq.clear();
+            LOG("done");
+            LOG("");
+        }
+
+        toc.updateQ(subq.data(), subp.data(), subcode_sectors_count, LBA_START, options.legacy_subs);
+        toc.printCUE(std::cout, options.image_name, 0);
+        LOG("");
+    }
 
     // BluRay structure print
     if(0)

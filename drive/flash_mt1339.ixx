@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <cstdint>
 #include <fstream>
 #include "throw_line.hh"
 

@@ -147,6 +147,7 @@ target_sources(redumper
     "crc/crc.ixx"
     "crc/crc16_gsm.ixx"
     "crc/crc32.ixx"
+	"drive/flash_mt1339.ixx"
     "dvd/dvd_dump.ixx"
     "dvd/dvd_key.ixx"
     "dvd/dvd_split.ixx"

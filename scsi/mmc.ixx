@@ -25,7 +25,8 @@ export enum class CDB_OperationCode : uint8_t
     READ_CD = 0xBE,
     READ_CDDA = 0xD8,
     PLEXTOR_RESET = 0xEE,
-    ASUS_READ_CACHE = 0xF1
+    ASUS_READ_CACHE = 0xF1,
+    MT1339_FLASH_FIRMWARE = 0xFF
 };
 
 
@@ -781,6 +782,28 @@ export struct CDB12_SetCDSpeed
     uint8_t write_speed[2];
     uint8_t reserved3[5];
     uint8_t control;
+};
+
+
+export enum class FLASH_MT1339_Mode : uint8_t
+{
+    START = 0x00,
+    CONTINUE = 0xFF,
+    END = 0x04
+};
+
+
+export struct CDB12_FlashMT1339
+{
+    uint8_t operation_code;
+    uint8_t reserved1 :5;
+    uint8_t lun       :3;
+    uint8_t unknown1;
+    uint8_t reserved2;
+    uint8_t reserved3;
+    uint8_t mode;
+    uint8_t reserved4[2];
+    uint8_t reserved5[4];
 };
 
 }

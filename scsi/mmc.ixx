@@ -787,9 +787,9 @@ export struct CDB12_SetCDSpeed
 
 export enum class FLASH_MT1339_Mode : uint8_t
 {
-    START    = 0x00,
+    START = 0x00,
     CONTINUE = 0xFF,
-    END      = 0x04
+    END = 0x04
 };
 
 

@@ -65,6 +65,7 @@ export struct Options
     bool overread_leadout;
     bool force_unscrambled;
     bool force_refine;
+    std::string firmware;
 
 
     Options(int argc, const char *argv[])
@@ -240,6 +241,8 @@ export struct Options
                         force_unscrambled = true;
                     else if(key == "--force-refine")
                         force_refine = true;
+                    else if(key == "--firmware")
+                        s_value = &firmware;
                     // unknown option
                     else
                     {
@@ -280,17 +283,18 @@ export struct Options
         LOG("");
 
         LOG("COMMANDS:");
-        LOG("\t<empty>   \tor cd/sacd/dvd/bd, aggregate mode that does everything (default)");
-        LOG("\tdump      \tdumps disc to primary dump files");
-        LOG("\trefine    \trefines dump files by re-reading the disc");
-        LOG("\tverify    \tverifies dump files from the disc and marks any mismatch in state for the subsequent refine");
-        LOG("\tdvdkey    \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
-        LOG("\tdvdisokey \tcracks DVD CSS keys directly from iso dump, no drive required");
-        LOG("\tprotection\tscans dump files for protections");
-        LOG("\tsplit     \tgenerates BIN/CUE track split from dump files");
-        LOG("\thash      \toutputs XML DAT hash entries (CUE/BIN or ISO)");
-        LOG("\tinfo      \toutputs basic image information (CUE/BIN or ISO)");
-        LOG("\tskeleton  \tgenerates image file with zeroed content");
+        LOG("\t<empty>       \tor cd/sacd/dvd/bd, aggregate mode that does everything (default)");
+        LOG("\tdump          \tdumps disc to primary dump files");
+        LOG("\trefine        \trefines dump files by re-reading the disc");
+        LOG("\tverify        \tverifies dump files from the disc and marks any mismatch in state for the subsequent refine");
+        LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
+        LOG("\tdvdisokey     \tcracks DVD CSS keys directly from iso dump, no drive required");
+        LOG("\tprotection    \tscans dump files for protections");
+        LOG("\tsplit         \tgenerates BIN/CUE track split from dump files");
+        LOG("\thash          \toutputs XML DAT hash entries (CUE/BIN or ISO)");
+        LOG("\tinfo          \toutputs basic image information (CUE/BIN or ISO)");
+        LOG("\tskeleton      \tgenerates image file with zeroed content");
+        LOG("\tflash::mt1339 \tMT1339 drive firmware flasher");
         LOG("");
 
         LOG("OPTIONS:");
@@ -345,6 +349,7 @@ export struct Options
         LOG("\t--overread-leadout             \tdo not limit lead-out to the first hundred sectors, read until drive returns SCSI error");
         LOG("\t--force-unscrambled            \tdo not attempt to read data sectors as audio (BE read method only)");
         LOG("\t--force-refine                 \tdo not check TOC when refining a disc");
+        LOG("\t--firmware=VALUE               \tfirmware filename");
     }
 };
 

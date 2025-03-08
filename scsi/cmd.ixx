@@ -298,7 +298,6 @@ export SPTD::Status cmd_send_key(SPTD &sptd, const uint8_t *data, uint32_t data_
 }
 
 
-
 export SPTD::Status cmd_report_key(SPTD &sptd, std::vector<uint8_t> &response, uint32_t lba, REPORT_KEY_KeyClass key_class, uint8_t agid, REPORT_KEY_KeyFormat key_format)
 {
     CDB12_ReportKey cdb = {};
@@ -493,8 +492,18 @@ export SPTD::Status cmd_start_stop_unit(SPTD &sptd, uint8_t load_eject, uint8_t 
     cdb.load_eject = load_eject;
     cdb.start = start;
 
-
     return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+}
+
+
+export SPTD::Status cmd_flash_mt1339(SPTD &sptd, const uint8_t *data, uint32_t data_size, uint8_t unknown1, FLASH_MT1339_Mode mode)
+{
+    CDB12_FlashMT1339 cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::MT1339_FLASH_FIRMWARE;
+    cdb.unknown1 = unknown1;
+    cdb.mode = (uint8_t)mode;
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, data_size, true);
 }
 
 }

@@ -70,7 +70,7 @@ void store_subcode(std::fstream &fs_subcode, std::span<const uint8_t> subcode_bu
 
     uint32_t sectors_count = subcode_buffer.size() / CD_SUBCODE_SIZE;
 
-    std::vector<uint8_t> subcode_buffer_file(subcode_buffer.size());
+    std::vector<uint8_t> subcode_buffer_file(sectors_count * CD_SUBCODE_SIZE);
     read_entry(fs_subcode, subcode_buffer_file.data(), CD_SUBCODE_SIZE, lba - LBA_START, sectors_count, 0, 0);
 
     bool write = false;
@@ -79,12 +79,10 @@ void store_subcode(std::fstream &fs_subcode, std::span<const uint8_t> subcode_bu
         std::span<const uint8_t> sector_subcode(&subcode_buffer[i * CD_SUBCODE_SIZE], CD_SUBCODE_SIZE);
         std::span<uint8_t> sector_subcode_file(&subcode_buffer_file[i * CD_SUBCODE_SIZE], CD_SUBCODE_SIZE);
 
-        ChannelQ Q;
-        subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+        ChannelQ Q = subcode_extract_q(sector_subcode.data());
         if(Q.isValid())
         {
-            ChannelQ Q_file;
-            subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
+            ChannelQ Q_file = subcode_extract_q(sector_subcode_file.data());
 
             if(!Q_file.isValid())
             {
@@ -139,8 +137,7 @@ PlextorLeadIn plextor_leadin_read(SPTD &sptd, uint32_t tail_size)
         {
             std::span<const uint8_t> sector_subcode(&sector_buffer[CD_DATA_SIZE], CD_SUBCODE_SIZE);
 
-            ChannelQ Q;
-            subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+            ChannelQ Q = subcode_extract_q(sector_subcode.data());
 
             // DEBUG
             // Logger::get().carriageReturn();
@@ -170,8 +167,7 @@ std::optional<std::pair<int32_t, int32_t>> plextor_leadin_identify(const Plextor
 
         std::span<const uint8_t> sector_subcode(&s.second[CD_DATA_SIZE], CD_SUBCODE_SIZE);
 
-        ChannelQ Q;
-        subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+        ChannelQ Q = subcode_extract_q(sector_subcode.data());
         if(Q.isValid() && Q.adr == 1 && Q.mode1.tno)
         {
             int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
@@ -210,10 +206,8 @@ bool plextor_leadin_match(const PlextorLeadIn &leadin1, const PlextorLeadIn &lea
             break;
         }
 
-        ChannelQ Q1;
-        subcode_extract_channel((uint8_t *)&Q1, sector1_subcode.data(), Subchannel::Q);
-        ChannelQ Q2;
-        subcode_extract_channel((uint8_t *)&Q2, sector2_subcode.data(), Subchannel::Q);
+        ChannelQ Q1 = subcode_extract_q(sector1_subcode.data());
+        ChannelQ Q2 = subcode_extract_q(sector2_subcode.data());
         if(!Q1.isValid() || !Q2.isValid())
             continue;
 
@@ -229,9 +223,57 @@ bool plextor_leadin_match(const PlextorLeadIn &leadin1, const PlextorLeadIn &lea
 }
 
 
+int32_t plextor_leadin_find_start(const PlextorLeadIn &leadin, std::fstream &fs_subcode, uint32_t leadin_overlap)
+{
+    std::optional<int32_t> lba_base;
+    for(uint32_t i = 0; i < leadin.size(); ++i)
+    {
+        std::span<const uint8_t> sector_subcode_leadin(&leadin[i].second[CD_DATA_SIZE], CD_SUBCODE_SIZE);
+
+        ChannelQ Q = subcode_extract_q(sector_subcode_leadin.data());
+        if(Q.isValid() && Q.adr == 1 && Q.mode1.tno)
+        {
+            lba_base = BCDMSF_to_LBA(Q.mode1.a_msf) - i;
+            break;
+        }
+    }
+    if(!lba_base)
+        throw_line("unexpected");
+
+    uint32_t sectors_count = leadin_overlap + leadin.size() + leadin_overlap;
+    std::vector<uint8_t> subcode_buffer_file(sectors_count * CD_SUBCODE_SIZE);
+    read_entry(fs_subcode, subcode_buffer_file.data(), CD_SUBCODE_SIZE, *lba_base - leadin_overlap - LBA_START, sectors_count, 0, 0);
+
+    std::vector<uint32_t> score(leadin_overlap * 2);
+    for(uint32_t i = 0; i < score.size(); ++i)
+    {
+        for(uint32_t j = 0; j < leadin.size(); ++j)
+        {
+            std::span<const uint8_t> sector_subcode_leadin(&leadin[j].second[CD_DATA_SIZE], CD_SUBCODE_SIZE);
+            std::span<const uint8_t> sector_subcode_file(&subcode_buffer_file[(j + i) * CD_SUBCODE_SIZE], CD_SUBCODE_SIZE);
+            ChannelQ Q = subcode_extract_q(sector_subcode_leadin.data());
+            ChannelQ Q_file = subcode_extract_q(sector_subcode_file.data());
+
+            if(!Q.isValid() || !Q_file.isValid())
+                continue;
+
+            if(std::equal(Q.raw, Q.raw + sizeof(Q.raw), Q_file.raw))
+                ++score[i];
+        }
+    }
+    auto it = std::max_element(score.begin(), score.end());
+    if(*it)
+        *lba_base += std::distance(score.begin(), it) - leadin_overlap;
+
+    return *lba_base;
+}
+
+
 void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram, std::fstream &fs_state, std::fstream &fs_subcode, Options &options)
 {
     std::vector<std::pair<PlextorLeadIn, uint32_t>> leadins;
+
+    constexpr uint32_t leadin_overlap = 16;
 
     uint32_t retries = options.plextor_leadin_retries + toc.sessions.size();
     for(uint32_t i = 0; i < retries; ++i)
@@ -243,7 +285,7 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
         if(i + 1 == toc.sessions.size())
             cmd_read(*ctx.sptd, nullptr, 0, -1, 0, true);
 
-        auto leadin = plextor_leadin_read(*ctx.sptd, 3 * MSF_LIMIT.f);
+        auto leadin = plextor_leadin_read(*ctx.sptd, CD_PREGAP_SIZE + leadin_overlap);
         auto leadin_range = plextor_leadin_identify(leadin);
         if(leadin_range)
             LOG("PLEXTOR: lead-in found (LBA: [{:6} .. {:6}], sectors: {})", leadin_range->first, leadin_range->second, leadin.size());
@@ -313,8 +355,6 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
 
         LOG("PLEXTOR: storing lead-in (LBA: [{:6} .. {:6}], verified: {})", range->first, range->second, l.second ? "yes" : "no");
 
-        int32_t lba = 0;
-
         auto &leadin = l.first;
         std::vector<State> state_buffer(leadin.size() * CD_DATA_SIZE_SAMPLES);
         std::vector<uint8_t> data_buffer(leadin.size() * CD_DATA_SIZE);
@@ -333,14 +373,9 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
             std::span<const uint8_t> sector_subcode_leadin(&leadin[i].second[CD_DATA_SIZE], CD_SUBCODE_SIZE);
             std::copy(sector_data_leadin.begin(), sector_data_leadin.end(), sector_data.begin());
             std::copy(sector_subcode_leadin.begin(), sector_subcode_leadin.end(), sector_subcode.begin());
-
-            ChannelQ Q;
-            subcode_extract_channel((uint8_t *)&Q, sector_subcode_leadin.data(), Subchannel::Q);
-            if(Q.isValid() && Q.adr == 1 && Q.mode1.tno)
-            {
-                lba = BCDMSF_to_LBA(Q.mode1.a_msf) - i;
-            }
         }
+
+        int32_t lba = plextor_leadin_find_start(leadin, fs_subcode, leadin_overlap);
 
         store_data(fs_scram, fs_state, data_buffer, state_buffer, lba_to_sample(lba, -ctx.drive_config.read_offset));
         store_subcode(fs_subcode, subcode_buffer, lba);

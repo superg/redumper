@@ -232,8 +232,8 @@ std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &co
 {
     // clang-format off
     if(profile_is_cd(ctx.current_profile))
-        return command == "new" ? eject ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "eject", "split", "hash", "info" }
-                                        : std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info" }
+        return command == "new" ? eject ? std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "eject", "split", "hash", "info" }
+                                        : std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "split", "hash", "info" }
                                 : eject ? std::list<std::string>{ "dump", "protection", "refine", "eject", "split", "hash", "info" }
                                         : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
     else if(profile_is_dvd(ctx.current_profile))

@@ -261,8 +261,8 @@ int32_t plextor_leadin_find_start(const PlextorLeadIn &leadin, std::fstream &fs_
                 ++score[i];
         }
     }
-    auto it = std::max_element(score.begin(), score.end());
-    if(*it)
+
+    if(auto it = std::max_element(score.begin(), score.end()); it != score.end() && *it)
         *lba_base += std::distance(score.begin(), it) - leadin_overlap;
 
     return *lba_base;

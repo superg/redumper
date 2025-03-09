@@ -30,25 +30,26 @@ import utils.logger;
 namespace gpsxre
 {
 
-void store_samples(std::fstream &fs_scram, std::fstream &fs_state, std::span<const uint8_t> data, std::span<const State> state, int32_t sample)
+void store_data(std::fstream &fs_scram, std::fstream &fs_state, std::span<const uint8_t> data_buffer, std::span<const State> state_buffer, int32_t sample)
 {
     uint32_t sample_index = sample_offset_r2a(sample);
-    uint32_t samples_count = state.size();
+    uint32_t samples_count = state_buffer.size();
 
-    std::vector<State> state_file_storage(state.size());
-    std::vector<uint8_t> data_file_storage(data.size());
-    std::span<State> state_file(state_file_storage);
-    std::span<uint8_t> data_file(data_file_storage);
-    read_entry(fs_state, (uint8_t *)state_file.data(), sizeof(State), sample_index, samples_count, 0, 0);
-    read_entry(fs_scram, data_file.data(), CD_SAMPLE_SIZE, sample_index, samples_count, 0, 0);
+    if(samples_count * CD_SAMPLE_SIZE != data_buffer.size())
+        throw_line("data / state buffer size mismatch (data size: {}, state size: {})", samples_count, data_buffer.size());
+
+    std::vector<State> state_buffer_file(samples_count);
+    std::vector<uint8_t> data_buffer_file(samples_count * CD_SAMPLE_SIZE);
+    read_entry(fs_state, (uint8_t *)state_buffer_file.data(), sizeof(State), sample_index, samples_count, 0, 0);
+    read_entry(fs_scram, data_buffer_file.data(), CD_SAMPLE_SIZE, sample_index, samples_count, 0, 0);
 
     bool write = false;
     for(uint32_t i = 0; i < samples_count; ++i)
     {
-        if(state_file[i] < state[i])
+        if(state_buffer_file[i] < state_buffer[i])
         {
-            state_file[i] = state[i];
-            ((uint32_t *)data_file.data())[i] = ((uint32_t *)data.data())[i];
+            state_buffer_file[i] = state_buffer[i];
+            ((uint32_t *)data_buffer_file.data())[i] = ((uint32_t *)data_buffer.data())[i];
 
             write = true;
         }
@@ -56,25 +57,27 @@ void store_samples(std::fstream &fs_scram, std::fstream &fs_state, std::span<con
 
     if(write)
     {
-        write_entry(fs_state, (uint8_t *)state_file.data(), sizeof(State), sample_index, samples_count, 0);
-        write_entry(fs_scram, data_file.data(), CD_SAMPLE_SIZE, sample_index, samples_count, 0);
+        write_entry(fs_state, (uint8_t *)state_buffer_file.data(), sizeof(State), sample_index, samples_count, 0);
+        write_entry(fs_scram, data_buffer_file.data(), CD_SAMPLE_SIZE, sample_index, samples_count, 0);
     }
 }
 
 
-void store_subcode(std::fstream &fs_subcode, std::span<const uint8_t> subcode, int32_t lba)
+void store_subcode(std::fstream &fs_subcode, std::span<const uint8_t> subcode_buffer, int32_t lba)
 {
-    uint32_t sectors_count = subcode.size() / CD_SUBCODE_SIZE;
+    if(subcode_buffer.size() % CD_SUBCODE_SIZE)
+        throw_line("unaligned subcode buffer size (size: {})", subcode_buffer.size());
 
-    std::vector<uint8_t> subcode_file_storage(subcode.size());
-    std::span<uint8_t> subcode_file(subcode_file_storage);
-    read_entry(fs_subcode, subcode_file.data(), CD_SUBCODE_SIZE, lba - LBA_START, sectors_count, 0, 0);
+    uint32_t sectors_count = subcode_buffer.size() / CD_SUBCODE_SIZE;
+
+    std::vector<uint8_t> subcode_buffer_file(subcode_buffer.size());
+    read_entry(fs_subcode, subcode_buffer_file.data(), CD_SUBCODE_SIZE, lba - LBA_START, sectors_count, 0, 0);
 
     bool write = false;
     for(uint32_t i = 0; i < sectors_count; ++i)
     {
-        auto sector_subcode = subcode.subspan(i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
-        auto sector_subcode_file = subcode_file.subspan(i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
+        std::span<const uint8_t> sector_subcode(&subcode_buffer[i * CD_SUBCODE_SIZE], CD_SUBCODE_SIZE);
+        std::span<uint8_t> sector_subcode_file(&subcode_buffer_file[i * CD_SUBCODE_SIZE], CD_SUBCODE_SIZE);
 
         ChannelQ Q;
         subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
@@ -93,7 +96,7 @@ void store_subcode(std::fstream &fs_subcode, std::span<const uint8_t> subcode, i
     }
 
     if(write)
-        write_entry(fs_subcode, subcode_file.data(), CD_SUBCODE_SIZE, lba - LBA_START, sectors_count, 0);
+        write_entry(fs_subcode, subcode_buffer_file.data(), CD_SUBCODE_SIZE, lba - LBA_START, sectors_count, 0);
 }
 
 
@@ -117,7 +120,7 @@ const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = { -20150, -1150 };
 using PlextorLeadIn = std::vector<std::pair<SPTD::Status, std::vector<uint8_t>>>;
 
 
-PlextorLeadIn plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
+PlextorLeadIn plextor_leadin_read(SPTD &sptd, uint32_t tail_size)
 {
     PlextorLeadIn sectors;
 
@@ -134,7 +137,7 @@ PlextorLeadIn plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 
         if(!status.status_code)
         {
-            std::span<const uint8_t> sector_subcode(sector_buffer.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+            std::span<const uint8_t> sector_subcode(&sector_buffer[CD_DATA_SIZE], CD_SUBCODE_SIZE);
 
             ChannelQ Q;
             subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
@@ -165,7 +168,7 @@ std::optional<std::pair<int32_t, int32_t>> plextor_leadin_identify(const Plextor
         if(s.first.status_code)
             continue;
 
-        std::span<const uint8_t> sector_subcode(s.second.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+        std::span<const uint8_t> sector_subcode(&s.second[CD_DATA_SIZE], CD_SUBCODE_SIZE);
 
         ChannelQ Q;
         subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
@@ -195,10 +198,10 @@ bool plextor_leadin_match(const PlextorLeadIn &leadin1, const PlextorLeadIn &lea
         if(s1.first.status_code || s2.first.status_code)
             continue;
 
-        std::span<const uint8_t> sector1_data(s1.second.begin(), CD_DATA_SIZE);
-        std::span<const uint8_t> sector1_subcode(s1.second.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
-        std::span<const uint8_t> sector2_data(s2.second.begin(), CD_DATA_SIZE);
-        std::span<const uint8_t> sector2_subcode(s2.second.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+        std::span<const uint8_t> sector1_data(&s1.second[0], CD_DATA_SIZE);
+        std::span<const uint8_t> sector1_subcode(&s1.second[CD_DATA_SIZE], CD_SUBCODE_SIZE);
+        std::span<const uint8_t> sector2_data(&s2.second[0], CD_DATA_SIZE);
+        std::span<const uint8_t> sector2_subcode(&s2.second[CD_DATA_SIZE], CD_SUBCODE_SIZE);
 
         // data check
         if(!std::equal(sector1_data.begin(), sector1_data.end(), sector2_data.begin()))
@@ -236,13 +239,14 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
         LOG("PLEXTOR: reading lead-in (retry: {})", i + 1);
 
         // this helps with getting more consistent sectors count for the first session
+        // TODO: need to understand the firmware
         if(i + 1 == toc.sessions.size())
             cmd_read(*ctx.sptd, nullptr, 0, -1, 0, true);
 
-        auto leadin = plextor_read_leadin(*ctx.sptd, 3 * MSF_LIMIT.f);
-        auto lba_range = plextor_leadin_identify(leadin);
-        if(lba_range)
-            LOG("PLEXTOR: lead-in found (LBA: [{:6} .. {:6}], sectors: {})", lba_range->first, lba_range->second, leadin.size());
+        auto leadin = plextor_leadin_read(*ctx.sptd, 3 * MSF_LIMIT.f);
+        auto leadin_range = plextor_leadin_identify(leadin);
+        if(leadin_range)
+            LOG("PLEXTOR: lead-in found (LBA: [{:6} .. {:6}], sectors: {})", leadin_range->first, leadin_range->second, leadin.size());
         else
         {
             LOG("PLEXTOR: lead-in not identified");
@@ -257,7 +261,7 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
                 throw_line("unexpected");
 
             // overlap check
-            if(lba_range->first <= range->second && range->first <= lba_range->second)
+            if(leadin_range->first <= range->second && range->first <= leadin_range->second)
             {
                 found = true;
 
@@ -301,7 +305,7 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
         if(!range)
             throw_line("unexpected");
 
-        if(!l.second)
+        if(!l.second && !options.plextor_leadin_force_store)
         {
             LOG("PLEXTOR: lead-in discarded as unverified (LBA: [{:6} .. {:6}])", range->first, range->second);
             continue;
@@ -312,24 +316,21 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
         int32_t lba = 0;
 
         auto &leadin = l.first;
-        std::vector<State> state_storage(leadin.size() * CD_DATA_SIZE_SAMPLES);
-        std::vector<uint8_t> data_storage(leadin.size() * CD_DATA_SIZE);
-        std::vector<uint8_t> subcode_storage(leadin.size() * CD_SUBCODE_SIZE);
-        std::span<State> state(state_storage);
-        std::span<uint8_t> data(data_storage);
-        std::span<uint8_t> subcode(subcode_storage);
+        std::vector<State> state_buffer(leadin.size() * CD_DATA_SIZE_SAMPLES);
+        std::vector<uint8_t> data_buffer(leadin.size() * CD_DATA_SIZE);
+        std::vector<uint8_t> subcode_buffer(leadin.size() * CD_SUBCODE_SIZE);
         for(uint32_t i = 0; i < leadin.size(); ++i)
         {
             if(!leadin[i].first.status_code)
             {
-                auto sector_state = state.subspan(i * CD_DATA_SIZE_SAMPLES, CD_DATA_SIZE_SAMPLES);
+                std::span<State> sector_state(&state_buffer[i * CD_DATA_SIZE_SAMPLES], CD_DATA_SIZE_SAMPLES);
                 std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
             }
 
-            auto sector_data = data.subspan(i * CD_DATA_SIZE, CD_DATA_SIZE);
-            auto sector_subcode = subcode.subspan(i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
-            std::span<const uint8_t> sector_data_leadin(leadin[i].second.begin(), CD_DATA_SIZE);
-            std::span<const uint8_t> sector_subcode_leadin(leadin[i].second.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+            std::span<uint8_t> sector_data(&data_buffer[i * CD_DATA_SIZE], CD_DATA_SIZE);
+            std::span<uint8_t> sector_subcode(&subcode_buffer[i * CD_SUBCODE_SIZE], CD_SUBCODE_SIZE);
+            std::span<const uint8_t> sector_data_leadin(&leadin[i].second[0], CD_DATA_SIZE);
+            std::span<const uint8_t> sector_subcode_leadin(&leadin[i].second[CD_DATA_SIZE], CD_SUBCODE_SIZE);
             std::copy(sector_data_leadin.begin(), sector_data_leadin.end(), sector_data.begin());
             std::copy(sector_subcode_leadin.begin(), sector_subcode_leadin.end(), sector_subcode.begin());
 
@@ -341,8 +342,8 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
             }
         }
 
-        store_samples(fs_scram, fs_state, data, state, lba_to_sample(lba, -ctx.drive_config.read_offset));
-        store_subcode(fs_subcode, subcode, lba);
+        store_data(fs_scram, fs_state, data_buffer, state_buffer, lba_to_sample(lba, -ctx.drive_config.read_offset));
+        store_subcode(fs_subcode, subcode_buffer, lba);
     }
 }
 

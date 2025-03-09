@@ -1,7 +1,9 @@
 module;
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <span>
 #include <string>
 #include "throw_line.hh"
@@ -18,182 +20,80 @@ import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import utils.animation;
+import utils.file_io;
 import utils.logger;
 
 
 
 namespace gpsxre
 {
-/*
-bool plextor_assign_leadin_session(std::vector<LeadInEntry> &entries, std::vector<uint8_t> leadin, int32_t drive_pregap_start)
+
+void store_samples(std::fstream &fs_scram, std::fstream &fs_state, std::span<const uint8_t> data, std::span<const State> state, int32_t sample)
 {
-    bool session_found = false;
+    uint32_t sample_index = sample_offset_r2a(sample);
+    uint32_t samples_count = state.size();
 
-    uint32_t entries_count = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE;
-    for(uint32_t j = entries_count; j > 0; --j)
+    std::vector<State> state_file_storage(state.size());
+    std::vector<uint8_t> data_file_storage(data.size());
+    std::span<State> state_file(state_file_storage);
+    std::span<uint8_t> data_file(data_file_storage);
+    read_entry(fs_state, (uint8_t *)state_file.data(), sizeof(State), sample_index, samples_count, 0, 0);
+    read_entry(fs_scram, data_file.data(), CD_SAMPLE_SIZE, sample_index, samples_count, 0, 0);
+    
+    bool write = false;
+    for(uint32_t i = 0; i < samples_count; ++i)
     {
-        auto entry = &leadin[(j - 1) * PLEXTOR_LEADIN_ENTRY_SIZE];
-        auto status = *(SPTD::Status *)entry;
+        if(state_file[i] < state[i])
+        {
+            state_file[i] = state[i];
+            ((uint32_t *)data_file.data())[i] = ((uint32_t *)data.data())[i];
 
-        if(status.status_code)
-            continue;
+            write = true;
+        }
+    }
 
-        auto sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
+    if(write)
+    {
+        write_entry(fs_state, (uint8_t *)state_file.data(), sizeof(State), sample_index, samples_count, 0);
+        write_entry(fs_scram, data_file.data(), CD_SAMPLE_SIZE, sample_index, samples_count, 0);
+    }
+}
 
+
+void store_subcode(std::fstream &fs_subcode, std::span<const uint8_t> subcode, int32_t lba)
+{
+    uint32_t sectors_count = subcode.size() / CD_SUBCODE_SIZE;
+
+    std::vector<uint8_t> subcode_file_storage(subcode.size());
+    std::span<uint8_t> subcode_file(subcode_file_storage);
+    read_entry(fs_subcode, subcode_file.data(), CD_SUBCODE_SIZE, lba - LBA_START, sectors_count, 0, 0);
+
+    bool write = false;
+    for(uint32_t i = 0; i < sectors_count; ++i)
+    {
+        auto sector_subcode = subcode.subspan(i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
+        auto sector_subcode_file = subcode_file.subspan(i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
+        
         ChannelQ Q;
-        subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
-
+        subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
         if(Q.isValid())
         {
-            if(Q.adr == 1 && Q.mode1.tno)
+            ChannelQ Q_file;
+            subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
+
+            if(!Q_file.isValid())
             {
-                int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
-                for(uint32_t s = 0; s < (uint32_t)entries.size(); ++s)
-                {
-                    int32_t pregap_end = entries[s].lba_start + (drive_pregap_start - MSF_LBA_SHIFT);
-                    if(lba >= entries[s].lba_start && lba < pregap_end)
-                    {
-                        uint32_t trim_count = j - 1 + pregap_end - lba;
+                std::copy(sector_subcode.begin(), sector_subcode.end(), sector_subcode_file.begin());
 
-                        if(trim_count > entries_count)
-                        {
-                            LOG("PLEXTOR: lead-in incomplete (session: {})", s + 1);
-                        }
-                        else
-                        {
-                            LOG("PLEXTOR: lead-in found (session: {}, sectors: {})", s + 1, trim_count);
-
-                            if(trim_count < entries_count)
-                                leadin.resize(trim_count * PLEXTOR_LEADIN_ENTRY_SIZE);
-
-                            // initial add
-                            if(entries[s].data.empty())
-                                entries[s].data = leadin;
-                            else
-                            {
-                                auto size = plextor_leadin_compare(entries[s].data, leadin);
-
-                                // match
-                                if(size == std::min(entries[s].data.size(), leadin.size()))
-                                {
-                                    // prefer smaller size
-                                    if(leadin.size() < entries[s].data.size())
-                                        entries[s].data.swap(leadin);
-
-                                    entries[s].verified = true;
-                                }
-                                // mismatch, prefer newest for the next comparison
-                                else
-                                    entries[s].data.swap(leadin);
-                            }
-                        }
-
-                        session_found = true;
-                        break;
-                    }
-                }
-
-                if(session_found)
-                    break;
+                write = true;
             }
         }
     }
 
-    return session_found;
+    if(write)
+        write_entry(fs_subcode, subcode_file.data(), CD_SUBCODE_SIZE, lba - LBA_START, sectors_count, 0);
 }
-*/
 
-/*
-void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, std::fstream &fs_state, SPTD &sptd, const std::vector<int32_t> &session_lba_start, const DriveConfig &drive_config,
-    const Options &options)
-{
-    std::vector<LeadInEntry> entries;
-    for(auto s : session_lba_start)
-        entries.push_back({ std::vector<uint8_t>(), s, false });
-
-    if(entries.empty())
-        return;
-
-    uint32_t retries = options.plextor_leadin_retries + entries.size();
-    for(uint32_t i = 0; i < retries && !entries.front().verified; ++i)
-    {
-        LOG("PLEXTOR: reading lead-in (retry: {})", i + 1);
-
-        // this helps with getting more consistent sectors count for the first session
-        if(i == entries.size() - 1)
-            cmd_read(sptd, nullptr, 0, -1, 0, true);
-
-        auto leadin = plextor_read_leadin(sptd, drive_config.pregap_start - MSF_LBA_SHIFT);
-
-        if(!plextor_assign_leadin_session(entries, leadin, drive_config.pregap_start))
-            LOG("PLEXTOR: lead-in session not identified");
-    }
-
-    // store
-    for(uint32_t s = 0; s < entries.size(); ++s)
-    {
-        auto &leadin = entries[s].data;
-
-        if(!leadin.empty())
-        {
-            // don't store unverified lead-in for the first session, it's always wrong
-            if(s == 0 && !entries[s].verified)
-            {
-                leadin.clear();
-                LOG("PLEXTOR: lead-in discarded as unverified (session: {})", s + 1);
-            }
-            else
-                LOG("PLEXTOR: storing lead-in (session: {}, verified: {})", s + 1, entries[s].verified ? "yes" : "no");
-        }
-
-        for(uint32_t i = 0, n = (uint32_t)leadin.size() / PLEXTOR_LEADIN_ENTRY_SIZE; i < n; ++i)
-        {
-            int32_t lba = entries[s].lba_start + (drive_config.pregap_start - MSF_LBA_SHIFT) - (n - i);
-            int32_t lba_index = lba - LBA_START;
-
-            uint8_t *entry = &leadin[i * PLEXTOR_LEADIN_ENTRY_SIZE];
-            auto status = *(SPTD::Status *)entry;
-
-            if(status.status_code)
-            {
-                if(options.verbose)
-                    LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
-            }
-            else
-            {
-                // data
-                std::vector<State> sector_state(CD_DATA_SIZE_SAMPLES);
-                read_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
-                for(auto const &s : sector_state)
-                {
-                    // new data is improved
-                    if(s < State::SUCCESS_C2_OFF)
-                    {
-                        uint8_t *sector_data = entry + sizeof(SPTD::Status);
-                        std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
-
-                        write_entry(fs_scm, sector_data, CD_DATA_SIZE, lba_index, 1, drive_config.read_offset * CD_SAMPLE_SIZE);
-                        write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, drive_config.read_offset);
-
-                        break;
-                    }
-                }
-
-                // subcode
-                std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
-                read_entry(fs_sub, (uint8_t *)sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
-                ChannelQ Q_file;
-                subcode_extract_channel((uint8_t *)&Q_file, sector_subcode_file.data(), Subchannel::Q);
-                if(!Q_file.isValid())
-                {
-                    uint8_t *sector_subcode = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
-                    write_entry(fs_sub, sector_subcode, CD_SUBCODE_SIZE, lba_index, 1, 0);
-                }
-            }
-        }
-    }
-}
-*/
 
 // Plextor firmware blocked LBA ranges:
 // BE [-inf .. -20000], (-1000 .. -75)
@@ -212,9 +112,12 @@ void plextor_store_sessions_leadin(std::fstream &fs_scm, std::fstream &fs_sub, s
 const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE = { -20150, -1150 };
 
 
-std::vector<std::pair<SPTD::Status, std::vector<uint8_t>>> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
+using PlextorLeadIn = std::vector<std::pair<SPTD::Status, std::vector<uint8_t>>>;
+
+
+PlextorLeadIn plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 {
-    std::vector<std::pair<SPTD::Status, std::vector<uint8_t>>> sectors;
+    PlextorLeadIn sectors;
 
     int32_t neg_start = PLEXTOR_TOC_RANGE.first + 1;
     int32_t neg_limit = PLEXTOR_TOC_RANGE.second + 1;
@@ -235,8 +138,8 @@ std::vector<std::pair<SPTD::Status, std::vector<uint8_t>>> plextor_read_leadin(S
             subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
 
             // DEBUG
-            Logger::get().carriageReturn();
-            LOGC("{}", Q.Decode());
+//            Logger::get().carriageReturn();
+//            LOGC("{}", Q.Decode());
 
             if(Q.isValid() && Q.adr == 1 && Q.mode1.tno && neg_end == neg_limit)
                 neg_end = neg + tail_size;
@@ -251,9 +154,79 @@ std::vector<std::pair<SPTD::Status, std::vector<uint8_t>>> plextor_read_leadin(S
 }
 
 
+std::optional<std::pair<int32_t, int32_t>> plextor_leadin_identify(const PlextorLeadIn &leadin)
+{
+    std::optional<std::pair<int32_t, int32_t>> lba_range;
+
+    for(auto const &s : leadin)
+    {
+        if(s.first.status_code)
+            continue;
+
+        std::span<const uint8_t> sector_subcode(s.second.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+
+        ChannelQ Q;
+        subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
+        if(Q.isValid() && Q.adr == 1 && Q.mode1.tno)
+        {
+            int32_t lba = BCDMSF_to_LBA(Q.mode1.a_msf);
+            if(lba_range)
+                lba_range->second = lba;
+            else
+                lba_range.emplace(lba, lba);
+        }
+    }
+
+    return lba_range;
+}
+
+
+bool plextor_leadin_match(const PlextorLeadIn &leadin1, const PlextorLeadIn &leadin2)
+{
+    bool match = true;
+
+    auto sectors_count = (uint32_t)std::min(leadin1.size(), leadin2.size());
+    for(uint32_t i = 1; i <= sectors_count; ++i)
+    {
+        auto const &s1 = leadin1[leadin1.size() - i];
+        auto const &s2 = leadin2[leadin2.size() - i];
+        if(s1.first.status_code || s2.first.status_code)
+            continue;
+
+        std::span<const uint8_t> sector1_data(s1.second.begin(), CD_DATA_SIZE);
+        std::span<const uint8_t> sector1_subcode(s1.second.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+        std::span<const uint8_t> sector2_data(s2.second.begin(), CD_DATA_SIZE);
+        std::span<const uint8_t> sector2_subcode(s2.second.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+
+        // data check
+        if(!std::equal(sector1_data.begin(), sector1_data.end(), sector2_data.begin()))
+        {
+            match = false;
+            break;
+        }
+
+        ChannelQ Q1;
+        subcode_extract_channel((uint8_t *)&Q1, sector1_subcode.data(), Subchannel::Q);
+        ChannelQ Q2;
+        subcode_extract_channel((uint8_t *)&Q2, sector2_subcode.data(), Subchannel::Q);
+        if(!Q1.isValid() || !Q2.isValid())
+            continue;
+
+        // subcode check
+        if(!std::equal(Q1.raw, Q1.raw + sizeof(Q1.raw), Q2.raw))
+        {
+            match = false;
+            break;
+        }
+    }
+
+    return match;
+}
+
+
 void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram, std::fstream &fs_state, std::fstream &fs_subcode, Options &options)
 {
-
+    std::vector<std::pair<PlextorLeadIn, uint32_t>> leadins;
 
     uint32_t retries = options.plextor_leadin_retries + toc.sessions.size();
     for(uint32_t i = 0; i < retries; ++i)
@@ -264,30 +237,111 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
         if(i + 1 == toc.sessions.size())
             cmd_read(*ctx.sptd, nullptr, 0, -1, 0, true);
 
-        auto sectors = plextor_read_leadin(*ctx.sptd, 3 * MSF_LIMIT.f);
+        auto leadin = plextor_read_leadin(*ctx.sptd, 3 * MSF_LIMIT.f);
+        auto lba_range = plextor_leadin_identify(leadin);
+        if(lba_range)
+            LOG("PLEXTOR: lead-in found (LBA: [{:6} .. {:6}], sectors: {})", lba_range->first, lba_range->second, leadin.size());
+        else
+        {
+            LOG("PLEXTOR: lead-in not identified");
+            continue;
+        }
 
-        //DEBUG
-        LOG("");
-        //        if(!plextor_assign_leadin_session(entries, leadin, drive_config.pregap_start))
-//            LOG("PLEXTOR: lead-in session not identified");
+        bool found = false;
+        for(auto &l : leadins)
+        {
+            auto range = plextor_leadin_identify(l.first);
+            if(!range)
+                throw_line("unexpected");
+
+            // overlap check
+            if(lba_range->first <= range->second && range->first <= lba_range->second)
+            {
+                found = true;
+
+                // match
+                if(plextor_leadin_match(l.first, leadin))
+                {
+                    // prefer the shorter one as it's fully verified
+                    if(leadin.size() < l.first.size())
+                        l.first.swap(leadin);
+
+                    ++l.second;
+                }
+                // mismatch, prefer newest for the next comparison
+                else
+                    l.first.swap(leadin);
+
+                break;
+            }
+        }
+
+        if(!found)
+            leadins.emplace_back(leadin, 0);
+
+        // exit criteria: 1st session lead-in is verified
+        std::map<int32_t, uint32_t> verified;
+        for(auto &l : leadins)
+        {
+            auto range = plextor_leadin_identify(l.first);
+            if(!range)
+                throw_line("unexpected");
+            
+            verified[range->first] = l.second;
+        }
+        if(auto it = verified.begin(); it != verified.end() && it->second)
+            break;
     }
 
-    /*
-    bool read = !refine;
-
-    std::vector<int32_t> session_lba_start;
-    for(uint32_t i = 0; i < toc.sessions.size(); ++i)
+    for(auto const &l : leadins)
     {
-        int32_t lba_start = i ? toc.sessions[i].tracks.front().indices.front() : 0;
-        session_lba_start.push_back(lba_start + MSF_LBA_SHIFT);
+        auto range = plextor_leadin_identify(l.first);
+        if(!range)
+            throw_line("unexpected");
 
-        // check gaps in all sessions
-        read = read || refine_needed(fs_state, lba_start + MSF_LBA_SHIFT, lba_start + ctx.drive_config.pregap_start, ctx.drive_config.read_offset);
+        if(!l.second)
+        {
+            LOG("PLEXTOR: lead-in discarded as unverified (LBA: [{:6} .. {:6}])", range->first, range->second);
+            continue;
+        }
+        
+        LOG("PLEXTOR: storing lead-in (LBA: [{:6} .. {:6}], verified: {})", range->first, range->second, l.second ? "yes" : "no");
+
+        int32_t lba = 0;
+
+        auto &leadin = l.first;
+        std::vector<State> state_storage(leadin.size() * CD_DATA_SIZE_SAMPLES);
+        std::vector<uint8_t> data_storage(leadin.size() * CD_DATA_SIZE);
+        std::vector<uint8_t> subcode_storage(leadin.size() * CD_SUBCODE_SIZE);
+        std::span<State> state(state_storage);
+        std::span<uint8_t> data(data_storage);
+        std::span<uint8_t> subcode(subcode_storage);
+        for(uint32_t i = 0; i < leadin.size(); ++i)
+        {
+            if(!leadin[i].first.status_code)
+            {
+                auto sector_state = state.subspan(i * CD_DATA_SIZE_SAMPLES, CD_DATA_SIZE_SAMPLES);
+                std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
+            }
+
+            auto sector_data = data.subspan(i * CD_DATA_SIZE, CD_DATA_SIZE);
+            auto sector_subcode = subcode.subspan(i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
+            std::span<const uint8_t> sector_data_leadin(leadin[i].second.begin(), CD_DATA_SIZE);
+            std::span<const uint8_t> sector_subcode_leadin(leadin[i].second.begin() + CD_DATA_SIZE, CD_SUBCODE_SIZE);
+            std::copy(sector_data_leadin.begin(), sector_data_leadin.end(), sector_data.begin());
+            std::copy(sector_subcode_leadin.begin(), sector_subcode_leadin.end(), sector_subcode.begin());
+
+            ChannelQ Q;
+            subcode_extract_channel((uint8_t *)&Q, sector_subcode_leadin.data(), Subchannel::Q);
+            if(Q.isValid() && Q.adr == 1 && Q.mode1.tno)
+            {
+                lba = BCDMSF_to_LBA(Q.mode1.a_msf) - i;
+            }
+        }
+
+        store_samples(fs_scram, fs_state, data, state, lba_to_sample(lba, -ctx.drive_config.read_offset));
+        store_subcode(fs_subcode, subcode, lba);
     }
-
-    if(read)
-        plextor_store_sessions_leadin(fs_scm, fs_sub, fs_state, *ctx.sptd, session_lba_start, ctx.drive_config, options);
-*/
 }
 
 

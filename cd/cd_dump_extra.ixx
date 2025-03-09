@@ -39,7 +39,7 @@ void store_samples(std::fstream &fs_scram, std::fstream &fs_state, std::span<con
     std::span<uint8_t> data_file(data_file_storage);
     read_entry(fs_state, (uint8_t *)state_file.data(), sizeof(State), sample_index, samples_count, 0, 0);
     read_entry(fs_scram, data_file.data(), CD_SAMPLE_SIZE, sample_index, samples_count, 0, 0);
-    
+
     bool write = false;
     for(uint32_t i = 0; i < samples_count; ++i)
     {
@@ -73,7 +73,7 @@ void store_subcode(std::fstream &fs_subcode, std::span<const uint8_t> subcode, i
     {
         auto sector_subcode = subcode.subspan(i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
         auto sector_subcode_file = subcode_file.subspan(i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
-        
+
         ChannelQ Q;
         subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
         if(Q.isValid())
@@ -138,8 +138,8 @@ PlextorLeadIn plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
             subcode_extract_channel((uint8_t *)&Q, sector_subcode.data(), Subchannel::Q);
 
             // DEBUG
-//            Logger::get().carriageReturn();
-//            LOGC("{}", Q.Decode());
+            // Logger::get().carriageReturn();
+            // LOGC("{}", Q.Decode());
 
             if(Q.isValid() && Q.adr == 1 && Q.mode1.tno && neg_end == neg_limit)
                 neg_end = neg + tail_size;
@@ -286,7 +286,7 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
             auto range = plextor_leadin_identify(l.first);
             if(!range)
                 throw_line("unexpected");
-            
+
             verified[range->first] = l.second;
         }
         if(auto it = verified.begin(); it != verified.end() && it->second)
@@ -304,7 +304,7 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
             LOG("PLEXTOR: lead-in discarded as unverified (LBA: [{:6} .. {:6}])", range->first, range->second);
             continue;
         }
-        
+
         LOG("PLEXTOR: storing lead-in (LBA: [{:6} .. {:6}], verified: {})", range->first, range->second, l.second ? "yes" : "no");
 
         int32_t lba = 0;

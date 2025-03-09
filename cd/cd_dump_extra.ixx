@@ -7,6 +7,7 @@ module;
 #include <optional>
 #include <span>
 #include <string>
+#include <vector>
 #include "throw_line.hh"
 
 export module cd.dump_extra;

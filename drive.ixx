@@ -89,7 +89,7 @@ struct AsusConfig
     uint32_t entries_count;
 };
 
-export constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE_ = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
+export constexpr uint32_t PLEXTOR_LEADIN_ENTRY_SIZE = sizeof(SPTD::Status) + CD_DATA_SIZE + CD_SUBCODE_SIZE;
 
 static const std::unordered_map<std::string, int32_t> DRIVE_READ_OFFSETS = {
 #include "driveoffsets.inc"
@@ -427,11 +427,11 @@ export SectorLayout sector_order_layout(const DriveConfig::SectorOrder &sector_o
 }
 
 
-export std::vector<uint8_t> plextor_read_leadin_(SPTD &sptd, uint32_t tail_size)
+export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
 {
     std::vector<uint8_t> buffer;
 
-    buffer.reserve(5000 * PLEXTOR_LEADIN_ENTRY_SIZE_);
+    buffer.reserve(5000 * PLEXTOR_LEADIN_ENTRY_SIZE);
 
     int32_t neg_start = PLEXTOR_TOC_RANGE_.first + 1;
     int32_t neg_limit = PLEXTOR_TOC_RANGE_.second + 1;
@@ -440,8 +440,8 @@ export std::vector<uint8_t> plextor_read_leadin_(SPTD &sptd, uint32_t tail_size)
     for(int32_t neg = neg_start; neg < neg_end; ++neg)
     {
         uint32_t lba_index = neg - neg_start;
-        buffer.resize((lba_index + 1) * PLEXTOR_LEADIN_ENTRY_SIZE_);
-        uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE_];
+        buffer.resize((lba_index + 1) * PLEXTOR_LEADIN_ENTRY_SIZE);
+        uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE];
         auto &status = *(SPTD::Status *)entry;
 
         LOGC_RF("{} [LBA: {:6}]", spinner_animation(), neg);

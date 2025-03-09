@@ -15,6 +15,7 @@ export module redumper;
 
 import cd.cd;
 import cd.dump;
+import cd.dump_extra;
 import cd.dump_new;
 import cd.fix_msf;
 import cd.protection;
@@ -167,6 +168,7 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
     // COMMAND           DRIVE    HANDLER
     { "rings",         { true, redumper_rings }         },
     { "dump",          { true, redumper_dump }          },
+    { "dump::extra",   { true, redumper_dump_extra }    },
     { "dumpnew",       { true, redumper_dump_new }      },
     { "refine",        { true, redumper_refine }        },
     { "refinenew",     { true, redumper_refine_new }    },
@@ -180,7 +182,6 @@ const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COM
     { "info",          { false, redumper_info }         },
     { "skeleton",      { false, redumper_skeleton }     },
     { "flash::mt1339", { false, redumper_flash_mt1339 } },
-
     { "subchannel",    { false, redumper_subchannel }   },
     { "debug",         { false, redumper_debug }        },
     { "fixmsf",        { false, redumper_fix_msf }      },
@@ -231,8 +232,8 @@ std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &co
 {
     // clang-format off
     if(profile_is_cd(ctx.current_profile))
-        return command == "new" ? eject ? std::list<std::string>{ "dumpnew", "protection", "refinenew", "eject", "split", "hash", "info" }
-                                        : std::list<std::string>{ "dumpnew", "protection", "refinenew", "split", "hash", "info" }
+        return command == "new" ? eject ? std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "eject", "split", "hash", "info" }
+                                        : std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "split", "hash", "info" }
                                 : eject ? std::list<std::string>{ "dump", "protection", "refine", "eject", "split", "hash", "info" }
                                         : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
     else if(profile_is_dvd(ctx.current_profile))

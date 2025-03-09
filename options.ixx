@@ -53,6 +53,7 @@ export struct Options
     bool iso9660_trim;
     bool plextor_skip_leadin;
     int plextor_leadin_retries;
+    bool plextor_leadin_force_store;
     bool asus_skip_leadout;
     bool disable_cdtext;
     bool force_cdtext_reading;
@@ -85,6 +86,7 @@ export struct Options
         , iso9660_trim(false)
         , plextor_skip_leadin(false)
         , plextor_leadin_retries(4)
+        , plextor_leadin_force_store(false)
         , asus_skip_leadout(false)
         , disable_cdtext(false)
         , force_cdtext_reading(false)
@@ -211,6 +213,8 @@ export struct Options
                         plextor_skip_leadin = true;
                     else if(key == "--plextor-leadin-retries")
                         i_value = &plextor_leadin_retries;
+                    else if(key == "--plextor-leadin-force-store")
+                        plextor_leadin_force_store = true;
                     else if(key == "--asus-skip-leadout")
                         asus_skip_leadout = true;
                     else if(key == "--disable-cdtext")
@@ -321,6 +325,8 @@ export struct Options
         LOG("\t(drive specific)");
         LOG("\t--plextor-skip-leadin          \tskip dumping lead-in using negative range");
         LOG("\t--plextor-leadin-retries=VALUE \tmaximum number of lead-in retries per session (default: {})", plextor_leadin_retries);
+        LOG("\t--plextor-leadin-force-store   \tstore unverified lead-in");
+
         LOG("\t--asus-skip-leadout            \tskip extracting lead-out from drive cache");
         LOG("\t--disable-cdtext               \tdisable CD-TEXT reading");
         LOG("\t--force-cdtext-reading         \tforce multisession CD-TEXT reading for all drives");

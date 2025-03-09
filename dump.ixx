@@ -146,6 +146,23 @@ export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Con
 }
 
 
+export bool drive_is_plextor4824(const DriveConfig &drive_config)
+{
+    return drive_config.vendor_id == "PLEXTOR" && drive_config.product_id == "CD-R PX-W4824A";
+}
+
+
+export bool toc_enable_cdtext(const Context &ctx, const TOC &toc, const Options &options)
+{
+    if(options.disable_cdtext)
+        return false;
+    else if(options.force_cdtext_reading)
+        return true;
+    else
+        return !drive_is_plextor4824(ctx.drive_config) || toc.sessions.size() <= 1;
+}
+
+
 export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<uint8_t> &full_toc_buffer)
 {
     TOC toc(toc_buffer, false);
@@ -168,20 +185,73 @@ export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<
 }
 
 
-export bool drive_is_plextor4824(const DriveConfig &drive_config)
+export TOC toc_process(Context &ctx, const Options &options, bool store)
 {
-    return drive_config.vendor_id == "PLEXTOR" && drive_config.product_id == "CD-R PX-W4824A";
-}
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
+    std::string toc_path(image_prefix + ".toc");
+    std::string fulltoc_path(image_prefix + ".fulltoc");
+    std::string pma_path(image_prefix + ".pma");
+    std::string atip_path(image_prefix + ".atip");
+    std::string cdtext_path(image_prefix + ".cdtext");
 
-export bool toc_enable_cdtext(const Context &ctx, const TOC &toc, const Options &options)
-{
-    if(options.disable_cdtext)
-        return false;
-    else if(options.force_cdtext_reading)
-        return true;
-    else
-        return !drive_is_plextor4824(ctx.drive_config) || toc.sessions.size() <= 1;
+    SPTD::Status status;
+
+    std::vector<uint8_t> toc_buffer;
+    status = cmd_read_toc(*ctx.sptd, toc_buffer, false, READ_TOC_Format::TOC, 1);
+    if(status.status_code)
+        throw_line("failed to read TOC, SCSI ({})", SPTD::StatusMessage(status));
+
+    // optional
+    std::vector<uint8_t> full_toc_buffer;
+    status = cmd_read_toc(*ctx.sptd, full_toc_buffer, true, READ_TOC_Format::FULL_TOC, 1);
+    if(status.status_code)
+        LOG("warning: FULL_TOC is unavailable (no multisession information), SCSI ({})", SPTD::StatusMessage(status));
+
+    auto toc = toc_choose(toc_buffer, full_toc_buffer);
+
+    // store TOC information
+    if(store)
+    {
+        // TOC / FULL_TOC
+        write_vector(toc_path, toc_buffer);
+        if(full_toc_buffer.size() > sizeof(CMD_ParameterListHeader))
+            write_vector(fulltoc_path, full_toc_buffer);
+
+        // PMA
+        std::vector<uint8_t> pma_buffer;
+        status = cmd_read_toc(*ctx.sptd, pma_buffer, true, READ_TOC_Format::PMA, 0);
+        if(!status.status_code && pma_buffer.size() > sizeof(CMD_ParameterListHeader))
+            write_vector(pma_path, pma_buffer);
+
+        // ATIP
+        std::vector<uint8_t> atip_buffer;
+        status = cmd_read_toc(*ctx.sptd, atip_buffer, true, READ_TOC_Format::ATIP, 0);
+        if(!status.status_code && atip_buffer.size() > sizeof(CMD_ParameterListHeader))
+            write_vector(atip_path, atip_buffer);
+
+        // CD-TEXT
+        std::vector<uint8_t> cd_text_buffer;
+        if(toc_enable_cdtext(ctx, toc, options))
+        {
+            status = cmd_read_toc(*ctx.sptd, cd_text_buffer, false, READ_TOC_Format::CD_TEXT, 0);
+            if(status.status_code)
+                LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
+        }
+        else
+            LOG("warning: CD-TEXT disabled");
+        if(cd_text_buffer.size() > sizeof(CMD_ParameterListHeader))
+            write_vector(cdtext_path, cd_text_buffer);
+    }
+    // compare disc / file TOC to make sure it's the same disc
+    else if(!options.force_refine)
+    {
+        std::vector<uint8_t> toc_buffer_file = read_vector(toc_path);
+        if(toc_buffer != toc_buffer_file)
+            throw_line("disc / file TOC don't match, refining from a different disc?");
+    }
+
+    return toc;
 }
 
 

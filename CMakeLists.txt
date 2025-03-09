@@ -133,6 +133,7 @@ target_sources(redumper
     "analyzers/sync.ixx"
     "cd/cd.ixx"
     "cd/cd_dump.ixx"
+    "cd/cd_dump_extra.ixx"
     "cd/cd_dump_new.ixx"
     "cd/cdrom.ixx"
     "cd/ecc.ixx"

@@ -30,6 +30,9 @@ import utils.logger;
 namespace gpsxre
 {
 
+constexpr uint32_t ASUS_LEADOUT_DISCARD_COUNT = 2;
+
+
 void store_data(std::fstream &fs_scram, std::fstream &fs_state, std::span<const uint8_t> data_buffer, std::span<const State> state_buffer, int32_t sample)
 {
     uint32_t sample_index = sample_offset_r2a(sample);
@@ -392,8 +395,6 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
     {
         int32_t lba = s.tracks.back().lba_start - 1;
 
-        // LOG("LG/ASUS: preloading cache (LBA: {:6})", lba);
-
         std::vector<uint8_t> cache;
         for(uint32_t i = 0; i < options.asus_leadout_retries; ++i)
         {
@@ -421,8 +422,12 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
         auto leadout = asus_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type);
 
         uint32_t sectors_count = (uint32_t)leadout.size() / CD_RAW_DATA_SIZE;
+        
+        // discard couple last sectors as there is a chance that they are incomplete
+        sectors_count = sectors_count >= ASUS_LEADOUT_DISCARD_COUNT ? sectors_count - ASUS_LEADOUT_DISCARD_COUNT : 0;
+
         if(sectors_count)
-            LOG("LG/ASUS: storing lead-out (LBA: {:6})", lba);
+            LOG("LG/ASUS: storing lead-out (LBA: {:6}, sectors: {})", lba, sectors_count);
         else
             LOG("LG/ASUS: lead-out not found");
 

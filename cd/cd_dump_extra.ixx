@@ -422,7 +422,7 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
         auto leadout = asus_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type);
 
         uint32_t sectors_count = (uint32_t)leadout.size() / CD_RAW_DATA_SIZE;
-        
+
         // discard couple last sectors as there is a chance that they are incomplete
         sectors_count = sectors_count >= ASUS_LEADOUT_DISCARD_COUNT ? sectors_count - ASUS_LEADOUT_DISCARD_COUNT : 0;
 

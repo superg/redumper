@@ -412,20 +412,17 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
                 break;
         }
 
+        // dump full cache to file
         std::string session_message;
         if(toc.sessions.size() > 1)
             session_message = std::format(".{}", s.session_number);
-
-        // dump full cache to file
         write_vector(std::format("{}{}.cache", image_prefix, session_message), cache);
 
-        LOG("LG/ASUS: searching lead-out in cache (LBA: {:6})", lba);
         auto leadout = asus_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type);
 
         uint32_t sectors_count = (uint32_t)leadout.size() / CD_RAW_DATA_SIZE;
-
         if(sectors_count)
-            LOG("LG/ASUS: lead-out found (LBA: {:6}, sectors: {})", lba, sectors_count);
+            LOG("LG/ASUS: storing lead-out (LBA: {:6})", lba);
         else
             LOG("LG/ASUS: lead-out not found");
 

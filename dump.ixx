@@ -7,6 +7,7 @@ module;
 #include <list>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -71,6 +72,7 @@ export enum class DumpMode
 
 
 export constexpr int32_t LBA_START = -45150; // MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
+export constexpr uint32_t LEADOUT_OVERREAD_COUNT = 100;
 
 
 export enum class State : uint8_t
@@ -742,6 +744,32 @@ export std::string track_extract_basename(std::string str)
     }
 
     return basename;
+}
+
+
+export uint32_t c2_bits_count(std::span<const uint8_t> c2_data)
+{
+    return std::accumulate(c2_data.begin(), c2_data.end(), 0, [](uint32_t accumulator, uint8_t c2) { return accumulator + std::popcount(c2); });
+}
+
+
+export std::vector<State> c2_to_state(const uint8_t *c2_data, State state_default)
+{
+    std::vector<State> state(CD_DATA_SIZE_SAMPLES);
+
+    // sample based granularity (4 bytes), if any C2 bit within 1 sample is set, mark whole sample as bad
+    for(uint32_t i = 0; i < state.size(); ++i)
+    {
+        uint8_t c2_quad = c2_data[i / 2];
+        if(i % 2)
+            c2_quad &= 0x0F;
+        else
+            c2_quad >>= 4;
+
+        state[i] = c2_quad ? State::ERROR_C2 : state_default;
+    }
+
+    return state;
 }
 
 

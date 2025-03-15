@@ -55,6 +55,7 @@ export struct Options
     int plextor_leadin_retries;
     bool plextor_leadin_force_store;
     bool asus_skip_leadout;
+    int asus_leadout_retries;
     bool disable_cdtext;
     bool force_cdtext_reading;
     bool correct_offset_shift;
@@ -88,6 +89,7 @@ export struct Options
         , plextor_leadin_retries(4)
         , plextor_leadin_force_store(false)
         , asus_skip_leadout(false)
+        , asus_leadout_retries(32)
         , disable_cdtext(false)
         , force_cdtext_reading(false)
         , correct_offset_shift(false)
@@ -217,6 +219,8 @@ export struct Options
                         plextor_leadin_force_store = true;
                     else if(key == "--asus-skip-leadout")
                         asus_skip_leadout = true;
+                    else if(key == "--asus-leadout-retries")
+                        i_value = &asus_leadout_retries;
                     else if(key == "--disable-cdtext")
                         disable_cdtext = true;
                     else if(key == "--force-cdtext-reading")
@@ -328,6 +332,7 @@ export struct Options
         LOG("\t--plextor-leadin-force-store   \tstore unverified lead-in");
 
         LOG("\t--asus-skip-leadout            \tskip extracting lead-out from drive cache");
+        LOG("\t--asus-leadout-retries         \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", asus_leadout_retries);
         LOG("\t--disable-cdtext               \tdisable CD-TEXT reading");
         LOG("\t--force-cdtext-reading         \tforce multisession CD-TEXT reading for all drives");
         LOG("");

@@ -44,7 +44,6 @@ namespace gpsxre
 {
 
 const uint32_t SLOW_SECTOR_TIMEOUT = 5;
-const uint32_t LEADOUT_OVERREAD_COUNT = 100;
 const uint32_t SUBCODE_BYTE_DESYNC_COUNT = 5;
 
 
@@ -102,32 +101,6 @@ const Range<int32_t> *protection_full_sector(const std::vector<Range<int32_t>> &
     }
 
     return range;
-}
-
-
-std::vector<State> c2_to_state(const uint8_t *c2_data)
-{
-    std::vector<State> state(CD_DATA_SIZE_SAMPLES);
-
-    // sample based granularity (4 bytes), if any C2 bit within 1 sample is set, mark whole sample as bad
-    for(uint32_t i = 0; i < state.size(); ++i)
-    {
-        uint8_t c2_quad = c2_data[i / 2];
-        if(i % 2)
-            c2_quad &= 0x0F;
-        else
-            c2_quad >>= 4;
-
-        state[i] = c2_quad ? State::ERROR_C2 : State::SUCCESS;
-    }
-
-    return state;
-}
-
-
-uint32_t c2_bits_count(std::span<const uint8_t> c2_data)
-{
-    return std::accumulate(c2_data.begin(), c2_data.end(), 0, [](uint32_t accumulator, uint8_t c2) { return accumulator + std::popcount(c2); });
 }
 
 
@@ -515,7 +488,7 @@ export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMod
                     uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
                     uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
 
-                    if(sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data()), sector_data, sector_protection))
+                    if(sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data(), State::SUCCESS), sector_data, sector_protection))
                     {
                         int32_t offset = all_types ? data_drive_offset : ctx.drive_config.read_offset;
                         write_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);

@@ -109,6 +109,15 @@ export void redumper_debug(Context &ctx, Options &options)
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
 
+    // CDB decode
+    if(0)
+    {
+        uint8_t cdb_raw[] = { 0xbe, 0x04, 0x00, 0x00, 0x0b, 0xd0, 0x00, 0x00, 0x18, 0x14, 0x00, 0x00 };
+        auto cdb = (CDB12_ReadCD *)cdb_raw;
+
+        LOG("");
+    }
+
     // TOC bad split
     if(0)
     {

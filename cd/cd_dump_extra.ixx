@@ -30,6 +30,9 @@ import utils.logger;
 namespace gpsxre
 {
 
+constexpr uint32_t ASUS_LEADOUT_DISCARD_COUNT = 2;
+
+
 void store_data(std::fstream &fs_scram, std::fstream &fs_state, std::span<const uint8_t> data_buffer, std::span<const State> state_buffer, int32_t sample)
 {
     uint32_t sample_index = sample_offset_r2a(sample);
@@ -128,7 +131,7 @@ PlextorLeadIn plextor_leadin_read(SPTD &sptd, uint32_t tail_size)
 
     for(int32_t neg = neg_start; neg < neg_end; ++neg)
     {
-        LOGC_RF("{} [LBA: {:6}]", spinner_animation(), neg);
+        LOGC_RF("{} [LBA: {}]", spinner_animation(), neg);
 
         std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_SUBCODE_SIZE);
         SPTD::Status status = cmd_read_cdda(sptd, sector_buffer.data(), neg, 1, READ_CDDA_SubCode::DATA_SUB);
@@ -288,7 +291,7 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
         auto leadin = plextor_leadin_read(*ctx.sptd, CD_PREGAP_SIZE + leadin_overlap);
         auto leadin_range = plextor_leadin_identify(leadin);
         if(leadin_range)
-            LOG("PLEXTOR: lead-in found (LBA: [{:6} .. {:6}], sectors: {})", leadin_range->first, leadin_range->second, leadin.size());
+            LOG("PLEXTOR: lead-in found (LBA: [{} .. {}], sectors: {})", leadin_range->first, leadin_range->second, leadin.size());
         else
         {
             LOG("PLEXTOR: lead-in not identified");
@@ -349,16 +352,17 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
 
         if(!l.second && !options.plextor_leadin_force_store)
         {
-            LOG("PLEXTOR: lead-in discarded as unverified (LBA: [{:6} .. {:6}])", range->first, range->second);
+            LOG("PLEXTOR: lead-in discarded as unverified (LBA: [{} .. {}])", range->first, range->second);
             continue;
         }
 
-        LOG("PLEXTOR: storing lead-in (LBA: [{:6} .. {:6}], verified: {})", range->first, range->second, l.second ? "yes" : "no");
+        LOG("PLEXTOR: storing lead-in (LBA: [{} .. {}], verified: {})", range->first, range->second, l.second ? "yes" : "no");
 
         auto &leadin = l.first;
         std::vector<State> state_buffer(leadin.size() * CD_DATA_SIZE_SAMPLES);
         std::vector<uint8_t> data_buffer(leadin.size() * CD_DATA_SIZE);
         std::vector<uint8_t> subcode_buffer(leadin.size() * CD_SUBCODE_SIZE);
+
         for(uint32_t i = 0; i < leadin.size(); ++i)
         {
             if(!leadin[i].first.status_code)
@@ -385,7 +389,88 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
 
 void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, std::fstream &fs_state, std::fstream &fs_subcode, Options &options)
 {
-    ;
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
+
+    for(auto const &s : toc.sessions)
+    {
+        int32_t lba = s.tracks.back().lba_start - 1;
+
+        std::vector<uint8_t> cache;
+        for(uint32_t i = 0; i < options.asus_leadout_retries; ++i)
+        {
+            // dummy read to cache lead-out
+            std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+            bool all_types = false;
+            auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
+            if(status.status_code && options.verbose)
+                LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+
+            cache = asus_cache_read(*ctx.sptd, ctx.drive_config.type);
+            uint32_t sectors_count = (uint32_t)asus_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type).size() / CD_RAW_DATA_SIZE;
+
+            LOG_R("LG/ASUS: preloading cache (LBA: {:6}, sectors: {:3}, retry: {})", lba, sectors_count, i + 1);
+            if(sectors_count == LEADOUT_OVERREAD_COUNT)
+                break;
+        }
+
+        // dump full cache to file
+        std::string session_message;
+        if(toc.sessions.size() > 1)
+            session_message = std::format(".{}", s.session_number);
+        write_vector(std::format("{}{}.cache", image_prefix, session_message), cache);
+
+        auto leadout = asus_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type);
+
+        uint32_t sectors_count = (uint32_t)leadout.size() / CD_RAW_DATA_SIZE;
+
+        // discard couple last sectors as there is a chance that they are incomplete
+        sectors_count = sectors_count >= ASUS_LEADOUT_DISCARD_COUNT ? sectors_count - ASUS_LEADOUT_DISCARD_COUNT : 0;
+
+        if(sectors_count)
+            LOG("LG/ASUS: storing lead-out (LBA: {:6}, sectors: {})", lba, sectors_count);
+        else
+            LOG("LG/ASUS: lead-out not found");
+
+        std::vector<State> state_buffer(sectors_count * CD_DATA_SIZE_SAMPLES);
+        std::vector<uint8_t> data_buffer(sectors_count * CD_DATA_SIZE);
+        std::vector<uint8_t> subcode_buffer(sectors_count * CD_SUBCODE_SIZE);
+
+        std::vector<uint8_t> sector_c2_leadout_backup(CD_C2_SIZE);
+        for(uint32_t i = 0; i < sectors_count; ++i)
+        {
+            std::span<const uint8_t> sector_leadout(&leadout[CD_RAW_DATA_SIZE * i], CD_RAW_DATA_SIZE);
+            std::span<const uint8_t> sector_data_leadout(&sector_leadout[0], CD_DATA_SIZE);
+            std::span<const uint8_t> sector_c2_leadout(&sector_leadout[CD_DATA_SIZE], CD_C2_SIZE);
+            std::span<const uint8_t> sector_subcode_leadout(&sector_leadout[CD_DATA_SIZE + CD_C2_SIZE], CD_SUBCODE_SIZE);
+
+            std::span<State> sector_state(&state_buffer[i * CD_DATA_SIZE_SAMPLES], CD_DATA_SIZE_SAMPLES);
+            std::span<uint8_t> sector_data(&data_buffer[i * CD_DATA_SIZE], CD_DATA_SIZE);
+            std::span<uint8_t> sector_subcode(&subcode_buffer[i * CD_SUBCODE_SIZE], CD_SUBCODE_SIZE);
+
+            auto sector_state_leadout = c2_to_state(sector_c2_leadout.data(), State::SUCCESS_SCSI_OFF);
+            std::copy(sector_state_leadout.begin(), sector_state_leadout.end(), sector_state.begin());
+            std::copy(sector_data_leadout.begin(), sector_data_leadout.end(), sector_data.begin());
+            std::copy(sector_subcode_leadout.begin(), sector_subcode_leadout.end(), sector_subcode.begin());
+
+            uint32_t c2_bits = c2_bits_count(sector_c2_leadout);
+            if(c2_bits && options.verbose)
+            {
+                std::string difference_message;
+                if(i)
+                {
+                    bool c2_match = std::equal(sector_c2_leadout.begin(), sector_c2_leadout.end(), sector_c2_leadout_backup.begin());
+                    difference_message = std::format(", difference: {}", c2_match ? "-" : "+");
+                }
+
+                sector_c2_leadout_backup.assign(sector_c2_leadout.begin(), sector_c2_leadout.end());
+
+                LOG_R("[LBA: {:6}] C2 error (bits: {:4}{})", lba + i, c2_bits, difference_message);
+            }
+        }
+
+        store_data(fs_scram, fs_state, data_buffer, state_buffer, lba_to_sample(lba, -ctx.drive_config.read_offset));
+        store_subcode(fs_subcode, subcode_buffer, lba);
+    }
 }
 
 

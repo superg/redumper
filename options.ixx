@@ -1,6 +1,5 @@
 module;
 #include <format>
-#include <list>
 #include <memory>
 #include <string>
 #include "throw_line.hh"
@@ -18,9 +17,8 @@ namespace gpsxre
 
 export struct Options
 {
+    std::string command;
     std::string arguments;
-
-    std::list<std::string> commands;
 
     bool help;
     bool version;
@@ -279,7 +277,12 @@ export struct Options
                     d_value = nullptr;
                 }
                 else
-                    commands.emplace_back(o);
+                {
+                    if(command.empty())
+                        command = o;
+                    else
+                        throw_line("command already provided ({})", command);
+                }
             }
         }
     }
@@ -291,7 +294,7 @@ export struct Options
         LOG("");
 
         LOG("COMMANDS:");
-        LOG("\t<empty>       \tor cd/sacd/dvd/bd, aggregate mode that does everything (default)");
+        LOG("\tcd            \taggregate mode that does everything (default)");
         LOG("\tdump          \tdumps disc to primary dump files");
         LOG("\trefine        \trefines dump files by re-reading the disc");
         LOG("\tverify        \tverifies dump files from the disc and marks any mismatch in state for the subsequent refine");

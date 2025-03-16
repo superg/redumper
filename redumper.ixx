@@ -1,4 +1,5 @@
 module;
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -50,7 +51,55 @@ import version;
 namespace gpsxre
 {
 
-const std::set<std::string> CD_BATCH_COMMANDS{ "cd", "sacd", "dvd", "bd", "new" };
+// TODO: this will eventually go away to appropriate modules
+void redumper_cd(Context &ctx, Options &options);
+void redumper_dump(Context &ctx, Options &options);
+void redumper_dump_new(Context &ctx, Options &options);
+void redumper_refine(Context &ctx, Options &options);
+void redumper_refine_new(Context &ctx, Options &options);
+void redumper_verify(Context &ctx, Options &options);
+void redumper_dvdkey(Context &ctx, Options &options);
+void redumper_eject(Context &ctx, Options &options);
+void redumper_split(Context &ctx, Options &options);
+
+
+struct Command
+{
+    using Handler = void (*)(Context &, Options &);
+
+    bool drive_required;
+    bool drive_ready;
+    bool drive_autoselect;
+    bool image_name_required;
+    bool image_name_generate;
+    Handler handler;
+};
+
+
+const std::map<std::string, Command> COMMAND_HANDLERS{
+    // NAME              DRIVE READY AUTO IMAGE GENERATE HANDLER
+    { "cd",            { true, true, true, true, true, redumper_cd }                },
+    { "rings",         { true, true, true, false, false, redumper_rings }           },
+    { "dump",          { true, true, true, true, true, redumper_dump }              },
+    { "dump::extra",   { true, true, true, true, false, redumper_dump_extra }       },
+    { "dumpnew",       { true, true, true, true, true, redumper_dump_new }          },
+    { "refine",        { true, true, true, true, false, redumper_refine }           },
+    { "refinenew",     { true, true, true, true, false, redumper_refine_new }       },
+    { "verify",        { true, true, true, true, false, redumper_verify }           },
+    { "dvdkey",        { true, true, true, false, false, redumper_dvdkey }          },
+    { "eject",         { true, false, true, false, false, redumper_eject }          },
+    { "dvdisokey",     { false, false, false, true, false, redumper_dvdisokey }     },
+    { "protection",    { false, false, false, true, false, redumper_protection }    },
+    { "split",         { false, false, false, true, false, redumper_split }         },
+    { "hash",          { false, false, false, true, false, redumper_hash }          },
+    { "info",          { false, false, false, true, false, redumper_info }          },
+    { "skeleton",      { false, false, false, true, false, redumper_skeleton }      },
+    { "flash::mt1339", { false, false, false, false, false, redumper_flash_mt1339 } },
+    { "subchannel",    { false, false, false, true, false, redumper_subchannel }    },
+    { "debug",         { false, false, false, false, false, redumper_debug }        },
+    { "fixmsf",        { false, false, false, true, false, redumper_fix_msf }       },
+    { "debug::flip",   { false, false, false, true, false, redumper_flip }          },
+};
 
 
 const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_STRING = {
@@ -82,6 +131,23 @@ const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_S
     { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL,     "HD DVD-R DL"  },
     { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL,    "HD DVD-RW DL" }
 };
+
+
+int redumper_execute_command(std::string command, Command::Handler handler, Context &ctx, Options &options, std::chrono::seconds &time_check)
+{
+    int exit_code = 0;
+
+    LOG("");
+    LOG("*** {}{}", str_uppercase(command), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+    LOG("");
+
+    auto time_start = std::chrono::high_resolution_clock::now();
+    handler(ctx, options);
+    auto time_stop = std::chrono::high_resolution_clock::now();
+    time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
+
+    return exit_code;
+}
 
 
 void redumper_dump(Context &ctx, Options &options)
@@ -164,45 +230,55 @@ void redumper_split(Context &ctx, Options &options)
 }
 
 
-const std::map<std::string, std::pair<bool, void (*)(Context &, Options &)>> COMMAND_HANDLERS{
-    // COMMAND           DRIVE    HANDLER
-    { "rings",         { true, redumper_rings }         },
-    { "dump",          { true, redumper_dump }          },
-    { "dump::extra",   { true, redumper_dump_extra }    },
-    { "dumpnew",       { true, redumper_dump_new }      },
-    { "refine",        { true, redumper_refine }        },
-    { "refinenew",     { true, redumper_refine_new }    },
-    { "verify",        { true, redumper_verify }        },
-    { "dvdkey",        { true, redumper_dvdkey }        },
-    { "eject",         { true, redumper_eject }         },
-    { "dvdisokey",     { false, redumper_dvdisokey }    },
-    { "protection",    { false, redumper_protection }   },
-    { "split",         { false, redumper_split }        },
-    { "hash",          { false, redumper_hash }         },
-    { "info",          { false, redumper_info }         },
-    { "skeleton",      { false, redumper_skeleton }     },
-    { "flash::mt1339", { false, redumper_flash_mt1339 } },
-    { "subchannel",    { false, redumper_subchannel }   },
-    { "debug",         { false, redumper_debug }        },
-    { "fixmsf",        { false, redumper_fix_msf }      },
-    { "debug::flip",   { false, redumper_flip }         },
-};
-
-
-std::shared_ptr<SPTD> first_ready_drive(std::string &drive)
+void redumper_cd(Context &ctx, Options &options)
 {
-    std::shared_ptr<SPTD> sptd;
+    std::list<std::string> commands = profile_is_cd(ctx.current_profile) ? std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "split", "hash", "info" }
+                                                                         : std::list<std::string>{ "dump", "refine", "split", "hash", "info" };
+
+    if(profile_is_dvd(ctx.current_profile))
+    {
+        if(auto it = std::find(commands.begin(), commands.end(), "split"); it != commands.end())
+            commands.insert(it, "dvdkey");
+    }
+
+    if(options.auto_eject)
+    {
+        if(auto it = std::find(commands.begin(), commands.end(), "split"); it != commands.end())
+            commands.insert(it, "eject");
+    }
+
+    std::chrono::seconds time_check = std::chrono::seconds::zero();
+    for(auto const &c : commands)
+    {
+        auto it = COMMAND_HANDLERS.find(c);
+        if(it == COMMAND_HANDLERS.end())
+            throw_line("unknown command (command: {})", c);
+
+        LOG("");
+        LOG("*** {}{}", str_uppercase(c), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+        LOG("");
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        it->second.handler(ctx, options);
+        auto time_stop = std::chrono::high_resolution_clock::now();
+        time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
+    }
+}
+
+
+std::string first_ready_drive()
+{
+    std::string drive;
 
     for(const auto &d : SPTD::listDrives())
     {
         try
         {
-            auto s = std::make_shared<SPTD>(d);
+            SPTD sptd(d);
 
-            auto status = cmd_drive_ready(*s);
+            auto status = cmd_drive_ready(sptd);
             if(!status.status_code)
             {
-                sptd = s;
                 drive = d;
                 break;
             }
@@ -214,7 +290,7 @@ std::shared_ptr<SPTD> first_ready_drive(std::string &drive)
         }
     }
 
-    return sptd;
+    return drive;
 }
 
 
@@ -228,129 +304,78 @@ std::string generate_image_name(std::string drive)
 }
 
 
-std::list<std::string> get_cd_batch_commands(Context &ctx, const std::string &command, bool eject)
+export int redumper(Options &options)
 {
-    // clang-format off
-    if(profile_is_cd(ctx.current_profile))
-        return command == "new" ? eject ? std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "eject", "split", "hash", "info" }
-                                        : std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "split", "hash", "info" }
-                                : eject ? std::list<std::string>{ "dump", "protection", "refine", "eject", "split", "hash", "info" }
-                                        : std::list<std::string>{ "dump", "protection", "refine", "split", "hash", "info" };
-    else if(profile_is_dvd(ctx.current_profile))
-        return eject ? std::list<std::string>{ "dump", "refine", "dvdkey", "eject", "split", "hash", "info" }
-                     : std::list<std::string>{ "dump", "refine", "dvdkey", "split", "hash", "info" };
-    else if(profile_is_bluray(ctx.current_profile))
-        return eject ? std::list<std::string>{ "dump", "refine", "eject", "split", "hash", "info" }
-                     : std::list<std::string>{ "dump", "refine", "split", "hash", "info" };
-    else if(profile_is_hddvd(ctx.current_profile))
-        return eject ? std::list<std::string>{ "dump", "refine", "eject", "split", "hash", "info" }
-                     : std::list<std::string>{ "dump", "refine", "split", "hash", "info" };
-    else
-        return std::list<std::string>{};
-    // clang-format on
-}
+    if(options.command.empty())
+        options.command = "cd";
 
+    auto it = COMMAND_HANDLERS.find(options.command);
+    if(it == COMMAND_HANDLERS.end())
+        throw_line("unknown command (command: {})", options.command);
 
-Context initialize(Options &options)
-{
     Context ctx;
 
-    if(options.commands.empty())
-        options.commands.push_back("cd");
-
-    // validate commands and determine if drive is required
-    bool drive_required = false;
-    bool generate_name = false;
-    for(auto c : options.commands)
+    if(it->second.drive_required)
     {
-        if(CD_BATCH_COMMANDS.find(c) != CD_BATCH_COMMANDS.end())
-            c = "dump";
-
-        auto it = COMMAND_HANDLERS.find(c);
-        if(it == COMMAND_HANDLERS.end())
-            throw_line("unknown command (command: {})", c);
-
-        if(c == "dump" || c == "dumpnew")
-            generate_name = true;
-
-        if(it->second.first)
-            drive_required = true;
-    }
-
-    if(drive_required)
-    {
-        // autoselect drive
         if(options.drive.empty())
         {
-            ctx.sptd = first_ready_drive(options.drive);
+            if(it->second.drive_autoselect)
+            {
+                options.drive = first_ready_drive();
 
-            if(options.drive.empty())
-                throw_line("no ready drives detected on the system");
+                if(options.drive.empty())
+                    throw_line("no ready drives detected on the system");
+            }
+            else
+                throw_line("drive is not provided");
         }
-        else
-        {
-            ctx.sptd = std::make_shared<SPTD>(options.drive);
 
-            // test unit ready
+        ctx.sptd = std::make_shared<SPTD>(options.drive);
+
+        if(it->second.drive_ready)
+        {
             auto status = cmd_drive_ready(*ctx.sptd);
             if(status.status_code)
                 throw_line("drive not ready, SCSI ({})", SPTD::StatusMessage(status));
         }
     }
 
-    // autogenerate image name
-    if(generate_name && options.image_name.empty())
-        options.image_name = generate_image_name(options.drive);
+    if(it->second.image_name_required && options.image_name.empty())
+    {
+        if(it->second.image_name_generate)
+            options.image_name = generate_image_name(options.drive);
+        else
+            throw_line("image name is not provided");
+    }
 
     // init log file early not to miss any messages
     if(!options.image_name.empty())
         Logger::get().setFile((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
+    LOG("{}", redumper_version());
+
     ctx.current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
-    if(drive_required)
+    if(it->second.drive_required)
     {
-        auto status = cmd_get_configuration_current_profile(*ctx.sptd, ctx.current_profile);
-        if(status.status_code)
-        {
-            // some drives don't have this command implemented, fallback to CD
-            LOG("warning: failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
-            ctx.current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM;
-        }
-
-        if(!profile_is_cd(ctx.current_profile) && !profile_is_dvd(ctx.current_profile) && !profile_is_bluray(ctx.current_profile) && !profile_is_hddvd(ctx.current_profile))
-            throw_line("unsupported disc type (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);
-
         // query/override drive configuration
         ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
         drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(),
             options.drive_read_method.get(), options.drive_sector_order.get());
-    }
 
-    // substitute cd batch commands
-    std::list<std::string> commands;
-    commands.swap(options.commands);
-    for(auto c : commands)
-    {
-        if(CD_BATCH_COMMANDS.find(c) == CD_BATCH_COMMANDS.end())
-            options.commands.push_back(c);
-        else
+        if(it->second.drive_ready)
         {
-            auto cd_batch_commands = get_cd_batch_commands(ctx, c, options.auto_eject);
-            options.commands.insert(options.commands.end(), cd_batch_commands.begin(), cd_batch_commands.end());
+            auto status = cmd_get_configuration_current_profile(*ctx.sptd, ctx.current_profile);
+            if(status.status_code)
+            {
+                // some drives don't have this command implemented, fallback to CD
+                LOG("warning: failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
+                ctx.current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM;
+            }
+
+            if(!profile_is_cd(ctx.current_profile) && !profile_is_dvd(ctx.current_profile) && !profile_is_bluray(ctx.current_profile) && !profile_is_hddvd(ctx.current_profile))
+                throw_line("unsupported disc type (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);
         }
     }
-
-    return ctx;
-}
-
-
-export int redumper(Options &options)
-{
-    int exit_code = 0;
-
-    auto ctx = initialize(options);
-
-    LOG("{}", redumper_version());
 
     if(!options.arguments.empty())
     {
@@ -358,44 +383,47 @@ export int redumper(Options &options)
         LOG("arguments: {}", options.arguments);
     }
 
-    if(ctx.sptd)
+    if(it->second.drive_required)
     {
         LOG("");
         LOG("drive path: {}", options.drive);
         LOG("drive: {}", drive_info_string(ctx.drive_config));
         LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
 
-        // set drive speed
-        uint16_t speed = 0xFFFF;
-        std::string speed_str("<optimal>");
-        if(options.speed)
+        if(it->second.drive_ready)
         {
-            float speed_modifier = 176.4;
-            if(profile_is_dvd(ctx.current_profile))
-                speed_modifier = 1385.0;
-            else if(profile_is_bluray(ctx.current_profile))
-                speed_modifier = 4500.0;
-            else if(profile_is_hddvd(ctx.current_profile))
-                speed_modifier = 4500.0;
+            // set drive speed
+            uint16_t speed = 0xFFFF;
+            std::string speed_str("<optimal>");
+            if(options.speed)
+            {
+                float speed_modifier = 176.4;
+                if(profile_is_dvd(ctx.current_profile))
+                    speed_modifier = 1385.0;
+                else if(profile_is_bluray(ctx.current_profile))
+                    speed_modifier = 4500.0;
+                else if(profile_is_hddvd(ctx.current_profile))
+                    speed_modifier = 4500.0;
 
-            speed = speed_modifier * *options.speed;
-            speed_str = std::format("{} KB", speed);
+                speed = speed_modifier * *options.speed;
+                speed_str = std::format("{} KB", speed);
+            }
+
+            auto status = cmd_set_cd_speed(*ctx.sptd, speed);
+            if(status.status_code)
+                speed_str = std::format("<setting failed, SCSI ({})>", SPTD::StatusMessage(status));
+
+            LOG("drive read speed: {}", speed_str);
+
+            auto layout = sector_order_layout(ctx.drive_config.sector_order);
+            if(layout.subcode_offset == CD_RAW_DATA_SIZE)
+                LOG("warning: drive doesn't support reading of subchannel data");
+            if(layout.c2_offset == CD_RAW_DATA_SIZE)
+                LOG("warning: drive doesn't support C2 error pointers");
+
+            LOG("");
+            LOG("current profile: {}", enum_to_string(ctx.current_profile, PROFILE_STRING));
         }
-
-        auto status = cmd_set_cd_speed(*ctx.sptd, speed);
-        if(status.status_code)
-            speed_str = std::format("<setting failed, SCSI ({})>", SPTD::StatusMessage(status));
-
-        LOG("drive read speed: {}", speed_str);
-
-        auto layout = sector_order_layout(ctx.drive_config.sector_order);
-        if(layout.subcode_offset == CD_RAW_DATA_SIZE)
-            LOG("warning: drive doesn't support reading of subchannel data");
-        if(layout.c2_offset == CD_RAW_DATA_SIZE)
-            LOG("warning: drive doesn't support C2 error pointers");
-
-        LOG("");
-        LOG("current profile: {}", enum_to_string(ctx.current_profile, PROFILE_STRING));
     }
 
     if(!options.image_name.empty())
@@ -406,21 +434,7 @@ export int redumper(Options &options)
     }
 
     std::chrono::seconds time_check = std::chrono::seconds::zero();
-    for(auto const &c : options.commands)
-    {
-        auto it = COMMAND_HANDLERS.find(c);
-        if(it == COMMAND_HANDLERS.end())
-            throw_line("unknown command (command: {})", c);
-
-        LOG("");
-        LOG("*** {}{}", str_uppercase(c), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
-        LOG("");
-
-        auto time_start = std::chrono::high_resolution_clock::now();
-        it->second.second(ctx, options);
-        auto time_stop = std::chrono::high_resolution_clock::now();
-        time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
-    }
+    int exit_code = redumper_execute_command(options.command, it->second.handler, ctx, options, time_check);
     LOG("");
     LOG("*** END{}", time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
 

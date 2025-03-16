@@ -261,8 +261,6 @@ void refine_init_errors(Errors &errors, std::fstream &fs_state, std::fstream &fs
 
 export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMode dump_mode)
 {
-    image_check_empty(options);
-
     if(dump_mode == DumpMode::DUMP)
     {
         image_check_overwrite(options);

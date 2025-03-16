@@ -271,8 +271,6 @@ export int redumper_protection(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    image_check_empty(options);
-
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
 
     std::vector<uint8_t> toc_buffer = read_vector(image_prefix + ".toc");

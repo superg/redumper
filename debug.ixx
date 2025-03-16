@@ -341,8 +341,6 @@ export int redumper_flip(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    image_check_empty(options);
-
     std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     std::filesystem::path state_path(image_prefix + ".state");

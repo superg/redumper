@@ -85,13 +85,6 @@ export enum class State : uint8_t
 };
 
 
-export void image_check_empty(const Options &options)
-{
-    if(options.image_name.empty())
-        throw_line("image name is not provided");
-}
-
-
 export void image_check_overwrite(const Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();

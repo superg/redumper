@@ -118,8 +118,6 @@ export int redumper_fix_msf(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    image_check_empty(options);
-
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     std::list<std::filesystem::path> tracks;

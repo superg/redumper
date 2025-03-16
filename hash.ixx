@@ -34,8 +34,6 @@ export int redumper_hash(Context &ctx, Options &options)
 
     if(!ctx.dat)
     {
-        image_check_empty(options);
-
         auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
         std::vector<std::filesystem::path> files;

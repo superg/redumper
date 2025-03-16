@@ -478,8 +478,6 @@ export int redumper_dump_extra(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    image_check_empty(options);
-
     auto toc = toc_process(ctx, options, false);
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();

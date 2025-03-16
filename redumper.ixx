@@ -94,7 +94,7 @@ const std::map<std::string, Command> COMMAND_HANDLERS{
     { "hash",          { false, false, false, true, false, redumper_hash }          },
     { "info",          { false, false, false, true, false, redumper_info }          },
     { "skeleton",      { false, false, false, true, false, redumper_skeleton }      },
-    { "flash::mt1339", { false, false, false, false, false, redumper_flash_mt1339 } },
+    { "flash::mt1339", { true, false, false, false, false, redumper_flash_mt1339 } },
     { "subchannel",    { false, false, false, true, false, redumper_subchannel }    },
     { "debug",         { false, false, false, false, false, redumper_debug }        },
     { "fixmsf",        { false, false, false, true, false, redumper_fix_msf }       },

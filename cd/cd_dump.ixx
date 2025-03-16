@@ -310,8 +310,6 @@ uint32_t percentage(int32_t value, uint32_t value_max)
 
 export bool redumper_dump_cd(Context &ctx, const Options &options, bool refine)
 {
-    image_check_empty(options);
-
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     // don't use .replace_extension() as it messes up paths with dot

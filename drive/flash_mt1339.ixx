@@ -23,8 +23,6 @@ export int redumper_flash_mt1339(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    SPTD sptd(options.drive);
-
     auto firmware_data = read_vector(options.firmware);
 
     constexpr uint32_t block_size = 0xFC00;
@@ -39,7 +37,7 @@ export int redumper_flash_mt1339(Context &ctx, Options &options)
 
         FLASH_MT1339_Mode mode = offset == 0 ? FLASH_MT1339_Mode::START : (offset_next < firmware_data.size() ? FLASH_MT1339_Mode::CONTINUE : FLASH_MT1339_Mode::END);
 
-        SPTD::Status status = cmd_flash_mt1339(sptd, &firmware_data[offset], size, 0x01, mode);
+        SPTD::Status status = cmd_flash_mt1339(*ctx.sptd, &firmware_data[offset], size, 0x01, mode);
         if(status.status_code)
             throw_line("failed to flash firmware, SCSI ({})", SPTD::StatusMessage(status));
 

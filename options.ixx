@@ -42,6 +42,7 @@ export struct Options
     std::unique_ptr<double> speed;
     int retries;
     bool refine_subchannel;
+    std::unique_ptr<std::string> cd_continue;
     std::unique_ptr<int> lba_start;
     std::unique_ptr<int> lba_end;
     bool force_qtoc;
@@ -189,6 +190,11 @@ export struct Options
                         i_value = &retries;
                     else if(key == "--refine-subchannel")
                         refine_subchannel = true;
+                    else if(key == "--cd-continue")
+                    {
+                        cd_continue = std::make_unique<std::string>();
+                        s_value = cd_continue.get();
+                    }
                     else if(key == "--lba-start")
                     {
                         lba_start = std::make_unique<int>();
@@ -354,6 +360,7 @@ export struct Options
         LOG("\t--iso9660-trim                 \ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
         LOG("");
         LOG("\t(miscellaneous)");
+        LOG("\t--cd-continue=VALUE            \tcontinue \"cd\" command starting from VALUE command");
         LOG("\t--lba-start=VALUE              \tLBA to start dumping from");
         LOG("\t--lba-end=VALUE                \tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
         LOG("\t--refine-subchannel            \tin addition to SCSI/C2, refine subchannel");

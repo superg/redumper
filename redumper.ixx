@@ -247,19 +247,23 @@ void redumper_cd(Context &ctx, Options &options)
             commands.insert(it, "eject");
     }
 
+    auto it = options.cd_continue ? std::find(commands.begin(), commands.end(), *options.cd_continue) : commands.begin();
+    if(it == commands.end())
+        throw_line("cd continue command is unavailable (command: {})", *options.cd_continue);
+
     std::chrono::seconds time_check = std::chrono::seconds::zero();
-    for(auto const &c : commands)
+    for(; it != commands.end(); ++it)
     {
-        auto it = COMMAND_HANDLERS.find(c);
-        if(it == COMMAND_HANDLERS.end())
-            throw_line("unknown command (command: {})", c);
+        auto handler_it = COMMAND_HANDLERS.find(*it);
+        if(handler_it == COMMAND_HANDLERS.end())
+            throw_line("unknown command (command: {})", *it);
 
         LOG("");
-        LOG("*** {}{}", str_uppercase(c), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+        LOG("*** {}{}", str_uppercase(*it), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
         LOG("");
 
         auto time_start = std::chrono::high_resolution_clock::now();
-        it->second.handler(ctx, options);
+        handler_it->second.handler(ctx, options);
         auto time_stop = std::chrono::high_resolution_clock::now();
         time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
     }

@@ -193,8 +193,10 @@ export void dvd_key(Context &ctx, const Options &options)
 }
 
 
-export void redumper_dvdisokey(Context &ctx, Options &options)
+export int redumper_dvdisokey(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     image_check_empty(options);
 
     std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
@@ -236,6 +238,8 @@ export void redumper_dvdisokey(Context &ctx, Options &options)
             LOG("  {}: {}", t.first, title_key);
         }
     }
+
+    return exit_code;
 }
 
 }

@@ -52,20 +52,20 @@ namespace gpsxre
 {
 
 // TODO: this will eventually go away to appropriate modules
-void redumper_cd(Context &ctx, Options &options);
-void redumper_dump(Context &ctx, Options &options);
-void redumper_dump_new(Context &ctx, Options &options);
-void redumper_refine(Context &ctx, Options &options);
-void redumper_refine_new(Context &ctx, Options &options);
-void redumper_verify(Context &ctx, Options &options);
-void redumper_dvdkey(Context &ctx, Options &options);
-void redumper_eject(Context &ctx, Options &options);
-void redumper_split(Context &ctx, Options &options);
+int redumper_cd(Context &ctx, Options &options);
+int redumper_dump(Context &ctx, Options &options);
+int redumper_dump_new(Context &ctx, Options &options);
+int redumper_refine(Context &ctx, Options &options);
+int redumper_refine_new(Context &ctx, Options &options);
+int redumper_verify(Context &ctx, Options &options);
+int redumper_dvdkey(Context &ctx, Options &options);
+int redumper_eject(Context &ctx, Options &options);
+int redumper_split(Context &ctx, Options &options);
 
 
 struct Command
 {
-    using Handler = void (*)(Context &, Options &);
+    using Handler = int (*)(Context &, Options &);
 
     bool drive_required;
     bool drive_ready;
@@ -135,14 +135,12 @@ const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_S
 
 int redumper_execute_command(std::string command, Command::Handler handler, Context &ctx, Options &options, std::chrono::seconds &time_check)
 {
-    int exit_code = 0;
-
     LOG("");
     LOG("*** {}{}", str_uppercase(command), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
     LOG("");
 
     auto time_start = std::chrono::high_resolution_clock::now();
-    handler(ctx, options);
+    int exit_code = handler(ctx, options);
     auto time_stop = std::chrono::high_resolution_clock::now();
     time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
 
@@ -150,27 +148,37 @@ int redumper_execute_command(std::string command, Command::Handler handler, Cont
 }
 
 
-void redumper_dump(Context &ctx, Options &options)
+int redumper_dump(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(profile_is_cd(ctx.current_profile))
         ctx.refine = redumper_dump_cd(ctx, options, false);
     else
         ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
+
+    return exit_code;
 }
 
 
-void redumper_dump_new(Context &ctx, Options &options)
+int redumper_dump_new(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(profile_is_cd(ctx.current_profile))
         ctx.refine = redumper_refine_cd_new(ctx, options, DumpMode::DUMP);
     // ctx.refine = redumper_dump_cd_new(ctx, options);
     else
         ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
+
+    return exit_code;
 }
 
 
-void redumper_refine(Context &ctx, Options &options)
+int redumper_refine(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(!ctx.refine || *ctx.refine && options.retries)
     {
         if(profile_is_cd(ctx.current_profile))
@@ -178,11 +186,15 @@ void redumper_refine(Context &ctx, Options &options)
         else
             redumper_dump_dvd(ctx, options, DumpMode::REFINE);
     }
+
+    return exit_code;
 }
 
 
-void redumper_refine_new(Context &ctx, Options &options)
+int redumper_refine_new(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(!ctx.refine || *ctx.refine && options.retries)
     {
         if(profile_is_cd(ctx.current_profile))
@@ -190,48 +202,68 @@ void redumper_refine_new(Context &ctx, Options &options)
         else
             redumper_dump_dvd(ctx, options, DumpMode::REFINE);
     }
+
+    return exit_code;
 }
 
 
-void redumper_verify(Context &ctx, Options &options)
+int redumper_verify(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(profile_is_cd(ctx.current_profile))
         LOG("warning: CD verify is unsupported");
     else
         redumper_dump_dvd(ctx, options, DumpMode::VERIFY);
+
+    return exit_code;
 }
 
 
-void redumper_dvdkey(Context &ctx, Options &options)
+int redumper_dvdkey(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(profile_is_dvd(ctx.current_profile))
         dvd_key(ctx, options);
+
+    return exit_code;
 }
 
 
-void redumper_eject(Context &ctx, Options &options)
+int redumper_eject(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(ctx.sptd)
     {
         auto status = cmd_start_stop_unit(*ctx.sptd, 1, 0);
         if(status.status_code)
             LOG("warning: failed to eject, SCSI ({})", SPTD::StatusMessage(status));
     }
+
+    return exit_code;
 }
 
 
-void redumper_split(Context &ctx, Options &options)
+int redumper_split(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
     if(std::filesystem::exists(image_prefix + ".iso"))
         redumper_split_dvd(ctx, options);
     else
         redumper_split_cd(ctx, options);
+
+    return exit_code;
 }
 
 
-void redumper_cd(Context &ctx, Options &options)
+int redumper_cd(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     std::list<std::string> commands = profile_is_cd(ctx.current_profile) ? std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "split", "hash", "info" }
                                                                          : std::list<std::string>{ "dump", "refine", "split", "hash", "info" };
 
@@ -263,10 +295,15 @@ void redumper_cd(Context &ctx, Options &options)
         LOG("");
 
         auto time_start = std::chrono::high_resolution_clock::now();
-        handler_it->second.handler(ctx, options);
+        exit_code = handler_it->second.handler(ctx, options);
         auto time_stop = std::chrono::high_resolution_clock::now();
         time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
+
+        if(exit_code)
+            break;
     }
+
+    return exit_code;
 }
 
 

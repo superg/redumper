@@ -28,8 +28,10 @@ void progress_output(uint64_t byte, uint64_t bytes_count)
 }
 
 
-export void redumper_hash(Context &ctx, Options &options)
+export int redumper_hash(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(!ctx.dat)
     {
         image_check_empty(options);
@@ -109,6 +111,8 @@ export void redumper_hash(Context &ctx, Options &options)
         for(auto l : *ctx.dat)
             LOG("{}", l);
     }
+
+    return exit_code;
 }
 
 }

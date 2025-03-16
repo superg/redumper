@@ -474,8 +474,10 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
 }
 
 
-export void redumper_dump_extra(Context &ctx, Options &options)
+export int redumper_dump_extra(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     image_check_empty(options);
 
     auto toc = toc_process(ctx, options, false);
@@ -496,6 +498,8 @@ export void redumper_dump_extra(Context &ctx, Options &options)
         if(!options.asus_skip_leadout)
             asus_process_leadout(ctx, toc, fs_scram, fs_state, fs_subcode, options);
     }
+
+    return exit_code;
 }
 
 }

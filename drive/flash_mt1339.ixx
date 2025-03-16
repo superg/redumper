@@ -19,8 +19,10 @@ import utils.logger;
 namespace gpsxre
 {
 
-export void redumper_flash_mt1339(Context &ctx, Options &options)
+export int redumper_flash_mt1339(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     SPTD sptd(options.drive);
 
     auto firmware_data = read_vector(options.firmware);
@@ -46,6 +48,8 @@ export void redumper_flash_mt1339(Context &ctx, Options &options)
 
     LOGC_RF("");
     LOGC("flashing success");
+
+    return exit_code;
 }
 
 }

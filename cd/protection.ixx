@@ -267,8 +267,10 @@ std::string detect_breakerpro_faketoc(Context &ctx, const TOC &toc, std::fstream
 }
 
 
-export void redumper_protection(Context &ctx, Options &options)
+export int redumper_protection(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     image_check_empty(options);
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
@@ -322,6 +324,8 @@ export void redumper_protection(Context &ctx, Options &options)
         for(auto const &p : protections)
             LOG("  {}", p);
     }
+
+    return exit_code;
 }
 
 }

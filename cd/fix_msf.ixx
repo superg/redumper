@@ -114,8 +114,10 @@ bool data_sector_is_dummy(Sector &sector)
 }
 
 
-export void redumper_fix_msf(Context &ctx, Options &options)
+export int redumper_fix_msf(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     image_check_empty(options);
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -181,6 +183,8 @@ export void redumper_fix_msf(Context &ctx, Options &options)
     }
 
     LOG("corrected {} sectors", errors);
+
+    return exit_code;
 }
 
 }

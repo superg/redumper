@@ -191,8 +191,10 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 }
 
 
-export void redumper_skeleton(Context &ctx, Options &options)
+export int redumper_skeleton(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     image_check_empty(options);
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -216,6 +218,8 @@ export void redumper_skeleton(Context &ctx, Options &options)
     }
     else
         throw_line("image file not found");
+
+    return exit_code;
 }
 
 }

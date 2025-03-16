@@ -478,6 +478,9 @@ export int redumper_dump_extra(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
+    if(!profile_is_cd(ctx.current_profile))
+        return exit_code;
+
     auto toc = toc_process(ctx, options, false);
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();

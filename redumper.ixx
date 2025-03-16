@@ -51,16 +51,74 @@ import version;
 namespace gpsxre
 {
 
-// TODO: this will eventually go away to appropriate modules
 int redumper_cd(Context &ctx, Options &options);
-int redumper_dump(Context &ctx, Options &options);
-int redumper_dump_new(Context &ctx, Options &options);
-int redumper_refine(Context &ctx, Options &options);
-int redumper_refine_new(Context &ctx, Options &options);
-int redumper_verify(Context &ctx, Options &options);
-int redumper_dvdkey(Context &ctx, Options &options);
-int redumper_eject(Context &ctx, Options &options);
-int redumper_split(Context &ctx, Options &options);
+
+int redumper_dump(Context &ctx, Options &options)
+{
+    int exit_code = 0;
+
+    if(profile_is_cd(ctx.current_profile))
+        ctx.refine = redumper_refine_cd_new(ctx, options, DumpMode::DUMP);
+    else
+        ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
+
+    return exit_code;
+}
+
+
+int redumper_refine(Context &ctx, Options &options)
+{
+    int exit_code = 0;
+
+    if(!ctx.refine || *ctx.refine && options.retries)
+    {
+        if(profile_is_cd(ctx.current_profile))
+            redumper_refine_cd_new(ctx, options, DumpMode::REFINE);
+        else
+            redumper_dump_dvd(ctx, options, DumpMode::REFINE);
+    }
+
+    return exit_code;
+}
+
+
+int redumper_verify(Context &ctx, Options &options)
+{
+    int exit_code = 0;
+
+    if(profile_is_cd(ctx.current_profile))
+        LOG("warning: CD verify is unsupported");
+    else
+        redumper_dump_dvd(ctx, options, DumpMode::VERIFY);
+
+    return exit_code;
+}
+
+
+int redumper_eject(Context &ctx, Options &options)
+{
+    int exit_code = 0;
+
+    auto status = cmd_start_stop_unit(*ctx.sptd, 1, 0);
+    if(status.status_code)
+        LOG("warning: failed to eject, SCSI ({})", SPTD::StatusMessage(status));
+
+    return exit_code;
+}
+
+
+int redumper_split(Context &ctx, Options &options)
+{
+    int exit_code = 0;
+
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+    if(std::filesystem::exists(image_prefix + ".iso"))
+        redumper_split_dvd(ctx, options);
+    else
+        redumper_split_cd(ctx, options);
+
+    return exit_code;
+}
 
 
 struct Command
@@ -78,27 +136,25 @@ struct Command
 
 const std::map<std::string, Command> COMMAND_HANDLERS{
     // NAME              DRIVE READY AUTO IMAGE GENERATE HANDLER
-    { "cd",            { true, true, true, true, true, redumper_cd }                },
-    { "rings",         { true, true, true, false, false, redumper_rings }           },
-    { "dump",          { true, true, true, true, true, redumper_dump }              },
-    { "dump::extra",   { true, true, true, true, false, redumper_dump_extra }       },
-    { "dumpnew",       { true, true, true, true, true, redumper_dump_new }          },
-    { "refine",        { true, true, true, true, false, redumper_refine }           },
-    { "refinenew",     { true, true, true, true, false, redumper_refine_new }       },
-    { "verify",        { true, true, true, true, false, redumper_verify }           },
-    { "dvdkey",        { true, true, true, false, false, redumper_dvdkey }          },
-    { "eject",         { true, false, true, false, false, redumper_eject }          },
-    { "dvdisokey",     { false, false, false, true, false, redumper_dvdisokey }     },
-    { "protection",    { false, false, false, true, false, redumper_protection }    },
-    { "split",         { false, false, false, true, false, redumper_split }         },
-    { "hash",          { false, false, false, true, false, redumper_hash }          },
-    { "info",          { false, false, false, true, false, redumper_info }          },
-    { "skeleton",      { false, false, false, true, false, redumper_skeleton }      },
+    { "cd",            { true, true, true, true, true, redumper_cd }               },
+    { "rings",         { true, true, true, false, false, redumper_rings }          },
+    { "dump",          { true, true, true, true, true, redumper_dump }             },
+    { "dump::extra",   { true, true, true, true, false, redumper_dump_extra }      },
+    { "refine",        { true, true, true, true, false, redumper_refine }          },
+    { "verify",        { true, true, true, true, false, redumper_verify }          },
+    { "dvdkey",        { true, true, true, false, false, redumper_dvdkey }         },
+    { "eject",         { true, false, false, false, false, redumper_eject }        },
+    { "dvdisokey",     { false, false, false, true, false, redumper_dvdisokey }    },
+    { "protection",    { false, false, false, true, false, redumper_protection }   },
+    { "split",         { false, false, false, true, false, redumper_split }        },
+    { "hash",          { false, false, false, true, false, redumper_hash }         },
+    { "info",          { false, false, false, true, false, redumper_info }         },
+    { "skeleton",      { false, false, false, true, false, redumper_skeleton }     },
     { "flash::mt1339", { true, false, false, false, false, redumper_flash_mt1339 } },
-    { "subchannel",    { false, false, false, true, false, redumper_subchannel }    },
-    { "debug",         { false, false, false, false, false, redumper_debug }        },
-    { "fixmsf",        { false, false, false, true, false, redumper_fix_msf }       },
-    { "debug::flip",   { false, false, false, true, false, redumper_flip }          },
+    { "subchannel",    { false, false, false, true, false, redumper_subchannel }   },
+    { "debug",         { false, false, false, false, false, redumper_debug }       },
+    { "fixmsf",        { false, false, false, true, false, redumper_fix_msf }      },
+    { "debug::flip",   { false, false, false, true, false, redumper_flip }         },
 };
 
 
@@ -148,130 +204,11 @@ int redumper_execute_command(std::string command, Command::Handler handler, Cont
 }
 
 
-int redumper_dump(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    if(profile_is_cd(ctx.current_profile))
-        ctx.refine = redumper_dump_cd(ctx, options, false);
-    else
-        ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
-
-    return exit_code;
-}
-
-
-int redumper_dump_new(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    if(profile_is_cd(ctx.current_profile))
-        ctx.refine = redumper_refine_cd_new(ctx, options, DumpMode::DUMP);
-    // ctx.refine = redumper_dump_cd_new(ctx, options);
-    else
-        ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
-
-    return exit_code;
-}
-
-
-int redumper_refine(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    if(!ctx.refine || *ctx.refine && options.retries)
-    {
-        if(profile_is_cd(ctx.current_profile))
-            redumper_dump_cd(ctx, options, true);
-        else
-            redumper_dump_dvd(ctx, options, DumpMode::REFINE);
-    }
-
-    return exit_code;
-}
-
-
-int redumper_refine_new(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    if(!ctx.refine || *ctx.refine && options.retries)
-    {
-        if(profile_is_cd(ctx.current_profile))
-            redumper_refine_cd_new(ctx, options, DumpMode::REFINE);
-        else
-            redumper_dump_dvd(ctx, options, DumpMode::REFINE);
-    }
-
-    return exit_code;
-}
-
-
-int redumper_verify(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    if(profile_is_cd(ctx.current_profile))
-        LOG("warning: CD verify is unsupported");
-    else
-        redumper_dump_dvd(ctx, options, DumpMode::VERIFY);
-
-    return exit_code;
-}
-
-
-int redumper_dvdkey(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    if(profile_is_dvd(ctx.current_profile))
-        dvd_key(ctx, options);
-
-    return exit_code;
-}
-
-
-int redumper_eject(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    if(ctx.sptd)
-    {
-        auto status = cmd_start_stop_unit(*ctx.sptd, 1, 0);
-        if(status.status_code)
-            LOG("warning: failed to eject, SCSI ({})", SPTD::StatusMessage(status));
-    }
-
-    return exit_code;
-}
-
-
-int redumper_split(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    if(std::filesystem::exists(image_prefix + ".iso"))
-        redumper_split_dvd(ctx, options);
-    else
-        redumper_split_cd(ctx, options);
-
-    return exit_code;
-}
-
-
 int redumper_cd(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    std::list<std::string> commands = profile_is_cd(ctx.current_profile) ? std::list<std::string>{ "dumpnew", "dump::extra", "protection", "refinenew", "split", "hash", "info" }
-                                                                         : std::list<std::string>{ "dump", "refine", "split", "hash", "info" };
-
-    if(profile_is_dvd(ctx.current_profile))
-    {
-        if(auto it = std::find(commands.begin(), commands.end(), "split"); it != commands.end())
-            commands.insert(it, "dvdkey");
-    }
+    std::list<std::string> commands{ "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
 
     if(options.auto_eject)
     {

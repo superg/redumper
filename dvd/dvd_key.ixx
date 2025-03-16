@@ -104,8 +104,13 @@ std::map<std::pair<uint32_t, uint32_t>, std::vector<uint8_t>> create_vts_groups(
 }
 
 
-export void dvd_key(Context &ctx, const Options &options)
+export int redumper_dvdkey(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
+    if(!profile_is_dvd(ctx.current_profile))
+        return exit_code;
+
     // protection
     std::vector<uint8_t> copyright;
     auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
@@ -190,6 +195,8 @@ export void dvd_key(Context &ctx, const Options &options)
             LOG("warning: CPRM protection is unsupported");
         }
     }
+
+    return exit_code;
 }
 
 

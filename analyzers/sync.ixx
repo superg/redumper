@@ -10,6 +10,7 @@ import cd.cd;
 import cd.cdrom;
 import cd.common;
 import cd.scrambler;
+import common;
 import utils.misc;
 
 

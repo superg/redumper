@@ -12,7 +12,8 @@ module;
 export module info;
 
 import cd.cdrom;
-import dump;
+import cd.common;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.image_bin_form1_reader;

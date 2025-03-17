@@ -11,13 +11,14 @@ module;
 #include <vector>
 #include "throw_line.hh"
 
-export module cd.dump_new;
+export module cd.dump;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import cd.toc;
+import common;
 import drive;
-import dump;
 import options;
 import range;
 import scsi.cmd;
@@ -259,7 +260,7 @@ void refine_init_errors(Errors &errors, std::fstream &fs_state, std::fstream &fs
 }
 
 
-export bool redumper_refine_cd_new(Context &ctx, const Options &options, DumpMode dump_mode)
+export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump_mode)
 {
     if(dump_mode == DumpMode::DUMP)
     {

@@ -13,9 +13,9 @@ export module systems.securom;
 
 import cd.cd;
 import cd.cdrom;
+import cd.common;
 import cd.subcode;
 import crc.crc16_gsm;
-import dump;
 import readers.sector_reader;
 import utils.endian;
 import utils.file_io;

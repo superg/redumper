@@ -11,8 +11,8 @@ module;
 export module dvd.dump;
 
 import cd.cdrom;
+import common;
 import drive;
-import dump;
 import dvd.css;
 import filesystem.iso9660;
 import options;
@@ -363,6 +363,7 @@ void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
     LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, (uint64_t)sector * 100 / sectors_count, extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count,
         errors);
 }
+
 
 export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 {

@@ -16,7 +16,8 @@ export module skeleton;
 
 import cd.cd;
 import cd.cdrom;
-import dump;
+import cd.common;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.sector_reader;

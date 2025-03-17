@@ -6,7 +6,7 @@ module;
 
 export module drive.flash.mt1339;
 
-import dump;
+import common;
 import options;
 import scsi.cmd;
 import scsi.mmc;

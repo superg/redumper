@@ -15,18 +15,18 @@ module;
 export module redumper;
 
 import cd.cd;
+import cd.dump;
 import cd.dump_extra;
-import cd.dump_new;
 import cd.fix_msf;
 import cd.protection;
 import cd.scrambler;
 import cd.split;
 import cd.subcode;
 import cd.toc;
+import common;
 import debug;
 import drive;
 import drive.flash.mt1339;
-import dump;
 import dvd.dump;
 import dvd.key;
 import dvd.split;
@@ -57,7 +57,7 @@ int redumper_dump(Context &ctx, Options &options)
     int exit_code = 0;
 
     if(profile_is_cd(ctx.current_profile))
-        ctx.refine = redumper_refine_cd_new(ctx, options, DumpMode::DUMP);
+        ctx.refine = redumper_dump_cd(ctx, options, DumpMode::DUMP);
     else
         ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
 
@@ -72,7 +72,7 @@ int redumper_refine(Context &ctx, Options &options)
     if(!ctx.refine || *ctx.refine && options.retries)
     {
         if(profile_is_cd(ctx.current_profile))
-            redumper_refine_cd_new(ctx, options, DumpMode::REFINE);
+            redumper_dump_cd(ctx, options, DumpMode::REFINE);
         else
             redumper_dump_dvd(ctx, options, DumpMode::REFINE);
     }

@@ -9,9 +9,11 @@ export module rings;
 
 import cd.cd;
 import cd.cdrom;
+import cd.common;
 import cd.scrambler;
 import cd.subcode;
-import dump;
+import cd.toc;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.disc_read_form1_reader;

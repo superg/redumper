@@ -13,10 +13,11 @@ module;
 export module cd.dump_extra;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import cd.toc;
+import common;
 import drive;
-import dump;
 import options;
 import scsi.cmd;
 import scsi.mmc;

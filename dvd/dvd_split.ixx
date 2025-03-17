@@ -9,7 +9,7 @@ module;
 
 export module dvd.split;
 
-import dump;
+import common;
 import options;
 import rom_entry;
 import scsi.mmc;

@@ -16,9 +16,10 @@ export module cd.fix_msf;
 
 import cd.cd;
 import cd.cdrom;
+import cd.common;
 import cd.ecc;
 import cd.edc;
-import dump;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.image_bin_form1_reader;

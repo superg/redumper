@@ -14,10 +14,11 @@ module;
 export module debug;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import cd.toc;
+import common;
 import drive;
-import dump;
 import dvd.dump;
 import options;
 import scsi.mmc;

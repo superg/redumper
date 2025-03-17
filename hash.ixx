@@ -8,7 +8,8 @@ module;
 export module hash;
 
 import cd.cd;
-import dump;
+import cd.common;
+import common;
 import options;
 import rom_entry;
 import utils.animation;

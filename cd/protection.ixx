@@ -11,9 +11,10 @@ module;
 export module cd.protection;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import cd.toc;
-import dump;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.image_bin_form1_reader;

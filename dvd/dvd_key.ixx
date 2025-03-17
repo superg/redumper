@@ -12,7 +12,7 @@ module;
 export module dvd.key;
 
 import cd.cdrom;
-import dump;
+import common;
 import dvd.css;
 import filesystem.iso9660;
 import options;

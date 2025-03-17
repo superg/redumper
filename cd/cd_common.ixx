@@ -1,6 +1,8 @@
 module;
 #include <algorithm>
+#include <climits>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -24,6 +26,7 @@ import common;
 import drive;
 import options;
 import scsi.cmd;
+import scsi.mmc;
 import scsi.sptd;
 import utils.endian;
 import utils.file_io;

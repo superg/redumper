@@ -134,7 +134,7 @@ PlextorLeadIn plextor_leadin_read(SPTD &sptd, uint32_t tail_size)
     {
         LOGC_RF("{} [LBA: {}]", spinner_animation(), neg);
 
-        std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_SUBCODE_SIZE);
+        std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
         SPTD::Status status = cmd_read_cdda(sptd, sector_buffer.data(), neg, 1, READ_CDDA_SubCode::DATA_SUB);
 
         if(!status.status_code)

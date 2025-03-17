@@ -345,6 +345,7 @@ export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba,
 }
 
 
+// FIXME: pass sectors size in argument
 export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
 {
     CDB12_ReadCDDA cdb = {};

@@ -15,7 +15,6 @@ module;
 export module redumper;
 
 import cd.cd;
-import cd.dump;
 import cd.dump_extra;
 import cd.dump_new;
 import cd.fix_msf;

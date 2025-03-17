@@ -16,9 +16,10 @@ export module cd.fix_msf;
 
 import cd.cd;
 import cd.cdrom;
+import cd.common;
 import cd.ecc;
 import cd.edc;
-import dump;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.image_bin_form1_reader;
@@ -114,9 +115,9 @@ bool data_sector_is_dummy(Sector &sector)
 }
 
 
-export void redumper_fix_msf(Context &ctx, Options &options)
+export int redumper_fix_msf(Context &ctx, Options &options)
 {
-    image_check_empty(options);
+    int exit_code = 0;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -181,6 +182,8 @@ export void redumper_fix_msf(Context &ctx, Options &options)
     }
 
     LOG("corrected {} sectors", errors);
+
+    return exit_code;
 }
 
 }

@@ -6,7 +6,7 @@ module;
 
 export module drive.flash.mt1339;
 
-import dump;
+import common;
 import options;
 import scsi.cmd;
 import scsi.mmc;
@@ -19,9 +19,9 @@ import utils.logger;
 namespace gpsxre
 {
 
-export void redumper_flash_mt1339(Context &ctx, Options &options)
+export int redumper_flash_mt1339(Context &ctx, Options &options)
 {
-    SPTD sptd(options.drive);
+    int exit_code = 0;
 
     auto firmware_data = read_vector(options.firmware);
 
@@ -37,7 +37,7 @@ export void redumper_flash_mt1339(Context &ctx, Options &options)
 
         FLASH_MT1339_Mode mode = offset == 0 ? FLASH_MT1339_Mode::START : (offset_next < firmware_data.size() ? FLASH_MT1339_Mode::CONTINUE : FLASH_MT1339_Mode::END);
 
-        SPTD::Status status = cmd_flash_mt1339(sptd, &firmware_data[offset], size, 0x01, mode);
+        SPTD::Status status = cmd_flash_mt1339(*ctx.sptd, &firmware_data[offset], size, 0x01, mode);
         if(status.status_code)
             throw_line("failed to flash firmware, SCSI ({})", SPTD::StatusMessage(status));
 
@@ -46,6 +46,8 @@ export void redumper_flash_mt1339(Context &ctx, Options &options)
 
     LOGC_RF("");
     LOGC("flashing success");
+
+    return exit_code;
 }
 
 }

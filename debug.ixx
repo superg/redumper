@@ -14,10 +14,11 @@ module;
 export module debug;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import cd.toc;
+import common;
 import drive;
-import dump;
 import dvd.dump;
 import options;
 import scsi.mmc;
@@ -32,8 +33,10 @@ import utils.misc;
 namespace gpsxre
 {
 
-export void redumper_subchannel(Context &ctx, Options &options)
+export int redumper_subchannel(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     std::filesystem::path sub_path(image_prefix + ".subcode");
@@ -75,6 +78,8 @@ export void redumper_subchannel(Context &ctx, Options &options)
             empty = true;
         }
     }
+
+    return exit_code;
 }
 
 
@@ -98,8 +103,10 @@ struct SBIEntry
 #pragma pack(pop)
 
 
-export void redumper_debug(Context &ctx, Options &options)
+export int redumper_debug(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
     std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path cache_path(image_prefix + ".asus");
@@ -327,11 +334,13 @@ export void redumper_debug(Context &ctx, Options &options)
     }
 
     LOG("");
+
+    return exit_code;
 }
 
-export void redumper_flip(Context &ctx, Options &options)
+export int redumper_flip(Context &ctx, Options &options)
 {
-    image_check_empty(options);
+    int exit_code = 0;
 
     std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -374,6 +383,8 @@ export void redumper_flip(Context &ctx, Options &options)
         if(flip_fs.fail())
             throw_line("flip write failed");
     }
+
+    return exit_code;
 }
 
 }

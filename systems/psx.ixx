@@ -12,8 +12,8 @@ export module systems.psx;
 
 import cd.cd;
 import cd.cdrom;
+import cd.common;
 import cd.subcode;
-import dump;
 import filesystem.iso9660;
 import readers.sector_reader;
 import utils.endian;

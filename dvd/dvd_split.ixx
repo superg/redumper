@@ -9,7 +9,7 @@ module;
 
 export module dvd.split;
 
-import dump;
+import common;
 import options;
 import rom_entry;
 import scsi.mmc;
@@ -28,8 +28,6 @@ const uint32_t DVD_DESCRIPTOR_SIZE = 2048;
 
 void generate_extra_xbox(Context &ctx, Options &options)
 {
-    image_check_empty(options);
-
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     // do not attempt to generate .ss, .dmi or .pfi for non-xbox discs (dumps without .security)

@@ -11,9 +11,10 @@ module;
 export module cd.protection;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import cd.toc;
-import dump;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.image_bin_form1_reader;
@@ -267,11 +268,14 @@ std::string detect_breakerpro_faketoc(Context &ctx, const TOC &toc, std::fstream
 }
 
 
-export void redumper_protection(Context &ctx, Options &options)
+export int redumper_protection(Context &ctx, Options &options)
 {
-    image_check_empty(options);
+    int exit_code = 0;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
+
+    if(std::filesystem::exists(image_prefix + ".iso"))
+        return exit_code;
 
     std::vector<uint8_t> toc_buffer = read_vector(image_prefix + ".toc");
     std::vector<uint8_t> full_toc_buffer;
@@ -322,6 +326,8 @@ export void redumper_protection(Context &ctx, Options &options)
         for(auto const &p : protections)
             LOG("  {}", p);
     }
+
+    return exit_code;
 }
 
 }

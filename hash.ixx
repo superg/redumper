@@ -8,7 +8,8 @@ module;
 export module hash;
 
 import cd.cd;
-import dump;
+import cd.common;
+import common;
 import options;
 import rom_entry;
 import utils.animation;
@@ -28,12 +29,12 @@ void progress_output(uint64_t byte, uint64_t bytes_count)
 }
 
 
-export void redumper_hash(Context &ctx, Options &options)
+export int redumper_hash(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(!ctx.dat)
     {
-        image_check_empty(options);
-
         auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
         std::vector<std::filesystem::path> files;
@@ -109,6 +110,8 @@ export void redumper_hash(Context &ctx, Options &options)
         for(auto l : *ctx.dat)
             LOG("{}", l);
     }
+
+    return exit_code;
 }
 
 }

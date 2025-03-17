@@ -12,7 +12,8 @@ module;
 export module info;
 
 import cd.cdrom;
-import dump;
+import cd.common;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.image_bin_form1_reader;
@@ -38,9 +39,9 @@ enum class TrackType
 };
 
 
-export void redumper_info(Context &ctx, Options &options)
+export int redumper_info(Context &ctx, Options &options)
 {
-    image_check_empty(options);
+    int exit_code = 0;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -93,6 +94,8 @@ export void redumper_info(Context &ctx, Options &options)
             }
         }
     }
+
+    return exit_code;
 }
 
 }

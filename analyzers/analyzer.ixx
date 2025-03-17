@@ -3,7 +3,7 @@ module;
 
 export module analyzers.analyzer;
 
-import dump;
+import common;
 
 
 

@@ -12,7 +12,7 @@ module;
 export module dvd.key;
 
 import cd.cdrom;
-import dump;
+import common;
 import dvd.css;
 import filesystem.iso9660;
 import options;
@@ -104,8 +104,13 @@ std::map<std::pair<uint32_t, uint32_t>, std::vector<uint8_t>> create_vts_groups(
 }
 
 
-export void dvd_key(Context &ctx, const Options &options)
+export int redumper_dvdkey(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
+    if(!profile_is_dvd(ctx.current_profile))
+        return exit_code;
+
     // protection
     std::vector<uint8_t> copyright;
     auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
@@ -190,12 +195,14 @@ export void dvd_key(Context &ctx, const Options &options)
             LOG("warning: CPRM protection is unsupported");
         }
     }
+
+    return exit_code;
 }
 
 
-export void redumper_dvdisokey(Context &ctx, Options &options)
+export int redumper_dvdisokey(Context &ctx, Options &options)
 {
-    image_check_empty(options);
+    int exit_code = 0;
 
     std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
 
@@ -236,6 +243,8 @@ export void redumper_dvdisokey(Context &ctx, Options &options)
             LOG("  {}: {}", t.first, title_key);
         }
     }
+
+    return exit_code;
 }
 
 }

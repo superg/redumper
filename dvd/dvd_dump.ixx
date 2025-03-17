@@ -11,8 +11,8 @@ module;
 export module dvd.dump;
 
 import cd.cdrom;
+import common;
 import drive;
-import dump;
 import dvd.css;
 import filesystem.iso9660;
 import options;
@@ -364,10 +364,9 @@ void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
         errors);
 }
 
+
 export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 {
-    image_check_empty(options);
-
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     std::filesystem::path iso_path(image_prefix + ".iso");

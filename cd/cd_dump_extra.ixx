@@ -13,10 +13,11 @@ module;
 export module cd.dump_extra;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import cd.toc;
+import common;
 import drive;
-import dump;
 import options;
 import scsi.cmd;
 import scsi.mmc;
@@ -474,9 +475,12 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
 }
 
 
-export void redumper_dump_extra(Context &ctx, Options &options)
+export int redumper_dump_extra(Context &ctx, Options &options)
 {
-    image_check_empty(options);
+    int exit_code = 0;
+
+    if(!profile_is_cd(ctx.current_profile))
+        return exit_code;
 
     auto toc = toc_process(ctx, options, false);
 
@@ -496,6 +500,8 @@ export void redumper_dump_extra(Context &ctx, Options &options)
         if(!options.asus_skip_leadout)
             asus_process_leadout(ctx, toc, fs_scram, fs_state, fs_subcode, options);
     }
+
+    return exit_code;
 }
 
 }

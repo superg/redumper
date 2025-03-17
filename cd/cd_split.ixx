@@ -20,13 +20,14 @@ import analyzers.silence_analyzer;
 import analyzers.sync_analyzer;
 import cd.cd;
 import cd.cdrom;
+import cd.common;
 import cd.ecc;
 import cd.edc;
 import cd.offset_manager;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
-import dump;
+import common;
 import filesystem.iso9660;
 import hash.sha1;
 import options;
@@ -864,8 +865,6 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
 
 export void redumper_split_cd(Context &ctx, Options &options)
 {
-    image_check_empty(options);
-
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     std::filesystem::path scm_path(image_prefix + ".scram");

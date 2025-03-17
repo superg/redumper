@@ -1,28 +1,28 @@
 module;
 #include <algorithm>
+#include <climits>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <list>
 #include <map>
-#include <memory>
 #include <numeric>
 #include <optional>
 #include <span>
-#include <sstream>
 #include <string>
-#include <tuple>
 #include <vector>
 #include "throw_line.hh"
 
-export module dump;
+export module cd.common;
 
 import cd.cd;
 import cd.cdrom;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
+import common;
 import drive;
 import options;
 import scsi.cmd;
@@ -39,78 +39,8 @@ import utils.strings;
 namespace gpsxre
 {
 
-export struct Errors
-{
-    uint32_t scsi;
-    uint32_t c2;
-    uint32_t q;
-};
-
-
-export struct Context
-{
-    GET_CONFIGURATION_FeatureCode_ProfileList current_profile;
-    std::shared_ptr<SPTD> sptd;
-    DriveConfig drive_config;
-
-    std::optional<std::vector<std::pair<int32_t, int32_t>>> rings;
-    std::optional<Errors> dump_errors;
-    std::vector<std::pair<int32_t, int32_t>> protection_hard;
-    std::vector<std::pair<int32_t, int32_t>> protection_soft;
-    std::optional<bool> protection_trim;
-    std::optional<bool> refine;
-    std::optional<std::vector<std::string>> dat;
-};
-
-
-export enum class DumpMode
-{
-    DUMP,
-    VERIFY,
-    REFINE
-};
-
-
 export constexpr int32_t LBA_START = -45150; // MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
 export constexpr uint32_t LEADOUT_OVERREAD_COUNT = 100;
-
-
-export enum class State : uint8_t
-{
-    ERROR_SKIP, // must be first to support random offset file writes
-    ERROR_C2,
-    SUCCESS_C2_OFF,
-    SUCCESS_SCSI_OFF,
-    SUCCESS
-};
-
-
-export void image_check_empty(const Options &options)
-{
-    if(options.image_name.empty())
-        throw_line("image name is not provided");
-}
-
-
-export void image_check_overwrite(const Options &options)
-{
-    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    std::string state_path(image_prefix + ".state");
-
-    if(!options.overwrite && std::filesystem::exists(state_path))
-        throw_line("dump already exists (image name: {})", options.image_name);
-}
-
-
-export void print_toc(const TOC &toc)
-{
-    std::stringstream ss;
-    toc.print(ss);
-
-    std::string line;
-    while(std::getline(ss, line))
-        LOG("{}", line);
-}
 
 
 export int32_t sample_offset_a2r(uint32_t absolute)
@@ -137,34 +67,6 @@ export int32_t sample_to_lba(int32_t sample, int32_t offset)
 }
 
 
-export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &ctx, int32_t offset)
-{
-    std::vector<std::pair<int32_t, int32_t>> protection;
-
-    for(auto const &e : ctx.protection_hard)
-        protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
-
-    return protection;
-}
-
-
-export bool drive_is_plextor4824(const DriveConfig &drive_config)
-{
-    return drive_config.vendor_id == "PLEXTOR" && drive_config.product_id == "CD-R PX-W4824A";
-}
-
-
-export bool toc_enable_cdtext(const Context &ctx, const TOC &toc, const Options &options)
-{
-    if(options.disable_cdtext)
-        return false;
-    else if(options.force_cdtext_reading)
-        return true;
-    else
-        return !drive_is_plextor4824(ctx.drive_config) || toc.sessions.size() <= 1;
-}
-
-
 export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<uint8_t> &full_toc_buffer)
 {
     TOC toc(toc_buffer, false);
@@ -184,6 +86,23 @@ export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<
     }
 
     return toc;
+}
+
+
+export bool drive_is_plextor4824(const DriveConfig &drive_config)
+{
+    return drive_config.vendor_id == "PLEXTOR" && drive_config.product_id == "CD-R PX-W4824A";
+}
+
+
+export bool toc_enable_cdtext(const Context &ctx, const TOC &toc, const Options &options)
+{
+    if(options.disable_cdtext)
+        return false;
+    else if(options.force_cdtext_reading)
+        return true;
+    else
+        return !drive_is_plextor4824(ctx.drive_config) || toc.sessions.size() <= 1;
 }
 
 
@@ -254,6 +173,17 @@ export TOC toc_process(Context &ctx, const Options &options, bool store)
     }
 
     return toc;
+}
+
+
+export void print_toc(const TOC &toc)
+{
+    std::stringstream ss;
+    toc.print(ss);
+
+    std::string line;
+    while(std::getline(ss, line))
+        LOG("{}", line);
 }
 
 
@@ -424,37 +354,6 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 }
 
 
-export bool profile_is_cd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
-{
-    return profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW;
-}
-
-
-export bool profile_is_dvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
-{
-    return profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL;
-}
-
-
-export bool profile_is_bluray(GET_CONFIGURATION_FeatureCode_ProfileList profile)
-{
-    return profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW;
-}
-
-
-export bool profile_is_hddvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
-{
-    return profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL;
-}
-
-
 // OBSOLETE: remove after migrating to new CD dump code
 export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, const DriveConfig &drive_config, int32_t lba)
 {
@@ -611,6 +510,32 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types
 }
 
 
+export uint32_t c2_bits_count(std::span<const uint8_t> c2_data)
+{
+    return std::accumulate(c2_data.begin(), c2_data.end(), 0, [](uint32_t accumulator, uint8_t c2) { return accumulator + std::popcount(c2); });
+}
+
+
+export std::vector<State> c2_to_state(const uint8_t *c2_data, State state_default)
+{
+    std::vector<State> state(CD_DATA_SIZE_SAMPLES);
+
+    // sample based granularity (4 bytes), if any C2 bit within 1 sample is set, mark whole sample as bad
+    for(uint32_t i = 0; i < state.size(); ++i)
+    {
+        uint8_t c2_quad = c2_data[i / 2];
+        if(i % 2)
+            c2_quad &= 0x0F;
+        else
+            c2_quad >>= 4;
+
+        state[i] = c2_quad ? State::ERROR_C2 : state_default;
+    }
+
+    return state;
+}
+
+
 export std::optional<int32_t> sector_offset_by_sync(std::span<uint8_t> data, int32_t lba)
 {
     std::optional<int32_t> offset;
@@ -694,6 +619,29 @@ export std::optional<int32_t> track_offset_by_sync(Context &ctx, uint32_t lba, u
 }
 
 
+// FIXME: just do regexp
+export std::string track_extract_basename(std::string str)
+{
+    std::string basename = str;
+
+    // strip extension
+    {
+        auto pos = basename.find_last_of('.');
+        if(pos != std::string::npos)
+            basename = std::string(basename, 0, pos);
+    }
+
+    // strip (Track X)
+    {
+        auto pos = str.find(" (Track ");
+        if(pos != std::string::npos)
+            basename = std::string(basename, 0, pos);
+    }
+
+    return basename;
+}
+
+
 export std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesystem::path &cue_path)
 {
     std::list<std::pair<std::string, bool>> entries;
@@ -724,77 +672,14 @@ export std::list<std::pair<std::string, bool>> cue_get_entries(const std::filesy
 }
 
 
-// FIXME: just do regexp
-export std::string track_extract_basename(std::string str)
+export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Context &ctx, int32_t offset)
 {
-    std::string basename = str;
+    std::vector<std::pair<int32_t, int32_t>> protection;
 
-    // strip extension
-    {
-        auto pos = basename.find_last_of('.');
-        if(pos != std::string::npos)
-            basename = std::string(basename, 0, pos);
-    }
+    for(auto const &e : ctx.protection_hard)
+        protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
 
-    // strip (Track X)
-    {
-        auto pos = str.find(" (Track ");
-        if(pos != std::string::npos)
-            basename = std::string(basename, 0, pos);
-    }
-
-    return basename;
-}
-
-
-export uint32_t c2_bits_count(std::span<const uint8_t> c2_data)
-{
-    return std::accumulate(c2_data.begin(), c2_data.end(), 0, [](uint32_t accumulator, uint8_t c2) { return accumulator + std::popcount(c2); });
-}
-
-
-export std::vector<State> c2_to_state(const uint8_t *c2_data, State state_default)
-{
-    std::vector<State> state(CD_DATA_SIZE_SAMPLES);
-
-    // sample based granularity (4 bytes), if any C2 bit within 1 sample is set, mark whole sample as bad
-    for(uint32_t i = 0; i < state.size(); ++i)
-    {
-        uint8_t c2_quad = c2_data[i / 2];
-        if(i % 2)
-            c2_quad &= 0x0F;
-        else
-            c2_quad >>= 4;
-
-        state[i] = c2_quad ? State::ERROR_C2 : state_default;
-    }
-
-    return state;
-}
-
-
-export void debug_print_c2_scm_offsets(const uint8_t *c2_data, uint32_t lba_index, int32_t lba_start, int32_t drive_read_offset)
-{
-    uint32_t scm_offset = lba_index * CD_DATA_SIZE - drive_read_offset * CD_SAMPLE_SIZE;
-    uint32_t state_offset = lba_index * CD_DATA_SIZE_SAMPLES - drive_read_offset;
-
-    std::string offset_str;
-    for(uint32_t i = 0; i < CD_DATA_SIZE; ++i)
-    {
-        uint32_t byte_offset = i / CHAR_BIT;
-        uint32_t bit_offset = ((CHAR_BIT - 1) - i % CHAR_BIT);
-
-        if(c2_data[byte_offset] & (1 << bit_offset))
-            offset_str += std::format("{:08X} ", scm_offset + i);
-    }
-    LOG("");
-    LOG("C2 [LBA: {}, SCM: {:08X}, STATE: {:08X}]: {}", (int32_t)lba_index + lba_start, scm_offset, state_offset, offset_str);
-}
-
-
-export uint32_t debug_get_scram_offset(int32_t lba, int32_t write_offset)
-{
-    return (lba - LBA_START) * CD_DATA_SIZE + write_offset * CD_SAMPLE_SIZE;
+    return protection;
 }
 
 }

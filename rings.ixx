@@ -9,9 +9,11 @@ export module rings;
 
 import cd.cd;
 import cd.cdrom;
+import cd.common;
 import cd.scrambler;
 import cd.subcode;
-import dump;
+import cd.toc;
+import common;
 import filesystem.iso9660;
 import options;
 import readers.disc_read_form1_reader;
@@ -25,8 +27,10 @@ import utils.misc;
 namespace gpsxre
 {
 
-export void redumper_rings(Context &ctx, Options &options)
+export int redumper_rings(Context &ctx, Options &options)
 {
+    int exit_code = 0;
+
     if(!profile_is_cd(ctx.current_profile))
         throw_line("rings command requires CD profile (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);
 
@@ -59,7 +63,7 @@ export void redumper_rings(Context &ctx, Options &options)
         }
     }
     if(area_map.empty())
-        return;
+        return exit_code;
 
     LOG("ISO9660 map: ");
     std::for_each(area_map.cbegin(), area_map.cend(),
@@ -93,6 +97,8 @@ export void redumper_rings(Context &ctx, Options &options)
         rings.emplace_back(lba_to_sample(r.first, *write_offset), lba_to_sample(r.second, *write_offset));
 
     ctx.rings = rings;
+
+    return exit_code;
 }
 
 }

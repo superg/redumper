@@ -255,7 +255,7 @@ std::string detect_breakerpro_faketoc(Context &ctx, const TOC &toc, std::fstream
     iso9660::PrimaryVolumeDescriptor pvd;
     if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
     {
-        auto volume_identifier = trim(std::string(pvd.volume_identifier, sizeof(pvd.volume_identifier)));
+        auto volume_identifier = iso9660::identifier_to_string(pvd.volume_identifier);
         if(volume_identifier == "BREAKER PRO" && leadout_lba == 449849)
         {
             protection = std::format("PSX/BreakerPro FakeTOC, lead-out: {}, ISO9660 size: {}", leadout_lba, pvd.volume_space_size.lsb);

@@ -133,9 +133,8 @@ struct Command
 };
 
 
-const std::map<std::string, Command> COMMAND_HANDLERS{
+const std::map<std::string, Command> COMMANDS{
     // NAME              DRIVE READY AUTO IMAGE GENERATE HANDLER
-    { "cd",            { true, true, true, true, true, redumper_cd }               },
     { "rings",         { true, true, true, false, false, redumper_rings }          },
     { "dump",          { true, true, true, true, true, redumper_dump }             },
     { "dump::extra",   { true, true, true, true, false, redumper_dump_extra }      },
@@ -188,58 +187,29 @@ const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_S
 };
 
 
-int redumper_execute_command(std::string command, Command::Handler handler, Context &ctx, Options &options, std::chrono::seconds &time_check)
+std::list<std::pair<std::string, Command>> redumper_cd_get_commands(Options &options)
 {
-    LOG("");
-    LOG("*** {}{}", str_uppercase(command), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
-    LOG("");
+    std::list<std::pair<std::string, Command>> commands;
 
-    auto time_start = std::chrono::high_resolution_clock::now();
-    int exit_code = handler(ctx, options);
-    auto time_stop = std::chrono::high_resolution_clock::now();
-    time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
-
-    return exit_code;
-}
-
-
-int redumper_cd(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    std::list<std::string> commands{ "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
-
+    std::list<std::string> cd_commands{ "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
     if(options.auto_eject)
-    {
-        if(auto it = std::find(commands.begin(), commands.end(), "split"); it != commands.end())
-            commands.insert(it, "eject");
-    }
+        if(auto it = std::find(cd_commands.begin(), cd_commands.end(), "split"); it != cd_commands.end())
+            cd_commands.insert(it, "eject");
 
-    auto it = options.cd_continue ? std::find(commands.begin(), commands.end(), *options.cd_continue) : commands.begin();
-    if(it == commands.end())
+    auto it = options.cd_continue ? std::find(cd_commands.begin(), cd_commands.end(), *options.cd_continue) : cd_commands.begin();
+    if(it == cd_commands.end())
         throw_line("cd continue command is unavailable (command: {})", *options.cd_continue);
 
-    std::chrono::seconds time_check = std::chrono::seconds::zero();
-    for(; it != commands.end(); ++it)
+    for(; it != cd_commands.end(); ++it)
     {
-        auto handler_it = COMMAND_HANDLERS.find(*it);
-        if(handler_it == COMMAND_HANDLERS.end())
+        auto handler_it = COMMANDS.find(*it);
+        if(handler_it == COMMANDS.end())
             throw_line("unknown command (command: {})", *it);
 
-        LOG("");
-        LOG("*** {}{}", str_uppercase(*it), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
-        LOG("");
-
-        auto time_start = std::chrono::high_resolution_clock::now();
-        exit_code = handler_it->second.handler(ctx, options);
-        auto time_stop = std::chrono::high_resolution_clock::now();
-        time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
-
-        if(exit_code)
-            break;
+        commands.emplace_back(handler_it->first, handler_it->second);
     }
 
-    return exit_code;
+    return commands;
 }
 
 
@@ -283,20 +253,39 @@ std::string generate_image_name(std::string drive)
 
 export int redumper(Options &options)
 {
-    if(options.command.empty())
-        options.command = "cd";
+    std::list<std::pair<std::string, Command>> commands;
+    Command aggregate = {};
 
-    auto it = COMMAND_HANDLERS.find(options.command);
-    if(it == COMMAND_HANDLERS.end())
-        throw_line("unknown command (command: {})", options.command);
+    if(options.command.empty() || options.command == "cd")
+    {
+        commands = redumper_cd_get_commands(options);
+
+        for(auto const &c : commands)
+        {
+            aggregate.drive_required = aggregate.drive_required || c.second.drive_required;
+            aggregate.drive_ready = aggregate.drive_ready || c.second.drive_ready;
+            aggregate.drive_autoselect = aggregate.drive_autoselect || c.second.drive_autoselect;
+            aggregate.image_name_required = aggregate.image_name_required || c.second.image_name_required;
+            aggregate.image_name_generate = aggregate.image_name_generate || c.second.image_name_generate;
+        }
+    }
+    else
+    {
+        auto it = COMMANDS.find(options.command);
+        if(it == COMMANDS.end())
+            throw_line("unknown command (command: {})", options.command);
+
+        commands.emplace_back(it->first, it->second);
+        aggregate = it->second;
+    }
 
     Context ctx;
 
-    if(it->second.drive_required)
+    if(aggregate.drive_required)
     {
         if(options.drive.empty())
         {
-            if(it->second.drive_autoselect)
+            if(aggregate.drive_autoselect)
             {
                 options.drive = first_ready_drive();
 
@@ -309,7 +298,7 @@ export int redumper(Options &options)
 
         ctx.sptd = std::make_shared<SPTD>(options.drive);
 
-        if(it->second.drive_ready)
+        if(aggregate.drive_ready)
         {
             auto status = cmd_drive_ready(*ctx.sptd);
             if(status.status_code)
@@ -317,9 +306,9 @@ export int redumper(Options &options)
         }
     }
 
-    if(it->second.image_name_required && options.image_name.empty())
+    if(aggregate.image_name_required && options.image_name.empty())
     {
-        if(it->second.image_name_generate)
+        if(aggregate.image_name_generate)
             options.image_name = generate_image_name(options.drive);
         else
             throw_line("image name is not provided");
@@ -332,14 +321,14 @@ export int redumper(Options &options)
     LOG("{}", redumper_version());
 
     ctx.current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
-    if(it->second.drive_required)
+    if(aggregate.drive_required)
     {
         // query/override drive configuration
         ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
         drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(),
             options.drive_read_method.get(), options.drive_sector_order.get());
 
-        if(it->second.drive_ready)
+        if(aggregate.drive_ready)
         {
             auto status = cmd_get_configuration_current_profile(*ctx.sptd, ctx.current_profile);
             if(status.status_code)
@@ -360,14 +349,14 @@ export int redumper(Options &options)
         LOG("arguments: {}", options.arguments);
     }
 
-    if(it->second.drive_required)
+    if(aggregate.drive_required)
     {
         LOG("");
         LOG("drive path: {}", options.drive);
         LOG("drive: {}", drive_info_string(ctx.drive_config));
         LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
 
-        if(it->second.drive_ready)
+        if(aggregate.drive_ready)
         {
             // set drive speed
             uint16_t speed = 0xFFFF;
@@ -410,8 +399,23 @@ export int redumper(Options &options)
         LOG("image name: {}", str_quoted_if_space(options.image_name));
     }
 
+    int exit_code = 0;
+
     std::chrono::seconds time_check = std::chrono::seconds::zero();
-    int exit_code = redumper_execute_command(options.command, it->second.handler, ctx, options, time_check);
+    for(auto const &c : commands)
+    {
+        LOG("");
+        LOG("*** {}{}", str_uppercase(c.first), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+        LOG("");
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        exit_code = c.second.handler(ctx, options);
+        auto time_stop = std::chrono::high_resolution_clock::now();
+        time_check = std::chrono::duration_cast<std::chrono::seconds>(time_stop - time_start);
+
+        if(exit_code)
+            break;
+    }
     LOG("");
     LOG("*** END{}", time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
 

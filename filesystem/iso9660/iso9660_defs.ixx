@@ -305,4 +305,10 @@ std::string split_identifier(uint32_t &version, std::string identifier)
     return identifier.substr(0, s);
 }
 
+template<std::size_t N>
+std::string identifier_to_string(char (&identifier)[N])
+{
+    return trim(std::string(identifier, N));
+}
+
 }

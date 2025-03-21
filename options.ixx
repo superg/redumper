@@ -190,7 +190,7 @@ export struct Options
                         i_value = &retries;
                     else if(key == "--refine-subchannel")
                         refine_subchannel = true;
-                    else if(key == "--cd-continue")
+                    else if(key == "--continue")
                     {
                         cd_continue = std::make_unique<std::string>();
                         s_value = cd_continue.get();
@@ -360,7 +360,7 @@ export struct Options
         LOG("\t--iso9660-trim                 \ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
         LOG("");
         LOG("\t(miscellaneous)");
-        LOG("\t--cd-continue=VALUE            \tcontinue \"cd\" command starting from VALUE command");
+        LOG("\t--continue=VALUE               \tcontinue \"cd\" command starting from VALUE command");
         LOG("\t--lba-start=VALUE              \tLBA to start dumping from");
         LOG("\t--lba-end=VALUE                \tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
         LOG("\t--refine-subchannel            \tin addition to SCSI/C2, refine subchannel");

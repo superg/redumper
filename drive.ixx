@@ -221,9 +221,6 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
 // clang-format on
 
 
-static const std::pair<int32_t, int32_t> PLEXTOR_TOC_RANGE_ = { -20150, -1150 };
-
-
 // LG/ASUS cache map:
 // 0x0000 main
 // 0x0930 raw P-W
@@ -424,54 +421,6 @@ export SectorLayout sector_order_layout(const DriveConfig::SectorOrder &sector_o
     }
 
     return sector_layout;
-}
-
-
-export std::vector<uint8_t> plextor_read_leadin(SPTD &sptd, uint32_t tail_size)
-{
-    std::vector<uint8_t> buffer;
-
-    buffer.reserve(5000 * PLEXTOR_LEADIN_ENTRY_SIZE);
-
-    int32_t neg_start = PLEXTOR_TOC_RANGE_.first + 1;
-    int32_t neg_limit = PLEXTOR_TOC_RANGE_.second + 1;
-    int32_t neg_end = neg_limit;
-
-    for(int32_t neg = neg_start; neg < neg_end; ++neg)
-    {
-        uint32_t lba_index = neg - neg_start;
-        buffer.resize((lba_index + 1) * PLEXTOR_LEADIN_ENTRY_SIZE);
-        uint8_t *entry = &buffer[lba_index * PLEXTOR_LEADIN_ENTRY_SIZE];
-        auto &status = *(SPTD::Status *)entry;
-
-        LOGC_RF("{} [LBA: {:6}]", spinner_animation(), neg);
-
-        std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
-        status = cmd_read_cdda(sptd, sector_buffer.data(), neg, 1, READ_CDDA_SubCode::DATA_SUB);
-
-        if(!status.status_code)
-        {
-            memcpy(entry + sizeof(SPTD::Status), sector_buffer.data(), sector_order_layout(DriveConfig::SectorOrder::DATA_SUB).size);
-            uint8_t *sub_data = entry + sizeof(SPTD::Status) + CD_DATA_SIZE;
-
-            ChannelQ Q;
-            subcode_extract_channel((uint8_t *)&Q, sub_data, Subchannel::Q);
-
-            // DEBUG
-            //            LOG_R();
-            //            LOGC("{}", Q.Decode());
-
-            if(Q.isValid())
-            {
-                if(Q.adr == 1 && Q.mode1.tno && neg_end == neg_limit)
-                    neg_end = neg + tail_size;
-            }
-        }
-    }
-
-    LOGC_RF("");
-
-    return buffer;
 }
 
 

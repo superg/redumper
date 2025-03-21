@@ -92,6 +92,9 @@ export int redumper_rings(Context &ctx, Options &options)
             LOG("  [{:6}, {:6})", r.first, r.second);
     }
 
+    if(!write_offset)
+        write_offset = 0;
+
     std::vector<std::pair<int32_t, int32_t>> rings;
     for(auto r : sector_rings)
         rings.emplace_back(lba_to_sample(r.first, *write_offset), lba_to_sample(r.second, *write_offset));

@@ -148,21 +148,21 @@ static const std::vector<DriveConfig> KNOWN_DRIVES =
     {"PLEXTOR", "CD-R PREMIUM"  , "1.07", "10/04/06 16:00",  +30, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
     {"PLEXTOR", "CD-R PREMIUM2" , ""    , ""              ,  +30, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
     {"PLEXTOR", "CD-R PX-320A"  , "1.06", "07/04/03 10:30",  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR}, // CHECKED
-    {"PLEXTOR", "CD-R PX-R412C" , ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
-    {"PLEXTOR", "CD-R PX-R820T" , ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
+    {"PLEXTOR", "CD-R PX-R412C" , ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR},
+    {"PLEXTOR", "CD-R PX-R820T" , ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR},
     {"PLEXTOR", "CD-R PX-S88T"  , "1.06", "08/05/02 15:00",  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::GENERIC}, // CHECKED
-    {"PLEXTOR", "CD-R PX-W1210A", ""    , ""              ,  +99, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
+    {"PLEXTOR", "CD-R PX-W1210A", ""    , ""              ,  +99, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR},
     {"PLEXTOR", "CD-R PX-W1210S", ""    , ""              ,  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
-    {"PLEXTOR", "CD-R PX-W124TS", ""    , ""              , +943, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
-    {"PLEXTOR", "CD-R PX-W1610A", ""    , ""              ,  +99, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
-    {"PLEXTOR", "CD-R PX-W2410A", ""    , ""              ,  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
+    {"PLEXTOR", "CD-R PX-W124TS", ""    , ""              , +943, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR},
+    {"PLEXTOR", "CD-R PX-W1610A", ""    , ""              ,  +99, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR},
+    {"PLEXTOR", "CD-R PX-W2410A", ""    , ""              ,  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR},
     {"PLEXTOR", "CD-R PX-W4012A", "1.07", "03/22/06 09:00",  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
     {"PLEXTOR", "CD-R PX-W4012S", ""    , ""              ,  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
     {"PLEXTOR", "CD-R PX-W4220T", ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
     {"PLEXTOR", "CD-R PX-W4824A", "1.07", "03/24/06 14:00",  +98, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::GENERIC}, // CHECKED
     {"PLEXTOR", "CD-R PX-W5224A", "1.04", "04/10/06 17:00",  +30, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED
-    {"PLEXTOR", "CD-R PX-W8220T", ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
-    {"PLEXTOR", "CD-R PX-W8432T", ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
+    {"PLEXTOR", "CD-R PX-W8220T", ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR},
+    {"PLEXTOR", "CD-R PX-W8432T", ""    , ""              , +355, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_SUB   , DriveConfig::Type::PLEXTOR},
     // PLEXTOR DVD
     {"PLEXTOR", "DVDR PX-704A"  , ""    , ""              ,  +30, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR},
     {"PLEXTOR", "DVDR PX-708A"  , "1.12", "03/13/06 21:00",  +30, 294, -75, DriveConfig::ReadMethod::D8, DriveConfig::SectorOrder::DATA_C2_SUB, DriveConfig::Type::PLEXTOR}, // CHECKED

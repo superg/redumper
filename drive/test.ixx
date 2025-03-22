@@ -11,6 +11,8 @@ module;
 
 export module drive.test;
 
+import cd.cd;
+import cd.subcode;
 import cd.toc;
 import common;
 import options;

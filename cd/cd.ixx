@@ -25,6 +25,7 @@ export struct MSF
 
 export const uint32_t CD_DATA_SIZE = 2352;
 export const uint32_t CD_C2_SIZE = 294;
+export const uint32_t CD_C2BEB_SIZE = 296;
 export const uint32_t CD_SUBCODE_SIZE = 96;
 export const uint32_t CD_RAW_DATA_SIZE = CD_DATA_SIZE + CD_C2_SIZE + CD_SUBCODE_SIZE;
 export const int32_t CD_SAMPLE_SIZE = sizeof(int16_t) * 2; // 16-bit signed sample, stereo

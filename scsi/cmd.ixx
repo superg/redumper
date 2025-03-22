@@ -323,8 +323,8 @@ export SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, i
 }
 
 
-export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type, READ_CD_ErrorField error_field,
-    READ_CD_SubChannel sub_channel)
+export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t block_size, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type,
+    READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
 {
     CDB12_ReadCD cdb = {};
 
@@ -335,18 +335,18 @@ export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba,
     cdb.transfer_blocks[1] = ((uint8_t *)&transfer_length)[1];
     cdb.transfer_blocks[2] = ((uint8_t *)&transfer_length)[0];
     cdb.error_flags = (uint8_t)error_field;
-    cdb.include_edc = 1;
+    cdb.include_edc = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? 0 : 1;
     cdb.include_user_data = 1;
-    cdb.header_code = (uint8_t)READ_CD_HeaderCode::ALL;
-    cdb.include_sync_data = 1;
+    cdb.header_code = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? (uint8_t)READ_CD_HeaderCode::NONE : (uint8_t)READ_CD_HeaderCode::ALL;
+    cdb.include_sync_data = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? 0 : 1;
     cdb.sub_channel_selection = (uint8_t)sub_channel;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, CD_RAW_DATA_SIZE * transfer_length);
+    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
 }
 
 
 // FIXME: pass sectors size in argument
-export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
+export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t block_size, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
 {
     CDB12_ReadCDDA cdb = {};
 
@@ -355,7 +355,7 @@ export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, int32_t start_lb
     *(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
     cdb.sub_code = (uint8_t)sub_code;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, CD_RAW_DATA_SIZE * transfer_length);
+    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
 }
 
 

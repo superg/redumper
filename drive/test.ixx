@@ -146,7 +146,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
 
     std::vector<std::tuple<std::string, int32_t>> d8_tests{
         { "audio", *audio_lba },
-        { "data",  *data_lba }
+        { "data",  *data_lba  }
     };
 
     for(auto t : d8_tests)

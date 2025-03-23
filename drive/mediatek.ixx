@@ -7,6 +7,7 @@ module;
 
 export module drive.mediatek;
 
+import cd.cd;
 import cd.subcode;
 import drive;
 import scsi.cmd;

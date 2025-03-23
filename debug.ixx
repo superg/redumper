@@ -19,6 +19,7 @@ import cd.subcode;
 import cd.toc;
 import common;
 import drive;
+import drive.mediatek;
 import dvd.dump;
 import options;
 import scsi.mmc;
@@ -225,7 +226,8 @@ export int redumper_debug(Context &ctx, Options &options)
     if(0)
     {
         SPTD sptd(options.drive);
-        auto cache = asus_cache_read(sptd, DriveConfig::Type::LG_ASU3);
+        std::vector<uint8_t> cache;
+        SPTD::Status status = asus_cache_read(sptd, cache, 1024 * 1024 * asus_get_config(DriveConfig::Type::LG_ASU3).size_mb);
 
         LOG("");
     }

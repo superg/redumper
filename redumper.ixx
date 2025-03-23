@@ -27,6 +27,7 @@ import common;
 import debug;
 import drive;
 import drive.flash.mt1339;
+import drive.test;
 import dvd.dump;
 import dvd.key;
 import dvd.split;
@@ -49,8 +50,6 @@ import version;
 
 namespace gpsxre
 {
-
-int redumper_cd(Context &ctx, Options &options);
 
 int redumper_dump(Context &ctx, Options &options)
 {
@@ -153,6 +152,7 @@ const std::map<std::string, Command> COMMANDS{
     { "debug",         { false, false, false, false, false, redumper_debug }       },
     { "fixmsf",        { false, false, false, true, false, redumper_fix_msf }      },
     { "debug::flip",   { false, false, false, true, false, redumper_flip }         },
+    { "drive::test",   { true, true, true, false, false, redumper_drive_test }     },
 };
 
 

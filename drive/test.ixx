@@ -40,7 +40,7 @@ const std::map<READ_CD_SubChannel, std::string> SUB_CHANNEL_STRING = {
     { READ_CD_SubChannel::NONE, "NONE"  },
     { READ_CD_SubChannel::RAW,  "SUB"   },
     { READ_CD_SubChannel::Q,    "SUBQ"  },
-    { READ_CD_SubChannel::PW,   "SUBPW" },
+    { READ_CD_SubChannel::RW,   "SUBRW" },
 };
 
 const std::map<READ_CDDA_SubCode, std::string> SUB_CODE_STRING = {
@@ -103,7 +103,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
             for(auto sc : SUB_CHANNEL_STRING)
             {
                 std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
-                status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), std::get<1>(t), sector_buffer.size(), 1, std::get<2>(t), ef.first, sc.first);
+                status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), std::get<1>(t), 1, std::get<2>(t), ef.first, sc.first);
                 if(status.status_code)
                 {
                     if(options.verbose)
@@ -143,7 +143,115 @@ export int redumper_drive_test(Context &ctx, Options &options)
             }
         }
 
-        LOG("BE read command ({}): {}", std::get<0>(t), sector_orders.empty() ? "no" : "yes");
+        LOG("READ CD (BE) command ({}): {}", std::get<0>(t), sector_orders.empty() ? "no" : "yes");
+        for(auto so : sector_orders)
+            LOG("  {}", so);
+        LOG("");
+    }
+
+    for(auto t : be_tests)
+    {
+        std::set<std::string> sector_orders;
+        for(auto ef : ERROR_FIELD_STRING)
+        {
+            for(auto sc : SUB_CHANNEL_STRING)
+            {
+                std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
+                status = cmd_read_cd_msf(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), LBA_to_MSF(std::get<1>(t)), LBA_to_MSF(std::get<1>(t) + 1), std::get<2>(t), ef.first, sc.first);
+                if(status.status_code)
+                {
+                    if(options.verbose)
+                        LOG("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
+                }
+                else
+                {
+                    // RAW/Q can't be zeroed
+                    std::span<const uint8_t> sector_c2_sub(&sector_buffer[CD_DATA_SIZE], CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
+                    if(sc.first == READ_CD_SubChannel::RAW || sc.first == READ_CD_SubChannel::Q)
+                    {
+                        if(std::all_of(sector_c2_sub.begin(), sector_c2_sub.end(), [](uint8_t value) { return value == 0; }))
+                        {
+                            if(options.verbose)
+                                LOG("warning: subcode is zeroed, skipping (sector type: {}, error field: {}, sub channel: {})", std::get<0>(t), ef.second, sc.second);
+                            continue;
+                        }
+                    }
+
+                    std::string message1, message2;
+                    if(ef.first != READ_CD_ErrorField::NONE)
+                        message1 = std::format("_{}", ef.second);
+                    if(sc.first != READ_CD_SubChannel::NONE)
+                        message2 = std::format("_{}", sc.second);
+
+                    // detect C2/SUB order
+                    if(ef.first != READ_CD_ErrorField::NONE && sc.first != READ_CD_SubChannel::NONE)
+                    {
+                        std::span<const uint8_t> sector_c2(&sector_buffer[CD_DATA_SIZE], ef.first == READ_CD_ErrorField::C2 ? CD_C2_SIZE : CD_C2BEB_SIZE);
+
+                        if(std::any_of(sector_c2.begin(), sector_c2.end(), [](uint8_t value) { return value != 0; }))
+                            message1.swap(message2);
+                    }
+
+                    sector_orders.emplace(std::format("DATA{}{}", message1, message2));
+                }
+            }
+        }
+
+        LOG("READ CD MSF (B9) command ({}): {}", std::get<0>(t), sector_orders.empty() ? "no" : "yes");
+        for(auto so : sector_orders)
+            LOG("  {}", so);
+        LOG("");
+    }
+
+    for(auto t : be_tests)
+    {
+        std::set<std::string> sector_orders;
+        for(auto ef : ERROR_FIELD_STRING)
+        {
+            for(auto sc : SUB_CHANNEL_STRING)
+            {
+                std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
+                status = cmd_read_cd_msf_d5(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), LBA_to_MSF(std::get<1>(t)), LBA_to_MSF(std::get<1>(t) + 1), std::get<2>(t), ef.first, sc.first);
+                if(status.status_code)
+                {
+                    if(options.verbose)
+                        LOG("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
+                }
+                else
+                {
+                    // RAW/Q can't be zeroed
+                    std::span<const uint8_t> sector_c2_sub(&sector_buffer[CD_DATA_SIZE], CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
+                    if(sc.first == READ_CD_SubChannel::RAW || sc.first == READ_CD_SubChannel::Q)
+                    {
+                        if(std::all_of(sector_c2_sub.begin(), sector_c2_sub.end(), [](uint8_t value) { return value == 0; }))
+                        {
+                            if(options.verbose)
+                                LOG("warning: subcode is zeroed, skipping (sector type: {}, error field: {}, sub channel: {})", std::get<0>(t), ef.second, sc.second);
+                            continue;
+                        }
+                    }
+
+                    std::string message1, message2;
+                    if(ef.first != READ_CD_ErrorField::NONE)
+                        message1 = std::format("_{}", ef.second);
+                    if(sc.first != READ_CD_SubChannel::NONE)
+                        message2 = std::format("_{}", sc.second);
+
+                    // detect C2/SUB order
+                    if(ef.first != READ_CD_ErrorField::NONE && sc.first != READ_CD_SubChannel::NONE)
+                    {
+                        std::span<const uint8_t> sector_c2(&sector_buffer[CD_DATA_SIZE], ef.first == READ_CD_ErrorField::C2 ? CD_C2_SIZE : CD_C2BEB_SIZE);
+
+                        if(std::any_of(sector_c2.begin(), sector_c2.end(), [](uint8_t value) { return value != 0; }))
+                            message1.swap(message2);
+                    }
+
+                    sector_orders.emplace(std::format("DATA{}{}", message1, message2));
+                }
+            }
+        }
+
+        LOG("READ CD MSF (D5) command ({}): {}", std::get<0>(t), sector_orders.empty() ? "no" : "yes");
         for(auto so : sector_orders)
             LOG("  {}", so);
         LOG("");
@@ -161,7 +269,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
         for(auto sc : SUB_CODE_STRING)
         {
             std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2_SIZE + CD_SUBCODE_SIZE);
-            status = cmd_read_cdda(*ctx.sptd, sector_buffer.data(), std::get<1>(t), sector_buffer.size(), 1, sc.first);
+            status = cmd_read_cdda(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), std::get<1>(t), 1, sc.first);
             if(status.status_code)
             {
                 if(options.verbose)
@@ -176,14 +284,14 @@ export int redumper_drive_test(Context &ctx, Options &options)
             }
         }
 
-        LOG("D8 read command ({}): {}", std::get<0>(t), sector_orders.empty() ? "no" : "yes");
+        LOG("READ CDDA (D8) command ({}): {}", std::get<0>(t), sector_orders.empty() ? "no" : "yes");
         for(auto so : sector_orders)
             LOG("  {}", so);
         LOG("");
     }
 
     bool plextor_leadin = false;
-    if(d8)
+    if(!options.drive_test_skip_plextor_leadin && d8)
     {
         LOG("PLEXTOR: attempting to read lead-in");
         auto leadin = plextor_leadin_read(*ctx.sptd, 0);
@@ -193,12 +301,12 @@ export int redumper_drive_test(Context &ctx, Options &options)
 
         LOG("");
     }
-    LOG("PLEXTOR lead-in: {}", plextor_leadin ? "yes" : "no");
+    LOG("PLEXTOR lead-in: {}", options.drive_test_skip_plextor_leadin ? "skipped" : (plextor_leadin ? "yes" : "no"));
     uint32_t pregap_count = 0;
     for(int32_t lba = plextor_leadin ? -75 : -135; lba < 0; ++lba)
     {
         std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
-        status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), lba, sector_buffer.size(), 1, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
+        status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), lba, 1, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
         if(status.status_code)
         {
             if(options.verbose)
@@ -217,9 +325,9 @@ export int redumper_drive_test(Context &ctx, Options &options)
         int32_t lba = toc.sessions.back().tracks.back().lba_start + i;
 
         std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
-        status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), lba, sector_buffer.size(), 1, READ_CD_ExpectedSectorType::CD_DA, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
+        status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), lba, 1, READ_CD_ExpectedSectorType::CD_DA, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
         if(status.status_code)
-            status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), lba, sector_buffer.size(), 1, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
+            status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), lba, 1, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
 
         if(status.status_code)
         {
@@ -238,22 +346,25 @@ export int redumper_drive_test(Context &ctx, Options &options)
     LOG("lead-out: {}", leadout_count ? std::format("{}{} sectors", leadout_count, leadout_more ? "+" : "") : "no");
 
     bool mediatek_cache_read = false;
-    std::vector<uint8_t> cache;
-    status = asus_cache_read(*ctx.sptd, cache, 1024 * 1024 * 32);
-    if(status.status_code)
+    if(!options.drive_test_skip_cache_read)
     {
-        if(options.verbose)
-            LOG("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
-    }
-    else
-    {
-        uint32_t cache_size = asus_find_cache_size(cache, 256 * 1024, 95);
+        std::vector<uint8_t> cache;
+        status = asus_cache_read(*ctx.sptd, cache, 1024 * 1024 * 32);
+        if(status.status_code)
+        {
+            if(options.verbose)
+                LOG("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
+        }
+        else
+        {
+            uint32_t cache_size = asus_find_cache_size(cache, 256 * 1024, 95);
 
-        LOG("MEDIATEK cache size: {}Mb", cache_size / 1024 / 1024);
+            LOG("MEDIATEK memory space: {}Mb", cache_size / 1024 / 1024);
 
-        mediatek_cache_read = true;
+            mediatek_cache_read = true;
+        }
     }
-    LOG("MEDIATEK cache read: {}", mediatek_cache_read ? "yes" : "no");
+    LOG("MEDIATEK cache read (F1): {}", options.drive_test_skip_cache_read ? "skipped" : (mediatek_cache_read ? "yes" : "no"));
 
     return exit_code;
 }

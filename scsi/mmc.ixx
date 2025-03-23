@@ -22,7 +22,9 @@ export enum class CDB_OperationCode : uint8_t
     READ12 = 0xA8,
     READ_DISC_STRUCTURE = 0xAD,
     SET_CD_SPEED = 0xBB,
+    READ_CD_MSF = 0xB9,
     READ_CD = 0xBE,
+    READ_CD_MSF_D5 = 0xD5,
     READ_CDDA = 0xD8,
     PLEXTOR_RESET = 0xEE,
     ASUS_READ_CACHE = 0xF1,
@@ -165,7 +167,7 @@ export enum class READ_CD_SubChannel : uint8_t
     RAW,  // optional
     Q,    // optional
     RESERVED1,
-    PW,   // optional
+    RW,   // optional
     RESERVED2,
     RESERVED3,
     RESERVED4
@@ -729,6 +731,31 @@ export struct CDB12_Read
     uint8_t transfer_blocks[4];
     uint8_t reserved2 :7;
     uint8_t streaming :1;
+    uint8_t control;
+};
+
+
+export struct CDB12_ReadCDMSF
+{
+    uint8_t operation_code;
+    uint8_t reserved1            :2;
+    uint8_t expected_sector_type :3;
+    uint8_t lun                  :3;
+    uint8_t reserved2;
+    uint8_t starting_msf_m;
+    uint8_t starting_msf_s;
+    uint8_t starting_msf_f;
+    uint8_t ending_msf_m;
+    uint8_t ending_msf_s;
+    uint8_t ending_msf_f;
+    uint8_t reserved3             :1;
+    uint8_t error_flags           :2;
+    uint8_t include_edc           :1;
+    uint8_t include_user_data     :1;
+    uint8_t header_code           :2;
+    uint8_t include_sync_data     :1;
+    uint8_t sub_channel_selection :3;
+    uint8_t reserved4             :5;
     uint8_t control;
 };
 

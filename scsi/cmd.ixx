@@ -323,7 +323,47 @@ export SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, i
 }
 
 
-export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t block_size, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type,
+SPTD::Status cmd_read_cd_msf(SPTD &sptd, uint8_t *sectors, uint32_t block_size, const MSF &start_msf, const MSF &end_msf, READ_CD_ExpectedSectorType expected_sector_type,
+    READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel, CDB_OperationCode operation_code)
+{
+    CDB12_ReadCDMSF cdb = {};
+
+    cdb.operation_code = (uint8_t)operation_code;
+    cdb.expected_sector_type = (uint8_t)expected_sector_type;
+    cdb.starting_msf_m = start_msf.m;
+    cdb.starting_msf_s = start_msf.s;
+    cdb.starting_msf_f = start_msf.f;
+    cdb.ending_msf_m = end_msf.m;
+    cdb.ending_msf_s = end_msf.s;
+    cdb.ending_msf_f = end_msf.f;
+    cdb.error_flags = (uint8_t)error_field;
+    cdb.include_edc = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? 0 : 1;
+    cdb.include_user_data = 1;
+    cdb.header_code = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? (uint8_t)READ_CD_HeaderCode::NONE : (uint8_t)READ_CD_HeaderCode::ALL;
+    cdb.include_sync_data = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? 0 : 1;
+    cdb.sub_channel_selection = (uint8_t)sub_channel;
+
+    uint32_t transfer_length = MSF_to_LBA(end_msf) - MSF_to_LBA(start_msf);
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
+}
+
+
+export SPTD::Status cmd_read_cd_msf(SPTD &sptd, uint8_t *sectors, uint32_t block_size, const MSF &start_msf, const MSF &end_msf, READ_CD_ExpectedSectorType expected_sector_type,
+    READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
+{
+    return cmd_read_cd_msf(sptd, sectors, block_size, start_msf, end_msf, expected_sector_type, error_field, sub_channel, CDB_OperationCode::READ_CD_MSF);
+}
+
+
+export SPTD::Status cmd_read_cd_msf_d5(SPTD &sptd, uint8_t *sectors, uint32_t block_size, const MSF &start_msf, const MSF &end_msf, READ_CD_ExpectedSectorType expected_sector_type,
+    READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
+{
+    return cmd_read_cd_msf(sptd, sectors, block_size, start_msf, end_msf, expected_sector_type, error_field, sub_channel, CDB_OperationCode::READ_CD_MSF_D5);
+}
+
+
+export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, READ_CD_ExpectedSectorType expected_sector_type,
     READ_CD_ErrorField error_field, READ_CD_SubChannel sub_channel)
 {
     CDB12_ReadCD cdb = {};
@@ -346,7 +386,7 @@ export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, int32_t start_lba,
 
 
 // FIXME: pass sectors size in argument
-export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, int32_t start_lba, uint32_t block_size, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
+export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
 {
     CDB12_ReadCDDA cdb = {};
 

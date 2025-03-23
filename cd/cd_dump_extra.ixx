@@ -18,6 +18,7 @@ import cd.subcode;
 import cd.toc;
 import common;
 import drive;
+import drive.mediatek;
 import drive.plextor;
 import options;
 import scsi.cmd;
@@ -232,11 +233,14 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
             // dummy read to cache lead-out
             std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
             bool all_types = false;
-            auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
+            SPTD::Status status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
             if(status.status_code && options.verbose)
                 LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 
-            cache = asus_cache_read(*ctx.sptd, ctx.drive_config.type);
+            status = asus_cache_read(*ctx.sptd, cache, 1024 * 1024 * asus_get_config(ctx.drive_config.type).size_mb);
+            if(!status.status_code)
+                throw_line("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
+
             uint32_t sectors_count = (uint32_t)asus_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type).size() / CD_RAW_DATA_SIZE;
 
             LOG_R("LG/ASUS: preloading cache (LBA: {:6}, sectors: {:3}, retry: {})", lba, sectors_count, i + 1);

@@ -150,6 +150,7 @@ target_sources(redumper
     "crc/crc32.ixx"
 	"drive/flash_mt1339.ixx"
     "drive/plextor.ixx"
+    "drive/mediatek.ixx"
     "drive/test.ixx"
     "dvd/dvd_dump.ixx"
     "dvd/dvd_key.ixx"

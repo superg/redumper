@@ -12,9 +12,12 @@ module;
 export module drive.test;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import cd.toc;
 import common;
+import drive.mediatek;
+import drive.plextor;
 import options;
 import scsi.cmd;
 import scsi.mmc;
@@ -151,6 +154,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
         { "data",  *data_lba  }
     };
 
+    bool d8 = false;
     for(auto t : d8_tests)
     {
         std::set<std::string> sector_orders;
@@ -166,6 +170,9 @@ export int redumper_drive_test(Context &ctx, Options &options)
             else
             {
                 sector_orders.emplace(sc.second);
+
+                if(sc.first == READ_CDDA_SubCode::DATA_SUB)
+                    d8 = true;
             }
         }
 
@@ -175,7 +182,78 @@ export int redumper_drive_test(Context &ctx, Options &options)
         LOG("");
     }
 
+    bool plextor_leadin = false;
+    if(d8)
+    {
+        LOG("PLEXTOR: attempting to read lead-in");
+        auto leadin = plextor_leadin_read(*ctx.sptd, 0);
+        auto errors_count = std::count_if(leadin.begin(), leadin.end(), [](const std::pair<SPTD::Status, std::vector<uint8_t>> &value) { return value.first.status_code != 0; });
 
+        plextor_leadin = errors_count < leadin.size();
+
+        LOG("");
+    }
+    LOG("PLEXTOR lead-in: {}", plextor_leadin ? "yes" : "no");
+    uint32_t pregap_count = 0;
+    for(int32_t lba = plextor_leadin ? -75 : -135; lba < 0; ++lba)
+    {
+        std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
+        status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), lba, sector_buffer.size(), 1, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
+        if(status.status_code)
+        {
+            if(options.verbose)
+                LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+        }
+        else
+        {
+            ++pregap_count;
+        }
+    }
+    LOG("lead-in/pre-gap: {}", pregap_count ? std::format("{} sectors", pregap_count) : "no");
+
+    uint32_t leadout_count = 0;
+    for(uint32_t i = 0; i < LEADOUT_OVERREAD_COUNT + 10; ++i)
+    {
+        int32_t lba = toc.sessions.back().tracks.back().lba_start + i;
+
+        std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2BEB_SIZE + CD_SUBCODE_SIZE);
+        status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), lba, sector_buffer.size(), 1, READ_CD_ExpectedSectorType::CD_DA, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
+        if(status.status_code)
+            status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), lba, sector_buffer.size(), 1, READ_CD_ExpectedSectorType::ALL_TYPES, READ_CD_ErrorField::NONE, READ_CD_SubChannel::NONE);
+
+        if(status.status_code)
+        {
+            if(options.verbose)
+                LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+            break;
+        }
+        else
+        {
+            ++leadout_count;
+        }
+    }
+    bool leadout_more = leadout_count > LEADOUT_OVERREAD_COUNT;
+    if(leadout_more)
+        leadout_count = LEADOUT_OVERREAD_COUNT;
+    LOG("lead-out: {}", leadout_count ? std::format("{}{} sectors", leadout_count, leadout_more ? "+" : "") : "no");
+
+    bool mediatek_cache_read = false;
+    std::vector<uint8_t> cache;
+    status = asus_cache_read(*ctx.sptd, cache, 1024 * 1024 * 32);
+    if(status.status_code)
+    {
+        if(options.verbose)
+            LOG("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
+    }
+    else
+    {
+        uint32_t cache_size = asus_find_cache_size(cache, 256 * 1024, 95);
+
+        LOG("MEDIATEK cache size: {}Mb", cache_size / 1024 / 1024);
+
+        mediatek_cache_read = true;
+    }
+    LOG("MEDIATEK cache read: {}", mediatek_cache_read ? "yes" : "no");
 
     return exit_code;
 }

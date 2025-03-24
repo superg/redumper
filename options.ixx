@@ -56,7 +56,6 @@ export struct Options
     bool asus_skip_leadout;
     int asus_leadout_retries;
     bool disable_cdtext;
-    bool force_cdtext_reading;
     bool correct_offset_shift;
     bool offset_shift_relocate;
     std::unique_ptr<int> force_offset;
@@ -92,7 +91,6 @@ export struct Options
         , asus_skip_leadout(false)
         , asus_leadout_retries(32)
         , disable_cdtext(false)
-        , force_cdtext_reading(false)
         , correct_offset_shift(false)
         , offset_shift_relocate(false)
         , audio_silence_threshold(32)
@@ -231,8 +229,6 @@ export struct Options
                         i_value = &asus_leadout_retries;
                     else if(key == "--disable-cdtext")
                         disable_cdtext = true;
-                    else if(key == "--force-cdtext-reading")
-                        force_cdtext_reading = true;
                     else if(key == "--correct-offset-shift")
                         correct_offset_shift = true;
                     else if(key == "--offset-shift-relocate")
@@ -351,7 +347,6 @@ export struct Options
         LOG("\t--asus-skip-leadout             \tskip extracting lead-out from drive cache");
         LOG("\t--asus-leadout-retries          \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", asus_leadout_retries);
         LOG("\t--disable-cdtext                \tdisable CD-TEXT reading");
-        LOG("\t--force-cdtext-reading          \tforce multisession CD-TEXT reading for all drives");
         LOG("");
         LOG("\t(offset)");
         LOG("\t--force-offset=VALUE            \toverride offset autodetection and use supplied value");

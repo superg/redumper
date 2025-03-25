@@ -394,7 +394,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         throw_line("unsupported block size (block size: {})", block_length);
     uint32_t sectors_count = sector_last + 1;
 
-    auto readable_formats = get_readable_formats(*ctx.sptd, profile_is_bluray(ctx.current_profile));
+    auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
 
     bool trim_to_filesystem_size = false;
 
@@ -406,15 +406,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
     {
         // function call changes rom flag if discrepancy is detected
-        bool rom = ctx.current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM;
-        auto physical_structures = read_physical_structures(*ctx.sptd, profile_is_bluray(ctx.current_profile), rom);
-        if(ctx.current_profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM && !rom)
+        bool rom = ctx.disc_type == DiscType::BLURAY;
+        auto physical_structures = read_physical_structures(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R, rom);
+        if(ctx.disc_type == DiscType::BLURAY && !rom)
         {
             trim_to_filesystem_size = true;
             LOG("warning: Blu-ray current profile mismatch, dump will be trimmed to disc filesystem size");
         }
 
-        if(!profile_is_bluray(ctx.current_profile))
+        if(ctx.disc_type != DiscType::BLURAY && ctx.disc_type != DiscType::BLURAY_R)
         {
             uint32_t physical_sectors_count = 0;
             for(uint32_t i = 0; i < physical_structures.size(); ++i)
@@ -555,7 +555,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             for(uint32_t i = 0; i < manufacturer_structures.size(); ++i)
                 write_vector(std::format("{}{}.manufacturer", image_prefix, manufacturer_structures.size() > 1 ? std::format(".{}", i) : ""), manufacturer_structures[i]);
 
-            if(profile_is_bluray(ctx.current_profile))
+            if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
             {
                 uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
 

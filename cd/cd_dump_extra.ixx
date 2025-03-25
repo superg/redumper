@@ -313,7 +313,7 @@ export int redumper_dump_extra(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    if(!profile_is_cd(ctx.current_profile))
+    if(ctx.disc_type != DiscType::CD)
         return exit_code;
 
     auto toc = toc_process(ctx, options, false);

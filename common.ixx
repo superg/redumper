@@ -38,6 +38,16 @@ export enum class DumpMode
 };
 
 
+export enum class DiscType
+{
+    CD,
+    DVD,
+    HDDVD,
+    BLURAY,
+    BLURAY_R
+};
+
+
 export struct Errors
 {
     uint32_t scsi;
@@ -48,7 +58,7 @@ export struct Errors
 
 export struct Context
 {
-    GET_CONFIGURATION_FeatureCode_ProfileList current_profile;
+    DiscType disc_type;
     std::shared_ptr<SPTD> sptd;
     DriveConfig drive_config;
 
@@ -60,37 +70,6 @@ export struct Context
     std::optional<bool> refine;
     std::optional<std::vector<std::string>> dat;
 };
-
-
-export bool profile_is_cd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
-{
-    return profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW;
-}
-
-
-export bool profile_is_dvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
-{
-    return profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL;
-}
-
-
-export bool profile_is_bluray(GET_CONFIGURATION_FeatureCode_ProfileList profile)
-{
-    return profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW;
-}
-
-
-export bool profile_is_hddvd(GET_CONFIGURATION_FeatureCode_ProfileList profile)
-{
-    return profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW
-        || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL || profile == GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL;
-}
 
 
 export void image_check_overwrite(const Options &options)

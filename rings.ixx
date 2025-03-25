@@ -31,8 +31,8 @@ export int redumper_rings(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    if(!profile_is_cd(ctx.current_profile))
-        throw_line("rings command requires CD profile (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);
+    if(ctx.disc_type != DiscType::CD)
+        return exit_code;
 
     std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
     std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);

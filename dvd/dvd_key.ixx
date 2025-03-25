@@ -108,7 +108,7 @@ export int redumper_dvdkey(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    if(!profile_is_dvd(ctx.current_profile))
+    if(ctx.disc_type != DiscType::DVD)
         return exit_code;
 
     // protection

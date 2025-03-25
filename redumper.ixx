@@ -55,7 +55,7 @@ int redumper_dump(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    if(profile_is_cd(ctx.current_profile))
+    if(ctx.disc_type == DiscType::CD)
         ctx.refine = redumper_dump_cd(ctx, options, DumpMode::DUMP);
     else
         ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
@@ -70,7 +70,7 @@ int redumper_refine(Context &ctx, Options &options)
 
     if(!ctx.refine || *ctx.refine && options.retries)
     {
-        if(profile_is_cd(ctx.current_profile))
+        if(ctx.disc_type == DiscType::CD)
             redumper_dump_cd(ctx, options, DumpMode::REFINE);
         else
             redumper_dump_dvd(ctx, options, DumpMode::REFINE);
@@ -84,7 +84,7 @@ int redumper_verify(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    if(profile_is_cd(ctx.current_profile))
+    if(ctx.disc_type == DiscType::CD)
         LOG("warning: CD verify is unsupported");
     else
         redumper_dump_dvd(ctx, options, DumpMode::VERIFY);
@@ -185,6 +185,57 @@ const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_S
     { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL,     "HD DVD-R DL"  },
     { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL,    "HD DVD-RW DL" }
 };
+
+
+DiscType profile_to_disc_type(GET_CONFIGURATION_FeatureCode_ProfileList profile)
+{
+    DiscType disc_type;
+
+    switch(profile)
+    {
+    default:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::CD_R:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW:
+        disc_type = DiscType::CD;
+        break;
+
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL:
+        disc_type = DiscType::DVD;
+        break;
+
+    case GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM:
+        disc_type = DiscType::BLURAY;
+        break;
+
+    case GET_CONFIGURATION_FeatureCode_ProfileList::BD_R:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW:
+        disc_type = DiscType::BLURAY_R;
+        break;
+
+    case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL:
+        disc_type = DiscType::HDDVD;
+        break;
+    }
+
+    return disc_type;
+}
 
 
 std::list<std::pair<std::string, Command>> redumper_cd_get_commands(Options &options)
@@ -320,27 +371,12 @@ export int redumper(Options &options)
 
     LOG("{}", redumper_version());
 
-    ctx.current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
     if(aggregate.drive_required)
     {
         // query/override drive configuration
         ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
         drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(),
             options.drive_read_method.get(), options.drive_sector_order.get());
-
-        if(aggregate.drive_ready)
-        {
-            auto status = cmd_get_configuration_current_profile(*ctx.sptd, ctx.current_profile);
-            if(status.status_code)
-            {
-                // some drives don't have this command implemented, fallback to CD
-                LOG("warning: failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
-                ctx.current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM;
-            }
-
-            if(!profile_is_cd(ctx.current_profile) && !profile_is_dvd(ctx.current_profile) && !profile_is_bluray(ctx.current_profile) && !profile_is_hddvd(ctx.current_profile))
-                throw_line("unsupported disc type (current profile: 0x{:02X})", (uint16_t)ctx.current_profile);
-        }
     }
 
     if(!options.arguments.empty())
@@ -349,6 +385,7 @@ export int redumper(Options &options)
         LOG("arguments: {}", options.arguments);
     }
 
+    ctx.disc_type = DiscType::CD;
     if(aggregate.drive_required)
     {
         LOG("");
@@ -358,24 +395,34 @@ export int redumper(Options &options)
 
         if(aggregate.drive_ready)
         {
+            GET_CONFIGURATION_FeatureCode_ProfileList current_profile;
+            auto status = cmd_get_configuration_current_profile(*ctx.sptd, current_profile);
+            if(status.status_code)
+            {
+                // some drives don't have this command implemented, fallback to CD
+                LOG("warning: failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
+            }
+
+            ctx.disc_type = profile_to_disc_type(current_profile);
+
             // set drive speed
             uint16_t speed = 0xFFFF;
             std::string speed_str("<optimal>");
             if(options.speed)
             {
                 float speed_modifier = 176.4;
-                if(profile_is_dvd(ctx.current_profile))
+                if(ctx.disc_type == DiscType::DVD)
                     speed_modifier = 1385.0;
-                else if(profile_is_bluray(ctx.current_profile))
+                else if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
                     speed_modifier = 4500.0;
-                else if(profile_is_hddvd(ctx.current_profile))
+                else if(ctx.disc_type == DiscType::HDDVD)
                     speed_modifier = 4500.0;
 
                 speed = speed_modifier * *options.speed;
                 speed_str = std::format("{} KB", speed);
             }
 
-            auto status = cmd_set_cd_speed(*ctx.sptd, speed);
+            status = cmd_set_cd_speed(*ctx.sptd, speed);
             if(status.status_code)
                 speed_str = std::format("<setting failed, SCSI ({})>", SPTD::StatusMessage(status));
 
@@ -388,7 +435,7 @@ export int redumper(Options &options)
                 LOG("warning: drive doesn't support C2 error pointers");
 
             LOG("");
-            LOG("current profile: {}", enum_to_string(ctx.current_profile, PROFILE_STRING));
+            LOG("current profile: {}", enum_to_string(current_profile, PROFILE_STRING));
         }
     }
 

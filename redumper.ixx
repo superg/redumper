@@ -156,34 +156,57 @@ const std::map<std::string, Command> COMMANDS{
 };
 
 
+const std::map<DiscType, std::string> DISC_TYPE_STRING = {
+    { DiscType::CD,       "CD"       },
+    { DiscType::DVD,      "DVD"      },
+    { DiscType::BLURAY,   "BLURAY"   },
+    { DiscType::BLURAY_R, "BLURAY-R" },
+    { DiscType::HDDVD,    "HD-DVD"   }
+};
+
+
 const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_STRING = {
-    { GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM,         "CD-ROM"       },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::CD_R,           "CD-R"         },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW,          "CD-RW"        },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED,           "reserved"           },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::NON_REMOVABLE_DISK, "non removable disk" },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::REMOVABLE_DISK,     "removable disk"     },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::MO_ERASABLE,        "MO erasable"        },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::MO_WRITE_ONCE,      "MO write once"      },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::AS_MO,              "AS MO"              },
 
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM,        "DVD-ROM"      },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R,          "DVD-R"        },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM,        "DVD-RAM"      },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO,      "DVD-RW RO"    },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW,         "DVD-RW"       },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL,       "DVD-R DL"     },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR,   "DVD-R DL LJR" },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW,    "DVD+RW"       },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R,     "DVD+R"        },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL, "DVD+RW DL"    },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL,  "DVD+R DL"     },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM,             "CD-ROM"             },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::CD_R,               "CD-R"               },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW,              "CD-RW"              },
 
-    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM,         "BD-ROM"       },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_R,           "BD-R"         },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM,       "BD-R RRM"     },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW,          "BD-RW"        },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_ROM,            "DVD-ROM"            },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R,              "DVD-R"              },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RAM,            "DVD-RAM"            },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW_RO,          "DVD-RW RO"          },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_RW,             "DVD-RW"             },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL,           "DVD-R DL"           },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_R_DL_LJR,       "DVD-R DL LJR"       },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW,        "DVD+RW"             },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R,         "DVD+R"              },
 
-    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM,      "HD DVD-ROM"   },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R,        "HD DVD-R"     },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM,      "HD DVD-RAM"   },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW,       "HD DVD-RW"    },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL,     "HD DVD-R DL"  },
-    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL,    "HD DVD-RW DL" }
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DDCD_ROM,           "DDCD-ROM"           },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DDCD_R,             "DDCD-R"             },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DDCD_RW,            "DDCD-RW"            },
+
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL,     "DVD+RW DL"          },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL,      "DVD+R DL"           },
+
+    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM,             "BD-ROM"             },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_R,               "BD-R"               },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_R_RRM,           "BD-R RRM"           },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::BD_RW,              "BD-RW"              },
+
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_ROM,          "HD DVD-ROM"         },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R,            "HD DVD-R"           },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RAM,          "HD DVD-RAM"         },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW,           "HD DVD-RW"          },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL,         "HD DVD-R DL"        },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL,        "HD DVD-RW DL"       },
+
+    { GET_CONFIGURATION_FeatureCode_ProfileList::NON_STANDARD,       "NON STANDARD"       }
 };
 
 
@@ -395,7 +418,7 @@ export int redumper(Options &options)
 
         if(aggregate.drive_ready)
         {
-            GET_CONFIGURATION_FeatureCode_ProfileList current_profile;
+            GET_CONFIGURATION_FeatureCode_ProfileList current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
             auto status = cmd_get_configuration_current_profile(*ctx.sptd, current_profile);
             if(status.status_code)
             {
@@ -403,7 +426,7 @@ export int redumper(Options &options)
                 LOG("warning: failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
             }
 
-            ctx.disc_type = profile_to_disc_type(current_profile);
+            ctx.disc_type = options.disc_type ? string_to_enum(*options.disc_type, DISC_TYPE_STRING) : profile_to_disc_type(current_profile);
 
             // set drive speed
             uint16_t speed = 0xFFFF;
@@ -436,6 +459,7 @@ export int redumper(Options &options)
 
             LOG("");
             LOG("current profile: {}", enum_to_string(current_profile, PROFILE_STRING));
+            LOG("disc type: {}", enum_to_string(ctx.disc_type, DISC_TYPE_STRING));
         }
     }
 

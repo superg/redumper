@@ -435,7 +435,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 if(!retries)
                     check_fix_byte_desync(ctx, subcode_byte_desync_counter, lba, sector_subcode);
 
-                if(sector_subcode_update(sector_subcode_file, sector_subcode))
+                bool subcode_updated = sector_subcode_update(sector_subcode_file, sector_subcode);
+                if(subcode_updated)
                 {
                     write_entry(fs_subcode, sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
 
@@ -487,7 +488,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                     uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
                     uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
 
-                    if(sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data(), State::SUCCESS), sector_data, sector_protection))
+                    bool data_updated = sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data(), State::SUCCESS), sector_data, sector_protection);
+                    if(data_updated)
                     {
                         int32_t offset = all_types ? data_drive_offset : ctx.drive_config.read_offset;
                         write_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
@@ -505,8 +507,11 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
                     if(sector_data_complete(sector_state_file, sector_protection) && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
                     {
-                        if(dump_mode == DumpMode::REFINE && options.verbose && lba < lba_end)
-                            LOG_R("[LBA: {:6}] correction success", lba);
+                        if(dump_mode == DumpMode::REFINE && lba < lba_end && (data_updated || subcode_updated))
+                        {
+                            if(options.verbose)
+                                LOG_R("[LBA: {:6}] correction success", lba);
+                        }
 
                         break;
                     }

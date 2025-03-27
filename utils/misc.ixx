@@ -12,6 +12,7 @@ module;
 #include <map>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include "throw_line.hh"
 
 export module utils.misc;
@@ -236,7 +237,7 @@ std::string enum_to_string(T value, const std::map<T, std::string> &dictionary)
 {
     auto it = dictionary.find(value);
     if(it == dictionary.end())
-        throw_line("enum_to_string failed, no such value in dictionary (possible values: {})", dictionary_values(dictionary));
+        return std::format("UNKNOWN({})", (typename std::underlying_type<T>::type)value);
 
     return it->second;
 }

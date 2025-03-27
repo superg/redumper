@@ -330,7 +330,7 @@ export int redumper(Options &options)
     std::list<std::pair<std::string, Command>> commands;
     Command aggregate = {};
 
-    if(options.command.empty() || options.command == "cd")
+    if(options.command.empty() || options.command == "disc")
     {
         commands = redumper_cd_get_commands(options);
 

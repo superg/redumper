@@ -138,6 +138,7 @@ target_sources(redumper
     "cd/cdrom.ixx"
     "cd/ecc.ixx"
     "cd/edc.ixx"
+    "cd/generate.ixx"
     "cd/fix_msf.ixx"
     "cd/offset_manager.ixx"
     "cd/protection.ixx"

@@ -95,11 +95,8 @@ export int redumper_rings(Context &ctx, Options &options)
     if(!write_offset)
         write_offset = 0;
 
-    std::vector<std::pair<int32_t, int32_t>> rings;
     for(auto r : sector_rings)
-        rings.emplace_back(lba_to_sample(r.first, *write_offset), lba_to_sample(r.second, *write_offset));
-
-    ctx.rings = rings;
+        ctx.protection_soft.emplace_back(lba_to_sample(r.first, *write_offset), lba_to_sample(r.second, *write_offset));
 
     return exit_code;
 }

@@ -4,6 +4,7 @@ module;
 
 export module cd.generate;
 
+import cd.cd;
 import cd.cdrom;
 import cd.ecc;
 import cd.edc;

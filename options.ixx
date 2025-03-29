@@ -71,6 +71,7 @@ export struct Options
     bool drive_test_skip_plextor_leadin;
     bool drive_test_skip_cache_read;
     bool skip_subcode_desync;
+    bool rings;
 
 
     Options(int argc, const char *argv[])
@@ -105,6 +106,7 @@ export struct Options
         , drive_test_skip_plextor_leadin(false)
         , drive_test_skip_cache_read(false)
         , skip_subcode_desync(false)
+        , rings(false)
     {
         for(int i = 1; i < argc; ++i)
             arguments += str_quoted_if_space(argv[i]) + " ";
@@ -273,6 +275,8 @@ export struct Options
                         drive_test_skip_cache_read = true;
                     else if(key == "--skip-subcode-desync")
                         skip_subcode_desync = true;
+                    else if(key == "--rings")
+                        rings = true;
                     // unknown option
                     else
                     {
@@ -397,6 +401,7 @@ export struct Options
         LOG("\t--force-refine                  \tdo not check TOC when refining a disc");
         LOG("\t--firmware=VALUE                \tfirmware filename");
         LOG("\t--skip-subcode-desync           \tskip storing sectors with mismatching subcode Q absolute MSF");
+        LOG("\t--rings                         \tenable filesystem based rings detection");
     }
 };
 

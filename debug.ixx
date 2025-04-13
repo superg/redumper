@@ -112,15 +112,27 @@ export int redumper_debug(Context &ctx, Options &options)
     std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path cache_path(image_prefix + ".asus");
     std::filesystem::path toc_path(image_prefix + ".toc");
+    std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
     std::filesystem::path cdtext_path(image_prefix + ".cdtext");
     std::filesystem::path cue_path(image_prefix + ".cue");
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
 
+    if(0)
+    {
+        std::vector<uint8_t> fulltoc_buffer = read_vector(fulltoc_path);
+
+        TOC toc_full(fulltoc_buffer, true);
+
+        print_toc(toc_full);
+        LOG("");
+    }
+
     // CDB decode
     if(0)
     {
-        uint8_t cdb_raw[] = { 0xbe, 0x04, 0x00, 0x00, 0x0b, 0xd0, 0x00, 0x00, 0x18, 0x14, 0x00, 0x00 };
+//        uint8_t cdb_raw[] = { 0xbe, 0x04, 0x00, 0x00, 0x0b, 0xd0, 0x00, 0x00, 0x18, 0x14, 0x00, 0x00 };
+        uint8_t cdb_raw[] = { 0xbe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xf8, 0x04, 0x00 };
         auto cdb = (CDB12_ReadCD *)cdb_raw;
 
         LOG("");

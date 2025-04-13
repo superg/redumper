@@ -17,6 +17,7 @@ import cd.subcode;
 import crc.crc16_gsm;
 import scsi.mmc;
 import utils.endian;
+import utils.logger;
 import utils.misc;
 import utils.strings;
 
@@ -413,10 +414,8 @@ export struct TOC
             auto &pack_data = descriptors[i];
 
             // DEBUG
-            //            LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}",
-            //                                     pack_data.pack_type, pack_data.track_number, pack_data.extension_flag, pack_data.sequence_number, pack_data.character_position,
-            //                                     pack_data.block_number,
-            // pack_data.unicode,                                      DescriptorText(pack_data));
+//            LOG("{:02X} {:02} {:b} {:02} {:02} {:01} {:b} {}", pack_data.pack_type, (uint32_t)pack_data.track_number, (uint32_t)pack_data.extension_flag, pack_data.sequence_number,
+//                (uint32_t)pack_data.character_position, (uint32_t)pack_data.block_number, (uint32_t)pack_data.unicode, getDescriptorText(pack_data));
 
             auto crc = CRC16_GSM().update((uint8_t *)&pack_data, sizeof(pack_data) - sizeof(uint16_t)).final();
             // PLEXTOR PX-W5224TA: crc of last pack is always zeroed

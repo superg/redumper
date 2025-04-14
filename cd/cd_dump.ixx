@@ -163,8 +163,10 @@ bool sector_subcode_update(std::span<uint8_t> sector_subcode, std::span<const ui
 }
 
 
-void check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const uint8_t> sector_subcode, const Options &options)
+bool check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const uint8_t> sector_subcode, const Options &options)
 {
+    bool skip = false;
+
     ChannelQ Q = subcode_extract_q(sector_subcode.data());
     if(Q.isValid())
     {
@@ -179,9 +181,14 @@ void check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const ui
 
                 if(options.verbose)
                     LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
+
+                if(subcode_shift && options.skip_subcode_desync)
+                    skip = true;
             }
         }
     }
+
+    return skip;
 }
 
 
@@ -405,7 +412,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
             auto protection_range = protection_full_sector(protection_soft, lba_to_sample(lba, all_types ? -data_drive_offset : -ctx.drive_config.read_offset));
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
-            bool store = true;
             if(protection_range != nullptr && slow_sector)
             {
                 int32_t lba_jump = std::min(sample_to_lba(protection_range->end, -data_drive_offset), sample_to_lba(protection_range->end, -ctx.drive_config.read_offset));
@@ -415,9 +421,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 break;
             }
 
-            if(status.status_code)
+            if(status.status_code || check_subcode_shift(subcode_shift, lba, sector_subcode, options))
             {
-                store = false;
                 if(protection_range == nullptr && lba < lba_end)
                 {
                     if(dump_mode != DumpMode::REFINE)
@@ -433,20 +438,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 if(lba + 1 == lba_overread && !slow_sector && !options.lba_end && (lba_overread - lba_end < LEADOUT_OVERREAD_COUNT || options.overread_leadout))
                     ++lba_overread;
 
-                check_subcode_shift(subcode_shift, lba, sector_subcode, options);
-                if(options.skip_desynced_sectors && subcode_shift != 0)
-                {
-                    if(dump_mode != DumpMode::REFINE)
-                        ++errors.scsi;
-                    store = false;
-                }
-
                 if(!retries)
                     check_fix_byte_desync(ctx, subcode_byte_desync_counter, lba, sector_subcode);
-            }
 
-            if(store)
-            {
                 bool subcode_updated = sector_subcode_update(sector_subcode_file, sector_subcode);
                 if(subcode_updated)
                 {

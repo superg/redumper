@@ -267,7 +267,7 @@ export struct Options
                         drive_test_skip_plextor_leadin = true;
                     else if(key == "--drive-test-skip-cache-read")
                         drive_test_skip_cache_read = true;
-                    else if(key == "--skip-desynced-sectors")
+                    else if(key == "--skip-subcode-desync")
                         skip_subcode_desync = true;
                     // unknown option
                     else

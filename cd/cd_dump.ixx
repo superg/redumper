@@ -163,8 +163,10 @@ bool sector_subcode_update(std::span<uint8_t> sector_subcode, std::span<const ui
 }
 
 
-void check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const uint8_t> sector_subcode, const Options &options)
+bool check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const uint8_t> sector_subcode, const Options &options)
 {
+    bool skip = false;
+
     ChannelQ Q = subcode_extract_q(sector_subcode.data());
     if(Q.isValid())
     {
@@ -179,9 +181,14 @@ void check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const ui
 
                 if(options.verbose)
                     LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
+
+                if(subcode_shift && options.skip_subcode_desync)
+                    skip = true;
             }
         }
     }
+
+    return skip;
 }
 
 
@@ -414,7 +421,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 break;
             }
 
-            if(status.status_code)
+            if(status.status_code || check_subcode_shift(subcode_shift, lba, sector_subcode, options))
             {
                 if(protection_range == nullptr && lba < lba_end)
                 {
@@ -431,7 +438,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 if(lba + 1 == lba_overread && !slow_sector && !options.lba_end && (lba_overread - lba_end < LEADOUT_OVERREAD_COUNT || options.overread_leadout))
                     ++lba_overread;
 
-                check_subcode_shift(subcode_shift, lba, sector_subcode, options);
                 if(!retries)
                     check_fix_byte_desync(ctx, subcode_byte_desync_counter, lba, sector_subcode);
 

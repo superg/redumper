@@ -175,7 +175,7 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
                     if(it != area_map.end())
                     {
                         Area new_area = Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name };
-                        if(new_area.size > it->first.size)
+                        if(new_area.size > it->second.size)
                             it->second = new_area;
                     }
                     else

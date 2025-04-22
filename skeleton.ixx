@@ -131,10 +131,9 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
         if(gap_start < area_map[i + 1].offset)
         {
             uint32_t gap_size = area_map[i + 1].offset - gap_start;
-            uint32_t gap_sectors = gap_size / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
 
             // >2048 sectors or >5% or more in relation to the total filesystem size
-            if(gap_sectors > 2048 || (uint64_t)gap_size * 100 / sectors_count > 5)
+            if(gap_size > 2048 || (uint64_t)gap_size * 100 / sectors_count > 5)
                 contents.emplace_back(std::format("GAP_{:07}", gap_start), gap_start, gap_size, gap_size * sector_reader->sectorSize());
         }
     }

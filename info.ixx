@@ -31,14 +31,6 @@ import utils.strings;
 namespace gpsxre
 {
 
-enum class TrackType
-{
-    DATA,
-    AUDIO,
-    ISO
-};
-
-
 export int redumper_info(Context &ctx, Options &options)
 {
     int exit_code = 0;
@@ -49,7 +41,7 @@ export int redumper_info(Context &ctx, Options &options)
     if(std::filesystem::exists(image_prefix + ".cue"))
     {
         for(auto const &t : cue_get_entries(image_prefix + ".cue"))
-            tracks.emplace_back(std::filesystem::path(options.image_path) / t.first, t.second ? TrackType::DATA : TrackType::AUDIO);
+            tracks.emplace_back(std::filesystem::path(options.image_path) / t.first, t.second);
     }
     else if(std::filesystem::exists(image_prefix + ".iso"))
     {
@@ -66,7 +58,7 @@ export int redumper_info(Context &ctx, Options &options)
 
         if(t.second == TrackType::ISO)
             form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
-        else if(t.second == TrackType::DATA)
+        else if(t.second == TrackType::MODE1_2352 || t.second == TrackType::MODE2_2352 || t.second == TrackType::CDI_2352)
         {
             raw_reader = std::make_shared<Image_RawReader>(t.first);
             form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);

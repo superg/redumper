@@ -300,7 +300,14 @@ std::string split_identifier(uint32_t &version, std::string identifier)
 {
     auto s = identifier.find_last_of((char)iso9660::Characters::SEPARATOR2);
 
-    version = (s == std::string::npos ? 0 : str_to_int(identifier.substr(s + 1)));
+    if(s == std::string::npos || s + 1 >= identifier.size())
+        version = 0;
+    else
+    {
+        auto version = str_to_int64(identifier.substr(s + 1));
+        if(!version)
+            version = 0;
+    }
 
     return identifier.substr(0, s);
 }

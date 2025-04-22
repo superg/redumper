@@ -138,7 +138,11 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
             std::string identifier((const char *)&path_table[i], pr.length);
             if(identifier == std::string(1, (char)iso9660::Characters::DIR_CURRENT))
                 identifier.clear();
-            std::string name((pr.parent_directory_number == 1 ? "" : names[pr.parent_directory_number - 1]) + "/" + identifier);
+            std::string name;
+            if(pr.parent_directory_number <= 1 || pr.parent_directory_number > names.size())
+                name = "";
+            else
+                name = names[pr.parent_directory_number - 1] + "/" + identifier;
             names.push_back(name);
 
             i += round_up(pr.length, (uint8_t)2) + pr.xa_length;
@@ -167,7 +171,17 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
                     std::string dr_name = split_identifier(dr_version, dr.first);
 
                     o = base_offset + dr.second.offset.lsb - sector_reader->sectorsBase();
-                    area_map.emplace(o, Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name });
+                    auto it = area_map.find(o);
+                    if(it != area_map.end())
+                    {
+                        Area new_area = Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name };
+                        if(new_area.size > 0)
+                            it->second = new_area;
+                    }
+                    else
+                    {
+                        area_map.emplace(o, Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name });
+                    }
                 }
             }
         }

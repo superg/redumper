@@ -202,13 +202,21 @@ export int redumper_skeleton(Context &ctx, Options &options)
     {
         for(auto const &t : cue_get_entries(image_prefix + ".cue"))
         {
-            // only support MODE1/MODE2 CD-ROM dumps
-            if(t.second != TrackType::MODE1_2352 && t.second != TrackType::MODE2_2352)
+            // skip audio tracks
+            if(t.second == TrackType::AUDIO || t.second == TrackType::CDG)
                 continue;
+
+            // skip unsupported sector sizes
+            if(t.second == TrackType::MODE2_2336 || t.second == TrackType::CDI_2336 || t.second == TrackType::MODE2_2324)
+                continue;
+
+            bool iso = false;
+            if(t.second == TrackType::ISO || t.second == TrackType::MODE1_2048 || t.second == TrackType::MODE2_2048)
+                iso = true;
 
             auto track_prefix = (std::filesystem::path(options.image_path) / std::filesystem::path(t.first).stem()).string();
 
-            skeleton(track_prefix, (std::filesystem::path(options.image_path) / t.first).string(), false, options);
+            skeleton(track_prefix, (std::filesystem::path(options.image_path) / t.first).string(), iso, options);
         }
     }
     else if(std::filesystem::exists(image_prefix + ".iso"))

@@ -58,7 +58,7 @@ export int redumper_info(Context &ctx, Options &options)
 
         if(t.second == TrackType::ISO)
             form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
-        else if(t.second == TrackType::MODE1_2352 || t.second == TrackType::MODE2_2352 || t.second == TrackType::CDI_2352)
+        else if(t.second == TrackType::MODE1_2352 || t.second == TrackType::MODE2_2352 || t.second == TrackType::CDI_2352 || t.second == TrackType::MODE0_2352)
         {
             raw_reader = std::make_shared<Image_RawReader>(t.first);
             form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);

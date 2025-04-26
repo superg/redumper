@@ -603,37 +603,37 @@ export std::list<std::pair<std::string, TrackType>> cue_get_entries(const std::f
     std::string line;
     while(std::getline(fs, line))
     {
-        auto tokens(tokenize(line, " \t", "\"\""));
+        auto tokens(tokenize(line, " \t\r", "\"\""));
         if(tokens.size() == 3)
         {
-            if(tokens[0].substr(0, 4) == "FILE")
+            if(tokens[0] == "FILE")
                 entry.first = tokens[1];
-            else if(tokens[0].substr(0, 5) == "TRACK" && !entry.first.empty())
+            else if(tokens[0] == "TRACK" && !entry.first.empty())
             {
-                if(tokens[2].substr(0, 5) == "AUDIO")
+                if(tokens[2] == "AUDIO")
                     entry.second = TrackType::AUDIO;
-                else if(tokens[2].substr(0, 10) == "MODE1/2352")
+                else if(tokens[2] == "MODE1/2352")
                     entry.second = TrackType::MODE1_2352;
-                else if(tokens[2].substr(0, 10) == "MODE2/2352")
+                else if(tokens[2] == "MODE2/2352")
                     entry.second = TrackType::MODE2_2352;
-                else if(tokens[2].substr(0, 8) == "CDI/2352")
+                else if(tokens[2] == "CDI/2352")
                     entry.second = TrackType::CDI_2352;
-                else if(tokens[2].substr(0, 10) == "MODE1/2048")
+                else if(tokens[2] == "MODE1/2048")
                     entry.second = TrackType::MODE1_2048;
-                else if(tokens[2].substr(0, 10) == "MODE2/2336")
+                else if(tokens[2] == "MODE2/2336")
                     entry.second = TrackType::MODE2_2336;
-                else if(tokens[2].substr(0, 8) == "CDI/2336")
+                else if(tokens[2] == "CDI/2336")
                     entry.second = TrackType::CDI_2336;
-                else if(tokens[2].substr(0, 3) == "CDG")
+                else if(tokens[2] == "CDG")
                     entry.second = TrackType::CDG;
-                else if(tokens[2].substr(0, 10) == "MODE0/2352")
+                else if(tokens[2] == "MODE0/2352")
                     entry.second = TrackType::MODE0_2352;
-                else if(tokens[2].substr(0, 10) == "MODE2/2048")
+                else if(tokens[2] == "MODE2/2048")
                     entry.second = TrackType::MODE2_2048;
-                else if(tokens[2].substr(0, 10) == "MODE2/2324")
+                else if(tokens[2] == "MODE2/2324")
                     entry.second = TrackType::MODE2_2324;
                 else
-                    entry.second = TrackType::AUDIO;
+                    entry.second = TrackType::ISO;
                 entries.push_back(entry);
                 entry.first.clear();
             }

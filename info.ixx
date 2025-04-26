@@ -56,7 +56,7 @@ export int redumper_info(Context &ctx, Options &options)
         std::shared_ptr<SectorReader> raw_reader;
         std::shared_ptr<SectorReader> form1_reader;
 
-        if(t.second == TrackType::ISO)
+        if(t.second == TrackType::ISO || t.second == TrackType::MODE1_2048 || t.second == MODE2_2048)
             form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
         else if(t.second == TrackType::MODE1_2352 || t.second == TrackType::MODE2_2352 || t.second == TrackType::CDI_2352 || t.second == TrackType::MODE0_2352)
         {

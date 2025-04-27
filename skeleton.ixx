@@ -53,6 +53,38 @@ bool inside_contents(const std::vector<ContentEntry> &contents, uint32_t value)
 }
 
 
+void erase_sector(uint8_t *s, bool iso)
+{
+    if(iso)
+        memset(s, 0x00, FORM1_DATA_SIZE);
+    else
+    {
+        auto sector = (Sector *)s;
+
+        if(sector->header.mode == 1)
+        {
+            memset(sector->mode1.user_data, 0x00, FORM1_DATA_SIZE);
+            memset(&sector->mode1.ecc, 0x00, sizeof(Sector::ECC));
+            sector->mode1.edc = 0;
+        }
+        else if(sector->header.mode == 2)
+        {
+            if(sector->mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
+            {
+                memset(sector->mode2.xa.form2.user_data, 0x00, FORM2_DATA_SIZE);
+                sector->mode2.xa.form2.edc = 0;
+            }
+            else
+            {
+                memset(sector->mode2.xa.form1.user_data, 0x00, FORM1_DATA_SIZE);
+                memset(&sector->mode2.xa.form1.ecc, 0x00, sizeof(Sector::ECC));
+                sector->mode2.xa.form1.edc = 0;
+            }
+        }
+    }
+}
+
+
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
     std::filesystem::path skeleton_path(image_prefix + ".skeleton");

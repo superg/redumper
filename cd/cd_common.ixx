@@ -43,21 +43,39 @@ export constexpr int32_t LBA_START = -45150; // MSVC internal compiler error: MS
 export constexpr uint32_t LEADOUT_OVERREAD_COUNT = 100;
 
 
-export enum class TrackType : uint8_t
+export enum class TrackType
 {
-    AUDIO = 0,
-    MODE1_2352 = 1,
-    MODE2_2352 = 2,
-    CDI_2352 = 3,
-    MODE1_2048 = 4,
-    MODE2_2336 = 5,
-    CDI_2336 = 6,
-    CDG = 7,
-    MODE0_2352 = 8,
-    MODE2_2048 = 9,
-    MODE2_2324 = 10,
-    ISO = 255
+    AUDIO,
+    MODE1_2352,
+    MODE2_2352,
+    CDI_2352,
+    MODE1_2048,
+    MODE2_2336,
+    CDI_2336,
+    CDG,
+    MODE0_2352,
+    MODE2_2048,
+    MODE2_2324,
+    UNKNOWN
 };
+
+
+export bool track_type_is_data_raw(TrackType track_type)
+{
+    return track_type == TrackType::MODE1_2352 || track_type == TrackType::MODE2_2352 || track_type == TrackType::CDI_2352 || track_type == TrackType::MODE0_2352;
+}
+
+
+export bool track_type_is_data_iso(TrackType track_type)
+{
+    return track_type == TrackType::MODE1_2048 || track_type == TrackType::MODE2_2048;
+}
+
+
+export bool track_type_is_data(TrackType track_type)
+{
+    return track_type_is_data_raw(track_type) || track_type_is_data_iso(track_type);
+}
 
 
 export int32_t sample_offset_a2r(uint32_t absolute)

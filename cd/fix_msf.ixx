@@ -124,7 +124,7 @@ export int redumper_fix_msf(Context &ctx, Options &options)
     std::list<std::filesystem::path> tracks;
     if(std::filesystem::exists(image_prefix + ".cue"))
         for(auto const &t : cue_get_entries(image_prefix + ".cue"))
-            if(t.second == TrackType::MODE1_2352 || t.second == TrackType::MODE2_2352 || t.second == TrackType::CDI_2352 || t.second == TrackType::MODE0_2352)
+            if(track_type_is_data_raw(t.second))
                 tracks.push_back(std::filesystem::path(options.image_path) / t.first);
 
     if(tracks.empty())

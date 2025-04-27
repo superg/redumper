@@ -203,20 +203,12 @@ export int redumper_skeleton(Context &ctx, Options &options)
         for(auto const &t : cue_get_entries(image_prefix + ".cue"))
         {
             // skip audio tracks
-            if(t.second == TrackType::AUDIO || t.second == TrackType::CDG)
+            if(!track_type_is_data(t.second))
                 continue;
-
-            // skip unsupported sector sizes
-            if(t.second == TrackType::MODE2_2336 || t.second == TrackType::CDI_2336 || t.second == TrackType::MODE2_2324)
-                continue;
-
-            bool iso = false;
-            if(t.second == TrackType::ISO || t.second == TrackType::MODE1_2048 || t.second == TrackType::MODE2_2048)
-                iso = true;
 
             auto track_prefix = (std::filesystem::path(options.image_path) / std::filesystem::path(t.first).stem()).string();
 
-            skeleton(track_prefix, (std::filesystem::path(options.image_path) / t.first).string(), iso, options);
+            skeleton(track_prefix, (std::filesystem::path(options.image_path) / t.first).string(), track_type_is_data_iso(t.second), options);
         }
     }
     else if(std::filesystem::exists(image_prefix + ".iso"))

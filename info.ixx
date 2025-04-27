@@ -45,7 +45,7 @@ export int redumper_info(Context &ctx, Options &options)
     }
     else if(std::filesystem::exists(image_prefix + ".iso"))
     {
-        tracks.emplace_back(image_prefix + ".iso", TrackType::ISO);
+        tracks.emplace_back(image_prefix + ".iso", TrackType::MODE1_2048);
     }
     else
         throw_line("image file not found");
@@ -56,9 +56,9 @@ export int redumper_info(Context &ctx, Options &options)
         std::shared_ptr<SectorReader> raw_reader;
         std::shared_ptr<SectorReader> form1_reader;
 
-        if(t.second == TrackType::ISO || t.second == TrackType::MODE1_2048 || t.second == TrackType::MODE2_2048)
+        if(track_type_is_data_iso(t.second))
             form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
-        else if(t.second == TrackType::MODE1_2352 || t.second == TrackType::MODE2_2352 || t.second == TrackType::CDI_2352 || t.second == TrackType::MODE0_2352)
+        else if(track_type_is_data_raw(t.second))
         {
             raw_reader = std::make_shared<Image_RawReader>(t.first);
             form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);

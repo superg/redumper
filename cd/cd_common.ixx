@@ -651,7 +651,7 @@ export std::list<std::pair<std::string, TrackType>> cue_get_entries(const std::f
                 else if(tokens[2] == "MODE2/2324")
                     entry.second = TrackType::MODE2_2324;
                 else
-                    entry.second = TrackType::ISO;
+                    entry.second = TrackType::UNKNOWN;
                 entries.push_back(entry);
                 entry.first.clear();
             }

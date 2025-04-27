@@ -89,7 +89,7 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
         return area_vector;
 
     uint32_t sector_size = sector_reader->sectorSize();
-    if(pvd.logical_block_size.lsb != sector_size)
+    if(pvd.logical_block_size.lsb && pvd.logical_block_size.lsb != sector_size)
         throw_line("unsupported logical block size (block size: {})", pvd.logical_block_size.lsb);
 
     std::map<uint32_t, Area> area_map;
@@ -138,7 +138,11 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
             std::string identifier((const char *)&path_table[i], pr.length);
             if(identifier == std::string(1, (char)iso9660::Characters::DIR_CURRENT))
                 identifier.clear();
-            std::string name((pr.parent_directory_number == 1 ? "" : names[pr.parent_directory_number - 1]) + "/" + identifier);
+            std::string name;
+            if(pr.parent_directory_number <= 1 || pr.parent_directory_number > names.size())
+                name = "";
+            else
+                name = names[pr.parent_directory_number - 1] + "/" + identifier;
             names.push_back(name);
 
             i += round_up(pr.length, (uint8_t)2) + pr.xa_length;
@@ -167,7 +171,11 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
                     std::string dr_name = split_identifier(dr_version, dr.first);
 
                     o = base_offset + dr.second.offset.lsb - sector_reader->sectorsBase();
-                    area_map.emplace(o, Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name });
+                    auto area = Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name };
+                    if(auto it = area_map.find(o); it == area_map.end())
+                        area_map.emplace(o, area);
+                    else if(area.size > it->second.size)
+                        it->second = area;
                 }
             }
         }

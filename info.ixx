@@ -31,14 +31,6 @@ import utils.strings;
 namespace gpsxre
 {
 
-enum class TrackType
-{
-    DATA,
-    AUDIO,
-    ISO
-};
-
-
 export int redumper_info(Context &ctx, Options &options)
 {
     int exit_code = 0;
@@ -49,11 +41,11 @@ export int redumper_info(Context &ctx, Options &options)
     if(std::filesystem::exists(image_prefix + ".cue"))
     {
         for(auto const &t : cue_get_entries(image_prefix + ".cue"))
-            tracks.emplace_back(std::filesystem::path(options.image_path) / t.first, t.second ? TrackType::DATA : TrackType::AUDIO);
+            tracks.emplace_back(std::filesystem::path(options.image_path) / t.first, t.second);
     }
     else if(std::filesystem::exists(image_prefix + ".iso"))
     {
-        tracks.emplace_back(image_prefix + ".iso", TrackType::ISO);
+        tracks.emplace_back(image_prefix + ".iso", TrackType::MODE1_2048);
     }
     else
         throw_line("image file not found");
@@ -64,9 +56,9 @@ export int redumper_info(Context &ctx, Options &options)
         std::shared_ptr<SectorReader> raw_reader;
         std::shared_ptr<SectorReader> form1_reader;
 
-        if(t.second == TrackType::ISO)
+        if(track_type_is_data_iso(t.second))
             form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
-        else if(t.second == TrackType::DATA)
+        else if(track_type_is_data_raw(t.second))
         {
             raw_reader = std::make_shared<Image_RawReader>(t.first);
             form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);

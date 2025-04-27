@@ -203,12 +203,12 @@ export int redumper_skeleton(Context &ctx, Options &options)
         for(auto const &t : cue_get_entries(image_prefix + ".cue"))
         {
             // skip audio tracks
-            if(!t.second)
+            if(!track_type_is_data(t.second))
                 continue;
 
             auto track_prefix = (std::filesystem::path(options.image_path) / std::filesystem::path(t.first).stem()).string();
 
-            skeleton(track_prefix, (std::filesystem::path(options.image_path) / t.first).string(), false, options);
+            skeleton(track_prefix, (std::filesystem::path(options.image_path) / t.first).string(), track_type_is_data_iso(t.second), options);
         }
     }
     else if(std::filesystem::exists(image_prefix + ".iso"))

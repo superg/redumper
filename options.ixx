@@ -24,6 +24,7 @@ export struct Options
     bool version;
     bool verbose;
     bool auto_eject;
+    bool skeleton;
     bool debug;
 
     std::string image_path;
@@ -77,6 +78,7 @@ export struct Options
         , version(false)
         , verbose(false)
         , auto_eject(false)
+        , skeleton(false)
         , debug(false)
         , overwrite(false)
         , force_split(false)
@@ -142,6 +144,8 @@ export struct Options
                         verbose = true;
                     else if(key == "--auto-eject")
                         auto_eject = true;
+                    else if(key == "--skeleton")
+                        skeleton = true;
                     else if(key == "--debug")
                         debug = true;
                     else if(key == "--image-path")
@@ -336,6 +340,7 @@ export struct Options
         LOG("\t--version                       \tprint version");
         LOG("\t--verbose                       \tverbose output");
         LOG("\t--auto-eject                    \tauto eject after dump");
+        LOG("\t--skeleton                      \tgenerate skeleton after dump");
         LOG("\t--drive=VALUE                   \tdrive to use, first available drive with disc, if not provided");
         LOG("\t--speed=VALUE                   \tdrive read speed, optimal drive speed will be used if not provided");
         LOG("\t--retries=VALUE                 \tnumber of sector retries in case of SCSI/C2 error (default: {})", retries);

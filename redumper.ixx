@@ -269,6 +269,8 @@ std::list<std::pair<std::string, Command>> redumper_cd_get_commands(Options &opt
     if(options.auto_eject)
         if(auto it = std::find(cd_commands.begin(), cd_commands.end(), "split"); it != cd_commands.end())
             cd_commands.insert(it, "eject");
+    if(options.skeleton)
+        cd_commands.push_back("skeleton");
 
     auto it = options.cd_continue ? std::find(cd_commands.begin(), cd_commands.end(), *options.cd_continue) : cd_commands.begin();
     if(it == cd_commands.end())

@@ -66,7 +66,7 @@ public:
         // erase software type if specified
         if(serial[2] == ' ')
             serial.erase(serial.begin(), serial.begin() + 2);
-        trim_inplace(serial);
+            erase_all_inplace(serial, ' ');
         if(!serial.empty())
             os << std::format("  serial: {}", serial) << std::endl;
 

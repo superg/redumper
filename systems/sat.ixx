@@ -152,7 +152,7 @@ private:
         if(serialversion.length() != _SERIALVERSION_SYMBOLS)
             return "";
 
-        auto v = serialversion.find('V');
+        auto v = serialversion.rfind('V');
         if(v == std::string::npos)
             return "";
 
@@ -174,7 +174,7 @@ private:
         if(serialversion.length() != _SERIALVERSION_SYMBOLS)
             return "";
 
-        auto v = serialversion.find('V');
+        auto v = serialversion.rfind('V');
         std::string serial;
         if(v == std::string::npos)
             serial = serialversion;

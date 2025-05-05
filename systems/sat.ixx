@@ -53,12 +53,11 @@ public:
         if(!date.empty())
             os << std::format("  build date: {}", date) << std::endl;
 
-        std::string version = extractVersion(std::string(rom_header->version, sizeof(rom_header->version)));
+        std::string version = extractVersion(std::string(rom_header->serialversion, sizeof(rom_header->serialversion)));
         if(!version.empty())
             os << std::format("  version: {}", version) << std::endl;
 
-        std::string serial(rom_header->serial, sizeof(rom_header->serial));
-        erase_all_inplace(serial, ' ');
+        std::string serial = extractSerial(std::string(rom_header->serialversion, sizeof(rom_header->serialversion)));
         if(!serial.empty())
             os << std::format("  serial: {}", serial) << std::endl;
 
@@ -96,7 +95,7 @@ private:
     static constexpr uint32_t _YEAR_SYMBOLS = 4;
     static constexpr uint32_t _MONTH_SYMBOLS = 2;
     static constexpr uint32_t _DAY_SYMBOLS = 2;
-    static constexpr uint32_t _VERSION_SYMBOLS = 6;
+    static constexpr uint32_t _SERIALVERSION_SYMBOLS = 16;
     static const std::map<char, std::string> _REGIONS;
 
     struct ROMHeader
@@ -104,8 +103,7 @@ private:
         char system_name[16];
         char maker_id[16];
 
-        char serial[10];
-        char version[6];
+        char serialversion[16];
 
         char date[8];
         char device_info[8];
@@ -149,13 +147,17 @@ private:
     }
 
 
-    std::string extractVersion(std::string version) const
+    std::string extractVersion(std::string serialversion) const
     {
-        if(version.length() != _VERSION_SYMBOLS)
+        if(serialversion.length() != _SERIALVERSION_SYMBOLS)
             return "";
-        if(version[0] != 'V')
+
+        auto v = serialversion.find('V');
+        if(v == std::string::npos)
             return "";
-        version.erase(0, 1);
+
+        std::string version = serialversion.substr(v + 1);
+
         erase_all_inplace(version, ' ');
         for(uint32_t i = 0; i < version.length(); ++i)
         {
@@ -164,6 +166,23 @@ private:
                 return "";
         }
         return version;
+    }
+
+
+    std::string extractSerial(std::string serialversion) const
+    {
+        if(serialversion.length() != _SERIALVERSION_SYMBOLS)
+            return "";
+
+        auto v = serialversion.find('V');
+        std::string serial;
+        if(v == std::string::npos)
+            serial = serialversion;
+        else
+            serial = serialversion.substr(0, v);
+
+        trim_inplace(serial, ' ');
+        return serial;
     }
 };
 

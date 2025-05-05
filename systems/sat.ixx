@@ -181,7 +181,7 @@ private:
         else
             serial = serialversion.substr(0, v);
 
-        trim_inplace(serial, ' ');
+        trim_inplace(serial);
         return serial;
     }
 };

@@ -35,6 +35,7 @@ public:
 
         std::vector<uint8_t> sector(sectorSize(form2));
 
+        count = count > (sectorsCount() - index) ? (sectorsCount() - index) : count;
         for(uint32_t i = 0; i < count; ++i)
         {
             bool hint = false;

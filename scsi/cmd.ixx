@@ -62,6 +62,12 @@ export void strip_response_header(std::vector<uint8_t> &data)
 }
 
 
+uint16_t parameter_list_size(const CMD_ParameterListHeader *header)
+{
+    return sizeof(header->data_length) + endian_swap(header->data_length);
+}
+
+
 // sends SCSI command once to get partial data and optionally followed by another command with appropriately sized buffer to get everything
 template<typename T>
 SPTD::Status cdb_send_receive(SPTD &sptd, std::vector<uint8_t> &response, T &cdb)
@@ -81,9 +87,7 @@ SPTD::Status cdb_send_receive(SPTD &sptd, std::vector<uint8_t> &response, T &cdb
     }
     else
     {
-        auto response_header = (CMD_ParameterListHeader *)response.data();
-
-        uint16_t response_size = sizeof(response_header->data_length) + endian_swap(response_header->data_length);
+        uint16_t response_size = parameter_list_size((CMD_ParameterListHeader *)response.data());
         if(response_size > response.size())
         {
             response.resize(round_up_pow2<uint16_t>(response_size, sizeof(uint32_t)));
@@ -93,6 +97,9 @@ SPTD::Status cdb_send_receive(SPTD &sptd, std::vector<uint8_t> &response, T &cdb
             status = sptd.sendCommand(&cdb, sizeof(cdb), response.data(), (uint32_t)response.size());
             if(status.status_code)
                 response_size = 0;
+            // always use the size from the latest read attempt, this fixes some identified KREON issues
+            else
+                response_size = parameter_list_size((CMD_ParameterListHeader *)response.data());
         }
 
         response.resize(response_size);

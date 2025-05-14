@@ -131,7 +131,6 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
         if(gap_start < area_map[i + 1].offset)
         {
             uint32_t gap_size = area_map[i + 1].offset - gap_start;
-            gap_size = gap_size > (sectors_count - gap_start) ? (sectors_count - gap_start) : gap_size;
 
             // 5% or more in relation to the total filesystem size
             if((uint64_t)gap_size * 100 / sectors_count > 5)

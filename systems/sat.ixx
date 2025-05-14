@@ -53,11 +53,9 @@ public:
         if(!date.empty())
             os << std::format("  build date: {}", date) << std::endl;
 
-        std::string version = extractVersion(std::string(rom_header->serialversion, sizeof(rom_header->serialversion)));
+        auto [version, serial] = extractSerialVersion(std::string(rom_header->serialversion, sizeof(rom_header->serialversion)));
         if(!version.empty())
             os << std::format("  version: {}", version) << std::endl;
-
-        std::string serial = extractSerial(std::string(rom_header->serialversion, sizeof(rom_header->serialversion)));
         if(!serial.empty())
             os << std::format("  serial: {}", serial) << std::endl;
 
@@ -147,42 +145,26 @@ private:
     }
 
 
-    std::string extractVersion(std::string serialversion) const
+    std::pair<std::string, std::string> extractSerialVersion(std::string serialversion) const
     {
         if(serialversion.length() != _SERIALVERSION_SYMBOLS)
             return "";
 
-        auto v = serialversion.rfind('V');
-        if(v == std::string::npos)
-            return "";
-
-        std::string version = serialversion.substr(v + 1);
-
-        erase_all_inplace(version, ' ');
-        for(uint32_t i = 0; i < version.length(); ++i)
-        {
-            char ch = version[i];
-            if(!std::isdigit(ch) && ch != '.')
-                return "";
-        }
-        return version;
-    }
-
-
-    std::string extractSerial(std::string serialversion) const
-    {
-        if(serialversion.length() != _SERIALVERSION_SYMBOLS)
-            return "";
-
-        auto v = serialversion.rfind('V');
-        std::string serial;
-        if(v == std::string::npos)
-            serial = serialversion;
-        else
-            serial = serialversion.substr(0, v);
-
+        auto p = serialversion.rfind('V');
+        std::string serial = serialversion.substr(0, p);
         trim_inplace(serial);
-        return serial;
+
+        std::string version;
+        if(p != std::string::npos)
+        {
+            auto v = serialversion.substr(p + 1);
+            erase_all_inplace(v, ' ');
+            
+            if(std::all_of(v.begin(), v.end(), [](char c) { return std::isdigit(c) || c == '.' }))
+                version = v;
+        }
+
+        return std::pair(serial, version);
     }
 };
 

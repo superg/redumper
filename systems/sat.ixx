@@ -10,6 +10,7 @@ module;
 #include <ostream>
 #include <set>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include "system.hh"
 
@@ -148,7 +149,7 @@ private:
     std::pair<std::string, std::string> extractSerialVersion(std::string serialversion) const
     {
         if(serialversion.length() != _SERIALVERSION_SYMBOLS)
-            return "";
+            return std::make_pair("", "");
 
         auto p = serialversion.rfind('V');
         std::string serial = serialversion.substr(0, p);

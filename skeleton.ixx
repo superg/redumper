@@ -87,6 +87,8 @@ void erase_sector(uint8_t *s, bool iso)
 
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
+// FIXME: needs LBA rework
+#if 0
     std::filesystem::path skeleton_path(image_prefix + ".skeleton");
     std::filesystem::path hash_path(image_prefix + ".hash");
 
@@ -112,7 +114,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
             [](const iso9660::Area &area)
             {
                 auto count = scale_up(area.size, FORM1_DATA_SIZE);
-                LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.offset, area.offset + count - 1, count, iso9660::area_type_to_string(area.type),
+                LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.lba, area.lba + count - 1, count, iso9660::area_type_to_string(area.type),
                     area.name.empty() ? "" : std::format(", name: {}", area.name));
             });
     }
@@ -125,12 +127,12 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
         std::string name(a.name.empty() ? iso9660::area_type_to_string(a.type) : a.name);
 
         if(a.type == iso9660::Area::Type::SYSTEM_AREA || a.type == iso9660::Area::Type::FILE_EXTENT)
-            contents.emplace_back(name, a.offset, scale_up(a.size, sector_reader->sectorSize()), a.size);
+            contents.emplace_back(name, a.lba, scale_up(a.size, sector_reader->sectorSize()), a.size);
 
-        uint32_t gap_start = a.offset + scale_up(a.size, sector_reader->sectorSize());
-        if(gap_start < area_map[i + 1].offset)
+        uint32_t gap_start = a.lba + scale_up(a.size, sector_reader->sectorSize());
+        if(gap_start < area_map[i + 1].lba)
         {
-            uint32_t gap_size = area_map[i + 1].offset - gap_start;
+            uint32_t gap_size = area_map[i + 1].lba - gap_start;
 
             // 5% or more in relation to the total filesystem size
             if((uint64_t)gap_size * 100 / sectors_count > 5)
@@ -189,6 +191,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
     progress_output("creating skeleton", sectors_count, sectors_count);
 
     LOGC("");
+#endif
 }
 
 

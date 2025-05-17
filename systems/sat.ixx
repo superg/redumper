@@ -91,11 +91,9 @@ public:
 private:
     static constexpr std::string_view _SYSTEM_MAGIC = "SEGA SEGASATURN";
     static constexpr uint32_t _ROM_HEADER_OFFSET = 0;
-    static constexpr uint32_t _DATE_SYMBOLS = 8;
     static constexpr uint32_t _YEAR_SYMBOLS = 4;
     static constexpr uint32_t _MONTH_SYMBOLS = 2;
     static constexpr uint32_t _DAY_SYMBOLS = 2;
-    static constexpr uint32_t _SERIALVERSION_SYMBOLS = 16;
     static const std::map<char, std::string> _REGIONS;
 
     struct ROMHeader
@@ -130,15 +128,13 @@ private:
 
     std::string extractDate(std::string date) const
     {
-        if(date.length() != _DATE_SYMBOLS)
-            return "";
         auto year_index = str_to_uint64(std::string(date, 0, _YEAR_SYMBOLS));
         if(!year_index || !number_is_year(*year_index))
             return "";
-        auto month_index = str_to_uint64(std::string(date, 4, _MONTH_SYMBOLS));
+        auto month_index = str_to_uint64(std::string(date, _YEAR_SYMBOLS, _MONTH_SYMBOLS));
         if(!month_index || !number_is_month(*month_index))
             return "";
-        auto day_index = str_to_uint64(std::string(date, 6, _DAY_SYMBOLS));
+        auto day_index = str_to_uint64(std::string(date, _YEAR_SYMBOLS + _MONTH_SYMBOLS, _DAY_SYMBOLS));
         if(!day_index || !number_is_day(*day_index))
             return "";
         date.insert(4, "-");
@@ -149,9 +145,6 @@ private:
 
     std::pair<std::string, std::string> extractSerialVersion(std::string serialversion) const
     {
-        if(serialversion.length() != _SERIALVERSION_SYMBOLS)
-            return std::make_pair("", "");
-
         auto p = serialversion.rfind('V');
         std::string serial = serialversion.substr(0, p);
         trim_inplace(serial);

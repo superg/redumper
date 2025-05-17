@@ -129,8 +129,11 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
     {
         path_table.resize(pvd.path_table_size.lsb);
 
+        // some discs are mastered with path table size equal to logical block size and padded with zeroes
+        auto zeroed_start = (uint32_t)(std::find_if(path_table.rbegin(), path_table.rend(), [](uint8_t i) { return i; }).base() - path_table.begin());
+
         std::vector<std::string> names;
-        for(uint32_t i = 0; i < path_table.size();)
+        for(uint32_t i = 0; i < zeroed_start;)
         {
             auto pr = (PathRecord &)path_table[i];
             i += sizeof(PathRecord);
@@ -138,11 +141,7 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
             std::string identifier((const char *)&path_table[i], pr.length);
             if(identifier == std::string(1, (char)iso9660::Characters::DIR_CURRENT))
                 identifier.clear();
-            std::string name;
-            if(i == 0 || pr.parent_directory_number <= 1 || pr.parent_directory_number > names.size())
-                name = "/" + identifier;
-            else
-                name = names[pr.parent_directory_number - 1] + "/" + identifier;
+            std::string name((pr.parent_directory_number == 1 ? "" : names[pr.parent_directory_number - 1]) + "/" + identifier);
             names.push_back(name);
 
             i += round_up(pr.length, (uint8_t)2) + pr.xa_length;
@@ -167,18 +166,19 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
                     if(dr.second.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY)
                         continue;
 
+                    // skip unreachable directory records
+                    if(dr.second.offset.lsb >= sectors_count)
+                        continue;
+
                     uint32_t dr_version;
                     std::string dr_name = split_identifier(dr_version, dr.first);
 
                     o = base_offset + dr.second.offset.lsb - sector_reader->sectorsBase();
-                    if(dr.second.offset.lsb <= sectors_count)
-                    {
-                        auto area = Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name };
-                        if(auto it = area_map.find(o); it == area_map.end())
-                            area_map.emplace(o, area);
-                        else if(area.size > it->second.size)
-                            it->second = area;
-                    }
+                    auto area = Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name };
+                    if(auto it = area_map.find(o); it == area_map.end())
+                        area_map.emplace(o, area);
+                    else if(area.size > it->second.size)
+                        it->second = area;
                 }
             }
         }

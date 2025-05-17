@@ -129,7 +129,7 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
     {
         path_table.resize(pvd.path_table_size.lsb);
 
-        std::vector<std::string> names{ "" };
+        std::vector<std::string> names;
         for(uint32_t i = 0; i < path_table.size();)
         {
             auto pr = (PathRecord &)path_table[i];
@@ -138,12 +138,10 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
             std::string identifier((const char *)&path_table[i], pr.length);
             if(identifier == std::string(1, (char)iso9660::Characters::DIR_CURRENT))
                 identifier.clear();
-            std::string name = "";
-            if(pr.parent_directory_number == 1 || i == 0)
+            std::string name;
+            if(i == 0 || pr.parent_directory_number <= 1 || pr.parent_directory_number > names.size())
                 name = "/" + identifier;
-            else if(pr.parent_directory_number == 0 || pr.parent_directory_number > names.size())
-                name = names.back() + "/" + identifier;
-            else if(i)
+            else
                 name = names[pr.parent_directory_number - 1] + "/" + identifier;
             names.push_back(name);
 

@@ -1,5 +1,6 @@
 module;
 
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <cstring>
@@ -10,6 +11,7 @@ module;
 #include <ostream>
 #include <set>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include "system.hh"
 
@@ -53,12 +55,9 @@ public:
         if(!date.empty())
             os << std::format("  build date: {}", date) << std::endl;
 
-        std::string version = extractVersion(std::string(rom_header->version, sizeof(rom_header->version)));
+        auto [version, serial] = extractSerialVersion(std::string(rom_header->serialversion, sizeof(rom_header->serialversion)));
         if(!version.empty())
             os << std::format("  version: {}", version) << std::endl;
-
-        std::string serial(rom_header->serial, sizeof(rom_header->serial));
-        erase_all_inplace(serial, ' ');
         if(!serial.empty())
             os << std::format("  serial: {}", serial) << std::endl;
 
@@ -96,7 +95,7 @@ private:
     static constexpr uint32_t _YEAR_SYMBOLS = 4;
     static constexpr uint32_t _MONTH_SYMBOLS = 2;
     static constexpr uint32_t _DAY_SYMBOLS = 2;
-    static constexpr uint32_t _VERSION_SYMBOLS = 6;
+    static constexpr uint32_t _SERIALVERSION_SYMBOLS = 16;
     static const std::map<char, std::string> _REGIONS;
 
     struct ROMHeader
@@ -104,8 +103,7 @@ private:
         char system_name[16];
         char maker_id[16];
 
-        char serial[10];
-        char version[6];
+        char serialversion[16];
 
         char date[8];
         char device_info[8];
@@ -149,21 +147,26 @@ private:
     }
 
 
-    std::string extractVersion(std::string version) const
+    std::pair<std::string, std::string> extractSerialVersion(std::string serialversion) const
     {
-        if(version.length() != _VERSION_SYMBOLS)
-            return "";
-        if(version[0] != 'V')
-            return "";
-        version.erase(0, 1);
-        erase_all_inplace(version, ' ');
-        for(uint32_t i = 0; i < version.length(); ++i)
+        if(serialversion.length() != _SERIALVERSION_SYMBOLS)
+            return std::make_pair("", "");
+
+        auto p = serialversion.rfind('V');
+        std::string serial = serialversion.substr(0, p);
+        trim_inplace(serial);
+
+        std::string version;
+        if(p != std::string::npos)
         {
-            char ch = version[i];
-            if(!std::isdigit(ch) && ch != '.')
-                return "";
+            auto v = serialversion.substr(p + 1);
+            erase_all_inplace(v, ' ');
+
+            if(std::all_of(v.begin(), v.end(), [](char c) { return std::isdigit(c) || c == '.'; }))
+                version = v;
         }
-        return version;
+
+        return std::pair(serial, version);
     }
 };
 

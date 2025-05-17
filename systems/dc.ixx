@@ -58,7 +58,7 @@ public:
             os << std::format("  version: {}", version) << std::endl;
 
         std::string serial(rom_header->serial, sizeof(rom_header->serial));
-        erase_all_inplace(serial, ' ');
+        trim_inplace(serial);
         if(!serial.empty())
             os << std::format("  serial: {}", serial) << std::endl;
 

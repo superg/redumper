@@ -87,6 +87,8 @@ void erase_sector(uint8_t *s, bool iso)
 
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
+// FIXME: needs LBA rework
+#if 0
     std::filesystem::path skeleton_path(image_prefix + ".skeleton");
     std::filesystem::path hash_path(image_prefix + ".hash");
 
@@ -101,8 +103,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 
     uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
 
-    // FIXME: use lba as a base
-    auto area_map = iso9660::area_map(sector_reader.get(), 0, 0);
+    auto area_map = iso9660::area_map(sector_reader.get(), 0, sectors_count);
     if(area_map.empty())
         return;
 
@@ -190,6 +191,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
     progress_output("creating skeleton", sectors_count, sectors_count);
 
     LOGC("");
+#endif
 }
 
 

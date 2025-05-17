@@ -167,9 +167,10 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
                     if(dr.second.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY)
                         continue;
 
+                    // FIXME: doesn't work with multisession discs
                     // skip unreachable directory records
-                    if(dr.second.offset.lsb >= sectors_count)
-                        continue;
+                    // if(dr.second.offset.lsb >= sectors_count)
+                    //     continue;
 
                     uint32_t dr_version;
                     std::string dr_name = split_identifier(dr_version, dr.first);

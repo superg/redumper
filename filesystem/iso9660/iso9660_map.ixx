@@ -139,16 +139,13 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
             if(identifier == std::string(1, (char)iso9660::Characters::DIR_CURRENT))
                 identifier.clear();
             std::string name = "";
-            if(pr.parent_directory_number == 0 || pr.parent_directory_number > names.size())
-            {
-                // if invalid PDN, use last good record as parent
+            if(pr.parent_directory_number == 1 || i == 0)
+                name = "/" + identifier;
+            else if(pr.parent_directory_number == 0 || pr.parent_directory_number > names.size())
                 name = names.back() + "/" + identifier;
-            }
             else if(i)
-            {
                 name = names[pr.parent_directory_number - 1] + "/" + identifier;
-                names.push_back(name);
-            }
+            names.push_back(name);
 
             i += round_up(pr.length, (uint8_t)2) + pr.xa_length;
 

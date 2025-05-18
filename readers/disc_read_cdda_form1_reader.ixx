@@ -1,13 +1,17 @@
 module;
+#include <algorithm>
 #include <cstdint>
+#include <set>
 #include <span>
 #include <string>
 #include <vector>
+#include "throw_line.hh"
 
 export module readers.disc_read_cdda_form1_reader;
 
 import cd.cdrom;
 import cd.common;
+import cd.scrambler;
 import drive;
 import readers.sector_reader;
 import scsi.cmd;
@@ -25,6 +29,7 @@ public:
         : _sptd(sptd)
         , _driveConfig(drive_config)
         , _baseLBA(base_lba)
+        , _indexShift(0)
     {
         ;
     }
@@ -37,8 +42,7 @@ public:
         for(uint32_t s = 0; s < count; ++s)
         {
             Sector sector;
-            if(!read((uint8_t *)&sector, index))
-                continue;
+            read(sector, index);
 
             uint8_t *user_data = nullptr;
             bool user_form2 = false;
@@ -75,6 +79,13 @@ public:
         return sectors_read;
     }
 
+    
+    int32_t sampleOffset(uint32_t index) override
+    {
+        Sector sector;
+        return read(sector, index);
+    }
+
 
     uint32_t sectorSize(bool form2 = false) override
     {
@@ -91,19 +102,75 @@ private:
     SPTD &_sptd;
     const DriveConfig &_driveConfig;
     uint32_t _baseLBA;
+    int32_t _indexShift;
 
-    bool read(uint8_t *sector, uint32_t index)
+    int32_t read(Sector &sector, uint32_t index)
     {
-        bool success = false;
+        int32_t sample_offset = 0;
 
+        std::set<int32_t> history;
+        history.insert(_indexShift);
+        for(;;)
+        {
+            sample_offset = read((uint8_t *)&sector, _baseLBA + index + _indexShift);
+            int32_t lba = BCDMSF_to_LBA(sector.header.address);
+
+            int32_t shift = _baseLBA + index - lba;
+            if(shift)
+            {
+                _indexShift += shift;
+                if(!history.insert(_indexShift).second)
+                    throw_line("infinite loop detected (LBA: {}, shift: {:+})", lba, _indexShift);
+            }
+            else
+                break;
+        }
+
+        return sample_offset;
+    }
+
+
+    int32_t read(uint8_t *sector, uint32_t lba)
+    {
         std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
         std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
         std::span<const uint8_t> sector_c2(sector_buffer.begin() + CD_DATA_SIZE, CD_C2_SIZE);
 
-        bool unscrambled = false;
-        SPTD::Status status = read_sector_new(_sptd, sector_buffer.data(), unscrambled, _driveConfig, _baseLBA + index);
+        constexpr uint32_t sectors_count = 2;
+        std::vector<uint8_t> sectors(CD_DATA_SIZE * sectors_count);
+        for(uint32_t i = 0; i < sectors_count; ++i)
+        {
+            bool unscrambled = false;
+            SPTD::Status status = read_sector_new(_sptd, sector_buffer.data(), unscrambled, _driveConfig, lba + i);
+            if(status.status_code)
+                throw_line("SCSI error (LBA: {}, status: {})", lba + i, SPTD::StatusMessage(status));
+            if(unscrambled)
+                throw_line("unscrambled read (LBA: {})", lba + i);
+            auto c2_bits = c2_bits_count(sector_c2);
+            if(c2_bits)
+                throw_line("C2 error (LBA: {}, bits: {})", lba + i, c2_bits);
 
-        return success;
+            std::span<uint8_t> sectors_out(sectors.begin() + i * CD_DATA_SIZE, CD_DATA_SIZE);
+            std::copy(sector_data.begin(), sector_data.end(), sectors_out.begin());
+        }
+
+        auto it = std::search(sectors.begin(), sectors.end(), std::begin(CD_DATA_SYNC), std::end(CD_DATA_SYNC));
+        if(it == sectors.end())
+            throw_line("sync not found (LBA: {})", lba);
+
+        // there might be an incomplete sector followed by a complete sector (another sync)
+        auto it2 = std::search(it + sizeof(CD_DATA_SYNC), sectors.end(), std::begin(CD_DATA_SYNC), std::end(CD_DATA_SYNC));
+        if(it2 != sectors.end() && std::distance(it, it2) < CD_DATA_SIZE)
+            it = it2;
+
+        auto sync_index = (uint32_t)std::distance(sectors.begin(), it);
+        if(sync_index + CD_DATA_SIZE > sectors.size())
+            throw_line("not enough data (LBA: {})", lba);
+
+        std::span<uint8_t> s(&sectors[sync_index], CD_DATA_SIZE);
+        Scrambler::process(sector, &s[0], 0, s.size());
+
+        return lba_to_sample(lba, -_driveConfig.read_offset + sync_index / CD_SAMPLE_SIZE);
     }
 };
 

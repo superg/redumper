@@ -6,6 +6,7 @@ module;
 
 export module readers.sector_reader;
 
+import cd.common;
 import hash.sha1;
 
 
@@ -27,6 +28,10 @@ public:
     virtual uint32_t sectorsCount() const
     {
         return std::numeric_limits<uint32_t>::max();
+    }
+    virtual int32_t sampleOffset(uint32_t index)
+    {
+        return lba_to_sample(sectorsBase() + index, 0);
     }
 
     virtual std::string calculateSHA1(uint32_t index, uint32_t count, uint32_t form1_size, bool form2 = false, bool *form_hint = nullptr)

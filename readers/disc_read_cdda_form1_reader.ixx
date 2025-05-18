@@ -79,7 +79,7 @@ public:
         return sectors_read;
     }
 
-    
+
     int32_t sampleOffset(uint32_t index) override
     {
         Sector sector;

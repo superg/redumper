@@ -16,7 +16,7 @@ import cd.toc;
 import common;
 import filesystem.iso9660;
 import options;
-import readers.disc_read_form1_reader;
+import readers.disc_read_cdda_form1_reader;
 import readers.sector_reader;
 import scsi.cmd;
 import utils.logger;
@@ -48,7 +48,7 @@ export int redumper_rings(Context &ctx, Options &options)
             if(!(t.control & (uint8_t)ChannelQ::Control::DATA) || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER) || t.indices.empty())
                 continue;
 
-            auto sector_reader = std::make_unique<Disc_READ_Reader>(*ctx.sptd, t.indices.front());
+            auto sector_reader = std::make_unique<Disc_READ_CDDA_Reader>(*ctx.sptd, ctx.drive_config, t.indices.front());
 
             auto am = iso9660::area_map(sector_reader.get(), s.tracks[i + 1].lba_start - t.indices.front());
             area_map.insert(area_map.end(), am.begin(), am.end());

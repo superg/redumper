@@ -374,7 +374,7 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 }
 
 
-export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types, const DriveConfig &drive_config, int32_t lba)
+export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba)
 {
     SPTD::Status status;
 
@@ -399,7 +399,7 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types
         auto sub_channel = layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
 
         bool read_all_types = false;
-        if(all_types)
+        if(unscrambled)
         {
             read_all_types = true;
         }
@@ -429,7 +429,7 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types
                 {
                     // scramble data back
                     Scrambler::process(data, data, 0, CD_DATA_SIZE);
-                    all_types = true;
+                    unscrambled = true;
                 }
             }
         }

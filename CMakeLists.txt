@@ -166,6 +166,7 @@ target_sources(redumper
     "hash/md5.ixx"
     "hash/sha1.ixx"
     "readers/disc_read_form1_reader.ixx"
+    "readers/disc_read_cdda_form1_reader.ixx"
     "readers/image_bin_form1_reader.ixx"
     "readers/image_iso_form1_reader.ixx"
     "readers/image_raw_reader.ixx"

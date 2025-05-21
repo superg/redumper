@@ -159,7 +159,7 @@ private:
                 version = v;
         }
 
-        return std::pair(serial, version);
+        return std::pair(version, serial);
     }
 };
 

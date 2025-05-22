@@ -465,6 +465,21 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 LOG("");
                 is_xbox = false;
             }
+            else if(xgd_type == XGD_Type::XGD3)
+            {
+                // FIXME: Detect custom leadout firmware using drive's revision level string
+                LOG("Attempting to read untouched SS from leadout...");
+                std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
+                auto ss_leadout_status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, 4267582, 1, false);
+                if(!ss_leadout_status.status_code)
+                {
+                    LOG("success, saving to file");
+                    auto ss_leadout_fn = image_prefix + ".ssleadout";
+                    write_vector(ss_leadout_fn, ss_leadout);
+                }
+                else
+                    LOG("failed to read from leadout");
+            }
 
             if(is_xbox && !physical_structures.empty())
             {

@@ -7,13 +7,13 @@ module;
 #include <vector>
 #include "throw_line.hh"
 
-export module readers.disc_read_cdda_form1_reader;
+export module readers.disc_read_cdda_data_reader;
 
 import cd.cdrom;
 import cd.common;
 import cd.scrambler;
 import drive;
-import readers.sector_reader;
+import readers.data_reader;
 import scsi.cmd;
 import scsi.sptd;
 
@@ -22,10 +22,10 @@ import scsi.sptd;
 namespace gpsxre
 {
 
-export class Disc_READ_CDDA_Reader : public SectorReader
+export class Disc_READ_CDDA_Reader : public DataReader
 {
 public:
-    Disc_READ_CDDA_Reader(SPTD &sptd, const DriveConfig &drive_config, uint32_t base_lba)
+    Disc_READ_CDDA_Reader(SPTD &sptd, const DriveConfig &drive_config, int32_t base_lba)
         : _sptd(sptd)
         , _driveConfig(drive_config)
         , _baseLBA(base_lba)
@@ -35,14 +35,14 @@ public:
     }
 
 
-    uint32_t read(uint8_t *sectors, uint32_t index, uint32_t count, bool form2 = false, bool *form_hint = nullptr) override
+    uint32_t read(uint8_t *sectors, int32_t lba, uint32_t count, bool form2 = false, bool *form_hint = nullptr) override
     {
         uint32_t sectors_read = 0;
 
         for(uint32_t s = 0; s < count; ++s)
         {
             Sector sector;
-            read(sector, index);
+            read(sector, lba);
 
             uint8_t *user_data = nullptr;
             bool user_form2 = false;
@@ -80,10 +80,10 @@ public:
     }
 
 
-    int32_t sampleOffset(uint32_t index) override
+    int32_t sampleOffset(int32_t lba) override
     {
         Sector sector;
-        return read(sector, index);
+        return read(sector, lba);
     }
 
 
@@ -93,7 +93,7 @@ public:
     }
 
 
-    uint32_t sectorsBase() override
+    int32_t sectorsBase() override
     {
         return _baseLBA;
     }
@@ -101,10 +101,10 @@ public:
 private:
     SPTD &_sptd;
     const DriveConfig &_driveConfig;
-    uint32_t _baseLBA;
+    int32_t _baseLBA;
     int32_t _indexShift;
 
-    int32_t read(Sector &sector, uint32_t index)
+    int32_t read(Sector &sector, int32_t lba)
     {
         int32_t sample_offset = 0;
 
@@ -112,15 +112,15 @@ private:
         history.insert(_indexShift);
         for(;;)
         {
-            sample_offset = read((uint8_t *)&sector, _baseLBA + index + _indexShift);
-            int32_t lba = BCDMSF_to_LBA(sector.header.address);
+            sample_offset = read((uint8_t *)&sector, lba + _indexShift);
+            int32_t sector_lba = BCDMSF_to_LBA(sector.header.address);
 
-            int32_t shift = _baseLBA + index - lba;
+            int32_t shift = lba - sector_lba;
             if(shift)
             {
                 _indexShift += shift;
                 if(!history.insert(_indexShift).second)
-                    throw_line("infinite loop detected (LBA: {}, shift: {:+})", lba, _indexShift);
+                    throw_line("infinite loop detected (LBA: {}, shift: {:+})", sector_lba, _indexShift);
             }
             else
                 break;
@@ -140,15 +140,16 @@ private:
         std::vector<uint8_t> sectors(CD_DATA_SIZE * sectors_count);
         for(uint32_t i = 0; i < sectors_count; ++i)
         {
+            int32_t lba_current = lba + i;
             bool unscrambled = false;
-            SPTD::Status status = read_sector_new(_sptd, sector_buffer.data(), unscrambled, _driveConfig, lba + i);
+            SPTD::Status status = read_sector_new(_sptd, sector_buffer.data(), unscrambled, _driveConfig, lba_current);
             if(status.status_code)
-                throw_line("SCSI error (LBA: {}, status: {})", lba + i, SPTD::StatusMessage(status));
+                throw_line("SCSI error (LBA: {}, status: {})", lba_current, SPTD::StatusMessage(status));
             if(unscrambled)
-                throw_line("unscrambled read (LBA: {})", lba + i);
+                throw_line("unscrambled read (LBA: {})", lba_current);
             auto c2_bits = c2_bits_count(sector_c2);
             if(c2_bits)
-                throw_line("C2 error (LBA: {}, bits: {})", lba + i, c2_bits);
+                throw_line("C2 error (LBA: {}, bits: {})", lba_current, c2_bits);
 
             std::span<uint8_t> sectors_out(sectors.begin() + i * CD_DATA_SIZE, CD_DATA_SIZE);
             std::copy(sector_data.begin(), sector_data.end(), sectors_out.begin());

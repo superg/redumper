@@ -16,7 +16,7 @@ import cd.toc;
 import common;
 import filesystem.iso9660;
 import options;
-import readers.disc_read_cdda_form1_reader;
+import readers.disc_read_cdda_data_reader;
 import readers.sector_reader;
 import scsi.cmd;
 import utils.logger;
@@ -38,7 +38,7 @@ export int redumper_rings(Context &ctx, Options &options)
     std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
     auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
-    std::vector<iso9660::Area> area_map;
+    std::map<uint32_t, iso9660::Area> area_map;
     for(auto &s : toc.sessions)
     {
         for(uint32_t i = 0; i + 1 < s.tracks.size(); ++i)
@@ -51,7 +51,7 @@ export int redumper_rings(Context &ctx, Options &options)
             auto sector_reader = std::make_unique<Disc_READ_CDDA_Reader>(*ctx.sptd, ctx.drive_config, t.indices.front());
 
             auto am = iso9660::area_map(sector_reader.get(), s.tracks[i + 1].lba_start - t.indices.front());
-            area_map.insert(area_map.end(), am.begin(), am.end());
+            area_map.insert(am.begin(), am.end());
         }
     }
     if(area_map.empty())
@@ -59,10 +59,11 @@ export int redumper_rings(Context &ctx, Options &options)
 
     LOG("ISO9660 map: ");
     std::for_each(area_map.cbegin(), area_map.cend(),
-        [](const iso9660::Area &area)
+        [](const std::pair<uint32_t, iso9660::Area> &p)
         {
+            auto &area = p.second;
             auto count = scale_up(area.size, FORM1_DATA_SIZE);
-            LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.lba, area.lba + count - 1, count, iso9660::area_type_to_string(area.type),
+            LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", p.first, p.first + count - 1, count, iso9660::area_type_to_string(area.type),
                 area.name.empty() ? "" : std::format(", name: {}", area.name));
         });
 

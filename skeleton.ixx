@@ -89,6 +89,11 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
 {
 // FIXME: needs LBA rework
 #if 0
+    
+                    // skip unreachable directory records
+                    if(dr.second.offset.lsb < sector_reader->sectorsBase() || dr.second.offset.lsb >= sector_reader->sectorsBase() + sectors_count)
+                        continue;
+
     std::filesystem::path skeleton_path(image_prefix + ".skeleton");
     std::filesystem::path hash_path(image_prefix + ".hash");
 

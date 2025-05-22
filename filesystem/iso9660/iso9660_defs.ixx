@@ -10,7 +10,6 @@ module;
 export module filesystem.iso9660:defs;
 
 import cd.cdrom;
-import readers.sector_reader;
 import utils.endian;
 import utils.misc;
 import utils.strings;
@@ -280,19 +279,6 @@ std::vector<std::pair<std::string, DirectoryRecord>> directory_extent_get_record
     }
 
     return directory_records;
-}
-
-
-uint32_t directory_extent_get_length(SectorReader *sector_reader, uint32_t offset)
-{
-    std::vector<uint8_t> sector(sector_reader->sectorSize());
-    if(sector_reader->read(sector.data(), offset, 1) == 1)
-    {
-        auto dr = (DirectoryRecord &)sector[0];
-        return dr.data_length.lsb;
-    }
-
-    return 0;
 }
 
 

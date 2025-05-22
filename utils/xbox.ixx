@@ -252,7 +252,7 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
 export bool xbox_repair_xgd3_ss(std::vector<uint8_t> &security_sector, std::vector<uint8_t> &ss_leadout)
 {
     // simple sanity check that leadout sector is a valid SS to repair from
-    if(!std::equal(security_sector.begin(), security_sector.begin() + 32, b.begin()))
+    if(!std::equal(security_sector.begin(), security_sector.begin() + 32, ss_leadout.begin()))
         return false;
 
     // move incorrectly placed challenge data and cpr.mai key

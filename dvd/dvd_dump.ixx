@@ -445,7 +445,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         uint32_t xbox_layer0_end_sector = 0;
         if(is_xbox)
         {
-            std::vector<uint8_t> security_sector(0x800);
+            std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
+            std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
 
             bool complete_ss = xbox_get_security_sector(*ctx.sptd, security_sector);
             if(!complete_ss)
@@ -468,17 +469,19 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             else if(xgd_type == XGD_Type::XGD3)
             {
                 // FIXME: Detect custom leadout firmware using drive's revision level string
-                LOG("Attempting to read untouched SS from leadout...");
-                std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
+                LOG("debug: attempting to rebuild SS for XGD3 disc");
                 auto ss_leadout_status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, 4267582, 1, false);
                 if(!ss_leadout_status.status_code)
                 {
-                    LOG("success, saving to file");
-                    auto ss_leadout_fn = image_prefix + ".ssleadout";
-                    write_vector(ss_leadout_fn, ss_leadout);
+                    LOG("debug: rebuilding XGD3 SS");
+                    bool repaired = xbox_repair_xgd3_ss(security_sector, ss_leadout);
+                    if(repaired)
+                        LOG("debug: SS repair success");
+                    else
+                        LOG("debug: SS repair failed");
                 }
                 else
-                    LOG("failed to read from leadout");
+                    LOG("debug: failed to read from leadout");
             }
 
             if(is_xbox && !physical_structures.empty())

@@ -263,7 +263,7 @@ export bool xbox_repair_xgd3_ss(std::vector<uint8_t> &security_sector, std::vect
     std::memcpy(&security_sector[0x044], &security_sector[0x224], 6);
     std::memcpy(&security_sector[0x04D], &security_sector[0x22D], 6);
     std::memcpy(&security_sector[0x056], &security_sector[0x236], 6);
-    std::memcpy(&security_sector[0x05F], &security_sector[0x23F], 8);
+    std::memcpy(&security_sector[0x05F], &security_sector[0x23F], 6);
     std::memcpy(&security_sector[0x0F0], &security_sector[0x2D0], 4);
 
     // repair using leadout bytes
@@ -274,7 +274,7 @@ export bool xbox_repair_xgd3_ss(std::vector<uint8_t> &security_sector, std::vect
     std::memcpy(&security_sector[0x224], &ss_leadout[0x224], 6);
     std::memcpy(&security_sector[0x22D], &ss_leadout[0x22D], 6);
     std::memcpy(&security_sector[0x236], &ss_leadout[0x236], 6);
-    std::memcpy(&security_sector[0x23F], &ss_leadout[0x23F], 8);
+    std::memcpy(&security_sector[0x23F], &ss_leadout[0x23F], 6);
     std::memcpy(&security_sector[0x2D0], &ss_leadout[0x2D0], 4);
 
     return true;

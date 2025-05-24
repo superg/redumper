@@ -103,12 +103,6 @@ std::string detect_datel(Context &ctx, const TOC &toc, std::fstream &fs_scram, s
             protection = std::format("PS2/Datel {}, C2: {}, range: {}-{}", protected_filename, range.second - range.first, range.first, range.second - 1);
 
             ctx.protection_hard.emplace_back(lba_to_sample(range.first, *write_offset), lba_to_sample(range.second, *write_offset));
-            if(ctx.protection_legacy && !*ctx.protection_legacy)
-            {
-                throw_line("mixing protection modes is unsupported");
-            }
-            else
-                ctx.protection_legacy = true;
         }
     }
 
@@ -178,12 +172,6 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
 
                 for(auto e : errors)
                     ctx.protection_hard.emplace_back(lba_to_sample(e, *write_offset), lba_to_sample(e + 1, *write_offset));
-                if(ctx.protection_legacy && !*ctx.protection_legacy)
-                {
-                    throw_line("mixing protection modes is unsupported");
-                }
-                else
-                    ctx.protection_legacy = true;
             }
         }
     }

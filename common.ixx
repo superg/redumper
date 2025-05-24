@@ -65,7 +65,6 @@ export struct Context
     std::optional<Errors> dump_errors;
     std::vector<std::pair<int32_t, int32_t>> protection_hard;
     std::vector<std::pair<int32_t, int32_t>> protection_soft;
-    std::optional<bool> protection_legacy;
     std::optional<bool> protection_trim;
     std::optional<bool> refine;
     std::optional<std::vector<std::string>> dat;

@@ -42,6 +42,7 @@ public:
         uint32_t mode2_form1 = 0;
         uint32_t mode2_form2 = 0;
         uint32_t mode2_form2_edc = 0;
+        uint32_t generated = 0;
         uint32_t msf_errors = 0;
         uint32_t ecc_errors = 0;
         uint32_t edc_errors = 0;
@@ -61,6 +62,9 @@ public:
                 ++invalid_sync;
                 continue;
             }
+
+            if(std::all_of(sector.mode2.user_data, sector.mode2.user_data + sizeof(sector.mode2.user_data), [](uint8_t v) { return v == 0x55; }))
+                ++generated;
 
             int32_t lba = BCDMSF_to_LBA(sector.header.address);
             if(lba_base)
@@ -184,6 +188,8 @@ public:
             os << std::format("  invalid sync sectors: {}", invalid_sync) << std::endl;
         if(invalid_modes)
             os << std::format("  invalid mode sectors: {}", invalid_modes) << std::endl;
+        if(generated)
+            os << std::format("  generated sectors (0x55): {}", generated) << std::endl;
         if(msf_errors)
             os << std::format("  MSF errors: {}", msf_errors) << std::endl;
         if(ecc_errors)

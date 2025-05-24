@@ -14,6 +14,6 @@ import readers.sector_reader;
 namespace gpsxre
 {
 
-export using Image_ISO_Reader = Image_SimpleReader<SectorReader, FORM1_DATA_SIZE>;
+export using Image_ISO_Form1Reader = Image_SimpleReader<SectorReader, FORM1_DATA_SIZE>;
 
 }

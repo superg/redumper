@@ -16,7 +16,7 @@ import cd.toc;
 import common;
 import filesystem.iso9660;
 import options;
-import readers.disc_read_cdda_data_reader;
+import readers.disc_read_cdda_reader;
 import readers.sector_reader;
 import scsi.cmd;
 import utils.logger;

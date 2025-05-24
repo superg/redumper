@@ -2,9 +2,10 @@ module;
 #include <cstdint>
 #include <string>
 
-export module readers.disc_read_form1_reader;
+export module readers.disc_read_reader;
 
 import cd.cdrom;
+import cd.common;
 import readers.data_reader;
 import scsi.cmd;
 import scsi.sptd;
@@ -40,6 +41,12 @@ public:
             *form_hint = false;
 
         return sectors_read;
+    }
+
+
+    int32_t sampleOffset(int32_t lba) override
+    {
+        return lba_to_sample(lba, 0);
     }
 
 

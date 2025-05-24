@@ -58,13 +58,12 @@ export int redumper_rings(Context &ctx, Options &options)
         return exit_code;
 
     LOG("ISO9660 map: ");
-    std::for_each(area_map.cbegin(), area_map.cend(),
-        [](const iso9660::Area &area)
-        {
-            auto count = scale_up(area.size, FORM1_DATA_SIZE);
-            LOG("LBA: [{:6} .. {:6}], count: {:6}, sample: [{:9} .. {:9}], type: {}{}", area.lba, area.lba + count - 1, count, area.sample_start, area.sample_end,
-                iso9660::area_type_to_string(area.type), area.name.empty() ? "" : std::format(", name: {}", area.name));
-        });
+    for(auto const &area : area_map)
+    {
+        auto count = scale_up(area.size, FORM1_DATA_SIZE);
+        LOG("LBA: [{:6} .. {:6}), count: {:6}, sample: [{:9} .. {:9}), size: {:9}, type: {}{}", area.lba, area.lba + count, count, area.sample_start, area.sample_end,
+            area.size, iso9660::area_type_to_string(area.type), area.name.empty() ? "" : std::format(", name: {}", area.name));
+    }
 
     LOG("");
     LOG("ISO9660 sample rings: ");

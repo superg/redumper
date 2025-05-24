@@ -50,7 +50,7 @@ public:
         return sectors_read;
     }
 
-    
+
     int32_t sampleOffset(int32_t lba) override
     {
         return lba_to_sample(lba, 0);

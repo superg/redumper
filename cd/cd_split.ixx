@@ -23,7 +23,6 @@ import cd.cdrom;
 import cd.common;
 import cd.ecc;
 import cd.edc;
-import cd.generate;
 import cd.offset_manager;
 import cd.scrambler;
 import cd.subcode;
@@ -168,6 +167,17 @@ void fill_track_modes(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream
 }
 
 
+bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection)
+{
+    int32_t sample = lba_to_sample(lba, offset_manager->getOffset(lba));
+    for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
+        if(find_range(protection, sample + (int32_t)i) != nullptr)
+            return true;
+
+    return false;
+}
+
+
 bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection,
     bool scrap, const Options &options)
 {
@@ -194,15 +204,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
-                const Range<int32_t> *range = nullptr;
-                int32_t sample = lba_to_sample(lba, offset_manager->getOffset(lba));
-                for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
-                {
-                    range = find_range(protection, sample + (int32_t)i);
-                    if(range != nullptr)
-                        break;
-                }
-                if(range != nullptr)
+                if(sector_is_protected(lba, offset_manager, protection))
                     continue;
 
                 uint32_t skip_count = 0;
@@ -286,81 +288,25 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
             auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, scrap, offset_manager, options);
 
-            bool ring = false;
-            Sector sector_last;
-
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
-                bool generate_sector = false;
-
                 // generate sector and fill it with fill byte (default: 0x55)
-                if(ctx.protection_legacy && *ctx.protection_legacy)
+                if(!options.leave_unchanged && sector_is_protected(lba, offset_manager, protection))
                 {
-                    if(!options.leave_unchanged)
+                    // data
+                    if(data_track)
                     {
-                        read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
-                        generate_sector = std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; });
+                        Sector &s = *(Sector *)sector.data();
+                        memcpy(s.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
+                        s.header.address = LBA_to_BCDMSF(lba);
+                        s.header.mode = t.data_mode;
+                        memset(s.mode2.user_data, optional_track(t.track_number) ? 0x00 : options.skip_fill, sizeof(s.mode2.user_data));
                     }
-
-                    if(generate_sector)
-                    {
-                        // data
-                        if(data_track)
-                        {
-                            Sector &s = *(Sector *)sector.data();
-                            memcpy(s.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC));
-                            s.header.address = LBA_to_BCDMSF(lba);
-                            s.header.mode = t.data_mode;
-                            memset(s.mode2.user_data, optional_track(t.track_number) ? 0x00 : options.skip_fill, sizeof(s.mode2.user_data));
-                        }
-                        // audio
-                        else
-                            memset(sector.data(), optional_track(t.track_number) ? 0x00 : options.skip_fill, sector.size());
-                    }
+                    // audio
+                    else
+                        memset(sector.data(), optional_track(t.track_number) ? 0x00 : options.skip_fill, sector.size());
                 }
                 else
-                {
-                    const Range<int32_t> *range = nullptr;
-                    int32_t sample = lba_to_sample(lba, offset_manager->getOffset(lba));
-                    for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
-                    {
-                        range = find_range(protection, sample + (int32_t)i);
-                        if(range != nullptr)
-                            break;
-                    }
-
-                    if(range == nullptr)
-                    {
-                        ring = false;
-                    }
-                    // inside protection range
-                    else
-                    {
-                        read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
-                        if(!ring)
-                        {
-                            ring = std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; });
-                        }
-
-                        if(ring)
-                        {
-                            generate_sector = true;
-
-                            // data
-                            if(data_track)
-                            {
-                                Sector &s = *(Sector *)sector.data();
-                                s = sector_last;
-                                regenerate_data_sector(s, lba);
-                            }
-                            // audio
-                            else
-                                throw_line("audio rings are unsupported");
-                        }
-                    }
-                }
-
-                if(!generate_sector)
                 {
                     read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offset_manager->getOffset(lba) * CD_SAMPLE_SIZE, 0);
 
@@ -380,8 +326,6 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
                             else
                                 descramble_errors.back().second = lba;
                         }
-
-                        sector_last = *(Sector *)sector.data();
                     }
                 }
 

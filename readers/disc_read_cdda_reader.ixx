@@ -9,6 +9,7 @@ module;
 
 export module readers.disc_read_cdda_reader;
 
+import cd.cd;
 import cd.cdrom;
 import cd.common;
 import cd.scrambler;

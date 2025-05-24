@@ -38,7 +38,7 @@ export int redumper_rings(Context &ctx, Options &options)
     std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
     auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
-    std::map<uint32_t, iso9660::Area> area_map;
+    std::vector<iso9660::Area> area_map;
     for(auto &s : toc.sessions)
     {
         for(uint32_t i = 0; i + 1 < s.tracks.size(); ++i)
@@ -51,7 +51,7 @@ export int redumper_rings(Context &ctx, Options &options)
             auto sector_reader = std::make_unique<Disc_READ_CDDA_Reader>(*ctx.sptd, ctx.drive_config, t.indices.front());
 
             auto am = iso9660::area_map(sector_reader.get(), s.tracks[i + 1].lba_start - t.indices.front());
-            area_map.insert(am.begin(), am.end());
+            area_map.insert(area_map.begin(), am.begin(), am.end());
         }
     }
     if(area_map.empty())
@@ -59,33 +59,26 @@ export int redumper_rings(Context &ctx, Options &options)
 
     LOG("ISO9660 map: ");
     std::for_each(area_map.cbegin(), area_map.cend(),
-        [](const std::pair<uint32_t, iso9660::Area> &p)
+        [](const iso9660::Area &area)
         {
-            auto &area = p.second;
             auto count = scale_up(area.size, FORM1_DATA_SIZE);
-            LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", p.first, p.first + count - 1, count, iso9660::area_type_to_string(area.type),
-                area.name.empty() ? "" : std::format(", name: {}", area.name));
+            LOG("LBA: [{:6} .. {:6}], count: {:6}, sample: [{:9} .. {:9}], type: {}{}", area.lba, area.lba + count - 1, count, area.sample_start, area.sample_end,
+                iso9660::area_type_to_string(area.type), area.name.empty() ? "" : std::format(", name: {}", area.name));
         });
 
-    std::vector<std::pair<int32_t, int32_t>> sample_rings;
-    // FIXME: get real values from the new sample based disc reader
-    // for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
-    // {
-    //     std::pair range(area_map[i].sample_end, area_map[i + 1].sample_start);
-    //     if(range.first < range.second)
-    //         sample_rings.push_back(range);
-    // }
-
-    if(!sample_rings.empty())
+    LOG("");
+    LOG("ISO9660 sample rings: ");
+    for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
     {
-        LOG("");
-        LOG("ISO9660 sample rings: ");
-        for(auto r : sample_rings)
-            LOG("  [{:6}, {:6})", r.first, r.second);
-    }
+        const auto &a1 = area_map[i];
+        const auto &a2 = area_map[i + 1];
 
-    for(auto r : sample_rings)
-        ctx.protection_soft.emplace_back(r.first, r.second);
+        if(a1.sample_end < a2.sample_start)
+        {
+            LOG("  LBA: [{:6}, {:6}), sample: [{:9} .. {:9}]", a1.lba, a2.lba, a1.sample_end, a2.sample_start);
+            ctx.protection_soft.emplace_back(a1.sample_end, a2.sample_start);
+        }
+    }
 
     return exit_code;
 }

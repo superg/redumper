@@ -2,10 +2,11 @@ module;
 #include <cstdint>
 #include <string>
 
-export module readers.disc_read_form1_reader;
+export module readers.disc_read_reader;
 
 import cd.cdrom;
-import readers.sector_reader;
+import cd.common;
+import readers.data_reader;
 import scsi.cmd;
 import scsi.sptd;
 
@@ -14,10 +15,10 @@ import scsi.sptd;
 namespace gpsxre
 {
 
-export class Disc_READ_FORM1_Reader : public SectorReader
+export class Disc_READ_Reader : public DataReader
 {
 public:
-    Disc_READ_FORM1_Reader(SPTD &sptd, uint32_t base_lba)
+    Disc_READ_Reader(SPTD &sptd, int32_t base_lba)
         : _sptd(sptd)
         , _baseLBA(base_lba)
     {
@@ -25,13 +26,13 @@ public:
     }
 
 
-    uint32_t read(uint8_t *sectors, uint32_t index, uint32_t count, bool form2 = false, bool *form_hint = nullptr) override
+    uint32_t read(uint8_t *sectors, int32_t lba, uint32_t count, bool form2 = false, bool *form_hint = nullptr) override
     {
         uint32_t sectors_read = 0;
 
         if(!form2)
         {
-            auto status = cmd_read(_sptd, sectors, FORM1_DATA_SIZE, _baseLBA + index, count, false);
+            auto status = cmd_read(_sptd, sectors, FORM1_DATA_SIZE, lba, count, false);
             if(!status.status_code)
                 sectors_read = count;
         }
@@ -43,20 +44,26 @@ public:
     }
 
 
+    int32_t sampleOffset(int32_t lba) override
+    {
+        return lba_to_sample(lba, 0);
+    }
+
+
     uint32_t sectorSize(bool form2 = false) override
     {
         return FORM1_DATA_SIZE;
     }
 
 
-    uint32_t sectorsBase() override
+    int32_t sectorsBase() override
     {
         return _baseLBA;
     }
 
 private:
     SPTD &_sptd;
-    uint32_t _baseLBA;
+    int32_t _baseLBA;
 };
 
 }

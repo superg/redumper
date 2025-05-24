@@ -31,6 +31,7 @@ import common;
 import filesystem.iso9660;
 import hash.sha1;
 import options;
+import range;
 import readers.image_bin_form1_reader;
 import rom_entry;
 import utils.file_io;
@@ -107,8 +108,7 @@ bool optional_track(uint32_t track_number)
 }
 
 
-void fill_track_modes(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-    const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
+void fill_track_modes(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, bool scrap, const Options &options)
 {
     Scrambler scrambler;
     std::vector<uint8_t> sector(CD_DATA_SIZE);
@@ -167,8 +167,19 @@ void fill_track_modes(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream
 }
 
 
-bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-    const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
+bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection)
+{
+    int32_t sample = lba_to_sample(lba, offset_manager->getOffset(lba));
+    for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
+        if(find_range(protection, sample + (int32_t)i) != nullptr)
+            return true;
+
+    return false;
+}
+
+
+bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection,
+    bool scrap, const Options &options)
 {
     bool no_errors = true;
 
@@ -193,7 +204,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
-                if(inside_range(lba, skip_ranges) != nullptr)
+                if(sector_is_protected(lba, offset_manager, protection))
                     continue;
 
                 uint32_t skip_count = 0;
@@ -233,7 +244,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
 
 std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-    const std::vector<std::pair<int32_t, int32_t>> &skip_ranges, bool scrap, const Options &options)
+    const std::vector<Range<int32_t>> &protection, bool scrap, const Options &options)
 {
     std::vector<std::string> xml_lines;
 
@@ -279,15 +290,8 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
-                bool generate_sector = false;
-                if(!options.leave_unchanged)
-                {
-                    read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
-                    generate_sector = std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; });
-                }
-
                 // generate sector and fill it with fill byte (default: 0x55)
-                if(generate_sector)
+                if(!options.leave_unchanged && sector_is_protected(lba, offset_manager, protection))
                 {
                     // data
                     if(data_track)
@@ -1353,24 +1357,24 @@ export void redumper_split_cd(Context &ctx, Options &options)
             }
     }
 
-    std::vector<std::pair<int32_t, int32_t>> skip_ranges = string_to_ranges(options.skip);
-    // FIXME: negated offset is confusing, simplify
-    std::vector<std::pair<int32_t, int32_t>> protection_ranges = get_protection_sectors(ctx, -offset_manager->getOffset(0));
-    skip_ranges.insert(skip_ranges.begin(), protection_ranges.begin(), protection_ranges.end());
+    std::vector<Range<int32_t>> protection;
+    protection_to_ranges(protection, ctx.protection_hard);
+    protection_to_ranges(protection, ctx.protection_soft);
+    protection_ranges_from_lba_ranges(protection, string_to_ranges(options.skip), 0);
 
     // determine data track modes
-    fill_track_modes(ctx, toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
+    fill_track_modes(ctx, toc, scm_fs, state_fs, offset_manager, scrap, options);
 
     // check tracks
     LOG("checking tracks");
-    if(!check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options) && !options.force_split)
+    if(!check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, scrap, options) && !options.force_split)
         throw_line("data errors detected, unable to continue");
     LOG("done");
     LOG("");
 
     // write tracks
     LOG("writing tracks");
-    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, skip_ranges, scrap, options);
+    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, scrap, options);
     LOG("done");
     LOG("");
 

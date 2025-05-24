@@ -57,7 +57,7 @@ export int redumper_info(Context &ctx, Options &options)
         std::shared_ptr<SectorReader> form1_reader;
 
         if(track_type_is_data_iso(t.second))
-            form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
+            form1_reader = std::make_shared<Image_ISO_Form1Reader>(t.first);
         else if(track_type_is_data_raw(t.second))
         {
             raw_reader = std::make_shared<Image_RawReader>(t.first);

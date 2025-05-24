@@ -44,20 +44,8 @@ import utils.strings;
 namespace gpsxre
 {
 
-const uint32_t SLOW_SECTOR_TIMEOUT = 5;
+const uint32_t SLOW_SECTOR_TIMEOUT = 4;
 const uint32_t SUBCODE_BYTE_DESYNC_COUNT = 5;
-
-
-std::vector<Range<int32_t>> protection_to_ranges(std::span<const std::pair<int32_t, int32_t>> protection)
-{
-    std::vector<Range<int32_t>> ranges;
-
-    for(auto const &p : protection)
-        if(!insert_range(ranges, { p.first, p.second }))
-            throw_line("invalid protection configuration");
-
-    return ranges;
-}
 
 
 void protection_ranges_from_toc(std::vector<Range<int32_t>> &ranges, const TOC &toc, const DriveConfig &drive_config)
@@ -66,17 +54,6 @@ void protection_ranges_from_toc(std::vector<Range<int32_t>> &ranges, const TOC &
     {
         Range r{ lba_to_sample(toc.sessions[i - 1].tracks.back().lba_end, -drive_config.read_offset),
             lba_to_sample(toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start, -drive_config.read_offset) };
-        if(!insert_range(ranges, r))
-            throw_line("invalid protection configuration");
-    }
-}
-
-
-void protection_ranges_from_lba_ranges(std::vector<Range<int32_t>> &ranges, std::span<const std::pair<int32_t, int32_t>> lba_ranges, int32_t offset)
-{
-    for(auto const &p : lba_ranges)
-    {
-        Range r{ lba_to_sample(p.first, offset), lba_to_sample(p.second, offset) };
         if(!insert_range(ranges, r))
             throw_line("invalid protection configuration");
     }
@@ -322,9 +299,11 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         }
     }
 
-    std::vector<Range<int32_t>> protection_hard(protection_to_ranges(ctx.protection_hard));
+    std::vector<Range<int32_t>> protection_hard;
+    protection_to_ranges(protection_hard, ctx.protection_hard);
     protection_ranges_from_lba_ranges(protection_hard, string_to_ranges(options.skip), -ctx.drive_config.read_offset);
-    std::vector<Range<int32_t>> protection_soft(protection_to_ranges(ctx.protection_soft));
+    std::vector<Range<int32_t>> protection_soft;
+    protection_to_ranges(protection_soft, ctx.protection_soft);
     protection_ranges_from_toc(protection_soft, toc, ctx.drive_config);
 
     Errors errors_initial = {};
@@ -412,7 +391,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
             auto protection_range = protection_full_sector(protection_soft, lba_to_sample(lba, all_types ? -data_drive_offset : -ctx.drive_config.read_offset));
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
-            if(protection_range != nullptr && slow_sector)
+            if(protection_range != nullptr && (status.status_code || c2_bits_count(sector_c2) || slow_sector))
             {
                 int32_t lba_jump = std::min(sample_to_lba(protection_range->end, -data_drive_offset), sample_to_lba(protection_range->end, -ctx.drive_config.read_offset));
                 LOG_R("[LBA: {:6}] jump (LBA: {:6})", lba, lba_jump);

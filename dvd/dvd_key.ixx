@@ -135,7 +135,7 @@ export int redumper_dvdkey(Context &ctx, Options &options)
 
         if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
         {
-            Disc_READ_Reader reader(*ctx.sptd, 0);
+            Disc_READ_FORM1_Reader reader(*ctx.sptd, 0);
             auto vobs = extract_vob_list(&reader);
 
             bool cppm = false;

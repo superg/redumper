@@ -7,7 +7,7 @@ module;
 #include <vector>
 #include "throw_line.hh"
 
-export module readers.disc_read_cdda_data_reader;
+export module readers.disc_read_cdda_reader;
 
 import cd.cdrom;
 import cd.common;

@@ -20,7 +20,7 @@ import cd.common;
 import common;
 import filesystem.iso9660;
 import options;
-import readers.sector_reader;
+import readers.data_reader;
 import readers.image_bin_form1_reader;
 import readers.image_iso_form1_reader;
 import utils.animation;
@@ -87,7 +87,6 @@ void erase_sector(uint8_t *s, bool iso)
 
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
-// FIXME: needs LBA rework
 #if 0
     std::filesystem::path skeleton_path(image_prefix + ".skeleton");
     std::filesystem::path hash_path(image_prefix + ".hash");
@@ -95,15 +94,15 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
     if(!options.overwrite && (std::filesystem::exists(skeleton_path) || std::filesystem::exists(hash_path)))
         throw_line("skeleton/hash file already exists");
 
-    std::unique_ptr<SectorReader> sector_reader;
+    std::unique_ptr<SectorReader> data_reader;
     if(iso)
-        sector_reader = std::make_unique<Image_ISO_Reader>(image_path);
+        data_reader = std::make_unique<Image_ISO_Reader>(image_path);
     else
-        sector_reader = std::make_unique<Image_BIN_Form1Reader>(image_path);
+        data_reader = std::make_unique<Image_BIN_Form1Reader>(image_path);
 
     uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
 
-    auto area_map = iso9660::area_map(sector_reader.get(), 0, sectors_count);
+    auto area_map = iso9660::area_map(data_reader.get(), sectors_count);
     if(area_map.empty())
         return;
 
@@ -127,16 +126,16 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
         std::string name(a.name.empty() ? iso9660::area_type_to_string(a.type) : a.name);
 
         if(a.type == iso9660::Area::Type::SYSTEM_AREA || a.type == iso9660::Area::Type::FILE_EXTENT)
-            contents.emplace_back(name, a.lba, scale_up(a.size, sector_reader->sectorSize()), a.size);
+            contents.emplace_back(name, a.lba, scale_up(a.size, data_reader->sectorSize()), a.size);
 
-        uint32_t gap_start = a.lba + scale_up(a.size, sector_reader->sectorSize());
+        uint32_t gap_start = a.lba + scale_up(a.size, data_reader->sectorSize());
         if(gap_start < area_map[i + 1].lba)
         {
             uint32_t gap_size = area_map[i + 1].lba - gap_start;
 
             // 5% or more in relation to the total filesystem size
             if((uint64_t)gap_size * 100 / sectors_count > 5)
-                contents.emplace_back(std::format("GAP_{:07}", gap_start), gap_start, gap_size, gap_size * sector_reader->sectorSize());
+                contents.emplace_back(std::format("GAP_{:07}", gap_start), gap_start, gap_size, gap_size * data_reader->sectorSize());
         }
     }
 
@@ -154,10 +153,10 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
         progress_output(std::format("hashing {}", std::get<0>(c)), contents_sectors_processed, contents_sectors_count);
 
         bool xa = false;
-        hash_fs << std::format("{} {}", sector_reader->calculateSHA1(std::get<1>(c), std::get<2>(c), std::get<3>(c), false, &xa), std::get<0>(c)) << std::endl;
+        hash_fs << std::format("{} {}", data_reader->calculateSHA1(std::get<1>(c), std::get<2>(c), std::get<3>(c), false, &xa), std::get<0>(c)) << std::endl;
 
         if(xa)
-            hash_fs << std::format("{} {}.XA", sector_reader->calculateSHA1(std::get<1>(c), std::get<2>(c), std::get<3>(c), true), std::get<0>(c)) << std::endl;
+            hash_fs << std::format("{} {}.XA", data_reader->calculateSHA1(std::get<1>(c), std::get<2>(c), std::get<3>(c), true), std::get<0>(c)) << std::endl;
 
         contents_sectors_processed += std::get<2>(c);
     }

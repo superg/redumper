@@ -206,7 +206,7 @@ export int redumper_dvdisokey(Context &ctx, Options &options)
 
     std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
 
-    Image_ISO_Reader reader(scm_path);
+    Image_ISO_Form1Reader reader(scm_path);
     auto vobs = extract_vob_list(&reader);
     if(!vobs.empty())
     {

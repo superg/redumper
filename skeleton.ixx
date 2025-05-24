@@ -21,8 +21,8 @@ import common;
 import filesystem.iso9660;
 import options;
 import readers.data_reader;
-import readers.image_bin_form1_reader;
-import readers.image_iso_form1_reader;
+import readers.image_bin_reader;
+import readers.image_iso_reader;
 import utils.animation;
 import utils.logger;
 import utils.misc;
@@ -87,18 +87,17 @@ void erase_sector(uint8_t *s, bool iso)
 
 void skeleton(const std::string &image_prefix, const std::string &image_path, bool iso, Options &options)
 {
-#if 0
     std::filesystem::path skeleton_path(image_prefix + ".skeleton");
     std::filesystem::path hash_path(image_prefix + ".hash");
 
     if(!options.overwrite && (std::filesystem::exists(skeleton_path) || std::filesystem::exists(hash_path)))
         throw_line("skeleton/hash file already exists");
 
-    std::unique_ptr<SectorReader> data_reader;
+    std::unique_ptr<DataReader> data_reader;
     if(iso)
         data_reader = std::make_unique<Image_ISO_Reader>(image_path);
     else
-        data_reader = std::make_unique<Image_BIN_Form1Reader>(image_path);
+        data_reader = std::make_unique<Image_BIN_Reader>(image_path);
 
     uint32_t sectors_count = std::filesystem::file_size(image_path) / (iso ? FORM1_DATA_SIZE : CD_DATA_SIZE);
 
@@ -113,7 +112,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
             [](const iso9660::Area &area)
             {
                 auto count = scale_up(area.size, FORM1_DATA_SIZE);
-                LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.lba, area.lba + count - 1, count, iso9660::area_type_to_string(area.type),
+                LOG("LBA: [{:7} .. {:7}], count: {:6}, type: {}{}", area.lba, area.lba + count - 1, count, iso9660::area_type_to_string(area.type),
                     area.name.empty() ? "" : std::format(", name: {}", area.name));
             });
     }
@@ -190,7 +189,6 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
     progress_output("creating skeleton", sectors_count, sectors_count);
 
     LOGC("");
-#endif
 }
 
 

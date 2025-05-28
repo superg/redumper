@@ -36,16 +36,16 @@ struct AsusConfig
 // 0x0B00 end
 constexpr uint32_t ASUS_CACHE_ENTRY_SIZE = 0xB00;
 
-static const std::map<DriveConfig::Type, AsusConfig> ASUS_CACHE_CONFIG = {
-    { DriveConfig::Type::LG_ASU8A, { 8, 2806 } },
-    { DriveConfig::Type::LG_ASU8B, { 8, 1079 } },
-    { DriveConfig::Type::LG_ASU8C, { 8, 1268 } },
-    { DriveConfig::Type::LG_ASU3,  { 3, 1070 } },
-    { DriveConfig::Type::LG_ASU2,  { 2, 586 }  }
+static const std::map<Type, AsusConfig> ASUS_CACHE_CONFIG = {
+    { Type::LG_ASU8A, { 8, 2806 } },
+    { Type::LG_ASU8B, { 8, 1079 } },
+    { Type::LG_ASU8C, { 8, 1268 } },
+    { Type::LG_ASU3,  { 3, 1070 } },
+    { Type::LG_ASU2,  { 2, 586 }  }
 };
 
 
-export AsusConfig asus_get_config(DriveConfig::Type type)
+export AsusConfig asus_get_config(Type type)
 {
     AsusConfig asus_config = { 0, 0 };
 
@@ -84,7 +84,7 @@ export SPTD::Status asus_cache_read(SPTD &sptd, std::vector<uint8_t> &cache, uin
 }
 
 
-export std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32_t lba_start, uint32_t entries_count, DriveConfig::Type drive_type)
+export std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache, int32_t lba_start, uint32_t entries_count, Type drive_type)
 {
     uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 
@@ -191,7 +191,7 @@ export std::vector<uint8_t> asus_cache_extract(const std::vector<uint8_t> &cache
 }
 
 
-export void asus_cache_print_subq(const std::vector<uint8_t> &cache, DriveConfig::Type drive_type)
+export void asus_cache_print_subq(const std::vector<uint8_t> &cache, Type drive_type)
 {
     uint32_t cache_entries_count = asus_get_config(drive_type).entries_count;
 

@@ -32,6 +32,10 @@ int main(int argc, char *argv[])
             options.printUsage();
         else if(options.version)
             LOG("{}", redumper_version());
+        else if(options.list_recommended_drives)
+            redumper_print_drives(false);
+        else if(options.list_all_drives)
+            redumper_print_drives(true);
         else
         {
             exit_code = redumper(options);

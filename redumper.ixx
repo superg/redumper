@@ -340,6 +340,12 @@ std::string generate_image_name(std::string drive)
 }
 
 
+export void redumper_print_drives(bool all)
+{
+    print_drives(all);
+}
+
+
 export int redumper(Options &options)
 {
     std::list<std::pair<std::string, Command>> commands;
@@ -415,6 +421,9 @@ export int redumper(Options &options)
         ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
         drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(),
             options.drive_read_method.get(), options.drive_sector_order.get());
+
+        if(!drive_is_recommended(ctx.drive_config.vendor_id, ctx.drive_config.product_id, ctx.drive_config.product_revision_level))
+            LOG("warning: using generic drive");
     }
 
     if(!options.arguments.empty())

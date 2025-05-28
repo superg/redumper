@@ -285,6 +285,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     std::vector<uint8_t> sector_protection_d(CD_DATA_SIZE_SAMPLES);
     std::vector<uint8_t> sector_subcode_file(CD_SUBCODE_SIZE);
 
+    bool data_unscrambled_message = false;
+
     int32_t data_drive_offset = ctx.drive_config.read_offset;
     if(options.dump_write_offset)
         data_drive_offset = -*options.dump_write_offset;
@@ -385,11 +387,17 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
             // read sector
             auto read_time_start = std::chrono::high_resolution_clock::now();
-            bool all_types = options.force_unscrambled;
-            auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
+            bool unscrambled = options.force_unscrambled;
+            auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba);
             auto read_time_stop = std::chrono::high_resolution_clock::now();
 
-            auto protection_range = protection_full_sector(protection_soft, lba_to_sample(lba, all_types ? -data_drive_offset : -ctx.drive_config.read_offset));
+            if(!data_unscrambled_message && unscrambled)
+            {
+                LOG("warning: unscrambled sector read");
+                data_unscrambled_message = true;
+            }
+
+            auto protection_range = protection_full_sector(protection_soft, lba_to_sample(lba, unscrambled ? -data_drive_offset : -ctx.drive_config.read_offset));
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
             if(protection_range != nullptr && (status.status_code || c2_bits_count(sector_c2) || slow_sector))
             {
@@ -440,11 +448,11 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 }
 
                 if(!read_as_data)
-                    read_as_data = all_types;
+                    read_as_data = unscrambled;
 
-                if(*read_as_data == all_types)
+                if(*read_as_data == unscrambled)
                 {
-                    std::span<const uint8_t> sector_protection(all_types ? sector_protection_d : sector_protection_a);
+                    std::span<const uint8_t> sector_protection(unscrambled ? sector_protection_d : sector_protection_a);
 
                     uint32_t c2_bits = c2_bits_count(sector_c2);
                     if(c2_bits)
@@ -467,8 +475,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                         }
                     }
 
-                    std::span<State> sector_state_file(all_types ? sector_state_file_d : sector_state_file_a);
-                    std::span<uint8_t> sector_data_file(all_types ? sector_data_file_d : sector_data_file_a);
+                    std::span<State> sector_state_file(unscrambled ? sector_state_file_d : sector_state_file_a);
+                    std::span<uint8_t> sector_data_file(unscrambled ? sector_data_file_d : sector_data_file_a);
 
                     uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
                     uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
@@ -476,7 +484,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                     bool data_updated = sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data(), State::SUCCESS), sector_data, sector_protection);
                     if(data_updated)
                     {
-                        int32_t offset = all_types ? data_drive_offset : ctx.drive_config.read_offset;
+                        int32_t offset = unscrambled ? data_drive_offset : ctx.drive_config.read_offset;
                         write_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
                         write_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
 
@@ -503,7 +511,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 }
                 else
                 {
-                    LOG_R("[LBA: {:6}] unexpected read type on retry (retry: {}, read type: {})", lba, r, all_types ? "DATA" : "AUDIO");
+                    LOG_R("[LBA: {:6}] unexpected read type on retry (retry: {}, read type: {})", lba, r, unscrambled ? "DATA" : "AUDIO");
                 }
             }
 

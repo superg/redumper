@@ -388,9 +388,9 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &unscrambl
     std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
 
     // D8
-    if(drive_config.read_method == DriveConfig::ReadMethod::D8)
+    if(drive_config.read_method == ReadMethod::D8)
     {
-        auto sub_code = drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
+        auto sub_code = drive_config.sector_order == SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
         status = cmd_read_cdda(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, sub_code);
     }
     else

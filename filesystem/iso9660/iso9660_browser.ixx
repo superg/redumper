@@ -15,6 +15,7 @@ import :entry;
 
 import cd.cd;
 import cd.cdrom;
+import readers.data_reader;
 import readers.sector_reader;
 
 
@@ -33,6 +34,29 @@ public:
         system_area.resize(sectors_count * FORM1_DATA_SIZE);
 
         return system_area;
+    }
+
+
+    static bool findDescriptor(VolumeDescriptor &descriptor, DataReader *data_reader, VolumeDescriptorType type)
+    {
+        bool found = false;
+
+        for(uint32_t s = SYSTEM_AREA_SIZE; data_reader->read((uint8_t *)&descriptor, data_reader->sectorsBase() + s, 1) == 1; ++s)
+        {
+            if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier))
+                && memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
+                break;
+
+            if(descriptor.type == type)
+            {
+                found = true;
+                break;
+            }
+            else if(descriptor.type == VolumeDescriptorType::SET_TERMINATOR)
+                break;
+        }
+
+        return found;
     }
 
 

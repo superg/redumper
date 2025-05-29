@@ -135,7 +135,7 @@ export int redumper_dvdkey(Context &ctx, Options &options)
 
         if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
         {
-            Disc_READ_Reader reader(*ctx.sptd, 0);
+            Disc_READ_FORM1_Reader reader(*ctx.sptd, 0);
             auto vobs = extract_vob_list(&reader);
 
             bool cppm = false;
@@ -206,7 +206,7 @@ export int redumper_dvdisokey(Context &ctx, Options &options)
 
     std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
 
-    Image_ISO_Reader reader(scm_path);
+    Image_ISO_Form1Reader reader(scm_path);
     auto vobs = extract_vob_list(&reader);
     if(!vobs.empty())
     {

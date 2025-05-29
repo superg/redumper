@@ -25,6 +25,7 @@ import cd.toc;
 import common;
 import drive;
 import options;
+import range;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -373,7 +374,7 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 }
 
 
-export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types, const DriveConfig &drive_config, int32_t lba)
+export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba)
 {
     SPTD::Status status;
 
@@ -387,9 +388,9 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types
     std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
 
     // D8
-    if(drive_config.read_method == DriveConfig::ReadMethod::D8)
+    if(drive_config.read_method == ReadMethod::D8)
     {
-        auto sub_code = drive_config.sector_order == DriveConfig::SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
+        auto sub_code = drive_config.sector_order == SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
         status = cmd_read_cdda(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, sub_code);
     }
     else
@@ -398,7 +399,7 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types
         auto sub_channel = layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
 
         bool read_all_types = false;
-        if(all_types)
+        if(unscrambled)
         {
             read_all_types = true;
         }
@@ -428,7 +429,7 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &all_types
                 {
                     // scramble data back
                     Scrambler::process(data, data, 0, CD_DATA_SIZE);
-                    all_types = true;
+                    unscrambled = true;
                 }
             }
         }
@@ -670,6 +671,25 @@ export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Con
         protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
 
     return protection;
+}
+
+
+export void protection_to_ranges(std::vector<Range<int32_t>> &ranges, std::span<const std::pair<int32_t, int32_t>> protection)
+{
+    for(auto const &p : protection)
+        if(!insert_range(ranges, { p.first, p.second }))
+            throw_line("invalid protection configuration");
+}
+
+
+export void protection_ranges_from_lba_ranges(std::vector<Range<int32_t>> &ranges, std::span<const std::pair<int32_t, int32_t>> lba_ranges, int32_t offset)
+{
+    for(auto const &p : lba_ranges)
+    {
+        Range r{ lba_to_sample(p.first, offset), lba_to_sample(p.second, offset) };
+        if(!insert_range(ranges, r))
+            throw_line("invalid protection configuration");
+    }
 }
 
 }

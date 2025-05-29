@@ -62,7 +62,6 @@ export struct Context
     std::shared_ptr<SPTD> sptd;
     DriveConfig drive_config;
 
-    std::optional<std::vector<std::pair<int32_t, int32_t>>> rings;
     std::optional<Errors> dump_errors;
     std::vector<std::pair<int32_t, int32_t>> protection_hard;
     std::vector<std::pair<int32_t, int32_t>> protection_soft;

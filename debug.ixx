@@ -112,15 +112,27 @@ export int redumper_debug(Context &ctx, Options &options)
     std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path cache_path(image_prefix + ".asus");
     std::filesystem::path toc_path(image_prefix + ".toc");
+    std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
     std::filesystem::path cdtext_path(image_prefix + ".cdtext");
     std::filesystem::path cue_path(image_prefix + ".cue");
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
 
+    if(0)
+    {
+        std::vector<uint8_t> fulltoc_buffer = read_vector(fulltoc_path);
+
+        TOC toc_full(fulltoc_buffer, true);
+
+        print_toc(toc_full);
+        LOG("");
+    }
+
     // CDB decode
     if(0)
     {
-        uint8_t cdb_raw[] = { 0xbe, 0x04, 0x00, 0x00, 0x0b, 0xd0, 0x00, 0x00, 0x18, 0x14, 0x00, 0x00 };
+        // uint8_t cdb_raw[] = { 0xbe, 0x04, 0x00, 0x00, 0x0b, 0xd0, 0x00, 0x00, 0x18, 0x14, 0x00, 0x00 };
+        uint8_t cdb_raw[] = { 0xbe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xf8, 0x04, 0x00 };
         auto cdb = (CDB12_ReadCD *)cdb_raw;
 
         LOG("");
@@ -227,7 +239,7 @@ export int redumper_debug(Context &ctx, Options &options)
     {
         SPTD sptd(options.drive);
         std::vector<uint8_t> cache;
-        SPTD::Status status = asus_cache_read(sptd, cache, 1024 * 1024 * asus_get_config(DriveConfig::Type::LG_ASU3).size_mb);
+        SPTD::Status status = asus_cache_read(sptd, cache, 1024 * 1024 * asus_get_config(Type::LG_ASU3).size_mb);
 
         LOG("");
     }
@@ -237,7 +249,7 @@ export int redumper_debug(Context &ctx, Options &options)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 
-        auto drive_type = DriveConfig::Type::LG_ASU8C;
+        auto drive_type = Type::LG_ASU8C;
         asus_cache_print_subq(cache, drive_type);
 
         // auto asd = asus_cache_unroll(cache);

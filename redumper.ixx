@@ -266,21 +266,34 @@ std::list<std::pair<std::string, Command>> redumper_cd_get_commands(Options &opt
     std::list<std::pair<std::string, Command>> commands;
 
     std::list<std::string> cd_commands{ "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
+    if(options.rings)
+        cd_commands.insert(cd_commands.begin(), "rings");
     if(options.auto_eject)
+    {
         if(auto it = std::find(cd_commands.begin(), cd_commands.end(), "split"); it != cd_commands.end())
             cd_commands.insert(it, "eject");
+    }
     if(options.skeleton)
         cd_commands.push_back("skeleton");
 
-    auto it = options.cd_continue ? std::find(cd_commands.begin(), cd_commands.end(), *options.cd_continue) : cd_commands.begin();
-    if(it == cd_commands.end())
+    if(auto cit = options.cd_continue ? std::find(cd_commands.begin(), cd_commands.end(), *options.cd_continue) : cd_commands.begin(); cit == cd_commands.end())
         throw_line("cd continue command is unavailable (command: {})", *options.cd_continue);
-
-    for(; it != cd_commands.end(); ++it)
+    else
     {
-        auto handler_it = COMMANDS.find(*it);
+        for(auto it = cd_commands.begin(); it != cit;)
+        {
+            if(*it != "rings" && *it != "protection")
+                it = cd_commands.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    for(auto c : cd_commands)
+    {
+        auto handler_it = COMMANDS.find(c);
         if(handler_it == COMMANDS.end())
-            throw_line("unknown command (command: {})", *it);
+            throw_line("unknown command (command: {})", c);
 
         commands.emplace_back(handler_it->first, handler_it->second);
     }
@@ -324,6 +337,12 @@ std::string generate_image_name(std::string drive)
     erase_all_inplace(d, ':');
 
     return std::format("dump_{}_{}", system_date_time("%y%m%d_%H%M%S"), d);
+}
+
+
+export void redumper_print_drives(bool all)
+{
+    print_drives(all);
 }
 
 
@@ -429,6 +448,9 @@ export int redumper(Options &options)
             }
 
             ctx.disc_type = options.disc_type ? string_to_enum(*options.disc_type, DISC_TYPE_STRING) : profile_to_disc_type(current_profile);
+
+            if(!drive_is_recommended(ctx.drive_config.vendor_id, ctx.drive_config.product_id, ctx.drive_config.product_revision_level) && ctx.disc_type == DiscType::CD)
+                LOG("warning: using generic drive");
 
             // set drive speed
             uint16_t speed = 0xFFFF;

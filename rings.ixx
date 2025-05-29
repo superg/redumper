@@ -2,6 +2,8 @@ module;
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <set>
+#include <span>
 #include <vector>
 #include "throw_line.hh"
 
@@ -14,11 +16,12 @@ import cd.scrambler;
 import cd.subcode;
 import cd.toc;
 import common;
+import drive;
 import filesystem.iso9660;
 import options;
-import readers.disc_read_form1_reader;
-import readers.sector_reader;
+import readers.disc_read_reader;
 import scsi.cmd;
+import scsi.sptd;
 import utils.logger;
 import utils.misc;
 
@@ -26,6 +29,79 @@ import utils.misc;
 
 namespace gpsxre
 {
+
+int32_t read_scrambled(SPTD &sptd, const DriveConfig &drive_config, uint8_t *sector, uint32_t lba)
+{
+    std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+    std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
+    std::span<const uint8_t> sector_c2(sector_buffer.begin() + CD_DATA_SIZE, CD_C2_SIZE);
+
+    constexpr uint32_t sectors_count = 2;
+    std::vector<uint8_t> sectors(CD_DATA_SIZE * sectors_count);
+    for(uint32_t i = 0; i < sectors_count; ++i)
+    {
+        int32_t lba_current = lba + i;
+        bool unscrambled = false;
+        SPTD::Status status = read_sector_new(sptd, sector_buffer.data(), unscrambled, drive_config, lba_current);
+        if(status.status_code)
+            throw_line("SCSI error (LBA: {}, status: {})", lba_current, SPTD::StatusMessage(status));
+        if(unscrambled)
+            throw_line("unscrambled read (LBA: {})", lba_current);
+        auto c2_bits = c2_bits_count(sector_c2);
+        if(c2_bits)
+            throw_line("C2 error (LBA: {}, bits: {})", lba_current, c2_bits);
+
+        std::span<uint8_t> sectors_out(sectors.begin() + i * CD_DATA_SIZE, CD_DATA_SIZE);
+        std::copy(sector_data.begin(), sector_data.end(), sectors_out.begin());
+    }
+
+    auto it = std::search(sectors.begin(), sectors.end(), std::begin(CD_DATA_SYNC), std::end(CD_DATA_SYNC));
+    if(it == sectors.end())
+        throw_line("sync not found (LBA: {})", lba);
+
+    // there might be an incomplete sector followed by a complete sector (another sync)
+    auto it2 = std::search(it + sizeof(CD_DATA_SYNC), sectors.end(), std::begin(CD_DATA_SYNC), std::end(CD_DATA_SYNC));
+    if(it2 != sectors.end() && std::distance(it, it2) < CD_DATA_SIZE)
+        it = it2;
+
+    auto sync_index = (uint32_t)std::distance(sectors.begin(), it);
+    if(sync_index + CD_DATA_SIZE > sectors.size())
+        throw_line("not enough data (LBA: {})", lba);
+
+    std::span<uint8_t> s(&sectors[sync_index], CD_DATA_SIZE);
+    Scrambler::process(sector, &s[0], 0, s.size());
+
+    return lba_to_sample(lba, -drive_config.read_offset + sync_index / CD_SAMPLE_SIZE);
+}
+
+
+int32_t find_sample_offset(SPTD &sptd, const DriveConfig &drive_config, int32_t lba)
+{
+    int32_t sample_offset = 0;
+
+    int32_t index_shift = 0;
+    std::set<int32_t> history;
+    history.insert(index_shift);
+    for(;;)
+    {
+        Sector sector;
+        sample_offset = read_scrambled(sptd, drive_config, (uint8_t *)&sector, lba + index_shift);
+        int32_t sector_lba = BCDMSF_to_LBA(sector.header.address);
+
+        int32_t shift = lba - sector_lba;
+        if(shift)
+        {
+            index_shift += shift;
+            if(!history.insert(index_shift).second)
+                throw_line("infinite loop detected (LBA: {}, shift: {:+})", sector_lba, index_shift);
+        }
+        else
+            break;
+    }
+
+    return sample_offset;
+}
+
 
 export int redumper_rings(Context &ctx, Options &options)
 {
@@ -38,9 +114,6 @@ export int redumper_rings(Context &ctx, Options &options)
     std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
     auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
-    std::optional<int32_t> write_offset;
-
-    std::vector<iso9660::Area> area_map;
     for(auto &s : toc.sessions)
     {
         for(uint32_t i = 0; i + 1 < s.tracks.size(); ++i)
@@ -50,56 +123,56 @@ export int redumper_rings(Context &ctx, Options &options)
             if(!(t.control & (uint8_t)ChannelQ::Control::DATA) || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER) || t.indices.empty())
                 continue;
 
-            uint32_t track_start = t.indices.front();
-            uint32_t sectors_count = s.tracks[i + 1].lba_start - track_start;
+            auto data_reader = std::make_unique<Disc_READ_Reader>(*ctx.sptd, t.indices.front());
 
-            if(!write_offset)
-                write_offset = track_offset_by_sync(ctx, track_start, std::min(iso9660::SYSTEM_AREA_SIZE, sectors_count));
+            auto area_map = iso9660::area_map(data_reader.get(), s.tracks[i + 1].lba_start - t.indices.front());
+            if(area_map.empty())
+                continue;
 
-            std::unique_ptr<SectorReader> sector_reader = std::make_unique<Disc_READ_Reader>(*ctx.sptd, track_start);
+            LOG("ISO9660 map: ");
+            for(auto const &area : area_map)
+            {
+                auto count = scale_up(area.size, FORM1_DATA_SIZE);
+                LOG("LBA: [{:6} .. {:6}), count: {:6}, size: {:9}, type: {}{}", area.lba, area.lba + count, count, area.size, iso9660::area_type_to_string(area.type),
+                    area.name.empty() ? "" : std::format(", name: {}", area.name));
+            }
+            LOG("");
 
-            auto am = iso9660::area_map(sector_reader.get(), track_start, sectors_count);
-            area_map.insert(area_map.end(), am.begin(), am.end());
+            // Datel V2
+            iso9660::PrimaryVolumeDescriptor pvd;
+            if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
+            {
+                if(iso9660::identifier_to_string(pvd.volume_identifier) == "CRAZY_TAXI")
+                {
+                    for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
+                    {
+                        if(area_map[i].type != iso9660::Area::Type::DIRECTORY_EXTENT || area_map[i + 1].type != iso9660::Area::Type::FILE_EXTENT)
+                            continue;
+
+                        int32_t lba_start = area_map[i].lba + scale_up(area_map[i].size, FORM1_DATA_SIZE);
+                        int32_t lba_end = area_map[i + 1].lba;
+                        if(lba_start < lba_end)
+                        {
+                            int32_t sample_start = find_sample_offset(*ctx.sptd, ctx.drive_config, lba_start);
+                            int32_t sample_end = find_sample_offset(*ctx.sptd, ctx.drive_config, lba_end);
+
+                            int32_t directory_offset = sample_start - lba_to_sample(lba_start, 0);
+                            int32_t file_offset = sample_end - lba_to_sample(lba_end, 0);
+
+                            std::string offset_message;
+                            if(directory_offset != file_offset)
+                                offset_message = std::format(", offset: {:+}", file_offset);
+
+                            LOG("protection: PS2/Datel Ring, range: {}-{}{}", lba_start, lba_end, offset_message);
+                            ctx.protection_soft.emplace_back(sample_start, sample_end);
+
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
-    if(area_map.empty())
-        return exit_code;
-
-    LOG("ISO9660 map: ");
-    std::for_each(area_map.cbegin(), area_map.cend(),
-        [](const iso9660::Area &area)
-        {
-            auto count = scale_up(area.size, FORM1_DATA_SIZE);
-            LOG("LBA: [{:6} .. {:6}], count: {:6}, type: {}{}", area.offset, area.offset + count - 1, count, iso9660::area_type_to_string(area.type),
-                area.name.empty() ? "" : std::format(", name: {}", area.name));
-        });
-
-    std::vector<std::pair<int32_t, int32_t>> sector_rings;
-    for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
-    {
-        auto &a = area_map[i];
-
-        uint32_t gap_start = a.offset + scale_up(a.size, FORM1_DATA_SIZE);
-        if(gap_start < area_map[i + 1].offset)
-            sector_rings.emplace_back(gap_start, area_map[i + 1].offset);
-    }
-
-    if(!sector_rings.empty())
-    {
-        LOG("");
-        LOG("ISO9660 rings: ");
-        for(auto r : sector_rings)
-            LOG("  [{:6}, {:6})", r.first, r.second);
-    }
-
-    if(!write_offset)
-        write_offset = 0;
-
-    std::vector<std::pair<int32_t, int32_t>> rings;
-    for(auto r : sector_rings)
-        rings.emplace_back(lba_to_sample(r.first, *write_offset), lba_to_sample(r.second, *write_offset));
-
-    ctx.rings = rings;
 
     return exit_code;
 }

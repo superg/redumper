@@ -107,26 +107,14 @@ else()
     message(WARNING "clang-format-18 not found, source code formatting targets will not be available")
 endif()
 
-# generated source file
-set(DRIVEOFFSETS_FN "${CMAKE_CURRENT_BINARY_DIR}/driveoffsets.inc")
-add_executable(generate_offsets generate_offsets.cc)
-add_custom_command(
-    OUTPUT ${DRIVEOFFSETS_FN}
-    COMMAND generate_offsets "${CMAKE_CURRENT_SOURCE_DIR}/driveoffsets.txt"
-    DEPENDS generate_offsets "driveoffsets.txt"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
-
 add_executable(redumper)
 target_sources(redumper
     PUBLIC
     "dvd/css/css_tables.cc"
     "main.cc"
-    "driveoffsets.txt"
     "systems/system.hh"
     "utils/throw_line.hh"
     "redumper.manifest"
-    ${DRIVEOFFSETS_FN}
     PRIVATE FILE_SET cxx_modules TYPE CXX_MODULES FILES
     "analyzers/analyzer.ixx"
     "analyzers/silence.ixx"
@@ -165,11 +153,17 @@ target_sources(redumper
     "hash/md5.ixx"
     "hash/sha1.ixx"
     "readers/disc_read_form1_reader.ixx"
+    "readers/disc_read_cdda_reader.ixx"
+    "readers/disc_read_reader.ixx"
     "readers/image_bin_form1_reader.ixx"
+    "readers/image_bin_reader.ixx"
     "readers/image_iso_form1_reader.ixx"
+    "readers/image_iso_reader.ixx"
     "readers/image_raw_reader.ixx"
+    "readers/image_simple_data_reader.ixx"
     "readers/image_simple_reader.ixx"
     "readers/sector_reader.ixx"
+    "readers/data_reader.ixx"
     "scsi/cmd.ixx"
     "scsi/mmc.ixx"
     "scsi/sptd.ixx"
@@ -199,6 +193,7 @@ target_sources(redumper
     "drive.ixx"
     "hash.ixx"
     "info.ixx"
+    "offsets.ixx"
     "options.ixx"
     "range.ixx"
     "redumper.ixx"

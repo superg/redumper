@@ -10,7 +10,7 @@ export module filesystem.iso9660:map;
 
 import :defs;
 
-import readers.sector_reader;
+import readers.data_reader;
 import utils.endian;
 import utils.logger;
 import utils.misc;
@@ -36,7 +36,7 @@ struct Area
         SPACE_END_MARKER
     };
 
-    uint32_t offset;
+    int32_t lba;
     Type type;
     uint32_t size;
     std::string name;
@@ -57,7 +57,20 @@ const std::map<Area::Type, std::string> AREA_TYPE_STRING = {
 };
 
 
-std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, uint32_t sectors_count)
+uint32_t directory_extent_get_length(DataReader *data_reader, int32_t lba)
+{
+    std::vector<uint8_t> sector(data_reader->sectorSize());
+    if(data_reader->read(sector.data(), lba, 1) == 1)
+    {
+        auto dr = (DirectoryRecord &)sector[0];
+        return dr.data_length.lsb;
+    }
+
+    return 0;
+}
+
+
+std::vector<Area> area_map(DataReader *data_reader, uint32_t sectors_count)
 {
     std::vector<Area> area_vector;
 
@@ -68,7 +81,7 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
     for(;;)
     {
         VolumeDescriptor descriptor;
-        if(sector_reader->read((uint8_t *)&descriptor, SYSTEM_AREA_SIZE + descriptors_count, 1) != 1)
+        if(data_reader->read((uint8_t *)&descriptor, data_reader->sectorsBase() + SYSTEM_AREA_SIZE + descriptors_count, 1) != 1)
             break;
 
         if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier))
@@ -89,44 +102,46 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
     if(!pvd_found)
         return area_vector;
 
-    uint32_t sector_size = sector_reader->sectorSize();
+    std::map<int32_t, Area> area_map;
+
+    int32_t lba_end = data_reader->sectorsBase() + sectors_count;
+    uint32_t sector_size = data_reader->sectorSize();
     if(pvd.logical_block_size.lsb && pvd.logical_block_size.lsb != sector_size)
         throw_line("unsupported logical block size (block size: {})", pvd.logical_block_size.lsb);
 
-    std::map<uint32_t, Area> area_map;
-    uint32_t o;
+    int32_t lba;
 
     // system area
-    o = base_offset + 0;
-    area_map.emplace(o, Area{ o, Area::Type::SYSTEM_AREA, SYSTEM_AREA_SIZE * sector_size, "" });
+    lba = data_reader->sectorsBase() + 0;
+    area_map.emplace(lba, Area{ lba, Area::Type::SYSTEM_AREA, SYSTEM_AREA_SIZE * sector_size, "" });
 
     // descriptors
-    o = base_offset + SYSTEM_AREA_SIZE;
-    area_map.emplace(o, Area{ o, Area::Type::DESCRIPTORS, descriptors_count * sector_size, "" });
+    lba = data_reader->sectorsBase() + SYSTEM_AREA_SIZE;
+    area_map.emplace(lba, Area{ lba, Area::Type::DESCRIPTORS, descriptors_count * sector_size, "" });
+
+    auto path_table_sectors_count = scale_up(pvd.path_table_size.lsb, sector_size);
 
     // L-type path tables
-    uint32_t path_table_offset = pvd.path_table_l_offset - sector_reader->sectorsBase();
-    o = base_offset + path_table_offset;
-    area_map.emplace(o, Area{ o, Area::Type::PATH_TABLE_L, pvd.path_table_size.lsb, "" });
+    lba = pvd.path_table_l_offset;
+    area_map.emplace(lba, Area{ lba, Area::Type::PATH_TABLE_L, pvd.path_table_size.lsb, "" });
     if(pvd.path_table_l_offset_opt)
     {
-        o = base_offset + pvd.path_table_l_offset_opt - sector_reader->sectorsBase();
-        area_map.emplace(o, Area{ o, Area::Type::PATH_TABLE_L_OPT, pvd.path_table_size.lsb, "" });
+        lba = pvd.path_table_l_offset_opt;
+        area_map.emplace(lba, Area{ lba, Area::Type::PATH_TABLE_L_OPT, pvd.path_table_size.lsb, "" });
     }
 
     // M-type path tables
-    o = base_offset + endian_swap(pvd.path_table_m_offset) - sector_reader->sectorsBase();
-    area_map.emplace(o, Area{ o, Area::Type::PATH_TABLE_M, pvd.path_table_size.lsb, "" });
+    lba = endian_swap(pvd.path_table_m_offset);
+    area_map.emplace(lba, Area{ lba, Area::Type::PATH_TABLE_M, pvd.path_table_size.lsb, "" });
     if(pvd.path_table_m_offset_opt)
     {
-        o = base_offset + endian_swap(pvd.path_table_m_offset_opt) - sector_reader->sectorsBase();
-        area_map.emplace(o, Area{ o, Area::Type::PATH_TABLE_M_OPT, pvd.path_table_size.lsb, "" });
+        lba = endian_swap(pvd.path_table_m_offset_opt);
+        area_map.emplace(lba, Area{ lba, Area::Type::PATH_TABLE_M_OPT, pvd.path_table_size.lsb, "" });
     }
 
     // directories & files (path table)
-    auto path_table_size = scale_up(pvd.path_table_size.lsb, sector_size);
-    std::vector<uint8_t> path_table(sector_size * path_table_size);
-    if(sector_reader->read(path_table.data(), path_table_offset, path_table_size) == path_table_size)
+    std::vector<uint8_t> path_table(path_table_sectors_count * sector_size);
+    if(data_reader->read(path_table.data(), pvd.path_table_l_offset, path_table_sectors_count) == path_table_sectors_count)
     {
         path_table.resize(pvd.path_table_size.lsb);
 
@@ -147,14 +162,14 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
 
             i += round_up(pr.length, (uint8_t)2) + pr.xa_length;
 
-            auto pr_offset = pr.offset - sector_reader->sectorsBase();
-            auto dr_extent_length = directory_extent_get_length(sector_reader, pr_offset);
-            o = base_offset + pr_offset;
-            area_map.emplace(o, Area{ o, Area::Type::DIRECTORY_EXTENT, dr_extent_length, name });
+            auto dr_extent_length = directory_extent_get_length(data_reader, pr.offset);
+            auto dr_extent_sectors_count = scale_up(dr_extent_length, sector_size);
 
-            auto dr_sectors_count = scale_up(dr_extent_length, sector_size);
-            std::vector<uint8_t> directory_extent(dr_sectors_count * sector_size);
-            if(sector_reader->read(directory_extent.data(), pr_offset, dr_sectors_count) == dr_sectors_count)
+            lba = pr.offset;
+            area_map.emplace(lba, Area{ lba, Area::Type::DIRECTORY_EXTENT, dr_extent_length, name });
+
+            std::vector<uint8_t> directory_extent(dr_extent_sectors_count * sector_size);
+            if(data_reader->read(directory_extent.data(), pr.offset, dr_extent_sectors_count) == dr_extent_sectors_count)
             {
                 auto directory_records = directory_extent_get_records(directory_extent);
                 for(auto const &dr : directory_records)
@@ -167,18 +182,19 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
                     if(dr.second.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY)
                         continue;
 
-                    // FIXME: doesn't work with multisession discs
-                    // skip unreachable directory records
-                    // if(dr.second.offset.lsb >= sectors_count)
-                    //     continue;
+                    // skip dummy files
+                    if(dr.second.offset.lsb < data_reader->sectorsBase() || dr.second.offset.lsb >= lba_end)
+                        continue;
 
                     uint32_t dr_version;
                     std::string dr_name = split_identifier(dr_version, dr.first);
 
-                    o = base_offset + dr.second.offset.lsb - sector_reader->sectorsBase();
-                    auto area = Area{ o, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name };
-                    if(auto it = area_map.find(o); it == area_map.end())
-                        area_map.emplace(o, area);
+                    auto dr_data_sectors_count = scale_up(dr.second.data_length.lsb, sector_size);
+
+                    lba = dr.second.offset.lsb;
+                    auto area = Area{ lba, Area::Type::FILE_EXTENT, dr.second.data_length.lsb, (name == "/" ? "" : name) + "/" + dr_name };
+                    if(auto it = area_map.find(lba); it == area_map.end())
+                        area_map.emplace(lba, area);
                     else if(area.size > it->second.size)
                         it->second = area;
                 }
@@ -192,13 +208,15 @@ std::vector<Area> area_map(SectorReader *sector_reader, uint32_t base_offset, ui
 
     // filesystem end marker
     // for multisession discs sometimes it's an absolute sector value
-    uint32_t volume_end_offset = pvd.volume_space_size.lsb - (pvd.volume_space_size.lsb > sectors_count ? sector_reader->sectorsBase() : 0);
-    o = base_offset + volume_end_offset;
-    area_map.emplace(o, Area{ o, Area::Type::VOLUME_END_MARKER, 0, "" });
+    lba = (pvd.volume_space_size.lsb > sectors_count ? 0 : data_reader->sectorsBase()) + pvd.volume_space_size.lsb;
+    area_map.emplace(lba, Area{ lba, Area::Type::VOLUME_END_MARKER, 0, "" });
 
-    // optional space after volume
-    if(sectors_count > volume_end_offset)
-        area_map.emplace(sectors_count, iso9660::Area{ sectors_count, iso9660::Area::Type::SPACE_END_MARKER, 0, "" });
+    // optional space after volume end
+    if(lba_end > lba)
+    {
+        lba = lba_end;
+        area_map.emplace(lba, iso9660::Area{ lba, iso9660::Area::Type::SPACE_END_MARKER, 0, "" });
+    }
 
     area_vector.reserve(area_map.size());
     for(auto const &a : area_map)

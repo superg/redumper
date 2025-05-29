@@ -128,17 +128,17 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
 {
     // PLEXTOR CD
     { "PLEXTOR" , "CD-R PX-W4012A"   , "1.07", "03/22/06 09:00"     ,  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
-    { "PLEXTOR" , "CD-R PX-W4012S"   , ""    , ""                   ,  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
+    { "PLEXTOR" , "CD-R PX-W4012S"   , "1.06", "03/22/06 09:00"     ,  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W4824A"   , "1.07", "03/24/06 14:00"     ,  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // CHECKED
     { "PLEXTOR" , "CD-R PX-W5224A"   , "1.04", "04/10/06 17:00"     ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
     { "PLEXTOR" , "CD-R PREMIUM"     , "1.07", "10/04/06 16:00"     ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
-    { "PLEXTOR" , "CD-R PREMIUM2"    , ""    , ""                   ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
+    { "PLEXTOR" , "CD-R PREMIUM2"    , "1.03", "10/01/07 16:00"     ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     // PLEXTOR DVD
-    { "PLEXTOR" , "DVDR PX-704A"     , ""    , ""                   ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
+    { "PLEXTOR" , "DVDR PX-704A"     , "1.11", "07/07/05 10:00"     ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "DVDR PX-708A"     , "1.12", "03/13/06 21:00"     ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
-    { "PLEXTOR" , "DVDR PX-708A2"    , ""    , ""                   ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
+    { "PLEXTOR" , "DVDR PX-708A2"    , "1.09", "03/31/06 10:00"     ,  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "DVDR PX-712A"     , "1.09", "03/31/06 10:00"     ,  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
-    { "PLEXTOR" , "DVDR PX-714A"     , ""    , ""                   ,  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
+    { "PLEXTOR" , "DVDR PX-714A"     , "1.09", "10/05/05 08:00"     ,  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "DVDR PX-716A"     , "1.11", "03/23/07 15:10"     ,  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
     { "PLEXTOR" , "DVDR PX-716AL"    , "1.02", "12/01/05 10:00"     ,  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
     { "PLEXTOR" , "DVDR PX-755A"     , "1.08", "08/18/07 15:10"     ,  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
@@ -167,7 +167,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "ATAPI"   , "iHBS312 2"        , "PL17", "2012/10/31 13:50"   ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
     { "HL-DT-ST", "BD-RE WH14NS40"   , "1.03", "N0A09A0K9HF6ND5914" ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8C }, // Lugamo
     // PATCHED
-    { "ASUS"    , "BW-16D1HT"        , "3.10", "WM01601KLZL4TG5625" ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // default or RibShark FW definition
+    { "ASUS"    , "BW-16D1HT"        , "3.10", "WM01601KLZL4TG5625" ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // 3.10MK or RibShark FW definition
     { "TSSTcorp", "DVD-ROM TS-H353C" , "ZZ00", ""                   ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
 
     // RECOMMENDED (GOOD) DRIVES ABOVE THIS LINE

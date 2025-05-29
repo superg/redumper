@@ -18,6 +18,8 @@ import utils.misc;
 namespace gpsxre
 {
 
+export const uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
+
 export enum class XGD_Type : uint8_t
 {
     UNKNOWN,
@@ -249,6 +251,11 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
     return true;
 }
 
+bool is_custom_kreon_firmware(const std::string &rev)
+{
+    return rev == "DC02" || rev == "ZZ01";
+}
+
 export bool xbox_repair_xgd3_ss(std::vector<uint8_t> &security_sector, std::vector<uint8_t> &ss_leadout)
 {
     // simple sanity check that leadout sector is a valid SS to repair from
@@ -266,7 +273,7 @@ export bool xbox_repair_xgd3_ss(std::vector<uint8_t> &security_sector, std::vect
     std::memcpy(&security_sector[0x05F], &security_sector[0x23F], 6);
     std::memcpy(&security_sector[0x0F0], &security_sector[0x2D0], 4);
 
-    // repair using leadout bytes
+    // repair using correct values from leadout sector
     std::memcpy(&security_sector[0x200], &ss_leadout[0x200], 8);
     std::memcpy(&security_sector[0x209], &ss_leadout[0x209], 8);
     std::memcpy(&security_sector[0x212], &ss_leadout[0x212], 8);

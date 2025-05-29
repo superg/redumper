@@ -466,11 +466,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             {
                 if(xgd_type == XGD_Type::XGD3)
                 {
-                    // FIXME: Detect custom leadout firmware using drive's revision level string
+                    // repair XGD3 security sector on supported drives (read leadout)
                     bool repaired = false;
-                    status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, 4267582, 1, false);
-                    if(!status.status_code)
-                        repaired = xbox_repair_xgd3_ss(security_sector, ss_leadout);
+                    if(is_custom_kreon_firmware(ctx.drive_config.product_revision_level))
+                    {
+                        status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, XGD_SS_LEADOUT_SECTOR, 1, false);
+                        if(!status.status_code)
+                            repaired = xbox_repair_xgd3_ss(security_sector, ss_leadout);
+                    }
 
                     if(repaired)
                         LOG("Kreon Drive with XGD3 detected, SS repaired using leadout");

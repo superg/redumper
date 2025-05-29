@@ -324,7 +324,7 @@ export int redumper_dump_extra(Context &ctx, Options &options)
     std::fstream fs_state(image_prefix + ".state", mode);
     std::fstream fs_subcode(image_prefix + ".subcode", mode);
 
-    if(ctx.drive_config.type == DriveConfig::Type::PLEXTOR)
+    if(ctx.drive_config.type == Type::PLEXTOR)
     {
         if(!options.plextor_skip_leadin)
             plextor_process_leadin(ctx, toc, fs_scram, fs_state, fs_subcode, options);

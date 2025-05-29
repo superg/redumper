@@ -23,6 +23,8 @@ export struct Options
     bool help;
     bool version;
     bool verbose;
+    bool list_recommended_drives;
+    bool list_all_drives;
     bool auto_eject;
     bool skeleton;
     bool debug;
@@ -78,6 +80,8 @@ export struct Options
         : help(false)
         , version(false)
         , verbose(false)
+        , list_recommended_drives(false)
+        , list_all_drives(false)
         , auto_eject(false)
         , skeleton(false)
         , debug(false)
@@ -144,6 +148,10 @@ export struct Options
                         version = true;
                     else if(key == "--verbose")
                         verbose = true;
+                    else if(key == "--list-recommended-drives")
+                        list_recommended_drives = true;
+                    else if(key == "--list-all-drives")
+                        list_all_drives = true;
                     else if(key == "--auto-eject")
                         auto_eject = true;
                     else if(key == "--skeleton")
@@ -343,6 +351,8 @@ export struct Options
         LOG("\t--help,-h                       \tprint usage");
         LOG("\t--version                       \tprint version");
         LOG("\t--verbose                       \tverbose output");
+        LOG("\t--list-recommended-drives       \tlist recommended drives");
+        LOG("\t--list-all-drives               \tlist all supported drives");
         LOG("\t--auto-eject                    \tauto eject after dump");
         LOG("\t--skeleton                      \tgenerate skeleton after dump");
         LOG("\t--drive=VALUE                   \tdrive to use, first available drive with disc, if not provided");

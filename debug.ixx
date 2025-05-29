@@ -239,7 +239,7 @@ export int redumper_debug(Context &ctx, Options &options)
     {
         SPTD sptd(options.drive);
         std::vector<uint8_t> cache;
-        SPTD::Status status = asus_cache_read(sptd, cache, 1024 * 1024 * asus_get_config(DriveConfig::Type::LG_ASU3).size_mb);
+        SPTD::Status status = asus_cache_read(sptd, cache, 1024 * 1024 * asus_get_config(Type::LG_ASU3).size_mb);
 
         LOG("");
     }
@@ -249,7 +249,7 @@ export int redumper_debug(Context &ctx, Options &options)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 
-        auto drive_type = DriveConfig::Type::LG_ASU8C;
+        auto drive_type = Type::LG_ASU8C;
         asus_cache_print_subq(cache, drive_type);
 
         // auto asd = asus_cache_unroll(cache);

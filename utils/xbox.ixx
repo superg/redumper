@@ -251,7 +251,7 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
     return true;
 }
 
-bool is_custom_kreon_firmware(const std::string &rev)
+export bool is_custom_kreon_firmware(const std::string &rev)
 {
     return rev == "DC02" || rev == "ZZ01";
 }

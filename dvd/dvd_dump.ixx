@@ -445,16 +445,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         uint32_t xbox_layer0_end_sector = 0;
         if(is_xbox)
         {
-            std::vector<uint8_t> security_sector(0x800);
+            std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
+            std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
 
             bool complete_ss = xbox_get_security_sector(*ctx.sptd, security_sector);
             if(!complete_ss)
                 LOG("warning: could not get complete security sector, attempting to continue");
-
-            auto security_sector_fn = image_prefix + ".security";
-            // store security sector
-            if(dump_mode == DumpMode::DUMP)
-                write_vector(security_sector_fn, security_sector);
 
             // validate security sector
             XGD_Type xgd_type = get_xgd_type((READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0]);
@@ -468,8 +464,30 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
             if(is_xbox && !physical_structures.empty())
             {
-                LOG("Kreon Drive with XGD{} detected", (uint8_t)xgd_type);
+                if(xgd_type == XGD_Type::XGD3)
+                {
+                    // repair XGD3 security sector on supported drives (read leadout)
+                    bool repaired = false;
+                    if(is_custom_kreon_firmware(ctx.drive_config.product_revision_level))
+                    {
+                        status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, XGD_SS_LEADOUT_SECTOR, 1, false);
+                        if(!status.status_code)
+                            repaired = xbox_repair_xgd3_ss(security_sector, ss_leadout);
+                    }
+
+                    if(repaired)
+                        LOG("Kreon Drive with XGD3 detected, SS repaired using leadout");
+                    else
+                        LOG("Kreon Drive with XGD3 detected, SS is invalid");
+                }
+                else
+                    LOG("Kreon Drive with XGD{} detected", (uint8_t)xgd_type);
                 LOG("");
+
+                auto security_sector_fn = image_prefix + ".security";
+                // store original security sector before cleaning
+                if(dump_mode == DumpMode::DUMP)
+                    write_vector(security_sector_fn, security_sector);
 
                 clean_xbox_security_sector(security_sector);
 

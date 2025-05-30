@@ -18,6 +18,8 @@ import utils.misc;
 namespace gpsxre
 {
 
+export const uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
+
 export enum class XGD_Type : uint8_t
 {
     UNKNOWN,
@@ -245,6 +247,42 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
             return false;
         }
     }
+
+    return true;
+}
+
+export bool is_custom_kreon_firmware(const std::string &rev)
+{
+    return rev == "DC02" || rev == "ZZ01";
+}
+
+export bool xbox_repair_xgd3_ss(std::vector<uint8_t> &security_sector, std::vector<uint8_t> &ss_leadout)
+{
+    // simple sanity check that leadout sector is a valid SS to repair from
+    if(!std::equal(security_sector.begin(), security_sector.begin() + 32, ss_leadout.begin()))
+        return false;
+
+    // move incorrectly placed challenge data and cpr.mai key
+    std::memcpy(&security_sector[0x020], &security_sector[0x200], 8);
+    std::memcpy(&security_sector[0x029], &security_sector[0x209], 8);
+    std::memcpy(&security_sector[0x032], &security_sector[0x212], 8);
+    std::memcpy(&security_sector[0x03B], &security_sector[0x21B], 8);
+    std::memcpy(&security_sector[0x044], &security_sector[0x224], 6);
+    std::memcpy(&security_sector[0x04D], &security_sector[0x22D], 6);
+    std::memcpy(&security_sector[0x056], &security_sector[0x236], 6);
+    std::memcpy(&security_sector[0x05F], &security_sector[0x23F], 6);
+    std::memcpy(&security_sector[0x0F0], &security_sector[0x2D0], 4);
+
+    // repair using correct values from leadout sector
+    std::memcpy(&security_sector[0x200], &ss_leadout[0x200], 8);
+    std::memcpy(&security_sector[0x209], &ss_leadout[0x209], 8);
+    std::memcpy(&security_sector[0x212], &ss_leadout[0x212], 8);
+    std::memcpy(&security_sector[0x21B], &ss_leadout[0x21B], 8);
+    std::memcpy(&security_sector[0x224], &ss_leadout[0x224], 6);
+    std::memcpy(&security_sector[0x22D], &ss_leadout[0x22D], 6);
+    std::memcpy(&security_sector[0x236], &ss_leadout[0x236], 6);
+    std::memcpy(&security_sector[0x23F], &ss_leadout[0x23F], 6);
+    std::memcpy(&security_sector[0x2D0], &ss_leadout[0x2D0], 4);
 
     return true;
 }

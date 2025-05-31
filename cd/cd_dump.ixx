@@ -304,8 +304,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     std::vector<Range<int32_t>> protection_hard;
     protection_to_ranges(protection_hard, ctx.protection_hard);
     protection_ranges_from_lba_ranges(protection_hard, string_to_ranges(options.skip), -ctx.drive_config.read_offset);
+
     std::vector<Range<int32_t>> protection_soft;
-    protection_to_ranges(protection_soft, ctx.protection_soft);
     protection_ranges_from_toc(protection_soft, toc, ctx.drive_config);
 
     Errors errors_initial = {};
@@ -331,8 +331,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
         };
 
-        status_update("");
-
         if(signal.interrupt())
         {
             LOG_R("[LBA: {:6}] forced stop ", lba);
@@ -340,20 +338,38 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
             break;
         }
 
-        protection_fill(sector_protection_a, protection_hard, lba_to_sample(lba, -ctx.drive_config.read_offset));
-        protection_fill(sector_protection_d, protection_hard, lba_to_sample(lba, -data_drive_offset));
+        // skip protected range early
+        {
+            auto protection_range_a = protection_full_sector(protection_hard, lba_to_sample(lba, -ctx.drive_config.read_offset));
+            auto protection_range_d = protection_full_sector(protection_hard, lba_to_sample(lba, -data_drive_offset));
+            if(protection_range_a != nullptr && protection_range_d != nullptr)
+            {
+                int32_t sample_jump = std::min(protection_range_a->end, protection_range_d->end);
+                int32_t lba_jump = std::min(sample_to_lba(sample_jump, -data_drive_offset), sample_to_lba(sample_jump, -ctx.drive_config.read_offset));
+                LOG_R("[LBA: {:6}] protection jump (LBA: {:6})", lba, lba_jump);
+
+                lba = lba_jump - 1;
+                continue;
+            }
+        }
 
         int32_t lba_index = lba - LBA_START;
 
-        read_entry(fs_scram, sector_data_file_a.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE, 0);
-        read_entry(fs_scram, sector_data_file_d.data(), CD_DATA_SIZE, lba_index, 1, data_drive_offset * CD_SAMPLE_SIZE, 0);
         read_entry(fs_state, (uint8_t *)sector_state_file_a.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
         read_entry(fs_state, (uint8_t *)sector_state_file_d.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, data_drive_offset, (uint8_t)State::ERROR_SKIP);
         read_entry(fs_subcode, sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 
+        protection_fill(sector_protection_a, protection_hard, lba_to_sample(lba, -ctx.drive_config.read_offset));
+        protection_fill(sector_protection_d, protection_hard, lba_to_sample(lba, -data_drive_offset));
+
         if(sector_data_complete(sector_state_file_a, sector_protection_a) && sector_data_complete(sector_state_file_d, sector_protection_d)
             && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
             continue;
+
+        status_update("");
+
+        read_entry(fs_scram, sector_data_file_a.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE, 0);
+        read_entry(fs_scram, sector_data_file_d.data(), CD_DATA_SIZE, lba_index, 1, data_drive_offset * CD_SAMPLE_SIZE, 0);
 
         uint32_t retries = dump_mode == DumpMode::REFINE ? options.retries : 0;
 

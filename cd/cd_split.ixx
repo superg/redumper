@@ -1359,7 +1359,6 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     std::vector<Range<int32_t>> protection;
     protection_to_ranges(protection, ctx.protection_hard);
-    protection_to_ranges(protection, ctx.protection_soft);
     protection_ranges_from_lba_ranges(protection, string_to_ranges(options.skip), 0);
 
     // determine data track modes

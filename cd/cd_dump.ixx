@@ -48,37 +48,10 @@ const uint32_t SLOW_SECTOR_TIMEOUT = 4;
 const uint32_t SUBCODE_BYTE_DESYNC_COUNT = 5;
 
 
-void protection_ranges_from_toc(std::vector<Range<int32_t>> &ranges, const TOC &toc, const DriveConfig &drive_config)
-{
-    for(uint32_t i = 1; i < toc.sessions.size(); ++i)
-    {
-        Range r{ lba_to_sample(toc.sessions[i - 1].tracks.back().lba_end, -drive_config.read_offset),
-            lba_to_sample(toc.sessions[i].tracks.front().indices.front() + drive_config.pregap_start, -drive_config.read_offset) };
-        if(!insert_range(ranges, r))
-            throw_line("invalid protection configuration");
-    }
-}
-
-
 void protection_fill(std::vector<uint8_t> &sector_protection, const std::vector<Range<int32_t>> &ranges, int32_t sample_base)
 {
     for(int32_t i = 0; i < sector_protection.size(); ++i)
         sector_protection[i] = find_range(ranges, sample_base + i) != nullptr;
-}
-
-
-const Range<int32_t> *protection_full_sector(const std::vector<Range<int32_t>> &ranges, int32_t sample_base)
-{
-    const Range<int32_t> *range = nullptr;
-
-    for(int32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
-    {
-        range = find_range(ranges, sample_base + i);
-        if(range == nullptr)
-            break;
-    }
-
-    return range;
 }
 
 
@@ -301,12 +274,17 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         }
     }
 
-    std::vector<Range<int32_t>> protection_hard;
-    protection_to_ranges(protection_hard, ctx.protection_hard);
-    protection_ranges_from_lba_ranges(protection_hard, string_to_ranges(options.skip), -ctx.drive_config.read_offset);
+    std::vector<Range<int32_t>> protection;
+    protection_to_ranges(protection, ctx.protection);
+    protection_ranges_from_lba_ranges(protection, string_to_ranges(options.skip), -ctx.drive_config.read_offset);
 
-    std::vector<Range<int32_t>> protection_soft;
-    protection_ranges_from_toc(protection_soft, toc, ctx.drive_config);
+    std::vector<Range<int32_t>> session_gaps;
+    for(uint32_t i = 1; i < toc.sessions.size(); ++i)
+    {
+        Range r{ toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + ctx.drive_config.pregap_start };
+        if(!insert_range(session_gaps, r))
+            throw_line("invalid session gap configuration");
+    }
 
     Errors errors_initial = {};
     if(dump_mode != DumpMode::DUMP)
@@ -338,29 +316,14 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
             break;
         }
 
-        // skip protected range early
-        {
-            auto protection_range_a = protection_full_sector(protection_hard, lba_to_sample(lba, -ctx.drive_config.read_offset));
-            auto protection_range_d = protection_full_sector(protection_hard, lba_to_sample(lba, -data_drive_offset));
-            if(protection_range_a != nullptr && protection_range_d != nullptr)
-            {
-                int32_t sample_jump = std::min(protection_range_a->end, protection_range_d->end);
-                int32_t lba_jump = std::min(sample_to_lba(sample_jump, -data_drive_offset), sample_to_lba(sample_jump, -ctx.drive_config.read_offset));
-                LOG_R("[LBA: {:6}] protection jump (LBA: {:6})", lba, lba_jump);
-
-                lba = lba_jump - 1;
-                continue;
-            }
-        }
-
         int32_t lba_index = lba - LBA_START;
 
         read_entry(fs_state, (uint8_t *)sector_state_file_a.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
         read_entry(fs_state, (uint8_t *)sector_state_file_d.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, data_drive_offset, (uint8_t)State::ERROR_SKIP);
         read_entry(fs_subcode, sector_subcode_file.data(), CD_SUBCODE_SIZE, lba_index, 1, 0, 0);
 
-        protection_fill(sector_protection_a, protection_hard, lba_to_sample(lba, -ctx.drive_config.read_offset));
-        protection_fill(sector_protection_d, protection_hard, lba_to_sample(lba, -data_drive_offset));
+        protection_fill(sector_protection_a, protection, lba_to_sample(lba, -ctx.drive_config.read_offset));
+        protection_fill(sector_protection_d, protection, lba_to_sample(lba, -data_drive_offset));
 
         if(sector_data_complete(sector_state_file_a, sector_protection_a) && sector_data_complete(sector_state_file_d, sector_protection_d)
             && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
@@ -413,20 +376,19 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 data_unscrambled_message = true;
             }
 
-            auto protection_range = protection_full_sector(protection_soft, lba_to_sample(lba, unscrambled ? -data_drive_offset : -ctx.drive_config.read_offset));
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
-            if(protection_range != nullptr && (status.status_code || c2_bits_count(sector_c2) || slow_sector))
+            auto session_gap_range = find_range(session_gaps, lba);
+            if(session_gap_range != nullptr && slow_sector)
             {
-                int32_t lba_jump = std::min(sample_to_lba(protection_range->end, -data_drive_offset), sample_to_lba(protection_range->end, -ctx.drive_config.read_offset));
-                LOG_R("[LBA: {:6}] jump (LBA: {:6})", lba, lba_jump);
+                LOG_R("[LBA: {:6}] session gap jump (LBA: {:6})", lba, session_gap_range->end);
 
-                lba = lba_jump - 1;
+                lba = session_gap_range->end - 1;
                 break;
             }
 
             if(status.status_code || check_subcode_shift(subcode_shift, lba, sector_subcode, options))
             {
-                if(protection_range == nullptr && lba < lba_end)
+                if(session_gap_range == nullptr && lba < lba_end)
                 {
                     if(dump_mode != DumpMode::REFINE)
                         ++errors.scsi;

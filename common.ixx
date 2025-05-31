@@ -63,7 +63,7 @@ export struct Context
     DriveConfig drive_config;
 
     std::optional<Errors> dump_errors;
-    std::vector<std::pair<int32_t, int32_t>> protection_hard;
+    std::vector<std::pair<int32_t, int32_t>> protection;
     std::optional<bool> protection_trim;
     std::optional<bool> refine;
     std::optional<std::vector<std::string>> dat;

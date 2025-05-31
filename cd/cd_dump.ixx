@@ -301,12 +301,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     {
         auto status_update = [dump_mode, lba, lba_start, lba_overread, errors](std::string_view status_message)
         {
-            std::string percentage_message;
-            if(dump_mode == DumpMode::DUMP)
-                percentage_message = std::format(" [{:3}%]", std::min(100 * (lba - lba_start) / (lba_overread - lba_start), 100));
-
-            LOGC_RF("{}{} LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), percentage_message, lba, lba_overread, dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi,
-                dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
+            LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), std::min(100 * (lba - lba_start) / (lba_overread - lba_start), 100), lba, lba_overread,
+                dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi, dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
         };
 
         if(signal.interrupt())

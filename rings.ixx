@@ -138,11 +138,12 @@ export int redumper_rings(Context &ctx, Options &options)
             }
             LOG("");
 
-            // Datel V2
+            // Datel V2 (Crazy Taxi based)
             iso9660::PrimaryVolumeDescriptor pvd;
             if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
             {
-                if(iso9660::identifier_to_string(pvd.volume_identifier) == "CRAZY_TAXI")
+                auto volume_indentifier = iso9660::identifier_to_string(pvd.volume_identifier);
+                if(volume_indentifier == "CRAZY_TAXI")
                 {
                     for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
                     {
@@ -168,6 +169,31 @@ export int redumper_rings(Context &ctx, Options &options)
 
                             break;
                         }
+                    }
+                }
+                // Blaze (Wild Wild Racing based)
+                else if(volume_indentifier.empty())
+                {
+                    auto movies_it =
+                        std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/MOVIES/CREDITS1.PSS"; });
+                    auto exe_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/SLES_500.09"; });
+
+                    if(exe_it != area_map.end() && movies_it != area_map.end())
+                    {
+                        int32_t sample_start = find_sample_offset(*ctx.sptd, ctx.drive_config, movies_it->lba);
+                        int32_t sample_end = find_sample_offset(*ctx.sptd, ctx.drive_config, exe_it->lba);
+
+                        int32_t movies_offset = sample_start - lba_to_sample(movies_it->lba, 0);
+                        int32_t exe_offset = sample_end - lba_to_sample(exe_it->lba, 0);
+
+                        std::string offset_message;
+                        if(movies_offset != exe_offset)
+                            offset_message = std::format(", offset: {:+}", exe_offset);
+
+                        LOG("protection: PS2/WWR Ring, range: {}-{}{}", movies_it->lba, exe_it->lba, offset_message);
+                        ctx.protection.emplace_back(sample_start, sample_end);
+
+                        break;
                     }
                 }
             }

@@ -667,7 +667,7 @@ export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Con
 {
     std::vector<std::pair<int32_t, int32_t>> protection;
 
-    for(auto const &e : ctx.protection_hard)
+    for(auto const &e : ctx.protection)
         protection.emplace_back(sample_to_lba(e.first, -offset), sample_to_lba(e.second, -offset));
 
     return protection;

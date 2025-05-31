@@ -164,7 +164,7 @@ export int redumper_rings(Context &ctx, Options &options)
                                 offset_message = std::format(", offset: {:+}", file_offset);
 
                             LOG("protection: PS2/Datel Ring, range: {}-{}{}", lba_start, lba_end, offset_message);
-                            ctx.protection_hard.emplace_back(sample_start, sample_end);
+                            ctx.protection.emplace_back(sample_start, sample_end);
 
                             break;
                         }

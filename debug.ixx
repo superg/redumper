@@ -110,7 +110,7 @@ export int redumper_debug(Context &ctx, Options &options)
 
     std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
     std::filesystem::path state_path(image_prefix + ".state");
-    std::filesystem::path cache_path(image_prefix + ".asus");
+    std::filesystem::path cache_path(image_prefix + ".cache");
     std::filesystem::path toc_path(image_prefix + ".toc");
     std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
     std::filesystem::path cdtext_path(image_prefix + ".cdtext");
@@ -245,7 +245,7 @@ export int redumper_debug(Context &ctx, Options &options)
     }
 
     // LG/ASUS cache dump extract
-    if(0)
+    if(1)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 
@@ -254,7 +254,7 @@ export int redumper_debug(Context &ctx, Options &options)
 
         // auto asd = asus_cache_unroll(cache);
         // auto asd = asus_cache_extract(cache, 128224, 0);
-        auto asus_leadout_buffer = asus_cache_extract(cache, 292353, 100, drive_type);
+        auto asus_leadout_buffer = asus_cache_extract(cache, 271204, 100, drive_type);
         uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 
         LOG("entries count: {}", entries_count);

@@ -23,6 +23,7 @@ import cd.scrambler;
 import cd.subcode;
 import cd.toc;
 import common;
+import crc.crc16_gsm;
 import drive;
 import options;
 import range;
@@ -314,6 +315,14 @@ export bool subcode_correct_subq(ChannelQ *subq, uint32_t sectors_count)
             {
                 // mode 1
                 candidates.emplace_back(subq[q_prev].generateMode1(lba_index - q_prev));
+                // point index 0->1 transition sometimes adds an extra zero MSF value with point index 0
+                if(BCDMSF_to_LBA(candidates.back().mode1.msf) == BCDMSF_to_LBA(MSF_ZERO) && candidates.back().mode1.point_index == 1)
+                {
+                    auto q_alt = candidates.back();
+                    q_alt.mode1.point_index = 0;
+                    q_alt.crc = endian_swap(CRC16_GSM().update(q_alt.raw, sizeof(q_alt.raw)).final());
+                    candidates.push_back(q_alt);
+                }
 
                 // mode 2
                 if(mcn != sectors_count)
@@ -332,6 +341,14 @@ export bool subcode_correct_subq(ChannelQ *subq, uint32_t sectors_count)
             {
                 // mode 1
                 candidates.emplace_back(subq[q_next].generateMode1(lba_index - q_next));
+                // point index 0->1 transition sometimes adds an extra zero MSF value with point index 0
+                if(BCDMSF_to_LBA(candidates.back().mode1.msf) == BCDMSF_to_LBA(MSF_ZERO) + 1 && candidates.back().mode1.point_index == 0)
+                {
+                    auto q_alt = candidates.back();
+                    q_alt.mode1.msf = MSF_ZERO;
+                    q_alt.crc = endian_swap(CRC16_GSM().update(q_alt.raw, sizeof(q_alt.raw)).final());
+                    candidates.push_back(q_alt);
+                }
 
                 // mode 2
                 if(mcn != sectors_count)

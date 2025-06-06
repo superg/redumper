@@ -19,7 +19,7 @@ import common;
 import drive;
 import filesystem.iso9660;
 import options;
-import readers.disc_read_reader;
+import readers.disc_read_cdda_reader;
 import scsi.cmd;
 import scsi.sptd;
 import utils.logger;
@@ -123,7 +123,8 @@ export int redumper_rings(Context &ctx, Options &options)
             if(!(t.control & (uint8_t)ChannelQ::Control::DATA) || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER) || t.indices.empty())
                 continue;
 
-            auto data_reader = std::make_unique<Disc_READ_Reader>(*ctx.sptd, t.indices.front());
+            auto data_reader = std::make_unique<Disc_READ_CDDA_Reader>(*ctx.sptd, ctx.drive_config, t.indices.front());
+            // auto data_reader = std::make_unique<Disc_READ_Reader>(*ctx.sptd, t.indices.front());
 
             auto area_map = iso9660::area_map(data_reader.get(), s.tracks[i + 1].lba_start - t.indices.front());
             if(area_map.empty())
@@ -142,8 +143,8 @@ export int redumper_rings(Context &ctx, Options &options)
             iso9660::PrimaryVolumeDescriptor pvd;
             if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
             {
-                auto volume_indentifier = iso9660::identifier_to_string(pvd.volume_identifier);
-                if(volume_indentifier == "CRAZY_TAXI")
+                auto volume_identifier = iso9660::identifier_to_string(pvd.volume_identifier);
+                if(volume_identifier == "CRAZY_TAXI")
                 {
                     for(uint32_t i = 0; i + 1 < area_map.size(); ++i)
                     {
@@ -171,8 +172,35 @@ export int redumper_rings(Context &ctx, Options &options)
                         }
                     }
                 }
+                // Codebreaker
+                else if(volume_identifier == "CODEBREAKER")
+                {
+                    auto path_table_m_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::PATH_TABLE_M; });
+                    auto zero_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/0.BIN"; });
+                    auto z_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/Z.BIN"; });
+                    auto volume_end_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::VOLUME_END_MARKER; });
+
+                    if(path_table_m_it != area_map.end() && zero_it != area_map.end() && z_it != area_map.end() && volume_end_it != area_map.end())
+                    {
+                        int32_t lba1_start = path_table_m_it->lba + scale_up(path_table_m_it->size, FORM1_DATA_SIZE);
+                        int32_t lba1_end = zero_it->lba;
+                        int32_t sample1_start = find_sample_offset(*ctx.sptd, ctx.drive_config, lba1_start);
+                        int32_t sample1_end = find_sample_offset(*ctx.sptd, ctx.drive_config, lba1_end);
+
+                        int32_t lba2_start = z_it->lba + scale_up(z_it->size, FORM1_DATA_SIZE);
+                        int32_t lba2_end = volume_end_it->lba;
+                        int32_t sample2_start = find_sample_offset(*ctx.sptd, ctx.drive_config, lba2_start);
+                        int32_t sample2_end = find_sample_offset(*ctx.sptd, ctx.drive_config, lba2_end);
+
+                        LOG("protection: PS2/CodeBreaker Ring, range: {}-{}:{}-{}", lba1_start, lba1_end, lba2_start, lba2_end);
+                        ctx.protection.emplace_back(sample1_start, sample1_end);
+                        ctx.protection.emplace_back(sample2_start, sample2_end);
+
+                        break;
+                    }
+                }
                 // Blaze (Wild Wild Racing based)
-                else if(volume_indentifier.empty())
+                else if(volume_identifier.empty())
                 {
                     auto movies_it =
                         std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/MOVIES/CREDITS1.PSS"; });

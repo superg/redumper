@@ -869,6 +869,11 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
 
 export void redumper_split_cd(Context &ctx, Options &options)
 {
+    // GGG
+    // DEBUG
+    ctx.protection.emplace_back(12336, 5203788);
+    ctx.protection.emplace_back(17657040, 161631192);
+
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     std::filesystem::path scm_path(image_prefix + ".scram");

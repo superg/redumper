@@ -84,14 +84,14 @@ int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &s
 }
 
 
-int32_t iso9660_trim_if_needed(Context &ctx, const TOC::Session::Track &t, std::fstream &scm_fs, bool scrap, std::shared_ptr<const OffsetManager> offset_manager, const Options &options)
+int32_t iso9660_trim_if_needed(Context &ctx, const TOC::Session::Track &t, std::fstream &scm_fs, std::shared_ptr<const OffsetManager> offset_manager, const Options &options)
 {
     int32_t lba_end = t.lba_end;
 
     if((ctx.protection_trim && *ctx.protection_trim || options.iso9660_trim) && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty())
     {
         uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE;
-        auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), !scrap);
+        auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), true);
 
         iso9660::PrimaryVolumeDescriptor pvd;
         if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
@@ -108,7 +108,7 @@ bool optional_track(uint32_t track_number)
 }
 
 
-void fill_track_modes(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, bool scrap, const Options &options)
+void fill_track_modes(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const Options &options)
 {
     Scrambler scrambler;
     std::vector<uint8_t> sector(CD_DATA_SIZE);
@@ -132,7 +132,7 @@ void fill_track_modes(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream
 
             const uint8_t data_mode_invalid = 3;
 
-            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, scrap, offset_manager, options);
+            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, offset_manager, options);
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
@@ -179,7 +179,7 @@ bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager> offse
 
 
 bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection,
-    bool scrap, const Options &options)
+    const Options &options)
 {
     bool no_errors = true;
 
@@ -200,7 +200,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
             uint32_t skip_sectors = 0;
             uint32_t c2_sectors = 0;
 
-            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, scrap, offset_manager, options);
+            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, offset_manager, options);
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
@@ -244,7 +244,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
 
 std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-    const std::vector<Range<int32_t>> &protection, bool scrap, const Options &options)
+    const std::vector<Range<int32_t>> &protection, const Options &options)
 {
     std::vector<std::string> xml_lines;
 
@@ -286,7 +286,7 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
             std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
-            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, scrap, offset_manager, options);
+            auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, offset_manager, options);
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
@@ -591,7 +591,7 @@ int32_t disc_offset_by_overlap(const TOC &toc, std::fstream &scm_fs, int32_t wri
 }
 
 
-int32_t find_non_zero_data_offset(std::fstream &scm_fs, std::fstream &state_fs, int32_t sample_offset_start, int32_t sample_offset_end, bool scrap)
+int32_t find_non_zero_data_offset(std::fstream &scm_fs, std::fstream &state_fs, int32_t sample_offset_start, int32_t sample_offset_end)
 {
     bool reverse = sample_offset_end < sample_offset_start;
 
@@ -627,8 +627,7 @@ int32_t find_non_zero_data_offset(std::fstream &scm_fs, std::fstream &state_fs, 
         uint32_t data_size = sizeof(sector);
 
         read_entry(scm_fs, data, CD_SAMPLE_SIZE, sample_offset_r2a(sample_offset), CD_DATA_SIZE_SAMPLES, 0, 0);
-        if(!scrap)
-            scrambler.process(data, data, 0, data_size);
+        scrambler.process(data, data, 0, data_size);
 
         if(sector.header.mode == 0)
         {
@@ -872,21 +871,17 @@ export void redumper_split_cd(Context &ctx, Options &options)
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     std::filesystem::path scm_path(image_prefix + ".scram");
-    std::filesystem::path scp_path(image_prefix + ".scrap");
     std::filesystem::path sub_path(image_prefix + ".subcode");
     std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path toc_path(image_prefix + ".toc");
     std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
     std::filesystem::path cdtext_path(image_prefix + ".cdtext");
 
-    bool scrap = !std::filesystem::exists(scm_path) && std::filesystem::exists(scp_path);
-    auto scra_path(scrap ? scp_path : scm_path);
-
     uint32_t subcode_sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
 
-    std::fstream scm_fs(scra_path, std::fstream::in | std::fstream::binary);
+    std::fstream scm_fs(scm_path, std::fstream::in | std::fstream::binary);
     if(!scm_fs.is_open())
-        throw_line("unable to open file ({})", scra_path.filename().string());
+        throw_line("unable to open file ({})", scm_path.filename().string());
 
     std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
     if(!state_fs.is_open())
@@ -970,12 +965,12 @@ export void redumper_split_cd(Context &ctx, Options &options)
     auto silence_analyzer = std::make_shared<SilenceAnalyzer>(options.audio_silence_threshold, samples_min);
     analyzers.emplace_back(silence_analyzer);
 
-    auto sync_analyzer = std::make_shared<SyncAnalyzer>(scrap);
+    auto sync_analyzer = std::make_shared<SyncAnalyzer>();
     analyzers.emplace_back(sync_analyzer);
 
     LOG_F("analyzing... ");
     auto analysis_time_start = std::chrono::high_resolution_clock::now();
-    analyze_scram_samples(scm_fs, state_fs, std::filesystem::file_size(scra_path), CD_DATA_SIZE_SAMPLES, analyzers);
+    analyze_scram_samples(scm_fs, state_fs, std::filesystem::file_size(scm_path), CD_DATA_SIZE_SAMPLES, analyzers);
     auto analysis_time_stop = std::chrono::high_resolution_clock::now();
     LOG("done (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(analysis_time_stop - analysis_time_start).count());
     LOG("");
@@ -1022,13 +1017,13 @@ export void redumper_split_cd(Context &ctx, Options &options)
                 if(f.sample_offset - nonzero_data_range.first < CD_DATA_SIZE_SAMPLES)
                 {
                     int32_t sample_offset_end = f.sample_offset + f.count * CD_DATA_SIZE_SAMPLES;
-                    nonzero_data_range.first = find_non_zero_data_offset(scm_fs, state_fs, f.sample_offset, sample_offset_end, scrap);
+                    nonzero_data_range.first = find_non_zero_data_offset(scm_fs, state_fs, f.sample_offset, sample_offset_end);
                 }
 
                 auto const &b = sync_records.back();
                 int32_t sample_offset_start = b.sample_offset + b.count * CD_DATA_SIZE_SAMPLES;
                 if(nonzero_data_range.second - sample_offset_start < CD_DATA_SIZE_SAMPLES)
-                    nonzero_data_range.second = find_non_zero_data_offset(scm_fs, state_fs, sample_offset_start, b.sample_offset, scrap);
+                    nonzero_data_range.second = find_non_zero_data_offset(scm_fs, state_fs, sample_offset_start, b.sample_offset);
             }
         }
     }
@@ -1036,57 +1031,16 @@ export void redumper_split_cd(Context &ctx, Options &options)
     LOG("non-zero  TOC sample range: [{:+9} .. {:+9}]", nonzero_toc_range.first, nonzero_toc_range.second);
     LOG("non-zero data sample range: [{:+9} .. {:+9}]", nonzero_data_range.first, nonzero_data_range.second);
 
-    if(!scrap)
-    {
-        if(state_errors_in_range(state_fs, nonzero_data_range))
-            LOG("warning: non-zero data range is not continuous, skipping Universal Hash calculation");
-        else
-            LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
-    }
+    if(state_errors_in_range(state_fs, nonzero_data_range))
+        LOG("warning: non-zero data range is not continuous, skipping Universal Hash calculation");
+    else
+        LOG("Universal Hash (SHA-1): {}", calculate_universal_hash(scm_fs, nonzero_data_range));
     LOG("");
 
-    if(scrap)
+    if(options.force_offset)
     {
-        if(offsets.empty())
-            throw_line("no data sectors detected in scrap mode");
-
-        if(offsets.size() == 1)
-        {
-            int32_t write_offset_data = offsets.front().second;
-
-            int32_t write_offset_audio = std::numeric_limits<int32_t>::max();
-            if(options.force_offset)
-                write_offset_audio = *options.force_offset;
-            else
-            {
-                // try to detect positive offset based on scrambled data track overlap into audio
-                write_offset_audio = disc_offset_by_overlap(toc, scm_fs, write_offset_data);
-                if(write_offset_audio == std::numeric_limits<int32_t>::max())
-                    write_offset_audio = 0;
-                else
-                    LOG("overlap offset detected");
-            }
-
-            // interleave data and audio offsets
-            offsets.clear();
-            for(auto const &s : toc.sessions)
-                for(auto const &t : s.tracks)
-                {
-                    auto o = t.control & (uint8_t)ChannelQ::Control::DATA ? write_offset_data : write_offset_audio;
-                    if(offsets.empty() || o != offsets.back().second)
-                        offsets.emplace_back(t.lba_start, o);
-                }
-        }
-        else
-            LOG("warning: offset shift detected in scrap mode");
-    }
-    else
-    {
-        if(options.force_offset)
-        {
-            offsets.clear();
-            offsets.emplace_back(0, *options.force_offset);
-        }
+        offsets.clear();
+        offsets.emplace_back(0, *options.force_offset);
     }
 
     // Atari Jaguar CD
@@ -1212,7 +1166,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
     auto offset_manager = std::make_shared<const OffsetManager>(offsets);
 
     // FIXME: rework non-zero area detection
-    if(!options.correct_offset_shift && !scrap && offsets.size() > 1)
+    if(!options.correct_offset_shift && offsets.size() > 1)
     {
         LOG("warning: offset shift detected, to apply correction please use an option");
 
@@ -1224,24 +1178,13 @@ export void redumper_split_cd(Context &ctx, Options &options)
     // output disc write offset
     {
         int32_t disc_write_offset = 0;
-        if(scrap)
-        {
-            for(auto const &s : toc.sessions)
-                for(auto const &t : s.tracks)
-                    if(!(t.control & (uint8_t)ChannelQ::Control::DATA))
-                    {
-                        disc_write_offset = offset_manager->getOffset(t.lba_start);
-                        break;
-                    }
-        }
-        else
-            disc_write_offset = offset_manager->getOffset(0);
+        disc_write_offset = offset_manager->getOffset(0);
 
         LOG("disc write offset: {:+}", disc_write_offset);
         LOG("");
     }
 
-    if(!scrap && offsets.size() > 1)
+    if(offsets.size() > 1)
     {
         LOG("offset shift correction applied: ");
         for(auto const &o : offsets)
@@ -1255,7 +1198,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
             if(t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty() && t.track_number != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
             {
                 uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE;
-                auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), !scrap);
+                auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), true);
 
                 iso9660::PrimaryVolumeDescriptor pvd;
                 if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY)
@@ -1362,18 +1305,18 @@ export void redumper_split_cd(Context &ctx, Options &options)
     protection_ranges_from_lba_ranges(protection, string_to_ranges(options.skip), 0);
 
     // determine data track modes
-    fill_track_modes(ctx, toc, scm_fs, state_fs, offset_manager, scrap, options);
+    fill_track_modes(ctx, toc, scm_fs, state_fs, offset_manager, options);
 
     // check tracks
     LOG("checking tracks");
-    if(!check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, scrap, options) && !options.force_split)
+    if(!check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, options) && !options.force_split)
         throw_line("data errors detected, unable to continue");
     LOG("done");
     LOG("");
 
     // write tracks
     LOG("writing tracks");
-    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, scrap, options);
+    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, options);
     LOG("done");
     LOG("");
 

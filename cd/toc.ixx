@@ -305,8 +305,10 @@ export struct TOC
                         break;
                 }
 
-                t.lba_end = lba;
-                t_next.lba_start = lba;
+                // do not alter lead-out track
+                if(t_next.track_number != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+                    t_next.lba_start = lba;
+                t.lba_end = t_next.lba_start;
             }
         }
 

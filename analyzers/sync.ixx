@@ -29,9 +29,8 @@ public:
     };
 
 
-    SyncAnalyzer(bool scrap)
-        : _scrap(scrap)
-        , _syncSearch(0)
+    SyncAnalyzer()
+        : _syncSearch(0)
     {
         ;
     }
@@ -63,10 +62,7 @@ public:
             else
             {
                 MSF msf;
-                if(_scrap)
-                    msf = *(MSF *)&samples[i];
-                else
-                    _scrambler.process((uint8_t *)&msf, (uint8_t *)&samples[i], sizeof(CD_DATA_SYNC), sizeof(msf));
+                _scrambler.process((uint8_t *)&msf, (uint8_t *)&samples[i], sizeof(CD_DATA_SYNC), sizeof(msf));
 
                 Record record{ BCDMSF_to_LBA(msf), 1, sample_offset_a2r(offset + i - SYNC_SIZE_SAMPLES) };
 
@@ -92,7 +88,6 @@ public:
 private:
     static constexpr uint32_t SYNC_SIZE_SAMPLES = sizeof(CD_DATA_SYNC) / CD_SAMPLE_SIZE;
 
-    bool _scrap;
     uint32_t _syncSearch;
 
     Scrambler _scrambler;

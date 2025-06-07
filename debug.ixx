@@ -28,6 +28,7 @@ import utils.endian;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
+import utils.win32;
 
 
 
@@ -104,6 +105,7 @@ struct SBIEntry
 #pragma pack(pop)
 
 
+
 export int redumper_debug(Context &ctx, Options &options)
 {
     int exit_code = 0;
@@ -117,6 +119,15 @@ export int redumper_debug(Context &ctx, Options &options)
     std::filesystem::path cue_path(image_prefix + ".cue");
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
+
+    if(0)
+    {
+        auto file_data = read_vector("SETUP.EXE");
+        auto sss = get_pe_executable_extent(file_data);
+        if(sss)
+            LOG("size: {}", sss);
+        LOG("");
+    }
 
     if(0)
     {

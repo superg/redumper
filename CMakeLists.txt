@@ -187,6 +187,7 @@ target_sources(redumper
     "utils/misc.ixx"
     "utils/signal.ixx"
     "utils/strings.ixx"
+	"utils/win32.ixx"
     "utils/xbox.ixx"
     "common.ixx"
     "debug.ixx"

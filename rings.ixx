@@ -24,6 +24,7 @@ import scsi.cmd;
 import scsi.sptd;
 import utils.logger;
 import utils.misc;
+import utils.win32;
 
 
 
@@ -197,6 +198,31 @@ export int redumper_rings(Context &ctx, Options &options)
                         ctx.protection.emplace_back(sample2_start, sample2_end);
 
                         break;
+                    }
+                }
+                else if(volume_identifier == "PSPGAMESHARK")
+                {
+                    auto setup_exe_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/SETUP.EXE"; });
+                    auto ico_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/SHARKLOGOS.ICO"; });
+
+                    if(setup_exe_it != area_map.end() && ico_it != area_map.end())
+                    {
+                        std::vector<uint8_t> data(FORM1_DATA_SIZE);
+                        if(data_reader->read(data.data(), setup_exe_it->lba, 1) == 1)
+                        {
+                            uint64_t exe_size = get_pe_executable_extent(data);
+                            if(exe_size)
+                            {
+                                int32_t lba_start = setup_exe_it->lba + scale_up(exe_size, FORM1_DATA_SIZE);
+                                int32_t sample_start = find_sample_offset(*ctx.sptd, ctx.drive_config, lba_start);
+                                int32_t sample_end = find_sample_offset(*ctx.sptd, ctx.drive_config, ico_it->lba);
+
+                                LOG("protection: PC/Datel EXE Ring, range: {}-{}", lba_start, ico_it->lba);
+                                ctx.protection.emplace_back(sample_start, sample_end);
+
+                                break;
+                            }
+                        }
                     }
                 }
                 // Blaze (Wild Wild Racing based)

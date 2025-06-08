@@ -174,7 +174,7 @@ export int redumper_rings(Context &ctx, Options &options)
                     }
                 }
                 // Codebreaker
-                else if(volume_identifier == "CODEBREAKER")
+                else if(volume_identifier == "CODEBREAKER" || volume_identifier == "ZONEFREE_DVD")
                 {
                     auto path_table_m_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::PATH_TABLE_M; });
                     auto zero_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/0.BIN"; });
@@ -189,9 +189,11 @@ export int redumper_rings(Context &ctx, Options &options)
                         int32_t sample1_end = find_sample_offset(*ctx.sptd, ctx.drive_config, lba1_end);
 
                         int32_t lba2_start = z_it->lba + scale_up(z_it->size, FORM1_DATA_SIZE);
-                        int32_t lba2_end = volume_end_it->lba;
                         int32_t sample2_start = find_sample_offset(*ctx.sptd, ctx.drive_config, lba2_start);
-                        int32_t sample2_end = find_sample_offset(*ctx.sptd, ctx.drive_config, lba2_end);
+
+                        // make sure not to read past the end of the disc
+                        int32_t lba2_end = volume_end_it->lba + LEADOUT_OVERREAD_COUNT;
+                        int32_t sample2_end = lba_to_sample(lba2_end, 0);
 
                         LOG("protection: PS2/CodeBreaker Ring, range: {}-{}:{}-{}", lba1_start, lba1_end, lba2_start, lba2_end);
                         ctx.protection.emplace_back(sample1_start, sample1_end);
@@ -200,6 +202,7 @@ export int redumper_rings(Context &ctx, Options &options)
                         break;
                     }
                 }
+                // Datel EXE Ring
                 else if(volume_identifier == "PSPGAMESHARK")
                 {
                     auto setup_exe_it = std::find_if(area_map.begin(), area_map.end(), [](const auto &area) { return area.type == iso9660::Area::Type::FILE_EXTENT && area.name == "/SETUP.EXE"; });

@@ -231,11 +231,16 @@ std::vector<DriveConfig> drive_find_in_database(std::string_view vendor_id, std:
 }
 
 
-export bool drive_is_recommended(std::string_view vendor_id, std::string_view product_id, std::string_view product_revision_level)
+export bool drive_is_recommended(std::string_view vendor_id, std::string_view product_id, std::string_view product_revision_level, std::string_view vendor_specific)
 {
     auto end = std::find_if(DRIVE_DATABASE.begin(), DRIVE_DATABASE.end(), [](const auto &d) { return d.vendor_id.empty() && d.product_id.empty(); });
-    return std::find_if(DRIVE_DATABASE.begin(), end, [&](const auto &d) { return d.vendor_id == vendor_id && d.product_id == product_id && d.product_revision_level == product_revision_level; })
-        != end;
+    auto it = std::find_if(DRIVE_DATABASE.begin(), end, [&](const auto &d) { return d.vendor_id == vendor_id && d.product_id == product_id && d.product_revision_level == product_revision_level; });
+
+    // horrible ASUS 3.10 vs 3.10MK plug
+    if(it != end && it->vendor_id == "ASUS" && it->product_id == "BW-16D1HT" && it->product_revision_level == "3.10" && !vendor_specific.starts_with(std::string_view(it->vendor_specific.c_str(), 8)))
+        it = end;
+
+    return it != end;
 }
 
 

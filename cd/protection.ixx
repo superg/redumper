@@ -136,7 +136,16 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
     if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
     {
         auto root_directory = iso9660::Browser::rootDirectory(form1_reader.get(), pvd);
+
         auto entry = root_directory->subEntry("00000001.TMP");
+
+        bool safedisc_lite = false;
+        if(!entry)
+        {
+            entry = root_directory->subEntry("00000001.LT1");
+            safedisc_lite = true;
+        }
+
         if(entry)
         {
             int32_t lba_start = entry->sectorsOffset() + entry->sectorsSize();
@@ -168,7 +177,7 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
 
             if(!errors.empty())
             {
-                protection = std::format("SafeDisc {}, C2: {}, gap range: {}-{}", entry->name(), errors.size(), lba_start, lba_end - 1);
+                protection = std::format("SafeDisc {}{}, C2: {}, gap range: {}-{}", safedisc_lite ? "Lite " : "", entry->name(), errors.size(), lba_start, lba_end - 1);
 
                 for(auto e : errors)
                     ctx.protection.emplace_back(lba_to_sample(e, *write_offset), lba_to_sample(e + 1, *write_offset));

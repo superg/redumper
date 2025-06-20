@@ -149,7 +149,10 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
         if(entry)
         {
             int32_t lba_start = entry->sectorsOffset() + entry->sectorsSize();
-            int32_t lba_end = pvd.volume_space_size.lsb;
+
+            // limit error search to the max gap size if next file is not found
+            int32_t lba_end = lba_start + (safedisc_lite ? 1500 : 10000);
+
             auto entries = root_directory->entries();
             for(auto &e : entries)
             {

@@ -230,7 +230,7 @@ export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
     }
 }
 
-export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_data)
+export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_data, bool kreon_partial_ss)
 {
     SPTD::Status status;
 
@@ -244,6 +244,10 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
             if(i == 0)
                 throw_line("failed to get security sector, SCSI ({})", SPTD::StatusMessage(status));
 
+            return false;
+        }
+        else if(kreon_partial_ss)
+        {
             return false;
         }
     }

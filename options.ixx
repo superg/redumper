@@ -59,6 +59,7 @@ export struct Options
     bool plextor_leadin_force_store;
     bool asus_skip_leadout;
     int asus_leadout_retries;
+    bool kreon_partial_ss;
     bool disable_cdtext;
     bool correct_offset_shift;
     bool offset_shift_relocate;
@@ -99,6 +100,7 @@ export struct Options
         , plextor_leadin_force_store(false)
         , asus_skip_leadout(false)
         , asus_leadout_retries(32)
+        , kreon_partial_ss(false)
         , disable_cdtext(false)
         , correct_offset_shift(false)
         , offset_shift_relocate(false)
@@ -249,6 +251,8 @@ export struct Options
                         asus_skip_leadout = true;
                     else if(key == "--asus-leadout-retries")
                         i_value = &asus_leadout_retries;
+                    else if(key == "--kreon-partial-ss")
+                        kreon_partial_ss = true;
                     else if(key == "--disable-cdtext")
                         disable_cdtext = true;
                     else if(key == "--correct-offset-shift")
@@ -375,6 +379,7 @@ export struct Options
         LOG("\t--plextor-skip-leadin           \tskip dumping lead-in using negative range");
         LOG("\t--plextor-leadin-retries=VALUE  \tmaximum number of lead-in retries per session (default: {})", plextor_leadin_retries);
         LOG("\t--plextor-leadin-force-store    \tstore unverified lead-in");
+        LOG("\t--kreon-partial-ss              \tget minimal security sector (fixes bad firmware)");
 
         LOG("\t--asus-skip-leadout             \tskip extracting lead-out from drive cache");
         LOG("\t--asus-leadout-retries          \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", asus_leadout_retries);

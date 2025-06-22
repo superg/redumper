@@ -448,9 +448,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
             std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
 
-            bool complete_ss = xbox_get_security_sector(*ctx.sptd, security_sector);
+            bool complete_ss = xbox_get_security_sector(*ctx.sptd, security_sector, options.kreon_partial_ss);
             if(!complete_ss)
-                LOG("warning: could not get complete security sector, attempting to continue");
+                LOG("warning: could not get complete security sector");
 
             // validate security sector
             XGD_Type xgd_type = get_xgd_type((READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0]);

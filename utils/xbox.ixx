@@ -246,7 +246,7 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
 
             return false;
         }
-        else if (kreon_partial_ss)
+        else if(kreon_partial_ss)
         {
             return false;
         }

@@ -17,10 +17,10 @@ redumper operates using commands.
 
 The preferred way is to run it without arguments (equivalent to running `redumper cd`). This is the most common use case that will dump the disc and generate the dump files. Everything that can be automated, is automated. If the `--drive` option is not specified, the first available drive with an inserted disc will be used. If the `--image-name` option is not specified, the image name will be generated based on the current date and drive name.
 
-The command list is available by running `redumper --help`.
+The full command list is available by running `redumper --help`.
 
 ## Windows
-The drive is specified using drive letter: e.g. `--drive=E:` or `--drive=E`.
+The drive is specified using its drive letter: e.g. `--drive=E:` or `--drive=E`.
 
 ## Linux
 The drive is specified using the full path of its device file: `--drive=/dev/sr0`. The disc has to be unmounted before running redumper. I suggest disabling removable drives automounting.

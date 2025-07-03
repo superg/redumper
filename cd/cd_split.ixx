@@ -290,13 +290,20 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
             for(int32_t lba = t.lba_start; lba < lba_end; ++lba)
             {
-                bool generate_sector = !options.leave_unchanged && sector_is_protected(lba, offset_manager, protection);
+                bool generate_sector = false;
 
-                // if sector is not protected, still generate it if data has any errors
-                if(!generate_sector)
+                if(!options.leave_unchanged)
                 {
-                    read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
-                    generate_sector = std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; });
+                    if(sector_is_protected(lba, offset_manager, protection))
+                    {
+                        generate_sector = true;
+                    }
+                    // still generate it if data has any errors
+                    else
+                    {
+                        read_entry(state_fs, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -offset_manager->getOffset(lba), (uint8_t)State::ERROR_SKIP);
+                        generate_sector = std::any_of(state.begin(), state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; });
+                    }
                 }
 
                 // generate sector and fill it with fill byte (default: 0x55)

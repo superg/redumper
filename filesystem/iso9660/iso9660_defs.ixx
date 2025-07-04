@@ -307,11 +307,8 @@ bool character_is_D(char c)
 template<std::size_t N>
 std::string identifier_to_string(char (&identifier)[N])
 {
-    // use only allowed characters in the identifier
-    std::string d;
-    std::copy_if(identifier, identifier + N, std::back_inserter(d), character_is_D);
-
-    return d;
+    // outer string cast limits identifier with the first encountered '\0'
+    return std::string(trim(std::string(identifier, N)).c_str());
 }
 
 }

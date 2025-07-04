@@ -1,4 +1,5 @@
 module;
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
@@ -298,10 +299,19 @@ std::string split_identifier(uint32_t &version, std::string identifier)
     return identifier.substr(0, s);
 }
 
+bool character_is_D(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
 template<std::size_t N>
 std::string identifier_to_string(char (&identifier)[N])
 {
-    return trim(std::string(identifier, N));
+    // use only allowed characters in the identifier
+    std::string d;
+    std::copy_if(identifier, identifier + N, std::back_inserter(d), character_is_D);
+
+    return d;
 }
 
 }

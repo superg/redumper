@@ -128,6 +128,17 @@ Look for a "LG/ASUS: searching lead-out in cache" message which will appear righ
 A proper distinction between different cache partition configurations is very important but it requires manual cache dump analysis. In a nutshell, first you have to establish the true cache size. The above command hardcodes an 8 MB cache size as it's the maximum possible size. If the cache size is smaller, for example 3 MB, and it's being read as 8 MB, it wraps around by the firmware. Basically you have to open the .asus cache file in a hex editor and determine where it starts repeating data. For example, search for the next appearance of the first 8 bytes you see at the start of the file. If you found a match, it's address will basically be the cache size. If it's not found, it's likely a 8 MB cache size. Even if the cache size is the same, multiple partition configurations are possible. Some are already enumerated [HERE](drive.ixx#L256), where the first value is the cache size in MB, and the second value is a number of sectors that are stored in cache. Determining the second value is out of scope here - it requires parsing cache subchannel to see where the boundary is. I have some tools for that but it's not user friendly at the moment. When you determine the cache size, predefined cache configurations most likely will work but that requires extensive testing using discs with various write offsets and comparing to a known good dump.
 
 
+## Flashing drive firmware
+
+redumper can be used to flash the firmware on certain drive models. At the moment, this is limited to drives that use the MT1339 chipset, such as the TS-H353C. Other drive models may be supported in the future.
+
+Although this function has been used successfully by many users, flashing is inherently a dangerous process and is done at your own risk. redumper does not do any checks that the firmware file you provide is correct for the drive model, or that the drive model is of the correct chipset. Providing an incorrect firmware file for your drive, or trying to flash an unsupported drive, may permanently brick your drive. Losing the data connection to the drive during flashing, or losing power during flashing, may also permanently brick your drive. Flashing takes a few seconds in most cases.
+
+Flashing can be done using `redumper flash::mt1339 --drive=<drive> --firmware=<filename>` where the drive is specified using the syntax described above specific to the operating system you are using. The firmware file should be in .bin format.
+
+Linux users may need to run this with root privileges, e.g. by prefixing the redumper command with `sudo`.
+
+
 ## Examples
 **1.**
 

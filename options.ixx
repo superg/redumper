@@ -46,6 +46,7 @@ export struct Options
     std::unique_ptr<double> speed;
     int retries;
     bool refine_subchannel;
+    bool refine_sector_mode;
     std::unique_ptr<std::string> cd_continue;
     std::unique_ptr<int> lba_start;
     std::unique_ptr<int> lba_end;
@@ -91,6 +92,7 @@ export struct Options
         , leave_unchanged(false)
         , retries(0)
         , refine_subchannel(false)
+        , refine_sector_mode(false)
         , force_qtoc(false)
         , legacy_subs(false)
         , skip_fill(0x55)
@@ -216,6 +218,8 @@ export struct Options
                         i_value = &retries;
                     else if(key == "--refine-subchannel")
                         refine_subchannel = true;
+                    else if(key == "--refine-sector-mode")
+                        refine_sector_mode = true;
                     else if(key == "--continue")
                     {
                         cd_continue = std::make_unique<std::string>();
@@ -408,6 +412,7 @@ export struct Options
         LOG("\t--lba-start=VALUE               \tLBA to start dumping from");
         LOG("\t--lba-end=VALUE                 \tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
         LOG("\t--refine-subchannel             \tin addition to SCSI/C2, refine subchannel");
+        LOG("\t--refine-sector-mode            \tupdate sector data only if whole sector is C2 error free");
         LOG("\t--skip=VALUE                    \tLBA ranges of sectors to skip");
         LOG("\t--dump-write-offset=VALUE       \toffset hint for data sectors read using BE method");
         LOG("\t--dump-read-size=VALUE          \tnumber of sectors to read at once on initial dump, DVD only (default: {})", dump_read_size);

@@ -455,7 +455,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                     uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
                     uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
 
-                    bool data_updated = sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data(), State::SUCCESS), sector_data, sector_protection);
+                    bool allow_update = dump_mode != DumpMode::REFINE || !options.refine_sector_mode || !c2_bits;
+
+                    bool data_updated = allow_update && sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data(), State::SUCCESS), sector_data, sector_protection);
                     if(data_updated)
                     {
                         int32_t offset = unscrambled ? data_drive_offset : ctx.drive_config.read_offset;

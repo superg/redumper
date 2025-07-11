@@ -23,9 +23,11 @@ The full command list is available by running `redumper --help`.
 The drive is specified using its drive letter: e.g. `--drive=E:` or `--drive=E`.
 
 ## Linux
-The drive is specified using the full path of its device file: `--drive=/dev/sr0`. The disc has to be unmounted before running redumper. I suggest disabling removable drives automounting.
+The drive is specified using the full path of its device file: `--drive=/dev/sg0`. The disc has to be unmounted before running redumper. I suggest disabling removable drives automounting.
 
-At the time of writing, drive autodetection doesn't work for some Linux distributions. Autodetection is based on kernel sysfs guidelines but some distributions deviate from that (or I didn't implement it right). This will be fixed at some point and the current suggested workaround is to specify the drive directly. One thing to mention is that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). 
+At the time of writing, drive autodetection doesn't work for some Linux distributions. Autodetection is based on kernel sysfs guidelines but some distributions deviate from that (or I didn't implement it right). This will be fixed at some point and the current suggested workaround is to specify the drive directly.
+
+One thing to mention is that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). This will mean using a device file like /dev/sg0 rather than /dev/sr0.
 
 ## macOS
 Before running for the first time, you'll need to install an `llvm` prerequisite via Homebrew: `brew install llvm@18`. (Without this installed, you will get an error: `Library not loaded: /opt/homebrew/opt/llvm/lib/c++/libc++.1.dylib`.) Additionally, you may also require removing the quarantine block that macOS may add to a downloaded redumper executable: `xattr -dr com.apple.quarantine {your/path/to/}redumper`, adjusting the path to redumper for your machine.
@@ -135,9 +137,6 @@ redumper can be used to flash the firmware on certain drive models. At the momen
 Although this function has been used successfully by many users, flashing is inherently a dangerous process and is done at your own risk. redumper does not do any checks that the firmware file you provide is correct for the drive model, or that the drive model is of the correct chipset. Providing an incorrect firmware file for your drive, or trying to flash an unsupported drive, may permanently brick your drive. Losing the data connection to the drive during flashing, or losing power during flashing, may also permanently brick your drive. Flashing takes a few seconds in most cases.
 
 Flashing can be done using `redumper flash::mt1339 --drive=<drive> --firmware=<filename>` where the drive is specified using the syntax described above specific to the operating system you are using. The firmware file should be in .bin format.
-
-Linux users may need to run this with root privileges, e.g. by prefixing the redumper command with `sudo`.
-
 
 ## Examples
 **1.**

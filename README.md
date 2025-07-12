@@ -23,9 +23,13 @@ The full command list is available by running `redumper --help`.
 The drive is specified using its drive letter: e.g. `--drive=E:` or `--drive=E`.
 
 ## Linux
-The drive is specified using the full path of its device file: `--drive=/dev/sr0`. The disc has to be unmounted before running redumper. I suggest disabling removable drives automounting.
+The drive is specified using the full path of its device file: e.g. `--drive=/dev/sg0` or `--drive=/dev/sg1`.
 
-At the time of writing, drive autodetection doesn't work for some Linux distributions. Autodetection is based on kernel sysfs guidelines but some distributions deviate from that (or I didn't implement it right). This will be fixed at some point and the current suggested workaround is to specify the drive directly. One thing to mention is that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). 
+The disc has to be unmounted before running redumper. I suggest disabling removable drives automounting.
+
+At the time of writing, drive autodetection doesn't work for some Linux distributions. Autodetection is based on kernel sysfs guidelines but some distributions deviate from that (or I didn't implement it right). This will be fixed at some point. If autodetection doesn't work for you, the current suggested workaround is to specify the drive directly.
+
+Note that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). This will mean using a device file like /dev/sg0 rather than /dev/sr0.
 
 ## macOS
 Before running for the first time, you'll need to install an `llvm` prerequisite via Homebrew: `brew install llvm@18`. (Without this installed, you will get an error: `Library not loaded: /opt/homebrew/opt/llvm/lib/c++/libc++.1.dylib`.) Additionally, you may also require removing the quarantine block that macOS may add to a downloaded redumper executable: `xattr -dr com.apple.quarantine {your/path/to/}redumper`, adjusting the path to redumper for your machine.
@@ -127,6 +131,14 @@ Look for a "LG/ASUS: searching lead-out in cache" message which will appear righ
 
 A proper distinction between different cache partition configurations is very important but it requires manual cache dump analysis. In a nutshell, first you have to establish the true cache size. The above command hardcodes an 8 MB cache size as it's the maximum possible size. If the cache size is smaller, for example 3 MB, and it's being read as 8 MB, it wraps around by the firmware. Basically you have to open the .asus cache file in a hex editor and determine where it starts repeating data. For example, search for the next appearance of the first 8 bytes you see at the start of the file. If you found a match, it's address will basically be the cache size. If it's not found, it's likely a 8 MB cache size. Even if the cache size is the same, multiple partition configurations are possible. Some are already enumerated [HERE](drive.ixx#L256), where the first value is the cache size in MB, and the second value is a number of sectors that are stored in cache. Determining the second value is out of scope here - it requires parsing cache subchannel to see where the boundary is. I have some tools for that but it's not user friendly at the moment. When you determine the cache size, predefined cache configurations most likely will work but that requires extensive testing using discs with various write offsets and comparing to a known good dump.
 
+
+## Flashing drive firmware
+
+redumper can be used to flash the firmware on certain drive models. At the moment, this is limited to drives that use the MT1339 chipset, such as the TS-H353C. Other drive models may be supported in the future.
+
+Although this function has been used successfully by many users, flashing is inherently a dangerous process and is done at your own risk. redumper does not do any checks that the firmware file you provide is correct for the drive model, or that the drive model is of the correct chipset. Providing an incorrect firmware file for your drive, or trying to flash an unsupported drive, may permanently brick your drive. Losing the data connection to the drive during flashing, or losing power during flashing, may also permanently brick your drive. Flashing takes a few seconds in most cases.
+
+Flashing can be done using `redumper flash::mt1339 --drive=<drive> --firmware=<filename>` where the drive is specified using the syntax described above specific to the operating system you are using. The firmware file should be in .bin format.
 
 ## Examples
 **1.**

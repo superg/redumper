@@ -61,6 +61,12 @@ public:
         return _baseLBA;
     }
 
+
+    uint32_t sectorsCount() const override
+    {
+        return std::numeric_limits<uint32_t>::max();
+    }
+
 private:
     SPTD &_sptd;
     int32_t _baseLBA;

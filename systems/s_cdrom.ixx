@@ -4,6 +4,7 @@ module;
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <ostream>
 #include <vector>
@@ -16,7 +17,7 @@ import cd.cd;
 import cd.cdrom;
 import cd.ecc;
 import cd.edc;
-import readers.sector_reader;
+import readers.data_reader;
 import utils.file_io;
 
 
@@ -37,7 +38,7 @@ public:
         return Type::RAW_DATA;
     }
 
-    void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &) const override
     {
         uint32_t invalid_sync = 0;
         uint32_t mode2_form1 = 0;
@@ -56,7 +57,7 @@ public:
 
         Sector sector;
         uint32_t s = 0;
-        for(; sector_reader->read((uint8_t *)&sector, s, 1) == 1; ++s)
+        for(; data_reader->read((uint8_t *)&sector, data_reader->sectorsBase() + s, 1) == 1; ++s)
         {
             if(memcmp(sector.sync, CD_DATA_SYNC, sizeof(CD_DATA_SYNC)))
             {

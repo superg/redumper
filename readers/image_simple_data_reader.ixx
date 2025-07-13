@@ -1,5 +1,6 @@
 module;
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include "throw_line.hh"
@@ -18,10 +19,10 @@ class Image_SimpleDataReader : public T
 {
 public:
     Image_SimpleDataReader(const std::string &image_path)
+        : _fs(image_path, std::fstream::in | std::fstream::binary)
+        , _sectorsCount(std::filesystem::file_size(image_path) / S)
     {
-        _fs.open(image_path, std::fstream::in | std::fstream::binary);
-        if(!_fs.is_open())
-            throw_line("unable to open image file (path: {})", image_path);
+        ;
     }
 
 
@@ -68,8 +69,16 @@ public:
         return 0;
     }
 
+
+    uint32_t sectorsCount() const override
+    {
+        return _sectorsCount;
+    }
+
+
 private:
     std::fstream _fs;
+    uint32_t _sectorsCount;
 };
 
 }

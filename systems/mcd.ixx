@@ -16,7 +16,7 @@ module;
 export module systems.mcd;
 
 import filesystem.iso9660;
-import readers.sector_reader;
+import readers.data_reader;
 import utils.hex_bin;
 import utils.misc;
 import utils.strings;
@@ -39,9 +39,9 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &) const override
     {
-        auto system_area = iso9660::Browser::readSystemArea(sector_reader);
+        auto system_area = iso9660::Browser::readSystemArea(data_reader);
         if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))
             return;
 

@@ -32,7 +32,8 @@ import filesystem.iso9660;
 import hash.sha1;
 import options;
 import range;
-import readers.image_bin_form1_reader;
+import readers.data_reader;
+import readers.image_bin_reader;
 import rom_entry;
 import utils.file_io;
 import utils.logger;
@@ -91,7 +92,8 @@ int32_t iso9660_trim_if_needed(Context &ctx, const TOC::Session::Track &t, std::
     if((ctx.protection_trim && *ctx.protection_trim || options.iso9660_trim) && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty())
     {
         uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE;
-        auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), true);
+        // GGG        auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), true);
+        std::unique_ptr<DataReader> form1_reader;
 
         iso9660::PrimaryVolumeDescriptor pvd;
         if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
@@ -1214,7 +1216,8 @@ export void redumper_split_cd(Context &ctx, Options &options)
             if(t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty() && t.track_number != bcd_decode(CD_LEADOUT_TRACK_NUMBER))
             {
                 uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE;
-                auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), true);
+                // GGG                auto form1_reader = std::make_unique<Image_BIN_Reader>(scm_fs, file_offset, t.lba_end - t.indices.front(), true);
+                std::unique_ptr<DataReader> form1_reader;
 
                 iso9660::PrimaryVolumeDescriptor pvd;
                 if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY)

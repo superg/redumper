@@ -15,7 +15,7 @@ import cd.cdrom;
 import cd.common;
 import cd.subcode;
 import filesystem.iso9660;
-import readers.sector_reader;
+import readers.data_reader;
 import utils.endian;
 import utils.file_io;
 import utils.misc;
@@ -39,12 +39,12 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path) const override
     {
         iso9660::PrimaryVolumeDescriptor pvd;
-        if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
+        if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader, iso9660::VolumeDescriptorType::PRIMARY))
             return;
-        auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
+        auto root_directory = iso9660::Browser::rootDirectory(data_reader, pvd);
 
         auto exe_path = findEXE(root_directory);
         if(exe_path.empty())

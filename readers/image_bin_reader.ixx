@@ -1,6 +1,7 @@
 module;
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include "utils/throw_line.hh"
@@ -21,11 +22,9 @@ export class Image_BIN_Reader : public DataReader
 {
 public:
     Image_BIN_Reader(const std::string &image_path)
+        : _fs(image_path, std::fstream::in | std::fstream::binary)
+        , _sectorsCount(std::filesystem::file_size(image_path) / CD_DATA_SIZE)
     {
-        _fs.open(image_path, std::fstream::in | std::fstream::binary);
-        if(!_fs.is_open())
-            throw_line("unable to open image file (path: {})", image_path);
-
         setBaseLBA();
     }
 
@@ -97,9 +96,16 @@ public:
         return _baseLBA;
     }
 
+
+    uint32_t sectorsCount() const override
+    {
+        return _sectorsCount;
+    }
+
 private:
     std::fstream _fs;
     uint32_t _baseLBA;
+    uint32_t _sectorsCount;
 
 
     bool seek(uint32_t index)

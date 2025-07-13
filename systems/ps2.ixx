@@ -13,7 +13,7 @@ module;
 export module systems.ps2;
 
 import filesystem.iso9660;
-import readers.sector_reader;
+import readers.data_reader;
 import utils.misc;
 import utils.strings;
 
@@ -37,12 +37,12 @@ public:
     }
 
 
-    void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &) const override
     {
         iso9660::PrimaryVolumeDescriptor pvd;
-        if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
+        if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader, iso9660::VolumeDescriptorType::PRIMARY))
             return;
-        auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
+        auto root_directory = iso9660::Browser::rootDirectory(data_reader, pvd);
 
         auto system_cnf = loadCNF(root_directory, "SYSTEM.CNF");
         auto it = system_cnf.find("BOOT2");

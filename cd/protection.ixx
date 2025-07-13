@@ -17,7 +17,8 @@ import cd.toc;
 import common;
 import filesystem.iso9660;
 import options;
-import readers.image_bin_form1_reader;
+import readers.data_reader;
+import readers.image_bin_reader;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
@@ -47,12 +48,13 @@ std::string detect_datel(Context &ctx, const TOC &toc, std::fstream &fs_scram, s
     if(!write_offset)
         return protection;
 
-    constexpr int32_t first_file_offset = 23;
+    constexpr uint32_t first_file_lba = 23;
 
     std::string protected_filename;
     {
         uint32_t file_offset = (track1_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
-        auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+        // GGG        auto form1_reader = std::make_unique<Image_BIN_Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+        std::unique_ptr<DataReader> form1_reader;
 
         iso9660::PrimaryVolumeDescriptor pvd;
         if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
@@ -68,7 +70,7 @@ std::string detect_datel(Context &ctx, const TOC &toc, std::fstream &fs_scram, s
                     continue;
 
                 // first file on disc and starts from LBA 23
-                if(entry->sectorsOffset() == first_file_offset)
+                if(entry->sectorsLBA() == first_file_lba)
                 {
                     protected_filename = entry->name();
                     break;
@@ -80,7 +82,7 @@ std::string detect_datel(Context &ctx, const TOC &toc, std::fstream &fs_scram, s
     if(!protected_filename.empty())
     {
         std::pair<int32_t, int32_t> range(0, 0);
-        for(int32_t lba = first_file_offset, lba_end = std::min(track1_end, 5000); lba < lba_end; ++lba)
+        for(int32_t lba = first_file_lba, lba_end = std::min(track1_end, 5000); lba < lba_end; ++lba)
         {
             std::vector<State> state(CD_DATA_SIZE_SAMPLES);
             read_entry(fs_state, (uint8_t *)state.data(), CD_DATA_SIZE_SAMPLES, lba - LBA_START, 1, -*write_offset, (uint8_t)State::ERROR_SKIP);
@@ -130,7 +132,8 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
         return protection;
 
     uint32_t file_offset = (track1_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
-    auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    // GGG    auto form1_reader = std::make_unique<Image_BIN_Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    std::unique_ptr<DataReader> form1_reader;
 
     iso9660::PrimaryVolumeDescriptor pvd;
     if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
@@ -148,7 +151,7 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
 
         if(entry)
         {
-            int32_t lba_start = entry->sectorsOffset() + entry->sectorsSize();
+            int32_t lba_start = entry->sectorsLBA() + entry->sectorsSize();
 
             // limit error search to the max gap size if next file is not found
             int32_t lba_end = lba_start + (safedisc_lite ? 1500 : 10000);
@@ -159,7 +162,7 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
                 if(e->isDirectory())
                     continue;
 
-                auto entry_offset = e->sectorsOffset();
+                auto entry_offset = e->sectorsLBA();
                 if(entry_offset <= lba_start)
                     continue;
 
@@ -212,7 +215,8 @@ std::string detect_datel_faketoc(Context &ctx, const TOC &toc, std::fstream &fs_
         return protection;
 
     uint32_t file_offset = (track1_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
-    auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    // GGG    auto form1_reader = std::make_unique<Image_BIN_Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    std::unique_ptr<DataReader> form1_reader;
 
     int32_t leadout_lba = toc.sessions.front().tracks.back().lba_start;
 
@@ -260,7 +264,8 @@ std::string detect_breakerpro_faketoc(Context &ctx, const TOC &toc, std::fstream
         return protection;
 
     uint32_t file_offset = (track1_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
-    auto form1_reader = std::make_unique<Image_BIN_Form1Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    // GGG    auto form1_reader = std::make_unique<Image_BIN_Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    std::unique_ptr<DataReader> form1_reader;
 
     int32_t leadout_lba = toc.sessions.front().tracks.back().lba_start;
 

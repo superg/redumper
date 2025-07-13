@@ -22,6 +22,7 @@ public:
     virtual uint32_t read(uint8_t *sectors, int32_t lba, uint32_t count, bool form2 = false, bool *form_hint = nullptr) = 0;
     virtual uint32_t sectorSize(bool form2 = false) = 0;
     virtual int32_t sectorsBase() = 0;
+    virtual uint32_t sectorsCount() const = 0;
     virtual int32_t sampleOffset(int32_t lba) = 0;
 
     virtual std::string calculateSHA1(int32_t lba, uint32_t count, uint32_t form1_size, bool form2 = false, bool *form_hint = nullptr)

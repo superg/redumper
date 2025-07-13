@@ -158,7 +158,7 @@ target_sources(redumper
     "readers/image_iso_reader.ixx"
     "readers/image_raw_reader.ixx"
     "readers/image_scram_reader.ixx"
-    "readers/image_simple_data_reader.ixx"
+    "readers/image_simple_reader.ixx"
     "readers/data_reader.ixx"
     "scsi/cmd.ixx"
     "scsi/mmc.ixx"

@@ -5,7 +5,7 @@ module;
 #include <string>
 #include "throw_line.hh"
 
-export module readers.image_simple_data_reader;
+export module readers.image_simple_reader;
 
 import cd.common;
 
@@ -15,10 +15,10 @@ namespace gpsxre
 {
 
 export template<typename T, uint32_t S>
-class Image_SimpleDataReader : public T
+class Image_SimpleReader : public T
 {
 public:
-    Image_SimpleDataReader(const std::string &image_path)
+    Image_SimpleReader(const std::string &image_path)
         : _fs(image_path, std::fstream::in | std::fstream::binary)
         , _sectorsCount(std::filesystem::file_size(image_path) / S)
     {

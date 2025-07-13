@@ -17,7 +17,6 @@ import cd.toc;
 import common;
 import filesystem.iso9660;
 import options;
-import readers.data_reader;
 import readers.image_scram_reader;
 import utils.file_io;
 import utils.logger;

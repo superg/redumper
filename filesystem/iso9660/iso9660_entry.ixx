@@ -145,12 +145,6 @@ public:
         return sectors;
     }
 
-
-    // std::string calculateSHA1(bool form2 = false, bool *form_hint = nullptr)
-    // {
-    //     return _sectorReader->calculateSHA1(sectorsOffset(), sectorsSize(), _directoryRecord.data_length.lsb, form2, form_hint);
-    // }
-
 private:
     DataReader *_dataReader;
     std::string _name;

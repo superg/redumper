@@ -53,7 +53,7 @@ std::string detect_datel(Context &ctx, const TOC &toc, std::fstream &fs_scram, s
     std::string protected_filename;
     {
         uint32_t file_offset = (track1_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
-        auto form1_reader = std::make_unique<Image_SCRAM_Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+        auto form1_reader = std::make_unique<Image_SCRAM_Reader>(fs_scram, file_offset, track1_end - track1_start);
 
         iso9660::PrimaryVolumeDescriptor pvd;
         if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
@@ -131,7 +131,7 @@ std::string detect_safedisc(Context &ctx, const TOC &toc, std::fstream &fs_scram
         return protection;
 
     uint32_t file_offset = (track1_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
-    auto form1_reader = std::make_unique<Image_SCRAM_Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    auto form1_reader = std::make_unique<Image_SCRAM_Reader>(fs_scram, file_offset, track1_end - track1_start);
 
     iso9660::PrimaryVolumeDescriptor pvd;
     if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
@@ -213,7 +213,7 @@ std::string detect_datel_faketoc(Context &ctx, const TOC &toc, std::fstream &fs_
         return protection;
 
     uint32_t file_offset = (track1_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
-    auto form1_reader = std::make_unique<Image_SCRAM_Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    auto form1_reader = std::make_unique<Image_SCRAM_Reader>(fs_scram, file_offset, track1_end - track1_start);
 
     int32_t leadout_lba = toc.sessions.front().tracks.back().lba_start;
 
@@ -261,7 +261,7 @@ std::string detect_breakerpro_faketoc(Context &ctx, const TOC &toc, std::fstream
         return protection;
 
     uint32_t file_offset = (track1_start - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
-    auto form1_reader = std::make_unique<Image_SCRAM_Reader>(fs_scram, file_offset, track1_end - track1_start, true);
+    auto form1_reader = std::make_unique<Image_SCRAM_Reader>(fs_scram, file_offset, track1_end - track1_start);
 
     int32_t leadout_lba = toc.sessions.front().tracks.back().lba_start;
 

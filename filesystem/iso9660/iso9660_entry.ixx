@@ -64,12 +64,6 @@ public:
     }
 
 
-    // bool isAccessible() const
-    // {
-    //     return sectorsOffset() + sectorsSize() <= _sectorReader->sectorsCount();
-    // }
-
-
     bool isDirectory() const
     {
         return _directoryRecord.file_flags & (uint8_t)iso9660::DirectoryRecord::FileFlags::DIRECTORY;

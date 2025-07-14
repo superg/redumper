@@ -16,7 +16,7 @@ import cd.cdrom;
 import cd.common;
 import cd.subcode;
 import crc.crc16_gsm;
-import readers.sector_reader;
+import readers.data_reader;
 import utils.endian;
 import utils.file_io;
 import utils.misc;
@@ -41,15 +41,15 @@ public:
     }
 
 
-    void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &track_path) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path) const override
     {
         // SecuROM data track has one sector with flipped mode
         static constexpr uint32_t flip_offset = 4;
-        auto sectors_count = sector_reader->sectorsCount();
+        auto sectors_count = data_reader->sectorsCount();
         if(sectors_count >= flip_offset)
         {
             Sector sector[2];
-            sector_reader->read((uint8_t *)&sector, sectors_count - flip_offset, countof(sector));
+            data_reader->read((uint8_t *)&sector, data_reader->sectorsBase() + sectors_count - flip_offset, countof(sector));
 
             if(sector[0].header.mode == sector[1].header.mode)
                 return;

@@ -16,7 +16,6 @@ import :entry;
 import cd.cd;
 import cd.cdrom;
 import readers.data_reader;
-import readers.sector_reader;
 
 
 
@@ -26,11 +25,11 @@ export namespace gpsxre::iso9660
 class Browser
 {
 public:
-    static std::vector<uint8_t> readSystemArea(SectorReader *sector_reader)
+    static std::vector<uint8_t> readSystemArea(DataReader *data_reader)
     {
         std::vector<uint8_t> system_area(SYSTEM_AREA_SIZE * FORM1_DATA_SIZE);
 
-        uint32_t sectors_count = sector_reader->read(system_area.data(), 0, SYSTEM_AREA_SIZE);
+        uint32_t sectors_count = data_reader->read(system_area.data(), data_reader->sectorsBase() + 0, SYSTEM_AREA_SIZE);
         system_area.resize(sectors_count * FORM1_DATA_SIZE);
 
         return system_area;
@@ -60,32 +59,9 @@ public:
     }
 
 
-    static bool findDescriptor(VolumeDescriptor &descriptor, SectorReader *sector_reader, VolumeDescriptorType type)
+    static std::shared_ptr<Entry> rootDirectory(DataReader *data_reader, const PrimaryVolumeDescriptor &pvd)
     {
-        bool found = false;
-
-        for(uint32_t s = SYSTEM_AREA_SIZE; sector_reader->read((uint8_t *)&descriptor, s, 1) == 1; ++s)
-        {
-            if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier))
-                && memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
-                break;
-
-            if(descriptor.type == type)
-            {
-                found = true;
-                break;
-            }
-            else if(descriptor.type == VolumeDescriptorType::SET_TERMINATOR)
-                break;
-        }
-
-        return found;
-    }
-
-
-    static std::shared_ptr<Entry> rootDirectory(SectorReader *sector_reader, const PrimaryVolumeDescriptor &pvd)
-    {
-        return std::make_shared<Entry>(sector_reader, std::string(""), 1, pvd.root_directory_record);
+        return std::make_shared<Entry>(data_reader, std::string(""), 1, pvd.root_directory_record);
     }
 
 

@@ -16,9 +16,9 @@ import common;
 import dvd.css;
 import filesystem.iso9660;
 import options;
-import readers.disc_read_form1_reader;
-import readers.image_iso_form1_reader;
-import readers.sector_reader;
+import readers.disc_read_reader;
+import readers.image_iso_reader;
+import readers.data_reader;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -46,15 +46,15 @@ std::string region_string(uint8_t region_bits)
 }
 
 
-std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(SectorReader *sector_reader)
+std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(DataReader *data_reader)
 {
     std::map<std::string, std::pair<uint32_t, uint32_t>> titles;
 
     iso9660::PrimaryVolumeDescriptor pvd;
-    if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
+    if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader, iso9660::VolumeDescriptorType::PRIMARY))
         return titles;
 
-    auto root_directory = iso9660::Browser::rootDirectory(sector_reader, pvd);
+    auto root_directory = iso9660::Browser::rootDirectory(data_reader, pvd);
     auto video_ts = root_directory->subEntry("VIDEO_TS");
     if(!video_ts)
         return titles;
@@ -66,7 +66,7 @@ std::map<std::string, std::pair<uint32_t, uint32_t>> extract_vob_list(SectorRead
             continue;
 
         if(e->name().ends_with(".VOB"))
-            titles[e->name()] = std::pair(e->sectorsOffset(), e->sectorsOffset() + e->sectorsSize());
+            titles[e->name()] = std::pair(e->sectorsLBA(), e->sectorsLBA() + e->sectorsSize());
     }
 
     return titles;
@@ -135,7 +135,7 @@ export int redumper_dvdkey(Context &ctx, Options &options)
 
         if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
         {
-            Disc_READ_FORM1_Reader reader(*ctx.sptd, 0);
+            Disc_READ_Reader reader(*ctx.sptd, 0);
             auto vobs = extract_vob_list(&reader);
 
             bool cppm = false;
@@ -204,9 +204,9 @@ export int redumper_dvdisokey(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    std::filesystem::path scm_path((std::filesystem::path(options.image_path) / options.image_name).string() + ".iso");
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
 
-    Image_ISO_Form1Reader reader(scm_path);
+    Image_ISO_Reader reader(image_prefix + ".iso");
     auto vobs = extract_vob_list(&reader);
     if(!vobs.empty())
     {

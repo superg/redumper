@@ -9,7 +9,7 @@ module;
 export module systems.iso;
 
 import filesystem.iso9660;
-import readers.sector_reader;
+import readers.data_reader;
 import utils.hex_bin;
 import utils.strings;
 
@@ -31,10 +31,10 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, SectorReader *sector_reader, const std::filesystem::path &) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &) const override
     {
         iso9660::PrimaryVolumeDescriptor pvd;
-        if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, sector_reader, iso9660::VolumeDescriptorType::PRIMARY))
+        if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader, iso9660::VolumeDescriptorType::PRIMARY))
         {
             auto volume_identifier = iso9660::identifier_to_string(pvd.volume_identifier);
             if(!volume_identifier.empty())

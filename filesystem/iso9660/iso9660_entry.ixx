@@ -10,7 +10,7 @@ module;
 export module filesystem.iso9660:entry;
 
 import :defs;
-import readers.sector_reader;
+import readers.data_reader;
 import cd.cdrom;
 import utils.endian;
 import utils.misc;
@@ -24,8 +24,8 @@ export namespace gpsxre::iso9660
 class Entry
 {
 public:
-    Entry(SectorReader *sector_reader, const std::string &name, uint32_t version, const iso9660::DirectoryRecord &directory_record)
-        : _sectorReader(sector_reader)
+    Entry(DataReader *data_reader, const std::string &name, uint32_t version, const iso9660::DirectoryRecord &directory_record)
+        : _dataReader(data_reader)
         , _name(name)
         , _version(version)
         , _directoryRecord(directory_record)
@@ -52,21 +52,15 @@ public:
     }
 
 
-    uint32_t sectorsOffset() const
+    uint32_t sectorsLBA() const
     {
-        return _directoryRecord.offset.lsb - _sectorReader->sectorsBase();
+        return _directoryRecord.offset.lsb;
     }
 
 
     uint32_t sectorsSize() const
     {
         return scale_up(_directoryRecord.data_length.lsb, FORM1_DATA_SIZE);
-    }
-
-
-    bool isAccessible() const
-    {
-        return sectorsOffset() + sectorsSize() <= _sectorReader->sectorsCount();
     }
 
 
@@ -95,7 +89,7 @@ public:
                 uint32_t version;
                 std::string name = split_identifier(version, dr.first);
 
-                entries.push_back(std::make_shared<Entry>(_sectorReader, name, version, dr.second));
+                entries.push_back(std::make_shared<Entry>(_dataReader, name, version, dr.second));
             }
         }
 
@@ -139,26 +133,20 @@ public:
 
     std::vector<uint8_t> read(bool form2 = false, bool *form_hint = nullptr)
     {
-        std::vector<uint8_t> sectors(sectorsSize() * _sectorReader->sectorSize(form2));
+        std::vector<uint8_t> sectors(sectorsSize() * _dataReader->sectorSize(form2));
 
-        uint32_t sectors_read = _sectorReader->read(sectors.data(), sectorsOffset(), sectorsSize(), form2, form_hint);
+        uint32_t sectors_read = _dataReader->read(sectors.data(), sectorsLBA(), sectorsSize(), form2, form_hint);
 
         // exclude form2 sectors as multiples of form1 size
-        uint32_t size = form2 ? sectors_read * _sectorReader->sectorSize(form2) : _directoryRecord.data_length.lsb - ((sectorsSize() - sectors_read) * _sectorReader->sectorSize(form2));
+        uint32_t size = form2 ? sectors_read * _dataReader->sectorSize(form2) : _directoryRecord.data_length.lsb - ((sectorsSize() - sectors_read) * _dataReader->sectorSize(form2));
 
         sectors.resize(size);
 
         return sectors;
     }
 
-
-    std::string calculateSHA1(bool form2 = false, bool *form_hint = nullptr)
-    {
-        return _sectorReader->calculateSHA1(sectorsOffset(), sectorsSize(), _directoryRecord.data_length.lsb, form2, form_hint);
-    }
-
 private:
-    SectorReader *_sectorReader;
+    DataReader *_dataReader;
     std::string _name;
     uint32_t _version;
     iso9660::DirectoryRecord _directoryRecord;

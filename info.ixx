@@ -16,10 +16,10 @@ import cd.common;
 import common;
 import filesystem.iso9660;
 import options;
-import readers.image_bin_form1_reader;
-import readers.image_iso_form1_reader;
+import readers.image_bin_reader;
+import readers.image_iso_reader;
 import readers.image_raw_reader;
-import readers.sector_reader;
+import readers.data_reader;
 import systems.systems;
 import utils.hex_bin;
 import utils.logger;
@@ -37,11 +37,11 @@ export int redumper_info(Context &ctx, Options &options)
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
-    std::list<std::pair<std::filesystem::path, TrackType>> tracks;
+    std::list<std::pair<std::string, TrackType>> tracks;
     if(std::filesystem::exists(image_prefix + ".cue"))
     {
         for(auto const &t : cue_get_entries(image_prefix + ".cue"))
-            tracks.emplace_back(std::filesystem::path(options.image_path) / t.first, t.second);
+            tracks.emplace_back((std::filesystem::path(options.image_path) / t.first).string(), t.second);
     }
     else if(std::filesystem::exists(image_prefix + ".iso"))
     {
@@ -53,15 +53,15 @@ export int redumper_info(Context &ctx, Options &options)
     bool separate_nl = false;
     for(auto const &t : tracks)
     {
-        std::shared_ptr<SectorReader> raw_reader;
-        std::shared_ptr<SectorReader> form1_reader;
+        std::shared_ptr<DataReader> raw_reader;
+        std::shared_ptr<DataReader> form1_reader;
 
         if(track_type_is_data_iso(t.second))
-            form1_reader = std::make_shared<Image_ISO_Form1Reader>(t.first);
+            form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
         else if(track_type_is_data_raw(t.second))
         {
-            raw_reader = std::make_shared<Image_RawReader>(t.first);
-            form1_reader = std::make_shared<Image_BIN_Form1Reader>(t.first);
+            raw_reader = std::make_shared<Image_RAW_Reader>(t.first);
+            form1_reader = std::make_shared<Image_BIN_Reader>(t.first);
         }
 
         for(auto const &s : Systems::get())
@@ -81,7 +81,7 @@ export int redumper_info(Context &ctx, Options &options)
                     LOG("");
                 separate_nl = true;
 
-                LOG("{} [{}]:", system->getName(), t.first.filename().string());
+                LOG("{} [{}]:", system->getName(), std::filesystem::path(t.first).filename().string());
                 LOG_F("{}", ss.str());
             }
         }

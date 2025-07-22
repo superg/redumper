@@ -24,14 +24,14 @@ export int redumper_flash_sd616(Context &ctx, Options &options)
     int exit_code = 0;
 
     auto firmware_data = read_vector(options.firmware);
-    if (firmware_data.size() != 0x20000)
+    if(firmware_data.size() != 0x20000)
         throw_line("incorrect firmware size");
 
     constexpr uint32_t block_size = 0x10000;
 
     std::array<uint8_t, 0x30000> shifted_firmware_data{};
     memcpy(&shifted_firmware_data, &firmware_data[0], block_size);
-    memcpy(&shifted_firmware_data[block_size], &firmware_data[(block_size) - 0x400], 0x400);
+    memcpy(&shifted_firmware_data[block_size], &firmware_data[(block_size)-0x400], 0x400);
     memcpy(&shifted_firmware_data[block_size + 0x400], &firmware_data[block_size], block_size - 0x800);
     memcpy(&shifted_firmware_data[block_size * 2], &firmware_data[(block_size * 2) - 0x800], 0x800);
     memcpy(&shifted_firmware_data[block_size * 2 + 0x800], &firmware_data[block_size + 0x400], block_size - 0xc00);

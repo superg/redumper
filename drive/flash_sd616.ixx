@@ -28,6 +28,8 @@ export int redumper_flash_sd616(Context &ctx, Options &options)
         throw_line("incorrect firmware size");
 
     constexpr uint32_t block_size = 0x10000;
+    uint32_t read_size = 0xFFFF;
+
 
     std::array<uint8_t, 0x30000> shifted_firmware_data{};
     memcpy(&shifted_firmware_data, &firmware_data[0], block_size);
@@ -39,13 +41,12 @@ export int redumper_flash_sd616(Context &ctx, Options &options)
     uint32_t offset = 0;
     while(offset < shifted_firmware_data.size())
     {
-        uint32_t size = 0xFFFF;
         uint32_t offset_next = offset + block_size;
 
-        LOGC_RF("[{:3}%] flashing: [{:08X} .. {:08X})", 100 * offset / (uint32_t)shifted_firmware_data.size(), offset, offset + size);
+        LOGC_RF("[{:3}%] flashing: [{:08X} .. {:08X})", 100 * offset / (uint32_t)shifted_firmware_data.size(), offset, offset + read_size);
         FLASH_SD616_Mode mode = offset == 0 ? FLASH_SD616_Mode::START : (offset_next < shifted_firmware_data.size() ? FLASH_SD616_Mode::CONTINUE : FLASH_SD616_Mode::END);
 
-        SPTD::Status status = cmd_flash_sd616(*ctx.sptd, &shifted_firmware_data[offset], size, 0x01, mode);
+        SPTD::Status status = cmd_flash_sd616(*ctx.sptd, &shifted_firmware_data[offset], read_size, 0x01, mode);
         if(status.status_code)
             throw_line("failed to flash firmware, SCSI ({})", SPTD::StatusMessage(status));
 

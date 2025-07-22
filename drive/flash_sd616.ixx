@@ -2,9 +2,6 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <fstream>
-#include <iterator>
-#include <format>
 #include "throw_line.hh"
 
 export module drive.flash.sd616;

@@ -28,7 +28,7 @@ export enum class CDB_OperationCode : uint8_t
     READ_CDDA = 0xD8,
     PLEXTOR_RESET = 0xEE,
     ASUS_READ_CACHE = 0xF1,
-    MT1339_FLASH_FIRMWARE = 0xFF
+    SAMSUNG_FLASH_FIRMWARE = 0xFF
 };
 
 
@@ -831,6 +831,26 @@ export struct CDB12_FlashMT1339
     uint8_t mode;
     uint8_t reserved4[2];
     uint8_t reserved5[4];
+};
+
+export enum class FLASH_SD616_Mode : uint8_t
+{
+    START = 0x00,
+    CONTINUE = 0xFF,
+    END = 0x02
+};
+
+export struct CDB12_FlashSD616
+{
+    uint8_t operation_code;
+    uint8_t reserved1;
+    uint8_t unknown1;
+    uint8_t reserved2;
+    uint8_t reserved3;
+    uint8_t mode;
+    uint8_t reserved4;
+    uint8_t reserved5[2];
+    uint8_t reserved6[3];
 };
 
 }

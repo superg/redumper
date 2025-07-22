@@ -137,6 +137,7 @@ target_sources(redumper
     "crc/crc16_gsm.ixx"
     "crc/crc32.ixx"
 	"drive/flash_mt1339.ixx"
+	"drive/flash_sd616.ixx"
     "drive/plextor.ixx"
     "drive/mediatek.ixx"
     "drive/test.ixx"

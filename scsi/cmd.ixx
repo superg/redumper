@@ -544,20 +544,10 @@ export SPTD::Status cmd_start_stop_unit(SPTD &sptd, uint8_t load_eject, uint8_t 
 }
 
 
-export SPTD::Status cmd_flash_mt1339(SPTD &sptd, const uint8_t *data, uint32_t data_size, uint8_t unknown1, FLASH_MT1339_Mode mode)
+export SPTD::Status cmd_flash_tsst(SPTD &sptd, const uint8_t *data, uint32_t data_size, uint8_t unknown1, FLASH_Tsst_Mode mode)
 {
-    CDB12_FlashMT1339 cdb = {};
-    cdb.operation_code = (uint8_t)CDB_OperationCode::SAMSUNG_FLASH_FIRMWARE;
-    cdb.unknown1 = unknown1;
-    cdb.mode = (uint8_t)mode;
-
-    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, data_size, true);
-}
-
-export SPTD::Status cmd_flash_sd616(SPTD &sptd, const uint8_t *data, uint32_t data_size, uint8_t unknown1, FLASH_SD616_Mode mode)
-{
-    CDB12_FlashSD616 cdb = {};
-    cdb.operation_code = (uint8_t)CDB_OperationCode::SAMSUNG_FLASH_FIRMWARE;
+    CDB12_FlashTsst cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::TSST_FLASH_FIRMWARE;
     cdb.unknown1 = unknown1;
     cdb.mode = (uint8_t)mode;
 

@@ -26,7 +26,7 @@ public:
 
     virtual std::string getName() = 0;
     virtual Type getType() = 0;
-    virtual void printInfo(std::ostream &os, DataReader *sector_reader, const std::filesystem::path &track_path) const = 0;
+    virtual void printInfo(std::ostream &os, DataReader *sector_reader, const std::filesystem::path &track_path, bool verbose) const = 0;
 };
 
 }

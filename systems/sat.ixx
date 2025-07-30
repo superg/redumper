@@ -41,7 +41,7 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &, bool) const override
     {
         auto system_area = iso9660::Browser::readSystemArea(data_reader);
         if(system_area.size() < _SYSTEM_MAGIC.size() || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))

@@ -41,7 +41,7 @@ public:
     }
 
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path, bool) const override
     {
         // SecuROM data track has one sector with flipped mode
         static constexpr uint32_t flip_offset = 4;

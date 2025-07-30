@@ -39,7 +39,7 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path, bool) const override
     {
         iso9660::PrimaryVolumeDescriptor pvd;
         if(!iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader, iso9660::VolumeDescriptorType::PRIMARY))

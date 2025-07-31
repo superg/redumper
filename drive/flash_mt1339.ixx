@@ -1,11 +1,8 @@
 module;
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
 #include <fstream>
-#include <iostream>
-#include <iterator>
-#include <string>
+#include <span>
 #include <vector>
 #include "throw_line.hh"
 

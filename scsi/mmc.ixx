@@ -816,8 +816,8 @@ export enum class FLASH_Tsst_Mode : uint8_t
 {
     START = 0x00,
     CONTINUE = 0xFF,
-    END_128KB = 0x02,
-    END_256KB = 0x04
+    END_SAMSUNG = 0x02,
+    END = 0x04
 };
 
 

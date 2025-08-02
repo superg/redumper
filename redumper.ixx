@@ -26,7 +26,7 @@ import cd.toc;
 import common;
 import debug;
 import drive;
-import drive.flash.mt1339;
+import drive.flash.tsst;
 import drive.test;
 import dvd.dump;
 import dvd.key;
@@ -133,7 +133,7 @@ struct Command
 
 
 const std::map<std::string, Command> COMMANDS{
-    // NAME              DRIVE READY AUTO IMAGE GENERATE HANDLER
+    // NAME                     DRIVE READY AUTO IMAGE GENERATE HANDLER
     { "rings",         { true, true, true, false, false, redumper_rings }          },
     { "dump",          { true, true, true, true, true, redumper_dump }             },
     { "dump::extra",   { true, true, true, true, false, redumper_dump_extra }      },
@@ -148,6 +148,7 @@ const std::map<std::string, Command> COMMANDS{
     { "info",          { false, false, false, true, false, redumper_info }         },
     { "skeleton",      { false, false, false, true, false, redumper_skeleton }     },
     { "flash::mt1339", { true, false, false, false, false, redumper_flash_mt1339 } },
+    { "flash::sd616",  { true, false, false, false, false, redumper_flash_sd616 }  },
     { "subchannel",    { false, false, false, true, false, redumper_subchannel }   },
     { "debug",         { false, false, false, false, false, redumper_debug }       },
     { "fixmsf",        { false, false, false, true, false, redumper_fix_msf }      },

@@ -21,19 +21,16 @@ import utils.logger;
 namespace gpsxre
 {
 
-export int flash_mt1339(SPTD &sptd, const std::span<const uint8_t> firmware_data, uint32_t block_size, FLASH_Tsst_Mode end_mode)
+export void flash_tsst(SPTD &sptd, const std::span<const uint8_t> firmware_data, uint32_t block_size, FLASH_TSST_Mode end_mode)
 {
-    int exit_code = 0;
-
-    uint32_t offset = 0;
-    while(offset < firmware_data.size())
+    for(uint32_t offset = 0; offset < firmware_data.size();)
     {
         uint32_t size = std::min(block_size, (uint32_t)(firmware_data.size() - offset));
         uint32_t offset_next = offset + size;
 
         LOGC_RF("[{:3}%] flashing: [{:08X} .. {:08X})", 100 * offset / (uint32_t)firmware_data.size(), offset, offset + size);
 
-        FLASH_Tsst_Mode mode = offset == 0 ? FLASH_Tsst_Mode::START : (offset_next < firmware_data.size() ? FLASH_Tsst_Mode::CONTINUE : end_mode);
+        FLASH_TSST_Mode mode = offset == 0 ? FLASH_TSST_Mode::START : (offset_next < firmware_data.size() ? FLASH_TSST_Mode::CONTINUE : end_mode);
 
         SPTD::Status status = cmd_flash_tsst(sptd, &firmware_data[offset], size, 0x01, mode);
         if(status.status_code)
@@ -44,29 +41,18 @@ export int flash_mt1339(SPTD &sptd, const std::span<const uint8_t> firmware_data
 
     LOGC_RF("");
     LOGC("flashing success");
+}
+
+export int redumper_flash_tsst(Context &ctx, Options &options)
+{
+    int exit_code = 0;
+
+    // block size is how much data is sent in one command, potentially it can vary but current value is taken from the original flasher
+    constexpr uint32_t block_size = 0xFC00;
+
+    flash_tsst(*ctx.sptd, read_vector(options.firmware), block_size, FLASH_TSST_Mode::END_256KB);
 
     return exit_code;
-}
-
-export int redumper_flash_mt1339(Context &ctx, Options &options)
-{
-    return flash_mt1339(*ctx.sptd, read_vector(options.firmware), 0xFC00, FLASH_Tsst_Mode::END);
-}
-
-export int redumper_flash_sd616(Context &ctx, Options &options)
-{
-    uint32_t block_size = 0x10000;
-    auto firmware_data = read_vector(options.firmware);
-    if(firmware_data.size() != 0x20000)
-        throw_line("failed to flash firmware, file is not 128kb");
-
-    std::vector<uint8_t> shifted_firmware_data{};
-    shifted_firmware_data.resize(0x30000);
-    std::copy(firmware_data.begin(), std::next(firmware_data.begin(), block_size), shifted_firmware_data.begin());
-    std::copy(std::next(firmware_data.begin(), block_size), std::next(firmware_data.begin(), (block_size * 2) - 0x800), std::next(shifted_firmware_data.begin(), block_size + 0x400));
-    std::copy(std::next(firmware_data.begin(), (block_size * 2) - 0x800), std::next(firmware_data.begin(), (block_size * 2)), std::next(shifted_firmware_data.begin(), block_size * 2));
-    std::copy(std::next(firmware_data.begin(), block_size + 0x400), std::next(firmware_data.begin(), (block_size * 2) - 0x800), std::next(shifted_firmware_data.begin(), (block_size * 2) + 0x800));
-    return flash_mt1339(*ctx.sptd, shifted_firmware_data, block_size, FLASH_Tsst_Mode::END_SAMSUNG);
 }
 
 }

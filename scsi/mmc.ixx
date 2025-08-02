@@ -812,16 +812,16 @@ export struct CDB12_SetCDSpeed
 };
 
 
-export enum class FLASH_Tsst_Mode : uint8_t
+export enum class FLASH_TSST_Mode : uint8_t
 {
     START = 0x00,
     CONTINUE = 0xFF,
-    END_SAMSUNG = 0x02,
-    END = 0x04
+    END_128KB = 0x02,
+    END_256KB = 0x04
 };
 
 
-export struct CDB12_FlashTsst
+export struct CDB12_FlashTSST
 {
     uint8_t operation_code;
     uint8_t reserved1 :5;

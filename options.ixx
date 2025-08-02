@@ -351,8 +351,8 @@ export struct Options
         LOG("\thash          \toutputs XML DAT hash entries (CUE/BIN or ISO)");
         LOG("\tinfo          \toutputs basic image information (CUE/BIN or ISO)");
         LOG("\tskeleton      \tgenerates image file with zeroed content");
-        LOG("\tflash::mt1339 \tMT1339 drive firmware flasher Firmwares");
-        LOG("\tflash::sd616  \tSD-616F/T drive firmware flasher Firmwares");
+        LOG("\tflash::mt1339 \tflashes MT1339 drive firmware");
+        LOG("\tflash::sd616  \tflashes SD-616F/T drive firmware");
         LOG("");
 
         LOG("OPTIONS:");

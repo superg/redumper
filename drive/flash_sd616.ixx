@@ -25,7 +25,7 @@ export int redumper_flash_sd616(Context &ctx, Options &options)
 
     auto firmware_file = read_vector(options.firmware);
     if(firmware_file.size() != 0x20000)
-        throw_line("failed to flash firmware, file is not 128Kb");
+        throw_line("failed to flash firmware, file is not 128KB");
 
     // rearrange firmware data to match the expected layout
     std::vector<uint8_t> firmware_data(0x30000);

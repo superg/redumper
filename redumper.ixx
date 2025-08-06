@@ -111,9 +111,9 @@ int redumper_split(Context &ctx, Options &options)
     int exit_code = 0;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    if(std::filesystem::exists(image_prefix + ".iso"))
+    if(std::filesystem::exists(image_prefix + ".iso") || std::filesystem::exists(image_prefix + ".security"))
         redumper_split_dvd(ctx, options);
-    else
+    else if(!options.dry_run)
         redumper_split_cd(ctx, options);
 
     return exit_code;
@@ -277,6 +277,13 @@ std::list<std::pair<std::string, Command>> redumper_cd_get_commands(Options &opt
     }
     if(options.skeleton)
         cd_commands.push_back("skeleton");
+    if(options.dry_run)
+    {
+        cd_commands.remove("dump::extra");
+        cd_commands.remove("protection");
+        cd_commands.remove("hash");
+        cd_commands.remove("info");
+    }
 
     if(auto cit = options.cd_continue ? std::find(cd_commands.begin(), cd_commands.end(), *options.cd_continue) : cd_commands.begin(); cit == cd_commands.end())
         throw_line("cd continue command is unavailable (command: {})", *options.cd_continue);

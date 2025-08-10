@@ -7,6 +7,7 @@ module;
 export module systems.systems;
 
 import systems.cdrom;
+import systems.high_sierra;
 import systems.iso;
 import systems.dc;
 import systems.mcd;
@@ -36,6 +37,7 @@ public:
 
         systems.push_back([]() { return std::make_unique<SystemCDROM>(); });
         systems.push_back([]() { return std::make_unique<SystemSecuROM>(); });
+        systems.push_back([]() { return std::make_unique<SystemHighSierra>(); });
         systems.push_back([]() { return std::make_unique<SystemISO>(); });
         systems.push_back([]() { return std::make_unique<SystemDC>(); });
         systems.push_back([]() { return std::make_unique<SystemMCD>(); });

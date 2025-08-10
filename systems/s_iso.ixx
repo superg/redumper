@@ -1,4 +1,5 @@
 module;
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <format>
@@ -39,8 +40,12 @@ public:
             auto volume_identifier = iso9660::identifier_to_string(pvd.volume_identifier);
             if(!volume_identifier.empty())
                 os << std::format("  volume identifier: {}", volume_identifier) << std::endl;
+
+            // start 13 bytes before volume_creation_date_time due to redump.org requirement
+            auto offset = offsetof(iso9660::PrimaryVolumeDescriptor, volume_creation_date_time) - 13;
+
             os << "  PVD:" << std::endl;
-            os << std::format("{}", hexdump((uint8_t *)&pvd, 0x320, 96));
+            os << std::format("{}", hexdump((uint8_t *)&pvd, offset, 96));
         }
     }
 };

@@ -299,10 +299,12 @@ std::string split_identifier(uint32_t &version, std::string identifier)
     return identifier.substr(0, s);
 }
 
+
 bool character_is_D(char c)
 {
     return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_';
 }
+
 
 template<std::size_t N>
 std::string identifier_to_string(char (&identifier)[N])

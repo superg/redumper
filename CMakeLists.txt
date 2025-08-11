@@ -24,7 +24,9 @@ set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE} CACHE INTERNAL "Active configu
 # packaging
 set(CPACK_GENERATOR "ZIP")
 # add build number to a package file name if it was provided
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    set(system_suffix__ "-arm64")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(system_suffix__ "64")
 else()
     set(system_suffix__ "32")

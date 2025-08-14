@@ -27,7 +27,17 @@ jobs:
         id: get-build-number
         shell: bash
         run: |
-          LATEST_BUILD=$(gh release list --json name,isLatest --jq '.[] | select(.isLatest)|.name')
+          echo "Checking for releases..."
+          gh release list --json name,isLatest || echo "No releases found"
+          
+          LATEST_BUILD=$(gh release list --json name,isLatest --jq '.[] | select(.isLatest)|.name' || echo "")
+          echo "Latest build found: '$LATEST_BUILD'"
+          
+          if [ -z "$LATEST_BUILD" ]; then
+            echo "No latest release found, using default"
+            LATEST_BUILD="build_0"
+          fi
+          
           echo "build_number=$LATEST_BUILD" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

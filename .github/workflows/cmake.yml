@@ -13,6 +13,8 @@ env:
 jobs:
   check:
     runs-on: ubuntu-24.04
+    outputs:
+      build_number: ${{ steps.get-build-number.outputs.build_number }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,7 +22,15 @@ jobs:
       - name: clang-format Check (linux64)
         shell: bash
         run: find . -iname '*.hh' -o -iname '*.cc' -o -iname '*.ixx' | xargs clang-format-18 --dry-run -Werror
-
+        
+      - name: Get Build Number
+        id: get-build-number
+        shell: bash
+        run: |
+          LATEST_BUILD=$(gh release list --json name,isLatest --jq '.[] | select(.isLatest)|.name')
+          echo "build_number=$LATEST_BUILD" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build:
     needs: check
     strategy:

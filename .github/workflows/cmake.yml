@@ -25,10 +25,14 @@ jobs:
     needs: check
     strategy:
       matrix:
-        os: [windows-2022, ubuntu-24.04, macos-14]
+        os: [windows-2022, ubuntu-24.04, macos-14, windows-11-arm, ubuntu-24.04-arm]
         platform: [32, 64]
         exclude:
           - os: macos-14
+            platform: 32
+          - os: windows-11-arm
+            platform: 32
+          - os: ubuntu-24.04-arm
             platform: 32
 
     runs-on: ${{matrix.os}}
@@ -43,6 +47,10 @@ jobs:
 
     - name: Customize Software (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 64 }}
+      run: sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev ninja-build
+
+    - name: Customize Software (linux-arm64)
+      if: ${{ matrix.os == 'ubuntu-24.04-arm' && matrix.platform == 64 }}
       run: sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev ninja-build
 
     - name: Customize Software (macos64)
@@ -62,12 +70,20 @@ jobs:
       if: ${{ matrix.os == 'windows-2022' && matrix.platform == 64 }}
       run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
+    - name: CMake Configure (win-arm64)
+      if: ${{ matrix.os == 'windows-11-arm' && matrix.platform == 64 }}
+      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A ARM64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+
     - name: CMake Configure (linux32)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 32 }}
       run: CXX=clang++-18 CXXFLAGS="-target i686-linux-gnu" cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Configure (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 64 }}
+      run: CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+
+    - name: CMake Configure (linux-arm64)
+      if: ${{ matrix.os == 'ubuntu-24.04-arm' && matrix.platform == 64 }}
       run: CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
 
     - name: CMake Configure (macos64)

@@ -14,7 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: clang-format Check (linux64)
+      - name: clang-format Check
         shell: bash
         run: find . -iname '*.hh' -o -iname '*.cc' -o -iname '*.ixx' | xargs clang-format-18 --dry-run -Werror
         
@@ -26,17 +26,47 @@ jobs:
           echo "build_number=$NEXT_BUILD" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+  build-windows:
+    needs: check
+    strategy:
+      matrix:
+        arch: [Win32, x64, ARM64]
+
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: CMake Configure
+      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A ${{matrix.arch}} -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
+
+    - name: CMake Build
+      run: cmake --build ${{github.workspace}}/BUILD --config Release --verbose
+
+    - name: CTest
+      working-directory: ${{github.workspace}}/BUILD
+      run: ctest -C Release
+
+    - name: CPack
+      working-directory: ${{github.workspace}}/BUILD
+      run: cpack -G ZIP --config CPackConfig.cmake
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{needs.check.outputs.build_number}}_${{matrix.os}}_${{matrix.platform}}
+        path: ${{github.workspace}}/BUILD/redumper-*.zip
 
   build:
     needs: check
     strategy:
       matrix:
-        os: [windows-2022, ubuntu-24.04, macos-14, windows-11-arm, ubuntu-24.04-arm]
+        os: [ubuntu-24.04, macos-14, ubuntu-24.04-arm]
         platform: [32, 64]
         exclude:
           - os: macos-14
-            platform: 32
-          - os: windows-11-arm
             platform: 32
           - os: ubuntu-24.04-arm
             platform: 32
@@ -67,18 +97,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: 'true'
-
-    - name: CMake Configure (win32)
-      if: ${{ matrix.os == 'windows-2022' && matrix.platform == 32 }}
-      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
-    - name: CMake Configure (win64)
-      if: ${{ matrix.os == 'windows-2022' && matrix.platform == 64 }}
-      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
-    - name: CMake Configure (win-arm64)
-      if: ${{ matrix.os == 'windows-11-arm' && matrix.platform == 64 }}
-      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A ARM64 -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
 
     - name: CMake Configure (linux32)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 32 }}

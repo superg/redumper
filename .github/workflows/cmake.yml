@@ -8,7 +8,6 @@ on:
 env:
   build_directory: ${{github.workspace}}/BUILD
   build_type: Release
-  release_name: build_${{github.run_number}}
 
 jobs:
   check:
@@ -28,11 +27,10 @@ jobs:
         shell: bash
         run: |
           NEXT_BUILD=$(gh release list --json name,isLatest --jq '.[] | select(.isLatest)|.name | ltrimstr("b") | tonumber + 1 | "b" + tostring' || echo "b1")
-          echo "next build: '$NEXT_BUILD'"
-          
           echo "build_number=$NEXT_BUILD" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
     needs: check
     strategy:
@@ -76,31 +74,31 @@ jobs:
 
     - name: CMake Configure (win32)
       if: ${{ matrix.os == 'windows-2022' && matrix.platform == 32 }}
-      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
 
     - name: CMake Configure (win64)
       if: ${{ matrix.os == 'windows-2022' && matrix.platform == 64 }}
-      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
 
     - name: CMake Configure (win-arm64)
       if: ${{ matrix.os == 'windows-11-arm' && matrix.platform == 64 }}
-      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A ARM64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: cmake -B ${{env.build_directory}} -G "Visual Studio 17 2022" -A ARM64 -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
 
     - name: CMake Configure (linux32)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 32 }}
-      run: CXX=clang++-18 CXXFLAGS="-target i686-linux-gnu" cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: CXX=clang++-18 CXXFLAGS="-target i686-linux-gnu" cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
 
     - name: CMake Configure (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 64 }}
-      run: CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
 
     - name: CMake Configure (linux-arm64)
       if: ${{ matrix.os == 'ubuntu-24.04-arm' && matrix.platform == 64 }}
-      run: CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: CXX=clang++-18 cmake -B ${{env.build_directory}} -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
 
     - name: CMake Configure (macos64)
       if: ${{ matrix.os == 'macos-14' }}
-      run: CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{env.build_directory}} -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{github.run_number}}
+      run: CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{env.build_directory}} -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=${{env.build_type}} -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
 
     - name: CMake Build
       run: cmake --build ${{env.build_directory}} --config ${{env.build_type}} --verbose
@@ -116,7 +114,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{env.release_name}}_${{matrix.os}}_${{matrix.platform}}
+        name: ${{needs.check.outputs.build_number}}_${{matrix.os}}_${{matrix.platform}}
         path: ${{env.build_directory}}/redumper-*.zip
 
   release:
@@ -136,6 +134,6 @@ jobs:
         shell: bash
         run: |
           for f in redumper-*.zip; do FILES+=" $f"; done
-          gh release create --generate-notes ${{ env.release_name }} $FILES
+          gh release create --generate-notes ${{needs.check.outputs.build_number}} $FILES
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

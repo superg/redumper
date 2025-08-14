@@ -2,15 +2,8 @@ cmake_minimum_required(VERSION 3.28)
 
 # project / version
 set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
-string(TIMESTAMP version_major "%Y")
-string(TIMESTAMP version_minor "%m")
-string(TIMESTAMP version_patch "%d")
-set(REDUMPER_VERSION_MAJOR ${version_major} CACHE STRING "Major version number")
-set(REDUMPER_VERSION_MINOR ${version_minor} CACHE STRING "Minor version number")
-set(REDUMPER_VERSION_PATCH ${version_patch} CACHE STRING "Patch version number")
-
-set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Version patch")
-project(${REDUMPER_PROJECT_NAME} LANGUAGES CXX VERSION "${REDUMPER_VERSION_MAJOR}.${REDUMPER_VERSION_MINOR}.${REDUMPER_VERSION_PATCH}")
+set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Build number")
+project(${REDUMPER_PROJECT_NAME} LANGUAGES CXX)
 
 set(REDUMPER_CLANG_LINK_OPTIONS "" CACHE STRING "Extra LLVM/Clang linker options")
 
@@ -21,36 +14,40 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE} CACHE INTERNAL "Active configuration" FORCE)
 
-# packaging
-set(CPACK_GENERATOR "ZIP")
-# add build number to a package file name if it was provided
-if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
-    set(system_suffix__ "-arm64")
-elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(system_suffix__ "64")
-else()
-    set(system_suffix__ "32")
-endif()
-set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${CMAKE_PROJECT_VERSION}_build${REDUMPER_VERSION_BUILD}-${CMAKE_SYSTEM_NAME}${system_suffix__}")
-include(CPack)
-
-# platform
+# operating system
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(REDUMPER_TARGET_LINUX 1)
+    set(REDUMPER_OS "linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(REDUMPER_TARGET_WINDOWS 1)
+    set(REDUMPER_OS "windows")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(REDUMPER_TARGET_MACOSX 1)
+    set(REDUMPER_OS "macos")
 else()
     message(FATAL_ERROR "Unknown target platform")
 endif()
 
+# architecture
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+    set(REDUMPER_ARCH "x64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i386|i686|x86)$")
+    set(REDUMPER_ARCH "x86")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    set(REDUMPER_ARCH "arm64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7|armhf)$")
+    set(REDUMPER_ARCH "armhf")
+else()
+    set(REDUMPER_ARCH ${CMAKE_SYSTEM_PROCESSOR})
+endif()
+
+# packaging
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-b${REDUMPER_VERSION_BUILD}-${REDUMPER_OS}-${REDUMPER_ARCH}")
+include(CPack)
+
 # C/C++
 set(CMAKE_CXX_STANDARD 20)
-add_definitions(-DREDUMPER_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-                -DREDUMPER_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-                -DREDUMPER_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-                -DREDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
 option(REDUMPER_CLANG_USE_LIBCPP "Link to libc++ instead of system default" OFF)
 
@@ -206,6 +203,8 @@ target_sources(redumper
     "skeleton.ixx"
     "version.ixx"
 )
+
+target_compile_definitions(redumper PRIVATE REDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
 
 target_include_directories(redumper
     PUBLIC

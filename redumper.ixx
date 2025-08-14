@@ -416,6 +416,8 @@ export int redumper(Options &options)
         Logger::get().setFile((std::filesystem::path(options.image_path) / options.image_name).string() + ".log");
 
     LOG("{}", redumper_version());
+    if(options.arguments.empty())
+        LOGC("[print usage: {}]", Options::helpKeys());
 
     if(aggregate.drive_required)
     {

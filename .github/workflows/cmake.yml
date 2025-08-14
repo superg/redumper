@@ -50,7 +50,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{needs.check.outputs.build_number}}_${{matrix.os}}_${{matrix.platform}}
+        name: windows_${{matrix.arch}}
         path: ${{github.workspace}}/BUILD/redumper-*.zip
 
   build-linux:
@@ -98,7 +98,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{needs.check.outputs.build_number}}_${{matrix.os}}_${{matrix.platform}}
+        name: linux_${{matrix.os}}_${{matrix.platform}}
         path: ${{github.workspace}}/BUILD/redumper-*.zip
         
   build-macos:
@@ -122,7 +122,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{needs.check.outputs.build_number}}_${{matrix.os}}_${{matrix.platform}}
+        name: macos
         path: ${{github.workspace}}/BUILD/redumper-*.zip
 
   release:

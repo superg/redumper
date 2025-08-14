@@ -127,7 +127,7 @@ jobs:
 
   release:
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout

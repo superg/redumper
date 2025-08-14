@@ -32,48 +32,37 @@ jobs:
     strategy:
       matrix:
         arch: [Win32, x64, ARM64]
-
     runs-on: windows-2022
-
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-
     - name: CMake Configure
       run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A ${{matrix.arch}} -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release
-
     - name: CTest
       if: ${{ matrix.arch != 'ARM64' }}
       working-directory: ${{github.workspace}}/BUILD
       run: ctest -C Release
-
     - name: CPack
       working-directory: ${{github.workspace}}/BUILD
       run: cpack -G ZIP --config CPackConfig.cmake
-
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{needs.check.outputs.build_number}}_${{matrix.os}}_${{matrix.platform}}
         path: ${{github.workspace}}/BUILD/redumper-*.zip
 
-  build:
+  build-linux:
     needs: check
     strategy:
       matrix:
-        os: [ubuntu-24.04, macos-14, ubuntu-24.04-arm]
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
         platform: [32, 64]
         exclude:
-          - os: macos-14
-            platform: 32
           - os: ubuntu-24.04-arm
             platform: 32
-
     runs-on: ${{matrix.os}}
-
     steps:
     - name: Customize Software (linux32)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 32 }}
@@ -81,63 +70,55 @@ jobs:
         sudo dpkg --add-architecture i386
         sudo apt-get update
         sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev:i386 ninja-build libc6-dev-i386 libstdc++-13-dev:i386
-
     - name: Customize Software (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 64 }}
       run: sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev ninja-build
-
     - name: Customize Software (linux-arm64)
       if: ${{ matrix.os == 'ubuntu-24.04-arm' && matrix.platform == 64 }}
       run: sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev ninja-build
-
-    - name: Customize Software (macos64)
-      if: ${{ matrix.os == 'macos-14' }}
-      run: brew install llvm@18 ninja
-
     - name: Checkout
       uses: actions/checkout@v4
-      with:
-        submodules: 'true'
-
-    - name: CMake Configure (win32)
-      if: ${{ matrix.os == 'windows-2022' && matrix.platform == 32 }}
-      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
-    - name: CMake Configure (win64)
-      if: ${{ matrix.os == 'windows-2022' && matrix.platform == 64 }}
-      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
-    - name: CMake Configure (win-arm64)
-      if: ${{ matrix.os == 'windows-11-arm' && matrix.platform == 64 }}
-      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A ARM64 -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
     - name: CMake Configure (linux32)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 32 }}
       run: CXX=clang++-18 CXXFLAGS="-target i686-linux-gnu" cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
     - name: CMake Configure (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 64 }}
       run: CXX=clang++-18 cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
     - name: CMake Configure (linux-arm64)
       if: ${{ matrix.os == 'ubuntu-24.04-arm' && matrix.platform == 64 }}
       run: CXX=clang++-18 cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
-    - name: CMake Configure (macos64)
-      if: ${{ matrix.os == 'macos-14' }}
-      run: CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release
-
     - name: CTest
       working-directory: ${{github.workspace}}/BUILD
       run: ctest -C Release
-
     - name: CPack
       working-directory: ${{github.workspace}}/BUILD
       run: cpack -G ZIP --config CPackConfig.cmake
-
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{needs.check.outputs.build_number}}_${{matrix.os}}_${{matrix.platform}}
+        path: ${{github.workspace}}/BUILD/redumper-*.zip
+        
+  build-macos:
+    needs: check
+    runs-on: macos-14
+    steps:
+    - name: Customize Software
+      run: brew install llvm@18 ninja
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: CMake Configure
+      run: CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
+    - name: CMake Build
+      run: cmake --build ${{github.workspace}}/BUILD --config Release
+    - name: CTest
+      working-directory: ${{github.workspace}}/BUILD
+      run: ctest -C Release
+    - name: CPack
+      working-directory: ${{github.workspace}}/BUILD
+      run: cpack -G ZIP --config CPackConfig.cmake
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:

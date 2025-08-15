@@ -14,36 +14,24 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE} CACHE INTERNAL "Active configuration" FORCE)
 
-# operating system
+# target operating system, it's assumed that it's the same as the host operating system
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(REDUMPER_TARGET_LINUX 1)
-    set(REDUMPER_OS "linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(REDUMPER_TARGET_WINDOWS 1)
-    set(REDUMPER_OS "windows")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(REDUMPER_TARGET_MACOSX 1)
-    set(REDUMPER_OS "macos")
-else()
-    message(FATAL_ERROR "Unknown target platform")
-endif()
-
-# architecture
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
-    set(REDUMPER_ARCH "x64")
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i386|i686|x86)$")
-    set(REDUMPER_ARCH "x86")
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
-    set(REDUMPER_ARCH "arm64")
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7|armhf)$")
-    set(REDUMPER_ARCH "armhf")
-else()
-    set(REDUMPER_ARCH ${CMAKE_SYSTEM_PROCESSOR})
+    set(REDUMPER_TARGET_MACOS 1)
 endif()
 
 # packaging
+set(REDUMPER_OS "" CACHE STRING "Target operating system")
+set(REDUMPER_ARCH "" CACHE STRING "Target architecture")
 set(CPACK_GENERATOR "ZIP")
-set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}-${REDUMPER_OS}-${REDUMPER_ARCH}")
+if(REDUMPER_VERSION_BUILD STREQUAL "LOCAL")
+    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}")
+else()
+    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}-${REDUMPER_OS}-${REDUMPER_ARCH}")
+endif()
 include(CPack)
 
 # C/C++
@@ -216,7 +204,7 @@ target_include_directories(redumper
 set(libs
 )
 
-if(REDUMPER_TARGET_MACOSX)
+if(REDUMPER_TARGET_MACOS)
     find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
     find_library(IO_KIT IOKit REQUIRED)
     set(libs ${libs}

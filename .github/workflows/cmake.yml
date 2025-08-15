@@ -24,7 +24,8 @@ jobs:
         id: get-build-number
         shell: bash
         run: |
-          NEXT_BUILD=$(gh release list --json name,isLatest --jq '.[] | select(.isLatest)|.name | ltrimstr("b") | tonumber + 1 | "b" + tostring' || echo "b1")
+          NEXT_BUILD=$(gh release list --json name,isLatest --jq '.[] | select(.isLatest)|.name | ltrimstr("b") | tonumber + 1 | "b" + tostring')
+          NEXT_BUILD=${NEXT_BUILD:-"b1"}
           echo "build_number=$NEXT_BUILD" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

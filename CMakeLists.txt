@@ -28,6 +28,9 @@ else()
     message(FATAL_ERROR "Unknown target platform")
 endif()
 
+message(STATUS "*** CPU: ${CMAKE_SYSTEM_PROCESSOR}")
+message(STATUS "*** POINTER: ${CMAKE_SIZEOF_VOID_P}")
+
 # architecture
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
     set(REDUMPER_ARCH "x64")

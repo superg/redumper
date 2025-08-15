@@ -8,6 +8,8 @@ on:
 jobs:
   check:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       build_number: ${{ steps.get-build-number.outputs.build_number }}
     steps:
@@ -135,7 +137,11 @@ jobs:
       - name: 'Create Release'
         shell: bash
         run: |
-          for f in redumper-*.zip; do FILES+=" $f"; done
-          gh release create --generate-notes ${{needs.check.outputs.build_number}} $FILES
+          shopt -s nullglob
+          files=(redumper-*.zip)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No artifacts to release"; exit 1
+          fi
+          gh release create --generate-notes "${{needs.check.outputs.build_number}}" "${files[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

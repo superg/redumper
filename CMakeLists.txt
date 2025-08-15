@@ -204,7 +204,7 @@ target_sources(redumper
     "version.ixx"
 )
 
-target_compile_definitions(redumper PRIVATE REDUMPER_VERSION_BUILD=${REDUMPER_VERSION_BUILD})
+target_compile_definitions(redumper PRIVATE REDUMPER_VERSION_BUILD="${REDUMPER_VERSION_BUILD}")
 
 target_include_directories(redumper
     PUBLIC

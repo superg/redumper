@@ -59,29 +59,31 @@ jobs:
     needs: check
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm]
-        arch: [x86, x64]
-        exclude:
-          - os: ubuntu-24.04-arm
-            arch: x86
+        include:
+          - arch: x86
+            os: ubuntu-24.04
+          - arch: x64
+            os: ubuntu-24.04
+          - arch: arm64
+            os: ubuntu-24.04-arm
     runs-on: ${{matrix.os}}
     steps:
-    - name: Customize Software (x86)
+    - name: Customize Software
       if: ${{ matrix.arch == 'x86' }}
       run: |
         sudo dpkg --add-architecture i386
         sudo apt-get update
         sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 ninja-build libc6-dev-i386 libstdc++-13-dev:i386 libc++-18-dev:i386
-    - name: Customize Software (x64)
-      if: ${{ matrix.arch == 'x64' }}
+    - name: Customize Software
+      if: ${{ matrix.arch != 'x86' }}
       run: sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev ninja-build
     - name: Checkout
       uses: actions/checkout@v4
-    - name: CMake Configure (x86)
+    - name: CMake Configure
       if: ${{ matrix.arch == 'x86' }}
       run: CXX=clang++-18 CXXFLAGS="-target i686-linux-gnu" cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
-    - name: CMake Configure (x64)
-      if: ${{ matrix.arch == 'x64' }}
+    - name: CMake Configure
+      if: ${{ matrix.arch != 'x86' }}
       run: CXX=clang++-18 cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release

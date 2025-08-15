@@ -10,12 +10,24 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    outputs:
+      build_number: ${{ steps.get-build-number.outputs.build_number }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: clang-format Check
         shell: bash
         run: find . -iname '*.hh' -o -iname '*.cc' -o -iname '*.ixx' | xargs clang-format-18 --dry-run -Werror
+        
+      - name: Get Build Number
+        id: get-build-number
+        shell: bash
+        run: |
+          NEXT_BUILD=$(gh release list --json name,isLatest --jq '.[] | select(.isLatest)|.name | ltrimstr("b") | tonumber + 1 | "b" + tostring' || echo "b1")
+          echo "build_number=$NEXT_BUILD" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
   build-windows:
     needs: check
@@ -27,7 +39,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     - name: CMake Configure
-      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A ${{matrix.arch}} -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{github.ref_name}}
+      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -A ${{matrix.arch}} -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release
     - name: CTest
@@ -69,10 +81,10 @@ jobs:
       uses: actions/checkout@v4
     - name: CMake Configure
       if: ${{ matrix.arch == 'x86' }}
-      run: CXX=clang++-18 CXXFLAGS="-target i686-linux-gnu" cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{github.ref_name}}
+      run: CXX=clang++-18 CXXFLAGS="-target i686-linux-gnu" cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
     - name: CMake Configure
       if: ${{ matrix.arch != 'x86' }}
-      run: CXX=clang++-18 cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{github.ref_name}}
+      run: CXX=clang++-18 cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DREDUMPER_CLANG_LINK_OPTIONS="-static" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release
     - name: CTest
@@ -93,11 +105,11 @@ jobs:
     runs-on: macos-14
     steps:
     - name: Customize Software
-      run: brew install llvm@18 ninja
+      run: brew install llvm@18
     - name: Checkout
       uses: actions/checkout@v4
     - name: CMake Configure
-      run: CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{github.ref_name}}
+      run: CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}}
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release
     - name: CTest
@@ -114,7 +126,7 @@ jobs:
 
   release:
     if: github.event_name != 'pull_request'
-    needs: [build-windows, build-linux, build-macos]
+    needs: [check, build-windows, build-linux, build-macos]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -126,12 +138,11 @@ jobs:
       - name: 'Create Release'
         shell: bash
         run: |
-          NEXT_BUILD=$(gh release list --json name,isLatest --jq '.[] | select(.isLatest)|.name | ltrimstr("b") | tonumber + 1 | "b" + tostring' || echo "b1")
           shopt -s nullglob
           files=(redumper-*.zip)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No artifacts to release"; exit 1
           fi
-          gh release create --generate-notes "$NEXT_BUILD" "${files[@]}"
+          gh release create --generate-notes "${{needs.check.outputs.build_number}}" "${files[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,6 +2,7 @@ module;
 #include <format>
 #include <memory>
 #include <string>
+#include <string_view>
 #include "throw_line.hh"
 
 export module options;
@@ -332,6 +333,12 @@ export struct Options
     }
 
 
+    static std::string_view helpKeys()
+    {
+        return "--help,-h";
+    }
+
+
     void printUsage()
     {
         LOG("usage: redumper [command] [options]");
@@ -357,7 +364,7 @@ export struct Options
 
         LOG("OPTIONS:");
         LOG("\t(general)");
-        LOG("\t--help,-h                       \tprint usage");
+        LOG("\t{}                       \tprint usage", helpKeys());
         LOG("\t--version                       \tprint version");
         LOG("\t--verbose                       \tverbose output");
         LOG("\t--list-recommended-drives       \tlist recommended drives");

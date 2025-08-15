@@ -52,6 +52,5 @@ int main(int argc, char *argv[])
         exit_code = -2;
     }
 
-
     return exit_code;
 }

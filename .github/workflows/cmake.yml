@@ -68,8 +68,11 @@ jobs:
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 32 }}
       run: |
         sudo dpkg --add-architecture i386
+        sudo dpkg --add-architecture arm64
+        sudo add-apt-repository -y "deb http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse"
+        sudo add-apt-repository -y "deb http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse"
         sudo apt-get update
-        sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev:i386 ninja-build libc6-dev-i386 libstdc++-13-dev:i386
+        sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 ninja-build libc6-dev-i386 binutils-aarch64-linux-gnu libc6-dev-arm64-cross libstdc++-13-dev:i386 libc++-18-dev:i386 libstdc++-13-dev:arm64 libc++-18-dev:arm64
     - name: Customize Software (linux64)
       if: ${{ matrix.os == 'ubuntu-24.04' && matrix.platform == 64 }}
       run: sudo apt-get install clang-18 lld-18 clang-tools-18 clang-format-18 libc++-18-dev ninja-build

@@ -718,6 +718,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
+    // dry run does not dump user data
+    if(options.dry_run)
+        return false;
+
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
     std::vector<uint8_t> file_data(sectors_at_once * FORM1_DATA_SIZE);

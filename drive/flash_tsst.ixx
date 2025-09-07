@@ -28,7 +28,7 @@ export void flash_tsst(SPTD &sptd, const std::span<const uint8_t> firmware_data,
         uint32_t size = std::min(block_size, (uint32_t)(firmware_data.size() - offset));
         uint32_t offset_next = offset + size;
 
-        LOGC_RF("[{:3}%] flashing: [{:08X} .. {:08X})", 100 * offset / (uint32_t)firmware_data.size(), offset, offset + size);
+        LOGC_RF("[{:3}%] flashing: [{:08X} .. {:08X})", 100 * offset / (uint32_t)firmware_data.size(), offset, offset_next);
 
         FLASH_TSST_Mode mode = offset == 0 ? FLASH_TSST_Mode::START : (offset_next < firmware_data.size() ? FLASH_TSST_Mode::CONTINUE : end_mode);
 

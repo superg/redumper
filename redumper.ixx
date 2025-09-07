@@ -26,8 +26,9 @@ import cd.toc;
 import common;
 import debug;
 import drive;
-import drive.flash.sd616;
+import drive.flash.plextor;
 import drive.flash.tsst;
+import drive.flash.sd616;
 import drive.test;
 import dvd.dump;
 import dvd.key;
@@ -135,26 +136,27 @@ struct Command
 
 const std::map<std::string, Command> COMMANDS{
     // NAME              DRIVE READY AUTO IMAGE GENERATE HANDLER
-    { "rings",         { true, true, true, false, false, redumper_rings }         },
-    { "dump",          { true, true, true, true, true, redumper_dump }            },
-    { "dump::extra",   { true, true, true, true, false, redumper_dump_extra }     },
-    { "refine",        { true, true, true, true, false, redumper_refine }         },
-    { "verify",        { true, true, true, true, false, redumper_verify }         },
-    { "dvdkey",        { true, true, true, false, false, redumper_dvdkey }        },
-    { "eject",         { true, false, false, false, false, redumper_eject }       },
-    { "dvdisokey",     { false, false, false, true, false, redumper_dvdisokey }   },
-    { "protection",    { false, false, false, true, false, redumper_protection }  },
-    { "split",         { false, false, false, true, false, redumper_split }       },
-    { "hash",          { false, false, false, true, false, redumper_hash }        },
-    { "info",          { false, false, false, true, false, redumper_info }        },
-    { "skeleton",      { false, false, false, true, false, redumper_skeleton }    },
-    { "flash::mt1339", { true, false, false, false, false, redumper_flash_tsst }  },
-    { "flash::sd616",  { true, false, false, false, false, redumper_flash_sd616 } },
-    { "subchannel",    { false, false, false, true, false, redumper_subchannel }  },
-    { "debug",         { false, false, false, false, false, redumper_debug }      },
-    { "fixmsf",        { false, false, false, true, false, redumper_fix_msf }     },
-    { "debug::flip",   { false, false, false, true, false, redumper_flip }        },
-    { "drive::test",   { true, true, true, false, false, redumper_drive_test }    },
+    { "rings",          { true, true, true, false, false, redumper_rings }           },
+    { "dump",           { true, true, true, true, true, redumper_dump }              },
+    { "dump::extra",    { true, true, true, true, false, redumper_dump_extra }       },
+    { "refine",         { true, true, true, true, false, redumper_refine }           },
+    { "verify",         { true, true, true, true, false, redumper_verify }           },
+    { "dvdkey",         { true, true, true, false, false, redumper_dvdkey }          },
+    { "eject",          { true, false, false, false, false, redumper_eject }         },
+    { "dvdisokey",      { false, false, false, true, false, redumper_dvdisokey }     },
+    { "protection",     { false, false, false, true, false, redumper_protection }    },
+    { "split",          { false, false, false, true, false, redumper_split }         },
+    { "hash",           { false, false, false, true, false, redumper_hash }          },
+    { "info",           { false, false, false, true, false, redumper_info }          },
+    { "skeleton",       { false, false, false, true, false, redumper_skeleton }      },
+    { "flash::mt1339",  { true, false, false, false, false, redumper_flash_tsst }    },
+    { "flash::sd616",   { true, false, false, false, false, redumper_flash_sd616 }   },
+    { "flash::plextor", { true, false, false, false, false, redumper_flash_plextor } },
+    { "subchannel",     { false, false, false, true, false, redumper_subchannel }    },
+    { "debug",          { false, false, false, false, false, redumper_debug }        },
+    { "fixmsf",         { false, false, false, true, false, redumper_fix_msf }       },
+    { "debug::flip",    { false, false, false, true, false, redumper_flip }          },
+    { "drive::test",    { true, true, true, false, false, redumper_drive_test }      },
 };
 
 

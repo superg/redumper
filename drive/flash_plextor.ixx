@@ -59,6 +59,7 @@ export int redumper_flash_plextor(Context &ctx, Options &options)
     uint32_t block_size = ctx.drive_config.c2_shift == 294 ? 0x1000 : 0x4000;
 
     // TODO: implement inquiry patching for drives with same hardware but different product id
+    // TODO: verify SCSI commands for flashing PX-712A EPS firmware
 
     flash_plextor(*ctx.sptd, read_vector(options.firmware), block_size);
 

@@ -15,6 +15,7 @@ export enum class CDB_OperationCode : uint8_t
     START_STOP_UNIT = 0x1B,
     READ_CAPACITY = 0x25,
     SYNCHRONIZE_CACHE = 0x35,
+    PLEXTOR_FLASH_FIRMWARE = 0x3B,
     READ_TOC = 0x43,
     GET_CONFIGURATION = 0x46,
     SEND_KEY = 0xA3,
@@ -832,6 +833,25 @@ export struct CDB12_FlashTSST
     uint8_t mode;
     uint8_t reserved4[2];
     uint8_t reserved5[4];
+};
+
+
+export enum class FLASH_PLEXTOR_Mode : uint8_t
+{
+    CONTINUE = 0x04,
+    END = 0x05
+};
+
+
+export struct CDB12_FlashPlextor
+{
+    uint8_t operation_code;
+    uint8_t mode :5;
+    uint8_t lun  :3;
+    uint8_t unknown1;
+    uint8_t offset[3];
+    uint8_t size[3];
+    uint8_t unknown2[3];
 };
 
 }

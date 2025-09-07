@@ -360,6 +360,7 @@ export struct Options
         LOG("\tskeleton      \tgenerates image file with zeroed content");
         LOG("\tflash::mt1339 \tflashes MT1339 drive firmware");
         LOG("\tflash::sd616  \tflashes SD-616F/T drive firmware");
+        LOG("\tflash::plextor\tflashes PLEXTOR drive firmware");
         LOG("");
 
         LOG("OPTIONS:");

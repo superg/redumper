@@ -554,4 +554,20 @@ export SPTD::Status cmd_flash_tsst(SPTD &sptd, const uint8_t *data, uint32_t dat
     return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, data_size, true);
 }
 
+
+export SPTD::Status cmd_flash_plextor(SPTD &sptd, const uint8_t *data, uint32_t offset, uint32_t size, FLASH_PLEXTOR_Mode mode)
+{
+    CDB12_FlashPlextor cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::PLEXTOR_FLASH_FIRMWARE;
+    cdb.mode = (uint8_t)mode;
+    cdb.offset[0] = ((uint8_t *)&offset)[2];
+    cdb.offset[1] = ((uint8_t *)&offset)[1];
+    cdb.offset[2] = ((uint8_t *)&offset)[0];
+    cdb.size[0] = ((uint8_t *)&size)[2];
+    cdb.size[1] = ((uint8_t *)&size)[1];
+    cdb.size[2] = ((uint8_t *)&size)[0];
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, size, true);
+}
+
 }

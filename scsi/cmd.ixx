@@ -555,19 +555,19 @@ export SPTD::Status cmd_flash_tsst(SPTD &sptd, const uint8_t *data, uint32_t dat
 }
 
 
-export SPTD::Status cmd_flash_plextor(SPTD &sptd, const uint8_t *data, uint32_t offset, uint32_t size, FLASH_PLEXTOR_Mode mode)
+export SPTD::Status cmd_write_buffer(SPTD &sptd, const uint8_t *data, uint32_t data_size, WRITE_BUFFER_Mode mode, uint32_t buffer_offset, uint32_t parameter_list_length)
 {
-    CDB12_FlashPlextor cdb = {};
-    cdb.operation_code = (uint8_t)CDB_OperationCode::PLEXTOR_FLASH_FIRMWARE;
+    CDB10_WriteBuffer cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::WRITE_BUFFER;
     cdb.mode = (uint8_t)mode;
-    cdb.offset[0] = ((uint8_t *)&offset)[2];
-    cdb.offset[1] = ((uint8_t *)&offset)[1];
-    cdb.offset[2] = ((uint8_t *)&offset)[0];
-    cdb.size[0] = ((uint8_t *)&size)[2];
-    cdb.size[1] = ((uint8_t *)&size)[1];
-    cdb.size[2] = ((uint8_t *)&size)[0];
+    cdb.buffer_offset[0] = ((uint8_t *)&buffer_offset)[2];
+    cdb.buffer_offset[1] = ((uint8_t *)&buffer_offset)[1];
+    cdb.buffer_offset[2] = ((uint8_t *)&buffer_offset)[0];
+    cdb.parameter_list_length[0] = ((uint8_t *)&parameter_list_length)[2];
+    cdb.parameter_list_length[1] = ((uint8_t *)&parameter_list_length)[1];
+    cdb.parameter_list_length[2] = ((uint8_t *)&parameter_list_length)[0];
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, size, true);
+    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, data_size, true);
 }
 
 }

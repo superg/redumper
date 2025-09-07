@@ -23,7 +23,6 @@ namespace gpsxre
 
 export void flash_plextor(SPTD &sptd, const std::span<const uint8_t> firmware_data, uint32_t block_size)
 {
-
     for(uint32_t offset = 0; offset < firmware_data.size();)
     {
         uint32_t size = std::min(block_size, (uint32_t)(firmware_data.size() - offset));
@@ -31,11 +30,11 @@ export void flash_plextor(SPTD &sptd, const std::span<const uint8_t> firmware_da
 
         LOGC_RF("[{:3}%] flashing: [{:08X} .. {:08X})", 100 * offset / (uint32_t)firmware_data.size(), offset, offset_next);
 
-        // PLEXTOR flasher does a drive ready check before each block write, not sure this is needed though
-        // cmd_drive_ready(sptd);
+        // PLEXTOR original flasher does a drive ready check before each block write, not sure this is needed though
+        cmd_drive_ready(sptd);
 
-        FLASH_PLEXTOR_Mode mode = offset_next < firmware_data.size() ? FLASH_PLEXTOR_Mode::CONTINUE : FLASH_PLEXTOR_Mode::END;
-        SPTD::Status status = cmd_flash_plextor(sptd, &firmware_data[offset], offset, size, mode);
+        auto mode = offset_next < firmware_data.size() ? WRITE_BUFFER_Mode::DOWNLOAD_MICROCODE : WRITE_BUFFER_Mode::DOWNLOAD_MICROCODE_SAVE;
+        SPTD::Status status = cmd_write_buffer(sptd, &firmware_data[offset], size, mode, offset, size);
         if(status.status_code)
             throw_line("failed to flash firmware, SCSI ({})", SPTD::StatusMessage(status));
 
@@ -50,8 +49,16 @@ export int redumper_flash_plextor(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    // block size is how much data is sent in one command, potentially it can vary but current value is taken from the original flasher
-    constexpr uint32_t block_size = 0x1000;
+    if(ctx.drive_config.vendor_id != "PLEXTOR")
+        throw_line("drive is not PLEXTOR");
+
+    if(ctx.drive_config.c2_shift != 294 && ctx.drive_config.c2_shift != 295)
+        throw_line("this PLEXTOR drive is unsupported");
+
+    // according to the original flasher, older drives seem to use 4KB, newer 16KB, C2 shift is a handy way to distinguish between them
+    uint32_t block_size = ctx.drive_config.c2_shift == 294 ? 0x1000 : 0x4000;
+
+    // TODO: implement inquiry patching for drives with same hardware but different product id
 
     flash_plextor(*ctx.sptd, read_vector(options.firmware), block_size);
 

@@ -15,7 +15,7 @@ export enum class CDB_OperationCode : uint8_t
     START_STOP_UNIT = 0x1B,
     READ_CAPACITY = 0x25,
     SYNCHRONIZE_CACHE = 0x35,
-    PLEXTOR_FLASH_FIRMWARE = 0x3B,
+    WRITE_BUFFER = 0x3B,
     READ_TOC = 0x43,
     GET_CONFIGURATION = 0x46,
     SEND_KEY = 0xA3,
@@ -836,22 +836,29 @@ export struct CDB12_FlashTSST
 };
 
 
-export enum class FLASH_PLEXTOR_Mode : uint8_t
+export enum class WRITE_BUFFER_Mode : uint8_t
 {
-    CONTINUE = 0x04,
-    END = 0x05
+    WRITE_HEADER_DATA,
+    VENDOR_SPECIFIC,
+    WRITE_DATA,
+    RESERVED,
+    DOWNLOAD_MICROCODE,
+    DOWNLOAD_MICROCODE_SAVE,
+    DOWNLOAD_MICROCODE_WITH_OFFSETS,
+    DOWNLOAD_MICROCODE_WITH_OFFSETS_SAVE,
+    ECHO_BUFFER = 0x0A
 };
 
 
-export struct CDB12_FlashPlextor
+export struct CDB10_WriteBuffer
 {
     uint8_t operation_code;
-    uint8_t mode :5;
-    uint8_t lun  :3;
-    uint8_t unknown1;
-    uint8_t offset[3];
-    uint8_t size[3];
-    uint8_t unknown2[3];
+    uint8_t mode     :4;
+    uint8_t reserved :4;
+    uint8_t buffer_id;
+    uint8_t buffer_offset[3];
+    uint8_t parameter_list_length[3];
+    uint8_t control;
 };
 
 }

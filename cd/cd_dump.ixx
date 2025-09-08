@@ -235,6 +235,10 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         LOG("");
     }
 
+    // dry run does not dump user data
+    if(options.dry_run)
+        return false;
+
     int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
     int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
 

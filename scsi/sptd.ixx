@@ -61,6 +61,9 @@ public:
         // returns IOCDMedia class, but we want IODVDServices, figure out how to specify filter on class and on device name
         //        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, drive_path.c_str()), &iterator);
 
+        // Initialize to nullptr so we can check if device was found
+        _scsiTaskDeviceInterface = nullptr;
+
         CFMutableDictionaryRef authoring_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
         if(authoring_dictionary == nullptr)
             throw_line("failed to create authoring dictionary");
@@ -114,6 +117,24 @@ public:
             IOObjectRelease(iterator);
             if(kret != KERN_SUCCESS)
                 throw_line("failed to release iterator, MACH ({})", mach_error_string(kret));
+        }
+
+        // Validate that we found the device
+        if(_scsiTaskDeviceInterface == nullptr)
+        {
+            // List available drives to help the user
+            auto available_drives = listDrives();
+            std::string drives_list;
+            for(const auto &d : available_drives)
+            {
+                if(!drives_list.empty())
+                    drives_list += ", ";
+                drives_list += d;
+            }
+
+            throw_line("drive '{}' not found.\nAvailable drives: [{}].\n" "Drive must be specified as bare BSD name without /dev/ prefix " "(example: --drive=disk4, NOT --drive=/dev/disk4 or "
+                                                                                                                                           "--drive=rdisk4)",
+                drive_path, drives_list.empty() ? "none" : drives_list);
         }
 
 #else

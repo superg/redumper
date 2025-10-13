@@ -208,9 +208,11 @@ set(libs
 if(REDUMPER_TARGET_MACOS)
     find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
     find_library(IO_KIT IOKit REQUIRED)
+    find_library(DISK_ARBITRATION DiskArbitration REQUIRED)
     set(libs ${libs}
         ${CORE_FOUNDATION}
         ${IO_KIT}
+        ${DISK_ARBITRATION}
     )
 endif()
 

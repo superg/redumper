@@ -318,16 +318,6 @@ export struct TOC
 
     void updateMCN(const ChannelQ *subq, uint32_t sectors_count)
     {
-        // clang-format off
-        constexpr char ISRC_TABLE[] =
-        {
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_', '_', '_', '_', '_', '_',
-            '_', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-            'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '_', '_', '_', '_', '_',
-            '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'
-        };
-        // clang-format on
-
         // build linear track array
         std::vector<Session::Track *> tracks;
         for(auto &s : sessions)
@@ -357,13 +347,7 @@ export struct TOC
                 // MCN
             case 2:
                 if(mcn.empty())
-                {
-                    for(uint32_t i = 0; i < sizeof(Q.mode23.mcn); ++i)
-                        mcn += std::format("{:02}", bcd_decode(Q.mode23.mcn[i]));
-
-                    // remove trailing zero
-                    mcn.pop_back();
-                }
+                    mcn = decode_mcn(Q.mode23.mcn);
                 break;
 
                 // ISRC
@@ -371,22 +355,7 @@ export struct TOC
                 if(track_index >= 0)
                 {
                     if(tracks[track_index]->isrc.empty())
-                    {
-                        // letters, 5 by 6 bits each
-                        for(uint32_t i = 0; i < 5; ++i)
-                        {
-                            uint8_t c = 0;
-                            bit_copy(&c, 2, Q.mode23.isrc, i * 6, 6);
-                            tracks[track_index]->isrc += ISRC_TABLE[c];
-                        }
-
-                        // padding 2 bits
-
-                        // 7 BCD 4-bit numbers
-                        for(uint32_t i = 4; i < 8; ++i)
-                            tracks[track_index]->isrc += std::format("{:02}", bcd_decode(Q.mode23.isrc[i]));
-                        tracks[track_index]->isrc.pop_back();
-                    }
+                        tracks[track_index]->isrc = decode_isrc(Q.mode23.isrc);
                 }
                 break;
 

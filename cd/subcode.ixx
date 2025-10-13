@@ -11,6 +11,7 @@ export module cd.subcode;
 import cd.cd;
 import crc.crc16_gsm;
 import utils.endian;
+import utils.misc;
 
 
 
@@ -186,6 +187,52 @@ export ChannelQ subcode_extract_q(const uint8_t *subcode)
     subcode_extract_channel((uint8_t *)&Q, subcode, Subchannel::Q);
 
     return Q;
+}
+
+
+export std::string decode_isrc(const uint8_t *isrc_bytes)
+{
+    // ISRC format: 5 characters (6 bits each) + 7 BCD digits
+    // Total: 12 characters (CC-OOO-YY-NNNNN)
+
+    constexpr char ISRC_TABLE[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '_', '_', '_', '_', '_', '_', '_', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+        'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_' };
+
+    std::string result;
+
+    // Extract 5 letters (6 bits each)
+    for(uint32_t i = 0; i < 5; ++i)
+    {
+        uint8_t c = 0;
+        bit_copy(&c, 2, isrc_bytes, i * 6, 6);
+        result += ISRC_TABLE[c];
+    }
+
+    // 2 bits padding
+
+    // Extract 7 BCD digits (from bytes 4-7, each byte contains 2 BCD digits)
+    for(uint32_t i = 4; i < 8; ++i)
+        result += std::format("{:02}", bcd_decode(isrc_bytes[i]));
+
+    // Remove trailing digit (ISRC standard is 12 chars, not 13)
+    result.pop_back();
+
+    return result;
+}
+
+
+export std::string decode_mcn(const uint8_t *mcn_bytes)
+{
+    // MCN format: 13 BCD digits stored in 7 bytes
+    std::string result;
+
+    for(uint32_t i = 0; i < 7; ++i)
+        result += std::format("{:02}", bcd_decode(mcn_bytes[i]));
+
+    // Remove trailing zero (MCN is 13 digits, 7 bytes = 14 BCD digits)
+    result.pop_back();
+
+    return result;
 }
 
 }

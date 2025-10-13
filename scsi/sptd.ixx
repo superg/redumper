@@ -65,6 +65,9 @@ public:
         // Auto-unmount if mounted
         unmount_disk_macos(drive_path);
 
+        // Initialize to nullptr so we can check if device was found
+        _scsiTaskDeviceInterface = nullptr;
+
         CFMutableDictionaryRef authoring_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
         if(authoring_dictionary == nullptr)
             throw_line("failed to create authoring dictionary");
@@ -118,6 +121,22 @@ public:
             IOObjectRelease(iterator);
             if(kret != KERN_SUCCESS)
                 throw_line("failed to release iterator, MACH ({})", mach_error_string(kret));
+        }
+
+        // Validate that we found the device
+        if(_scsiTaskDeviceInterface == nullptr)
+        {
+            // List available drives to help the user
+            auto available_drives = listDrives();
+            std::string drives_list;
+            for(const auto &d : available_drives)
+            {
+                if(!drives_list.empty())
+                    drives_list += ", ";
+                drives_list += d;
+            }
+
+            throw_line("drive '{}' not found. Available drives: [{}]. " "Drive must be specified as bare BSD name (example: --drive=disk4)", drive_path, drives_list.empty() ? "none" : drives_list);
         }
 
 #else

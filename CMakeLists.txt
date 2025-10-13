@@ -183,6 +183,7 @@ target_sources(redumper
     "drive.ixx"
     "hash.ixx"
     "info.ixx"
+    "check.ixx"
     "offsets.ixx"
     "options.ixx"
     "range.ixx"

@@ -217,6 +217,7 @@ void refine_init_errors(Errors &errors, std::fstream &fs_state, std::fstream &fs
 }
 
 
+
 export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump_mode)
 {
     if(dump_mode == DumpMode::DUMP)
@@ -290,6 +291,15 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     if(dump_mode != DumpMode::DUMP)
         refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, -ctx.drive_config.read_offset, -data_drive_offset);
     Errors errors = errors_initial;
+
+    if(dump_mode == DumpMode::REFINE && options.verbose)
+    {
+        LOG("initial errors before refine:");
+        LOG("  SCSI: {} samples", errors_initial.scsi);
+        LOG("  C2: {} samples", errors_initial.c2);
+        LOG("  Q: {} sectors", errors_initial.q);
+        LOG("");
+    }
 
     int32_t subcode_shift = 0;
     uint32_t subcode_byte_desync_counter = 0;
@@ -538,6 +548,11 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         LOG("  SCSI: {} samples", errors_initial.scsi - errors.scsi);
         LOG("  C2: {} samples", errors_initial.c2 - errors.c2);
         LOG("  Q: {} sectors", errors_initial.q - errors.q);
+        LOG("");
+        LOG("remaining errors:");
+        LOG("  SCSI: {} samples", errors.scsi);
+        LOG("  C2: {} samples", errors.c2);
+        LOG("  Q: {} sectors", errors.q);
     }
 
     if(signal.interrupt())

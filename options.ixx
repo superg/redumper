@@ -357,6 +357,7 @@ export struct Options
         LOG("\tsplit         \tgenerates BIN/CUE track split from dump files");
         LOG("\thash          \toutputs XML DAT hash entries (CUE/BIN or ISO)");
         LOG("\tinfo          \toutputs basic image information (CUE/BIN or ISO)");
+        LOG("\tcheck         \tchecks dump files for errors before split");
         LOG("\tskeleton      \tgenerates image file with zeroed content");
         LOG("\tflash::mt1339 \tflashes MT1339 drive firmware");
         LOG("\tflash::sd616  \tflashes SD-616F/T drive firmware");

@@ -35,6 +35,7 @@ import dvd.key;
 import dvd.split;
 import hash;
 import info;
+import check;
 import options;
 import rings;
 import scsi.cmd;
@@ -148,6 +149,7 @@ const std::map<std::string, Command> COMMANDS{
     { "split",          { false, false, false, true, false, redumper_split }         },
     { "hash",           { false, false, false, true, false, redumper_hash }          },
     { "info",           { false, false, false, true, false, redumper_info }          },
+    { "check",          { false, false, false, true, false, redumper_check }         },
     { "skeleton",       { false, false, false, true, false, redumper_skeleton }      },
     { "flash::mt1339",  { true, false, false, false, false, redumper_flash_tsst }    },
     { "flash::sd616",   { true, false, false, false, false, redumper_flash_sd616 }   },

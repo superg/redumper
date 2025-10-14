@@ -438,11 +438,10 @@ private:
             throw_line("failed to create disk reference for '{}'", bsd_name);
         }
 
-        int elapsed_ms = 0;
-        int poll_interval_ms = 10;
         bool unmounted = false;
+        const int poll_interval_ms = 10;
 
-        while(elapsed_ms < timeout_ms)
+        for(int elapsed_ms = 0; elapsed_ms <= timeout_ms; elapsed_ms += poll_interval_ms)
         {
             CFDictionaryRef description = DADiskCopyDescription(disk);
             if(description)
@@ -458,29 +457,15 @@ private:
                 CFRelease(description);
             }
 
-            usleep(poll_interval_ms * 1000);
-            elapsed_ms += poll_interval_ms;
-        }
-
-        // Final check
-        if(!unmounted)
-        {
-            CFDictionaryRef description = DADiskCopyDescription(disk);
-            if(description)
-            {
-                CFURLRef volumePath = (CFURLRef)CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey);
-                unmounted = (volumePath == nullptr);
-                CFRelease(description);
-            }
+            if(elapsed_ms < timeout_ms)
+                usleep(poll_interval_ms * 1000);
         }
 
         CFRelease(disk);
         CFRelease(session);
 
         if(!unmounted)
-        {
             throw_line("failed to unmount drive '{}' (timeout after {}ms)", bsd_name, timeout_ms);
-        }
     }
 
     static void unmount_disk_macos(const std::string &bsd_name)
@@ -494,6 +479,22 @@ private:
         {
             CFRelease(session);
             throw_line("failed to create disk reference for '{}'", bsd_name);
+        }
+
+        // Check if already unmounted
+        CFDictionaryRef description = DADiskCopyDescription(disk);
+        if(description)
+        {
+            CFURLRef volumePath = (CFURLRef)CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey);
+            bool already_unmounted = (volumePath == nullptr);
+            CFRelease(description);
+
+            if(already_unmounted)
+            {
+                CFRelease(disk);
+                CFRelease(session);
+                return;
+            }
         }
 
         DADiskUnmount(disk, kDADiskUnmountOptionForce, nullptr, nullptr);

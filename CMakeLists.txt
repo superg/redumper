@@ -45,6 +45,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         add_link_options(-stdlib=libc++)
     endif()
 
+    # Disable elaborated-enum-base warning for macOS CoreFoundation compatibility
+    # See: https://github.com/llvm/llvm-project/issues/48757
+    if(REDUMPER_TARGET_MACOS)
+        add_compile_options(-Wno-elaborated-enum-base)
+    endif()
+
     add_link_options(${REDUMPER_CLANG_LINK_OPTIONS})
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     add_compile_options(-Wall -Wextra -Werror)

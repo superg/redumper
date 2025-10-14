@@ -136,7 +136,7 @@ std::string format_indices(const std::vector<int32_t> &indices)
     {
         if(i > 0)
             result += ", ";
-        result += std::to_string(i) + ":" + std::to_string(indices[i]);
+        result += std::format("{:02}:{:d}", (int)i, indices[i]);
     }
     return result;
 }
@@ -232,15 +232,12 @@ QErrorAnalysis analyze_q_errors(const TOC::Session::Track &track, std::fstream &
     // Collect all valid ISRC and MCN samples
     std::map<std::string, uint32_t> isrc_samples;
     std::map<std::string, uint32_t> mcn_samples;
-    int32_t valid_mode1_idx = -1;
 
     for(size_t i = 0; i < q_data.size(); ++i)
     {
         if(q_data[i].isValid())
         {
-            if(q_data[i].adr == 1 && q_data[i].mode1.tno == track.track_number)
-                valid_mode1_idx = i;
-            else if(q_data[i].adr == 2)
+            if(q_data[i].adr == 2)
             {
                 // Extract MCN and count occurrences
                 char mcn[15];
@@ -342,18 +339,25 @@ Errors count_refinable_errors(std::fstream &state_fs, std::fstream &subcode_fs, 
 }
 
 
-bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection)
+static bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection)
 {
     int32_t sample = lba_to_sample(lba, offset_manager->getOffset(lba));
-    for(uint32_t i = 0; i < CD_DATA_SIZE_SAMPLES; ++i)
-        if(find_range(protection, sample + (int32_t)i) != nullptr)
+    int32_t sample_end = sample + (int32_t)CD_DATA_SIZE_SAMPLES - 1;
+
+    // Check if sector range [sample, sample_end] intersects with any protection range
+    for(const auto &range : protection)
+    {
+        // Two ranges [a, b) and [c, d) intersect if: a < d AND c < b
+        // Since ranges are half-open [start, end), check: range.start < sample_end+1 AND sample < range.end
+        if(range.start <= sample_end && sample < range.end)
             return true;
+    }
 
     return false;
 }
 
 
-uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32_t lba_start, int32_t lba_end, std::shared_ptr<const OffsetManager> offset_manager, bool data_track, bool reverse)
+static uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32_t lba_start, int32_t lba_end, std::shared_ptr<const OffsetManager> offset_manager, bool data_track, bool reverse)
 {
     int32_t step = 1;
     if(reverse)
@@ -395,7 +399,8 @@ uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32
             auto s = (Sector *)sector.data();
             if(s->header.mode == 0)
             {
-                data = (uint32_t *)s->mode2.user_data;
+                // Mode 0 has 2336 bytes of user data immediately after sync (12 bytes) + header (4 bytes)
+                data = (uint32_t *)(sector.data() + 16);
                 data_size = MODE0_DATA_SIZE;
             }
             else if(s->header.mode == 1)
@@ -662,21 +667,29 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
 
         std::vector<State> state_boundary(CD_DATA_SIZE_SAMPLES);
 
-        read_entry(state_fs, (uint8_t *)state_boundary.data(), CD_DATA_SIZE_SAMPLES, t_s.lba_start - 1 - LBA_START, 1, -offset_manager->getOffset(t_s.lba_start - 1), (uint8_t)State::ERROR_SKIP);
-        for(auto const &s : state_boundary)
-            if(s == State::ERROR_SKIP)
-            {
-                LOG("warning: lead-in starts with unavailable sector (session: {})", toc.sessions[i].session_number);
-                break;
-            }
+        // Check lead-in boundary (only if sector is within recorded range)
+        if(t_s.lba_start - 1 >= LBA_START)
+        {
+            read_entry(state_fs, (uint8_t *)state_boundary.data(), CD_DATA_SIZE_SAMPLES, t_s.lba_start - 1 - LBA_START, 1, -offset_manager->getOffset(t_s.lba_start - 1), (uint8_t)State::ERROR_SKIP);
+            for(auto const &s : state_boundary)
+                if(s == State::ERROR_SKIP)
+                {
+                    LOG("warning: lead-in starts with unavailable sector (session: {})", toc.sessions[i].session_number);
+                    break;
+                }
+        }
 
-        read_entry(state_fs, (uint8_t *)state_boundary.data(), CD_DATA_SIZE_SAMPLES, t_e.lba_end - LBA_START, 1, -offset_manager->getOffset(t_e.lba_end), (uint8_t)State::ERROR_SKIP);
-        for(auto const &s : state_boundary)
-            if(s == State::ERROR_SKIP)
-            {
-                LOG("warning: lead-out ends with unavailable sector (session: {})", toc.sessions[i].session_number);
-                break;
-            }
+        // Check lead-out boundary (only if sector is within recorded range)
+        if(t_e.lba_end >= LBA_START)
+        {
+            read_entry(state_fs, (uint8_t *)state_boundary.data(), CD_DATA_SIZE_SAMPLES, t_e.lba_end - LBA_START, 1, -offset_manager->getOffset(t_e.lba_end), (uint8_t)State::ERROR_SKIP);
+            for(auto const &s : state_boundary)
+                if(s == State::ERROR_SKIP)
+                {
+                    LOG("warning: lead-out ends with unavailable sector (session: {})", toc.sessions[i].session_number);
+                    break;
+                }
+        }
     }
 
     // Check session lead-out for non-zero data
@@ -767,13 +780,6 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
     LOG("  SCSI: {}", refinable_errors.scsi);
     LOG("  C2: {}", refinable_errors.c2);
     LOG("  Q: {}", refinable_errors.q);
-
-    if(refinable_errors.scsi == 0 && refinable_errors.c2 == 0 && refinable_errors.q == 0)
-        LOG("recommendation: no refine needed - ready to split");
-    else if(refinable_errors.scsi > 0 || refinable_errors.c2 > 0)
-        LOG("recommendation: refine needed for data errors");
-    else
-        LOG("recommendation: refine --refine-subchannel needed for Q errors only");
 
     return no_errors;
 }

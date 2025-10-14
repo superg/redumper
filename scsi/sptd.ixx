@@ -21,6 +21,7 @@ module;
 #include <IOKit/IOBSD.h>
 #include <IOKit/scsi/SCSITaskLib.h>
 #include <mach/mach_error.h>
+#include <unistd.h>
 #else
 #include <errno.h>
 #include <fcntl.h>

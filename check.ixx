@@ -240,17 +240,15 @@ QErrorAnalysis analyze_q_errors(const TOC::Session::Track &track, std::fstream &
             if(q_data[i].adr == 2)
             {
                 // Extract MCN and count occurrences
-                char mcn[15];
-                snprintf(mcn, sizeof(mcn), "%02X%02X%02X%02X%02X%02X%02X", q_data[i].mode23.mcn[0], q_data[i].mode23.mcn[1], q_data[i].mode23.mcn[2], q_data[i].mode23.mcn[3], q_data[i].mode23.mcn[4],
-                    q_data[i].mode23.mcn[5], q_data[i].mode23.mcn[6]);
+                std::string mcn = std::format("{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}", q_data[i].mode23.mcn[0], q_data[i].mode23.mcn[1], q_data[i].mode23.mcn[2], q_data[i].mode23.mcn[3],
+                    q_data[i].mode23.mcn[4], q_data[i].mode23.mcn[5], q_data[i].mode23.mcn[6]);
                 mcn_samples[mcn]++;
             }
             else if(q_data[i].adr == 3)
             {
                 // Extract ISRC and count occurrences
-                char isrc[17];
-                snprintf(isrc, sizeof(isrc), "%02X%02X%02X%02X%02X%02X%02X%02X", q_data[i].mode23.isrc[0], q_data[i].mode23.isrc[1], q_data[i].mode23.isrc[2], q_data[i].mode23.isrc[3],
-                    q_data[i].mode23.isrc[4], q_data[i].mode23.isrc[5], q_data[i].mode23.isrc[6], q_data[i].mode23.isrc[7]);
+                std::string isrc = std::format("{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}", q_data[i].mode23.isrc[0], q_data[i].mode23.isrc[1], q_data[i].mode23.isrc[2],
+                    q_data[i].mode23.isrc[3], q_data[i].mode23.isrc[4], q_data[i].mode23.isrc[5], q_data[i].mode23.isrc[6], q_data[i].mode23.isrc[7]);
                 isrc_samples[isrc]++;
             }
         }
@@ -357,7 +355,8 @@ static bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager
 }
 
 
-static uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32_t lba_start, int32_t lba_end, std::shared_ptr<const OffsetManager> offset_manager, bool data_track, bool reverse)
+static uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs, int32_t lba_start, int32_t lba_end, std::shared_ptr<const OffsetManager> offset_manager, bool data_track,
+    bool reverse)
 {
     int32_t step = 1;
     if(reverse)
@@ -843,7 +842,7 @@ export int redumper_check(Context &ctx, Options &options)
     if(options.force_offset)
     {
         offset = *options.force_offset;
-        LOG("using forced offset: {}", offset);
+        LOG("offset: {}", offset);
     }
     else
     {

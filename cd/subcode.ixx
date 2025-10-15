@@ -221,8 +221,6 @@ export std::string decode_isrc(const uint8_t *isrc_bytes)
         result += std::format("{:02}", bcd_decode(isrc_bytes[i]));
 
     // Remove trailing digit (ISRC standard is 12 chars, not 13)
-    if(result.empty())
-        return {};
     result.pop_back();
 
     return result;
@@ -241,8 +239,6 @@ export std::string decode_mcn(const uint8_t *mcn_bytes)
         result += std::format("{:02}", bcd_decode(mcn_bytes[i]));
 
     // Remove trailing digit (MCN is 13 digits, 7 bytes = 14 BCD digits)
-    if(result.empty())
-        return {};
     result.pop_back();
 
     return result;

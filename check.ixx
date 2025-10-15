@@ -74,6 +74,9 @@ static std::vector<uint8_t> hex_string_to_bytes(const std::string &hex_str)
     bytes.reserve(hex_str.length() / 2);
     for(size_t i = 0; i < hex_str.length(); i += 2)
     {
+        // Validate hex characters
+        if(!std::isxdigit(hex_str[i]) || !std::isxdigit(hex_str[i + 1]))
+            return bytes;
         char hex_byte[3] = { hex_str[i], hex_str[i + 1], '\0' };
         bytes.push_back(std::stoi(hex_byte, nullptr, 16));
     }

@@ -190,6 +190,10 @@ export ChannelQ subcode_extract_q(const uint8_t *subcode)
 }
 
 
+// Decodes ISRC from Q subchannel data
+// Parameters:
+//   isrc_bytes - Must point to at least 8 bytes of ISRC data from Q subchannel
+// Returns: Decoded ISRC string (12 characters), or empty string if invalid
 export std::string decode_isrc(const uint8_t *isrc_bytes)
 {
     if(!isrc_bytes)
@@ -227,6 +231,10 @@ export std::string decode_isrc(const uint8_t *isrc_bytes)
 }
 
 
+// Decodes MCN (Media Catalog Number) from Q subchannel data
+// Parameters:
+//   mcn_bytes - Must point to at least 7 bytes of MCN data from Q subchannel
+// Returns: Decoded MCN string (13 digits), or empty string if invalid
 export std::string decode_mcn(const uint8_t *mcn_bytes)
 {
     if(!mcn_bytes)

@@ -66,6 +66,19 @@ const char *confidence_to_string(ConfidenceLevel level)
 }
 
 
+static std::vector<uint8_t> hex_string_to_bytes(const std::string &hex_str)
+{
+    std::vector<uint8_t> bytes;
+    bytes.reserve(hex_str.length() / 2);
+    for(size_t i = 0; i < hex_str.length(); i += 2)
+    {
+        char hex_byte[3] = { hex_str[i], hex_str[i + 1], '\0' };
+        bytes.push_back(std::stoi(hex_byte, nullptr, 16));
+    }
+    return bytes;
+}
+
+
 struct ConfidenceResult
 {
     std::string value;
@@ -607,13 +620,8 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
                 if(!q_analysis.reconstructed_isrc.empty())
                 {
                     // Decode the raw hex ISRC to human-readable format
-                    uint8_t isrc_bytes[8];
-                    for(size_t i = 0; i < 8; ++i)
-                    {
-                        char hex_byte[3] = { q_analysis.reconstructed_isrc[i * 2], q_analysis.reconstructed_isrc[i * 2 + 1], '\0' };
-                        isrc_bytes[i] = std::stoi(hex_byte, nullptr, 16);
-                    }
-                    std::string decoded_isrc = decode_isrc(isrc_bytes);
+                    auto isrc_bytes = hex_string_to_bytes(q_analysis.reconstructed_isrc);
+                    std::string decoded_isrc = decode_isrc(isrc_bytes.data());
 
                     LOG("      reconstructed ISRC: {}", decoded_isrc);
                     LOG("        raw: {}", q_analysis.reconstructed_isrc);
@@ -627,13 +635,8 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
                 if(!q_analysis.reconstructed_mcn.empty())
                 {
                     // Decode the raw hex MCN to human-readable format
-                    uint8_t mcn_bytes[7];
-                    for(size_t i = 0; i < 7; ++i)
-                    {
-                        char hex_byte[3] = { q_analysis.reconstructed_mcn[i * 2], q_analysis.reconstructed_mcn[i * 2 + 1], '\0' };
-                        mcn_bytes[i] = std::stoi(hex_byte, nullptr, 16);
-                    }
-                    std::string decoded_mcn = decode_mcn(mcn_bytes);
+                    auto mcn_bytes = hex_string_to_bytes(q_analysis.reconstructed_mcn);
+                    std::string decoded_mcn = decode_mcn(mcn_bytes.data());
 
                     LOG("      reconstructed MCN: {}", decoded_mcn);
                     LOG("        raw: {}", q_analysis.reconstructed_mcn);

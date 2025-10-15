@@ -69,6 +69,8 @@ const char *confidence_to_string(ConfidenceLevel level)
 static std::vector<uint8_t> hex_string_to_bytes(const std::string &hex_str)
 {
     std::vector<uint8_t> bytes;
+    if(hex_str.size() % 2 != 0)
+        return bytes; // Invalid: odd-length hex string
     bytes.reserve(hex_str.length() / 2);
     for(size_t i = 0; i < hex_str.length(); i += 2)
     {
@@ -383,6 +385,7 @@ static uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs
     Scrambler scrambler;
 
     int32_t lba = lba_start;
+    uint32_t nonzero_count = 0;
     for(; lba != lba_end; lba += step)
     {
         std::vector<uint8_t> sector(CD_DATA_SIZE);
@@ -437,10 +440,10 @@ static uint32_t find_non_zero_range(std::fstream &scm_fs, std::fstream &state_fs
         data_size /= sizeof(uint32_t);
 
         if(!is_zeroed(data, data_size))
-            break;
+            ++nonzero_count;
     }
 
-    return reverse ? lba - lba_end : lba_end - lba;
+    return nonzero_count;
 }
 
 
@@ -585,11 +588,11 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
                 LOG("    indices: {}", format_indices(t.indices));
             }
 
-            // Show breakdown if track has pre-gap
+            // Show breakdown if track has index 00
             if(has_pregap)
             {
-                LOG("    index 00 (pre-gap): SKIP: {}, C2: {}, Q: {}", pregap_skip_samples, pregap_c2_samples, pregap_q_errors);
-                LOG("    index 01+ (music): SKIP: {}, C2: {}, Q: {}", music_skip_samples, music_c2_samples, music_q_errors);
+                LOG("    index 00: SKIP: {}, C2: {}, Q: {}", pregap_skip_samples, pregap_c2_samples, pregap_q_errors);
+                LOG("    index 01+: SKIP: {}, C2: {}, Q: {}", music_skip_samples, music_c2_samples, music_q_errors);
             }
             else
             {
@@ -759,16 +762,28 @@ bool check_tracks(const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, 
     Errors refinable_errors = { 0, 0, 0 };
     for(auto const &se : toc.sessions)
     {
-        // Refine only processes actual track data, not pre-gap or lead-out
-        // Use first track's first index (index 1) as start, last non-lead-out track as end
+        // Refine processes track data including track pre-gaps (index 00), except disc pre-gap
+        // Disc pre-gap (Track 1 of first session before 00:02:00) is not refinable with standard methods
+        // Track pre-gaps (index 00 of tracks 2+) ARE refinable
+        bool is_first_session = (&se == &toc.sessions.front());
+
         for(auto const &t : se.tracks)
         {
             // Skip lead-out track (AA/172)
             if(t.track_number >= 0xAA)
                 continue;
 
-            // Use track indices if available, otherwise use lba_start
-            int32_t track_start = t.indices.empty() ? t.lba_start : t.indices.front();
+            // Include track pre-gaps (index 00) except for the disc pre-gap
+            bool is_first_track_in_session = (t.track_number == se.tracks.front().track_number);
+            int32_t track_start = t.lba_start;
+
+            // Only exclude disc pre-gap (first track of first session)
+            if(is_first_session && is_first_track_in_session && !t.indices.empty())
+            {
+                // Skip disc pre-gap, start from index 01
+                track_start = t.indices.front();
+            }
+
             int32_t track_end = t.lba_end;
 
             auto track_errors = count_refinable_errors(state_fs, subcode_fs, track_start, track_end, offset_manager);

@@ -211,7 +211,8 @@ export std::string decode_isrc(const uint8_t *isrc_bytes)
     for(uint32_t i = 0; i < 5; ++i)
     {
         uint8_t c = 0;
-        bit_copy(&c, 2, isrc_bytes, i * 6, 6);
+        // Skip the initial 2 padding bits in the source; write at bit 0 in destination
+        bit_copy(&c, 0, isrc_bytes, 2 + i * 6, 6);
         char ch = ISRC_TABLE[c];
         if(ch == '_')
             return {}; // Invalid character, return empty string
@@ -222,10 +223,18 @@ export std::string decode_isrc(const uint8_t *isrc_bytes)
 
     // Extract 7 BCD digits (from bytes 4-7, each byte contains 2 BCD digits)
     for(uint32_t i = 4; i < 8; ++i)
-        result += std::format("{:02}", bcd_decode(isrc_bytes[i]));
+    {
+        uint8_t byte = isrc_bytes[i];
+        uint8_t hi = (byte >> 4) & 0xF;
+        uint8_t lo = byte & 0xF;
+        if(hi > 9 || lo > 9)
+            return {}; // Invalid BCD
+        result += std::format("{:01}{:01}", hi, lo);
+    }
 
     // Remove trailing digit (ISRC standard is 12 chars, not 13)
-    result.pop_back();
+    if(!result.empty())
+        result.pop_back();
 
     return result;
 }
@@ -244,10 +253,18 @@ export std::string decode_mcn(const uint8_t *mcn_bytes)
     std::string result;
 
     for(uint32_t i = 0; i < 7; ++i)
-        result += std::format("{:02}", bcd_decode(mcn_bytes[i]));
+    {
+        uint8_t byte = mcn_bytes[i];
+        uint8_t hi = (byte >> 4) & 0xF;
+        uint8_t lo = byte & 0xF;
+        if(hi > 9 || lo > 9)
+            return {}; // Invalid BCD
+        result += std::format("{:01}{:01}", hi, lo);
+    }
 
     // Remove trailing digit (MCN is 13 digits, 7 bytes = 14 BCD digits)
-    result.pop_back();
+    if(!result.empty())
+        result.pop_back();
 
     return result;
 }

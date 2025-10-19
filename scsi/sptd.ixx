@@ -63,8 +63,8 @@ public:
         // returns IOCDMedia class, but we want IODVDServices, figure out how to specify filter on class and on device name
         //        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, drive_path.c_str()), &iterator);
 
-        // Auto-unmount if mounted
-        unmount_disk_macos(drive_path);
+        // auto-unmount if mounted
+        unmountDisk(drive_path);
 
         CFMutableDictionaryRef authoring_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
         if(authoring_dictionary == nullptr)
@@ -426,14 +426,14 @@ private:
 #endif
 
 #if defined(__APPLE__)
-    static void wait_for_unmount(const std::string &bsd_name, int timeout_ms = 10000)
+    static void waitForUnmount(const std::string &bsd_name, int timeout_ms = 10000)
     {
         DASessionRef session = DASessionCreate(kCFAllocatorDefault);
-        if(!session)
+        if(session == nullptr)
             throw_line("failed to create DiskArbitration session");
 
         DADiskRef disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsd_name.c_str());
-        if(!disk)
+        if(disk == nullptr)
         {
             CFRelease(session);
             throw_line("failed to create disk reference for '{}'", bsd_name);
@@ -445,11 +445,11 @@ private:
         for(int elapsed_ms = 0; elapsed_ms <= timeout_ms; elapsed_ms += poll_interval_ms)
         {
             CFDictionaryRef description = DADiskCopyDescription(disk);
-            if(description)
+            if(description != nullptr)
             {
-                CFURLRef volumePath = (CFURLRef)CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey);
+                auto volume_path = (CFURLRef)CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey);
 
-                if(volumePath == nullptr)
+                if(volume_path == nullptr)
                 {
                     unmounted = true;
                     CFRelease(description);
@@ -469,25 +469,25 @@ private:
             throw_line("failed to unmount drive '{}' (timeout after {}ms)", bsd_name, timeout_ms);
     }
 
-    static void unmount_disk_macos(const std::string &bsd_name)
+    static void unmountDisk(const std::string &bsd_name)
     {
         DASessionRef session = DASessionCreate(kCFAllocatorDefault);
-        if(!session)
+        if(session == nullptr)
             throw_line("failed to create DiskArbitration session");
 
         DADiskRef disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsd_name.c_str());
-        if(!disk)
+        if(disk == nullptr)
         {
             CFRelease(session);
             throw_line("failed to create disk reference for '{}'", bsd_name);
         }
 
-        // Check if already unmounted
+        // check if already unmounted
         CFDictionaryRef description = DADiskCopyDescription(disk);
-        if(description)
+        if(description != nullptr)
         {
-            CFURLRef volumePath = (CFURLRef)CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey);
-            bool already_unmounted = (volumePath == nullptr);
+            auto volume_path = (CFURLRef)CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey);
+            bool already_unmounted = volume_path == nullptr;
             CFRelease(description);
 
             if(already_unmounted)
@@ -503,7 +503,7 @@ private:
         CFRelease(disk);
         CFRelease(session);
 
-        wait_for_unmount(bsd_name);
+        waitForUnmount(bsd_name);
     }
 #endif
 

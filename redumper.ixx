@@ -113,7 +113,7 @@ int redumper_split(Context &ctx, Options &options)
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
     if(std::filesystem::exists(image_prefix + ".iso") || std::filesystem::exists(image_prefix + ".security"))
         redumper_split_dvd(ctx, options);
-    else if(!options.dry_run)
+    else if(!options.metadata_only)
         redumper_split_cd(ctx, options);
 
     return exit_code;
@@ -277,7 +277,7 @@ std::list<std::pair<std::string, Command>> redumper_cd_get_commands(Options &opt
     }
     if(options.skeleton)
         cd_commands.push_back("skeleton");
-    if(options.dry_run)
+    if(options.metadata_only)
     {
         cd_commands.remove("dump::extra");
         cd_commands.remove("protection");

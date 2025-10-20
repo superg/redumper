@@ -235,8 +235,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         LOG("");
     }
 
-    // dry run does not dump user data
-    if(options.dry_run)
+    // do not dump user data if requesting metadata only
+    if(options.metadata_only)
         return false;
 
     int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;

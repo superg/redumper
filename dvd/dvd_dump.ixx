@@ -718,8 +718,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    // dry run does not dump user data
-    if(options.dry_run)
+    // do not dump user data if requesting metadata only
+    if(options.metadata_only)
         return false;
 
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);

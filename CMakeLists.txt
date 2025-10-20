@@ -24,13 +24,13 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 
 # packaging
-set(REDUMPER_OS "" CACHE STRING "Target operating system")
-set(REDUMPER_ARCH "" CACHE STRING "Target architecture")
 set(CPACK_GENERATOR "ZIP")
-if(REDUMPER_VERSION_BUILD STREQUAL "LOCAL")
-    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}")
+# extract platform suffix from toolchain filename
+if(CMAKE_TOOLCHAIN_FILE)
+    get_filename_component(toolchain_basename ${CMAKE_TOOLCHAIN_FILE} NAME_WE)
+    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}-${toolchain_basename}")
 else()
-    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}-${REDUMPER_OS}-${REDUMPER_ARCH}")
+    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}")
 endif()
 include(CPack)
 
@@ -219,7 +219,7 @@ target_link_libraries(redumper ${libs})
 install(TARGETS redumper DESTINATION "bin")
 
 # Windows 7 requires administrative access in order to access the disc drive
-if(MSVC AND ${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
+if(MSVC AND CMAKE_SYSTEM_VERSION VERSION_EQUAL "6.1")
     set_target_properties(redumper PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
 endif()
 

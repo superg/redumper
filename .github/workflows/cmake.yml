@@ -109,14 +109,23 @@ jobs:
         
   build-macos:
     needs: check
+    strategy:
+      matrix:
+        arch: [x64, arm64]
     runs-on: macos-14
     steps:
-    - name: Customize Software
+    - name: Customize Software (ARM64)
+      if: matrix.arch == 'arm64'
       run: brew install llvm@18
+    - name: Customize Software (x64)
+      if: matrix.arch == 'x64'
+      run: |
+        arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+        arch -x86_64 /usr/local/bin/brew install llvm@18
     - name: Checkout
       uses: actions/checkout@v4
     - name: CMake Configure
-      run: CXX=$(brew --prefix llvm@18)/bin/clang++ cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DREDUMPER_CLANG_USE_LIBCPP=ON -DREDUMPER_CLANG_LINK_OPTIONS="-L$(brew --prefix llvm@18)/lib/c++" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}} -DREDUMPER_OS=macos -DREDUMPER_ARCH=arm64
+      run: cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}} -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/macos-${{matrix.arch}}.cmake
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release
     - name: CTest
@@ -128,7 +137,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: macos
+        name: macos_${{matrix.arch}}
         path: ${{github.workspace}}/BUILD/redumper-*.zip
 
   release:

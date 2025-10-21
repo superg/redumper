@@ -40,7 +40,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     - name: CMake Configure
-      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}} -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/windows-${{matrix.arch}}.cmake
+      run: cmake -B ${{github.workspace}}/BUILD -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}} -DCMAKE_TOOLCHAIN_FILE="cmake/toolchains/windows-${{matrix.arch}}.cmake"
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release
     - name: CTest

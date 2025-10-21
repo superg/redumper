@@ -114,13 +114,10 @@ jobs:
         arch: [x64, arm64]
     runs-on: macos-14
     steps:
-    - name: Customize Software (ARM64)
-      if: matrix.arch == 'arm64'
-      run: brew install llvm@18
-    - name: Customize Software (x64)
-      if: matrix.arch == 'x64'
+    - name: Customize Software
       run: |
-        arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+        brew install llvm@18
+        arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         arch -x86_64 /usr/local/bin/brew install llvm@18
     - name: Checkout
       uses: actions/checkout@v4

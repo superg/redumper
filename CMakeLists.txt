@@ -5,8 +5,6 @@ set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
 set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Build number")
 project(${REDUMPER_PROJECT_NAME} LANGUAGES CXX)
 
-set(REDUMPER_CLANG_LINK_OPTIONS "" CACHE STRING "Extra LLVM/Clang linker options")
-
 # build type
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the build type" FORCE)
@@ -37,16 +35,7 @@ include(CPack)
 # C/C++
 set(CMAKE_CXX_STANDARD 20)
 
-option(REDUMPER_CLANG_USE_LIBCPP "Link to libc++ instead of system default" OFF)
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    if(REDUMPER_CLANG_USE_LIBCPP)
-        add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
-        add_link_options(-stdlib=libc++)
-    endif()
-
-    add_link_options(${REDUMPER_CLANG_LINK_OPTIONS})
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     add_compile_options(-Wall -Wextra -Werror)
 
     # remove after https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99426 is fixed

@@ -79,7 +79,7 @@ if(MSVC)
 endif()
 
 # code formatting
-find_program(CLANG_FORMAT "clang-format-18")
+find_program(CLANG_FORMAT "clang-format")
 
 if(CLANG_FORMAT)
     file(GLOB_RECURSE ALL_SOURCE_FILES
@@ -91,7 +91,7 @@ if(CLANG_FORMAT)
     add_custom_target(format COMMAND ${CLANG_FORMAT} -i ${ALL_SOURCE_FILES})
     add_custom_target(check-format COMMAND ${CLANG_FORMAT} --dry-run --Werror ${ALL_SOURCE_FILES})
 else()
-    message(WARNING "clang-format-18 not found, source code formatting targets will not be available")
+    message(WARNING "clang-format not found, source code formatting targets will not be available")
 endif()
 
 add_executable(redumper)

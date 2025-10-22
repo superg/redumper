@@ -8,5 +8,8 @@ set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
 set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0")
 execute_process(COMMAND xcrun --sdk macosx --show-sdk-path OUTPUT_VARIABLE CMAKE_OSX_SYSROOT OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-# Use LLVM's libc++ instead of system libc++
+# use LLVM's libc++ instead of system libc++
 set(CMAKE_EXE_LINKER_FLAGS "-L${LLVM_ROOT}/lib/c++")
+
+# this variable is used in CMakeLists.txt to bundle libc++ with the application
+set(LLVM_LIBCXX_PATH "${LLVM_ROOT}/lib/c++" CACHE PATH "Path to LLVM libc++")

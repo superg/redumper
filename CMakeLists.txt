@@ -207,6 +207,19 @@ target_link_libraries(redumper ${libs})
 
 install(TARGETS redumper DESTINATION "bin")
 
+# macOS: fix libc++ path for distribution
+if(REDUMPER_TARGET_MACOS)
+    # Change the library path from absolute to relative after installation
+    install(CODE "
+        execute_process(
+            COMMAND \"${CMAKE_INSTALL_NAME_TOOL}\" -change 
+                \"/opt/homebrew/opt/llvm@18/lib/c++/libc++.1.dylib\"
+                \"@executable_path/../lib/libc++.1.dylib\"
+                \"\${CMAKE_INSTALL_PREFIX}/bin/redumper\"
+        )
+    " COMPONENT Runtime)
+endif()
+
 # Windows 7 requires administrative access in order to access the disc drive
 if(MSVC AND CMAKE_SYSTEM_VERSION VERSION_EQUAL "6.1")
     set_target_properties(redumper PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")

@@ -195,6 +195,7 @@ set(libs
 )
 
 if(REDUMPER_TARGET_MACOS)
+
     find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
     find_library(IO_KIT IOKit REQUIRED)
     set(libs ${libs}
@@ -207,21 +208,30 @@ target_link_libraries(redumper ${libs})
 
 install(TARGETS redumper DESTINATION "bin")
 
+# bundle LLVM libc++ for C++20 support (system libc++ is too old, static linking not allowed on macOS)
 if(REDUMPER_TARGET_MACOS)
-    # Install the library with its symlinks
-    install(FILES 
-        "${LLVM_LIBCXX_PATH}/libc++.1.0.dylib"
-        "${LLVM_LIBCXX_PATH}/libc++.1.dylib"
-        "${LLVM_LIBCXX_PATH}/libc++.dylib"
+    set_target_properties(redumper PROPERTIES INSTALL_RPATH "@executable_path/../lib")
+    
+    install(FILES
+        "${LLVM_LIB_PATH}/c++/libc++.1.0.dylib"
+        "${LLVM_LIB_PATH}/c++/libc++.1.dylib"
+        "${LLVM_LIB_PATH}/c++/libc++abi.1.0.dylib"
+        "${LLVM_LIB_PATH}/c++/libc++abi.1.dylib"
+        "${LLVM_LIB_PATH}/libunwind.1.0.dylib"
+        "${LLVM_LIB_PATH}/libunwind.1.dylib"
         DESTINATION "lib"
     )
     
-    # Change the install name in the installed binary (must run after binary is installed)
+    # fix install names after files are copied & re-sign binaries after modification (install_name_tool invalidates signatures)
     install(CODE "
-        execute_process(COMMAND \"${CMAKE_INSTALL_NAME_TOOL}\" 
-            -change \"${LLVM_LIBCXX_PATH}/libc++.1.dylib\" 
-            \"@executable_path/../lib/libc++.1.dylib\" 
-            \"\${CMAKE_INSTALL_PREFIX}/bin/redumper\")
+        execute_process(COMMAND install_name_tool -change ${LLVM_LIB_PATH}/c++/libc++.1.dylib @rpath/libc++.1.dylib \${CMAKE_INSTALL_PREFIX}/bin/redumper)
+        execute_process(COMMAND install_name_tool -id @rpath/libc++.1.dylib \${CMAKE_INSTALL_PREFIX}/lib/libc++.1.0.dylib)
+        execute_process(COMMAND install_name_tool -id @rpath/libc++abi.1.dylib \${CMAKE_INSTALL_PREFIX}/lib/libc++abi.1.0.dylib)
+        execute_process(COMMAND install_name_tool -id @rpath/libunwind.1.dylib \${CMAKE_INSTALL_PREFIX}/lib/libunwind.1.0.dylib)
+        execute_process(COMMAND codesign --force --sign - \${CMAKE_INSTALL_PREFIX}/bin/redumper)
+        execute_process(COMMAND codesign --force --sign - \${CMAKE_INSTALL_PREFIX}/lib/libc++.1.0.dylib)
+        execute_process(COMMAND codesign --force --sign - \${CMAKE_INSTALL_PREFIX}/lib/libc++abi.1.0.dylib)
+        execute_process(COMMAND codesign --force --sign - \${CMAKE_INSTALL_PREFIX}/lib/libunwind.1.0.dylib)
     ")
 endif()
 

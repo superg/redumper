@@ -13,4 +13,4 @@ execute_process(COMMAND arch -x86_64 /usr/local/bin/brew --prefix llvm@18 OUTPUT
 set(CMAKE_EXE_LINKER_FLAGS "-L${LLVM_X64_ROOT}/lib/c++")
 
 # this variable is used in CMakeLists.txt to bundle libc++ with the application
-set(LLVM_LIBCXX_PATH "${LLVM_X64_ROOT}/lib/c++" CACHE PATH "Path to LLVM libc++")
+set(LLVM_LIB_PATH "${LLVM_X64_ROOT}/lib" CACHE PATH "Path to LLVM libraries")

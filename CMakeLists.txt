@@ -5,8 +5,6 @@ set(REDUMPER_PROJECT_NAME "redumper" CACHE STRING "Project name")
 set(REDUMPER_VERSION_BUILD "LOCAL" CACHE STRING "Build number")
 project(${REDUMPER_PROJECT_NAME} LANGUAGES CXX)
 
-set(REDUMPER_CLANG_LINK_OPTIONS "" CACHE STRING "Extra LLVM/Clang linker options")
-
 # build type
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the build type" FORCE)
@@ -24,29 +22,20 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 
 # packaging
-set(REDUMPER_OS "" CACHE STRING "Target operating system")
-set(REDUMPER_ARCH "" CACHE STRING "Target architecture")
 set(CPACK_GENERATOR "ZIP")
-if(REDUMPER_VERSION_BUILD STREQUAL "LOCAL")
-    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}")
+# extract platform suffix from toolchain filename
+if(CMAKE_TOOLCHAIN_FILE)
+    get_filename_component(toolchain_basename ${CMAKE_TOOLCHAIN_FILE} NAME_WE)
+    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}-${toolchain_basename}")
 else()
-    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}-${REDUMPER_OS}-${REDUMPER_ARCH}")
+    set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${REDUMPER_VERSION_BUILD}")
 endif()
 include(CPack)
 
 # C/C++
 set(CMAKE_CXX_STANDARD 20)
 
-option(REDUMPER_CLANG_USE_LIBCPP "Link to libc++ instead of system default" OFF)
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    if(REDUMPER_CLANG_USE_LIBCPP)
-        add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
-        add_link_options(-stdlib=libc++)
-    endif()
-
-    add_link_options(${REDUMPER_CLANG_LINK_OPTIONS})
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     add_compile_options(-Wall -Wextra -Werror)
 
     # remove after https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99426 is fixed
@@ -79,7 +68,7 @@ if(MSVC)
 endif()
 
 # code formatting
-find_program(CLANG_FORMAT "clang-format-18")
+find_program(CLANG_FORMAT "clang-format")
 
 if(CLANG_FORMAT)
     file(GLOB_RECURSE ALL_SOURCE_FILES
@@ -91,7 +80,7 @@ if(CLANG_FORMAT)
     add_custom_target(format COMMAND ${CLANG_FORMAT} -i ${ALL_SOURCE_FILES})
     add_custom_target(check-format COMMAND ${CLANG_FORMAT} --dry-run --Werror ${ALL_SOURCE_FILES})
 else()
-    message(WARNING "clang-format-18 not found, source code formatting targets will not be available")
+    message(WARNING "clang-format not found, source code formatting targets will not be available")
 endif()
 
 add_executable(redumper)
@@ -206,6 +195,7 @@ set(libs
 )
 
 if(REDUMPER_TARGET_MACOS)
+
     find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
     find_library(IO_KIT IOKit REQUIRED)
     set(libs ${libs}
@@ -218,8 +208,35 @@ target_link_libraries(redumper ${libs})
 
 install(TARGETS redumper DESTINATION "bin")
 
+# bundle LLVM libc++ for C++20 support (system libc++ is too old, static linking not allowed on macOS)
+if(REDUMPER_TARGET_MACOS)
+    set_target_properties(redumper PROPERTIES INSTALL_RPATH "@executable_path/../lib")
+    
+    install(FILES
+        "${LLVM_LIB_PATH}/c++/libc++.1.0.dylib"
+        "${LLVM_LIB_PATH}/c++/libc++.1.dylib"
+        "${LLVM_LIB_PATH}/c++/libc++abi.1.0.dylib"
+        "${LLVM_LIB_PATH}/c++/libc++abi.1.dylib"
+        "${LLVM_LIB_PATH}/libunwind.1.0.dylib"
+        "${LLVM_LIB_PATH}/libunwind.1.dylib"
+        DESTINATION "lib"
+    )
+    
+    # fix install names after files are copied & re-sign binaries after modification (install_name_tool invalidates signatures)
+    install(CODE "
+        execute_process(COMMAND install_name_tool -change ${LLVM_LIB_PATH}/c++/libc++.1.dylib @rpath/libc++.1.dylib \${CMAKE_INSTALL_PREFIX}/bin/redumper)
+        execute_process(COMMAND install_name_tool -id @rpath/libc++.1.dylib \${CMAKE_INSTALL_PREFIX}/lib/libc++.1.0.dylib)
+        execute_process(COMMAND install_name_tool -id @rpath/libc++abi.1.dylib \${CMAKE_INSTALL_PREFIX}/lib/libc++abi.1.0.dylib)
+        execute_process(COMMAND install_name_tool -id @rpath/libunwind.1.dylib \${CMAKE_INSTALL_PREFIX}/lib/libunwind.1.0.dylib)
+        execute_process(COMMAND codesign --force --sign - \${CMAKE_INSTALL_PREFIX}/bin/redumper)
+        execute_process(COMMAND codesign --force --sign - \${CMAKE_INSTALL_PREFIX}/lib/libc++.1.0.dylib)
+        execute_process(COMMAND codesign --force --sign - \${CMAKE_INSTALL_PREFIX}/lib/libc++abi.1.0.dylib)
+        execute_process(COMMAND codesign --force --sign - \${CMAKE_INSTALL_PREFIX}/lib/libunwind.1.0.dylib)
+    ")
+endif()
+
 # Windows 7 requires administrative access in order to access the disc drive
-if(MSVC AND ${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
+if(MSVC AND CMAKE_SYSTEM_VERSION VERSION_EQUAL "6.1")
     set_target_properties(redumper PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
 endif()
 

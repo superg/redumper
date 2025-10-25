@@ -42,13 +42,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     add_compile_options(--param=ggc-min-expand=10000)
 endif()
 if(MSVC)
-    # disable modules inlining
-    # wait until Microsoft actually fixes this and remove the option, more information:
-    # https://developercommunity.visualstudio.com/t/VS-1750-Compiler-is-Broken/10288409
-    # https://developercommunity.visualstudio.com/t/Modules-ICE-when-using-cout-inside-of-/10299789
-    # https://developercommunity.visualstudio.com/t/C-Modules:-Internal-Compiler-Error-on-/10377473
-    add_compile_options(/dxifcInlineFunctions-)
-
     # build MT configuration by default
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 

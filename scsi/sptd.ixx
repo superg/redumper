@@ -5,6 +5,7 @@ module;
 #include <format>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -31,6 +32,7 @@ module;
 export module scsi.sptd;
 
 import utils.logger;
+import utils.unique_resource;
 
 
 
@@ -61,18 +63,18 @@ public:
         // returns IOCDMedia class, but we want IODVDServices, figure out how to specify filter on class and on device name
         //        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, drive_path.c_str()), &iterator);
 
-        CFMutableDictionaryRef authoring_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
-        if(authoring_dictionary == nullptr)
+        auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef)nullptr, CFRelease);
+        if(!authoring_dictionary)
             throw_line("failed to create authoring dictionary");
-        CFDictionarySetValue(authoring_dictionary, CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
+        CFDictionarySetValue(authoring_dictionary.get(), CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
 
-        CFMutableDictionaryRef matching_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
-        if(matching_dictionary == nullptr)
+        auto matching_dictionary = std::unique_ptr<std::remove_pointer_t<CFMutableDictionaryRef>, decltype(&CFRelease)>(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), CFRelease);
+        if(!matching_dictionary)
             throw_line("failed to create matching dictionary");
-        CFDictionarySetValue(matching_dictionary, CFSTR(kIOPropertyMatchKey), authoring_dictionary);
+        CFDictionarySetValue(matching_dictionary.get(), CFSTR(kIOPropertyMatchKey), authoring_dictionary.get());
 
         io_iterator_t iterator = 0;
-        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary, &iterator);
+        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary.get(), &iterator);
         if(kret != KERN_SUCCESS)
             throw_line("failed to get matching services, MACH ({})", mach_error_string(kret));
 
@@ -273,38 +275,34 @@ public:
             }
         }
 #elif defined(__APPLE__)
-        // TODO: RAII
-        CFMutableDictionaryRef authoring_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
+        auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef)nullptr, &CFRelease);
         if(authoring_dictionary == nullptr)
             throw_line("failed to create authoring dictionary");
         CFDictionarySetValue(authoring_dictionary, CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
 
-        CFMutableDictionaryRef matching_dictionary = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr);
+        auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef)nullptr, &CFRelease);
         if(matching_dictionary == nullptr)
             throw_line("failed to create matching dictionary");
         CFDictionarySetValue(matching_dictionary, CFSTR(kIOPropertyMatchKey), authoring_dictionary);
 
-        io_iterator_t iterator = 0;
-        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary, &iterator);
-        if(kret != KERN_SUCCESS)
+        io_iterator_t it;
+        if(auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary, &it); kret != KERN_SUCCESS)
             throw_line("failed to get matching services, MACH ({})", mach_error_string(kret));
+        auto iterator = make_unique_resource_checked(std::move(it), (io_iterator_t)0, &IOObjectRelease);
 
-        if(iterator)
+        for(;;)
         {
-            for(io_service_t service = IOIteratorNext(iterator); service; service = IOIteratorNext(iterator))
-            {
-                auto bsd_name = (CFStringRef)IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively);
+            auto service = make_unique_resource_checked(IOIteratorNext(iterator), (io_object_t)0, &IOObjectRelease);
+            if(!service)
+                break;
+                
+            auto bsd_name = (CFStringRef)IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively);
+            if(bsd_name != nullptr)
                 drives.emplace(CFStringToString(bsd_name));
-
-                kret = IOObjectRelease(service);
-                if(kret != KERN_SUCCESS)
-                    throw_line("failed to release service, MACH ({})", mach_error_string(kret));
-            }
-
-            IOObjectRelease(iterator);
-            if(kret != KERN_SUCCESS)
-                throw_line("failed to release iterator, MACH ({})", mach_error_string(kret));
         }
+
+//        if(auto kret = IOObjectRelease(iterator); kret != KERN_SUCCESS)
+//            throw_line("failed to release iterator, MACH ({})", mach_error_string(kret));
 #else
         // detect available drives using sysfs
         // according to sysfs kernel rules, it's planned to merge all 3 classification directories
@@ -420,11 +418,11 @@ private:
     int _handle;
 #endif
 
+#if defined(_WIN32)
     static std::string getLastError()
     {
         std::string message;
 
-#if defined(_WIN32)
         LPSTR buffer = nullptr;
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM, nullptr, ::GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buffer,
             0, nullptr);
@@ -434,17 +432,11 @@ private:
         message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
 
         LocalFree(buffer);
-#elif defined(__APPLE__)
-        ;
-#else
         message = strerror(errno);
-#endif
 
         return message;
     }
-
-
-#if defined(__APPLE__)
+#elif defined(__APPLE__)
     static std::string CFStringToString(CFStringRef cf_string)
     {
         std::string s;

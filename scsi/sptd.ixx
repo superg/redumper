@@ -121,19 +121,15 @@ public:
         if(CloseHandle(_handle) != TRUE)
             LOG("warning: unable to close drive (SYSTEM: {})", getLastError());
 #elif defined(__APPLE__)
-        kern_return_t kret;
-
         (*_scsiTaskDeviceInterface)->ReleaseExclusiveAccess(_scsiTaskDeviceInterface);
 
         (*_scsiTaskDeviceInterface)->Release(_scsiTaskDeviceInterface);
         (*_mmcDeviceInterface)->Release(_mmcDeviceInterface);
 
-        kret = IODestroyPlugInInterface(_plugInInterface);
-        if(kret != KERN_SUCCESS)
+        if(auto kret = IODestroyPlugInInterface(_plugInInterface); kret != KERN_SUCCESS)
             LOG("warning: failed to destroy service plugin interface, MACH ({})", mach_error_string(kret));
 
-        kret = IOObjectRelease(_service);
-        if(kret != KERN_SUCCESS)
+        if(auto kret = IOObjectRelease(_service); kret != KERN_SUCCESS)
             LOG("warning: failed to release service, MACH ({})", mach_error_string(kret));
 #else
         if(close(_handle))

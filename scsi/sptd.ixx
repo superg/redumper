@@ -6,6 +6,7 @@ module;
 #include <fstream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -65,6 +66,8 @@ public:
         if(_handle == INVALID_HANDLE_VALUE)
             throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
 #elif defined(__APPLE__)
+        unmountDisk(drive_path);
+
         auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks),
             (CFMutableDictionaryRef) nullptr, &CFRelease);
         if(matching_dictionary.get() == nullptr)
@@ -100,8 +103,6 @@ public:
 
         if(!_service.get())
             throw_line("failed to find matching SCSI authoring device with BSD name '{}'", drive_path);
-
-        unmountDisk(drive_path);
 
         SInt32 score;
         IOCFPlugInInterface **plug_in_interface;
@@ -189,7 +190,8 @@ public:
             range->address = (IOVirtualAddress)buffer;
             range->length = buffer_length;
 
-            if(auto kret = (*task)->SetScatterGatherEntries(task, range.get(), 1, buffer_length, out ? kSCSIDataTransfer_FromInitiatorToTarget : kSCSIDataTransfer_FromTargetToInitiator); kret != KERN_SUCCESS)
+            if(auto kret = (*task)->SetScatterGatherEntries(task, range.get(), 1, buffer_length, out ? kSCSIDataTransfer_FromInitiatorToTarget : kSCSIDataTransfer_FromTargetToInitiator);
+                kret != KERN_SUCCESS)
                 throw_line("failed to set scatter gather entries (MACH: {})", mach_error_string(kret));
         }
 
@@ -199,7 +201,7 @@ public:
         UInt64 transfer_count = 0;
         SCSITaskStatus task_status;
         SCSI_Sense_Data sense_data = {};
-        
+
         if(auto kret = (*task)->ExecuteTaskSync(task, &sense_data, &task_status, &transfer_count); kret != KERN_SUCCESS)
             throw_line("failed to execute task (MACH: {})", mach_error_string(kret));
 
@@ -421,6 +423,7 @@ private:
             LOG("warning: IO release failed (MACH: {})", mach_error_string(kret));
     }
 
+    static constexpr double _DA_CALLBACK_TIMEOUT_SECONDS = 10;
     unique_resource<io_service_t, decltype(&safeIORelease<io_object_t, IOObjectRelease>)> _service;
     unique_resource<IOCFPlugInInterface **, decltype(&safeIORelease<IOCFPlugInInterface **, IODestroyPlugInInterface>)> _plugInInterface;
     MMCDeviceInterface **_mmcDeviceInterface;
@@ -452,30 +455,88 @@ private:
 
         DASessionScheduleWithRunLoop(session.get(), CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 
-        std::string dissenter_status;
+        // attempt to claim the disk to check if OS is busy mounting
+        std::optional<bool> disk_claimed;
+        DADiskClaim(
+            disk.get(), kDADiskClaimOptionDefault, nullptr, nullptr,
+            [](DADiskRef, DADissenterRef dissenter, void *ctx)
+            {
+                *(std::optional<bool> *)(ctx) = dissenter == nullptr;
+                CFRunLoopStop(CFRunLoopGetCurrent());
+            },
+            &disk_claimed);
+        if(!disk_claimed)
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, _DA_CALLBACK_TIMEOUT_SECONDS, false);
+
+        // callback triggered
+        if(disk_claimed)
+        {
+            // just release
+            if(*disk_claimed)
+                DADiskUnclaim(disk.get());
+            // wait until OS finishes mounting
+            else
+            {
+                struct MountContext
+                {
+                    const char *bsd_name;
+                } mount_context = { bsd_name.c_str() };
+
+                DADiskDescriptionChangedCallback mount_callback = [](DADiskRef disk, CFArrayRef keys, void *ctx)
+                {
+                    auto mount_ctx = static_cast<MountContext *>(ctx);
+                    const char *disk_bsd_name = DADiskGetBSDName(disk);
+                    if(disk_bsd_name != nullptr && strcmp(disk_bsd_name, mount_ctx->bsd_name) == 0)
+                    {
+                        auto description = DADiskCopyDescription(disk);
+                        if(description != nullptr)
+                        {
+                            auto volume_path = (CFURLRef)CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey);
+                            if(volume_path != nullptr)
+                            {
+                                CFRunLoopStop(CFRunLoopGetCurrent());
+                            }
+                            CFRelease(description);
+                        }
+                    }
+                };
+
+                DARegisterDiskDescriptionChangedCallback(session.get(), nullptr, kDADiskDescriptionWatchVolumePath, mount_callback, &mount_context);
+                CFRunLoopRunInMode(kCFRunLoopDefaultMode, _DA_CALLBACK_TIMEOUT_SECONDS, false);
+                DAUnregisterCallback(session.get(), (void *)mount_callback, &mount_context);
+            }
+        }
+
+        // unmount disc if mounted
+        std::optional<std::string> unmount_failed_message;
         DADiskUnmount(
             disk.get(), kDADiskUnmountOptionForce | kDADiskUnmountOptionWhole,
             [](DADiskRef, DADissenterRef dissenter, void *ctx)
             {
-                if(dissenter != nullptr)
+                if(dissenter == nullptr)
+                    *(std::optional<std::string> *)ctx = "";
+                else
                 {
                     auto status = DADissenterGetStatus(dissenter);
-                    if(status != kDAReturnNotMounted)
+                    if(status == kDAReturnNotMounted)
+                        *(std::optional<std::string> *)ctx = "";
+                    else
                     {
                         auto status_string = DADissenterGetStatusString(dissenter);
-                        *(std::string *)ctx = status_string == nullptr ? std::format("unknown status (0x{:08x})", status) : CFStringToString(status_string);
+                        *(std::optional<std::string> *)ctx = status_string == nullptr ? std::format("unknown status (0x{:08x})", status) : CFStringToString(status_string);
                     }
                 }
 
                 CFRunLoopStop(CFRunLoopGetCurrent());
             },
-            &dissenter_status);
+            &unmount_failed_message);
+        if(!unmount_failed_message)
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, _DA_CALLBACK_TIMEOUT_SECONDS, false);
 
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 10.0, false);
         DASessionUnscheduleFromRunLoop(session.get(), CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 
-        if(!dissenter_status.empty())
-            throw_line("failed to unmount drive, status: {}", dissenter_status);
+        if(unmount_failed_message && !unmount_failed_message->empty())
+            throw_line("failed to unmount drive, status: {}", *unmount_failed_message);
     }
 #else
     int _handle;

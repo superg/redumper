@@ -18,6 +18,7 @@ module;
 #include <scsi.h>
 // clang-format on
 #elif defined(__APPLE__)
+#include <DiskArbitration/DiskArbitration.h>
 #include <IOKit/IOBSD.h>
 #include <IOKit/scsi/SCSITaskLib.h>
 #include <mach/mach_error.h>
@@ -55,7 +56,8 @@ public:
 
     SPTD(const std::string &drive_path)
 #if defined(__APPLE__)
-        : _service(make_unique_resource_checked((io_service_t)0, (io_service_t)0, &IOObjectRelease))
+        : _service(make_unique_resource_checked((io_service_t)0, (io_service_t)0, &safeIORelease<io_object_t, IOObjectRelease>))
+        , _plugInInterface(make_unique_resource_checked((IOCFPlugInInterface **)nullptr, (IOCFPlugInInterface **)nullptr, &safeIORelease<IOCFPlugInInterface **, IODestroyPlugInInterface>))
 #endif
     {
 #if defined(_WIN32)
@@ -75,12 +77,12 @@ public:
 
         io_iterator_t it;
         if(auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary.release(), &it); kret != KERN_SUCCESS)
-            throw_line("failed to get matching services, MACH ({})", mach_error_string(kret));
+            throw_line("failed to get matching services (MACH: {})", mach_error_string(kret));
         auto iterator = make_unique_resource_checked(std::move(it), (io_iterator_t)0, &IOObjectRelease);
 
         for(;;)
         {
-            auto service = make_unique_resource_checked(IOIteratorNext(iterator.get()), (io_object_t)0, &IOObjectRelease);
+            auto service = make_unique_resource_checked(IOIteratorNext(iterator.get()), (io_object_t)0, &safeIORelease<io_object_t, IOObjectRelease>);
             if(!service.get())
                 break;
 
@@ -89,27 +91,31 @@ public:
             if(bsd_name.get() != nullptr && CFStringToString((CFStringRef)bsd_name.get()) == drive_path)
             {
                 _service = std::move(service);
-
-                SInt32 score;
-                if(auto kret = IOCreatePlugInInterfaceForService(_service.get(), kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &_plugInInterface, &score); kret != KERN_SUCCESS)
-                    throw_line("failed to create service plugin interface, MACH ({})", mach_error_string(kret));
-
-                if(auto herr = (*_plugInInterface)->QueryInterface(_plugInInterface, CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface); herr != S_OK)
-                    throw_line("failed to get MMC interface (error: {})", herr);
-
-                _scsiTaskDeviceInterface = (*_mmcDeviceInterface)->GetSCSITaskDeviceInterface(_mmcDeviceInterface);
-                if(_scsiTaskDeviceInterface == nullptr)
-                    throw_line("failed to get SCSI task device interface");
-
-                if(auto kret = (*_scsiTaskDeviceInterface)->ObtainExclusiveAccess(_scsiTaskDeviceInterface); kret != KERN_SUCCESS)
-                    throw_line("failed to obtain exclusive access, MACH ({})", mach_error_string(kret));
-
                 break;
             }
         }
 
         if(!_service.get())
             throw_line("failed to find matching SCSI authoring device with BSD name '{}'", drive_path);
+
+        unmountDisk(drive_path);
+
+        SInt32 score;
+        IOCFPlugInInterface **plug_in_interface;
+        if(auto kret = IOCreatePlugInInterfaceForService(_service.get(), kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &plug_in_interface, &score); kret != KERN_SUCCESS)
+            throw_line("failed to create service plugin interface (MACH: {})", mach_error_string(kret));
+        _plugInInterface = make_unique_resource_checked(plug_in_interface, (IOCFPlugInInterface **)nullptr, &safeIORelease<IOCFPlugInInterface **, IODestroyPlugInInterface>);
+
+        if(auto herr = (*_plugInInterface.get())->QueryInterface(_plugInInterface.get(), CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface); herr != S_OK)
+            throw_line("failed to get MMC interface (error: {})", herr);
+
+        _scsiTaskDeviceInterface = (*_mmcDeviceInterface)->GetSCSITaskDeviceInterface(_mmcDeviceInterface);
+        if(_scsiTaskDeviceInterface == nullptr)
+            throw_line("failed to get SCSI task device interface");
+
+        if(auto kret = (*_scsiTaskDeviceInterface)->ObtainExclusiveAccess(_scsiTaskDeviceInterface); kret != KERN_SUCCESS)
+            throw_line("failed to obtain exclusive access (MACH: {})", mach_error_string(kret));
+
 #else
         _handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
         if(_handle < 0)
@@ -128,9 +134,6 @@ public:
 
         (*_scsiTaskDeviceInterface)->Release(_scsiTaskDeviceInterface);
         (*_mmcDeviceInterface)->Release(_mmcDeviceInterface);
-
-        if(auto kret = IODestroyPlugInInterface(_plugInInterface); kret != KERN_SUCCESS)
-            LOG("warning: failed to destroy service plugin interface, MACH ({})", mach_error_string(kret));
 
 #else
         if(close(_handle))
@@ -176,7 +179,7 @@ public:
 
             kret = (*task)->SetCommandDescriptorBlock(task, (UInt8 *)cdb, cdb_length);
             if(kret != KERN_SUCCESS)
-                throw_line("failed to set CDB, MACH ({})", mach_error_string(kret));
+                throw_line("failed to set CDB (MACH: {})", mach_error_string(kret));
 
             auto range = std::make_unique<IOVirtualRange>();
             if(buffer_length)
@@ -186,19 +189,19 @@ public:
 
                 kret = (*task)->SetScatterGatherEntries(task, range.get(), 1, buffer_length, out ? kSCSIDataTransfer_FromInitiatorToTarget : kSCSIDataTransfer_FromTargetToInitiator);
                 if(kret != KERN_SUCCESS)
-                    throw_line("failed to set scatter gather entries, MACH ({})", mach_error_string(kret));
+                    throw_line("failed to set scatter gather entries (MACH: {})", mach_error_string(kret));
             }
 
             kret = (*task)->SetTimeoutDuration(task, timeout);
             if(kret != KERN_SUCCESS)
-                throw_line("failed to set timeout duration, MACH ({})", mach_error_string(kret));
+                throw_line("failed to set timeout duration (MACH: {})", mach_error_string(kret));
 
             UInt64 transferCount = 0;
             SCSITaskStatus taskStatus;
             SCSI_Sense_Data senseData = {};
             kret = (*task)->ExecuteTaskSync(task, &senseData, &taskStatus, &transferCount);
             if(kret != KERN_SUCCESS)
-                throw_line("failed to execute task, MACH ({})", mach_error_string(kret));
+                throw_line("failed to execute task (MACH: {})", mach_error_string(kret));
 
             if(taskStatus != kSCSITaskStatus_GOOD)
             {
@@ -273,12 +276,12 @@ public:
 
         io_iterator_t it;
         if(auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary.release(), &it); kret != KERN_SUCCESS)
-            throw_line("failed to get matching services, MACH ({})", mach_error_string(kret));
-        auto iterator = make_unique_resource_checked(std::move(it), (io_iterator_t)0, &IOObjectRelease);
+            throw_line("failed to get matching services (MACH: {})", mach_error_string(kret));
+        auto iterator = make_unique_resource_checked(std::move(it), (io_iterator_t)0, &safeIORelease<io_object_t, IOObjectRelease>);
 
         for(;;)
         {
-            auto service = make_unique_resource_checked(IOIteratorNext(iterator.get()), (io_object_t)0, &IOObjectRelease);
+            auto service = make_unique_resource_checked(IOIteratorNext(iterator.get()), (io_object_t)0, &safeIORelease<io_object_t, IOObjectRelease>);
             if(!service.get())
                 break;
 
@@ -390,18 +393,7 @@ private:
     };
 
     HANDLE _handle;
-#elif defined(__APPLE__)
-    unique_resource<io_service_t, decltype(&IOObjectRelease)> _service;
-    IOCFPlugInInterface **_plugInInterface;
-    MMCDeviceInterface **_mmcDeviceInterface;
-    SCSITaskDeviceInterface **_scsiTaskDeviceInterface;
 
-    SCSITaskInterface **_handle;
-#else
-    int _handle;
-#endif
-
-#if defined(_WIN32)
     static std::string getLastError()
     {
         std::string message;
@@ -420,6 +412,20 @@ private:
         return message;
     }
 #elif defined(__APPLE__)
+    template<typename R, kern_return_t (*D)(R)>
+    static void safeIORelease(R resource)
+    {
+        if(auto kret = D(resource); kret != KERN_SUCCESS)
+            LOG("warning: IO release failed (MACH: {})", mach_error_string(kret));
+    }
+
+    unique_resource<io_service_t, decltype(&safeIORelease<io_object_t, IOObjectRelease>)> _service;
+    unique_resource<IOCFPlugInInterface **, decltype(&safeIORelease<IOCFPlugInInterface **, IODestroyPlugInInterface>)> _plugInInterface;
+    MMCDeviceInterface **_mmcDeviceInterface;
+    SCSITaskDeviceInterface **_scsiTaskDeviceInterface;
+
+    SCSITaskInterface **_handle;
+
     static std::string CFStringToString(CFStringRef cf_string)
     {
         std::string s;
@@ -431,6 +437,46 @@ private:
 
         return s;
     }
+
+    static void unmountDisk(const std::string &bsd_name)
+    {
+        auto session = make_unique_resource_checked(DASessionCreate(kCFAllocatorDefault), (DASessionRef) nullptr, &CFRelease);
+        if(session.get() == nullptr)
+            throw_line("failed to create DiskArbitration session");
+
+        auto disk = make_unique_resource_checked(DADiskCreateFromBSDName(kCFAllocatorDefault, session.get(), bsd_name.c_str()), (DADiskRef) nullptr, &CFRelease);
+        if(disk.get() == nullptr)
+            throw_line("failed to create DiskArbitration disk");
+
+        DASessionScheduleWithRunLoop(session.get(), CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+
+        std::string dissenter_status;
+        DADiskUnmount(
+            disk.get(), kDADiskUnmountOptionForce | kDADiskUnmountOptionWhole,
+            [](DADiskRef, DADissenterRef dissenter, void *ctx)
+            {
+                if(dissenter != nullptr)
+                {
+                    auto status = DADissenterGetStatus(dissenter);
+                    if(status != kDAReturnNotMounted)
+                    {
+                        auto status_string = DADissenterGetStatusString(dissenter);
+                        *(std::string *)ctx = status_string == nullptr ? std::format("unknown status (0x{:08x})", status) : CFStringToString(status_string);
+                    }
+                }
+
+                CFRunLoopStop(CFRunLoopGetCurrent());
+            },
+            &dissenter_status);
+
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 10.0, false);
+        DASessionUnscheduleFromRunLoop(session.get(), CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+
+        if(!dissenter_status.empty())
+            throw_line("failed to unmount drive, status: {}", dissenter_status);
+    }
+#else
+    int _handle;
 #endif
 };
 

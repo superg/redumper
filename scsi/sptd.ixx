@@ -60,64 +60,55 @@ public:
         if(_handle == INVALID_HANDLE_VALUE)
             throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
 #elif defined(__APPLE__)
-        // returns IOCDMedia class, but we want IODVDServices, figure out how to specify filter on class and on device name
-        //        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, drive_path.c_str()), &iterator);
-
-        auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef)nullptr, CFRelease);
-        if(!authoring_dictionary)
+        auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef) nullptr, &CFRelease);
+        if(authoring_dictionary.get() == nullptr)
             throw_line("failed to create authoring dictionary");
         CFDictionarySetValue(authoring_dictionary.get(), CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
 
-        auto matching_dictionary = std::unique_ptr<std::remove_pointer_t<CFMutableDictionaryRef>, decltype(&CFRelease)>(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), CFRelease);
-        if(!matching_dictionary)
+        auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef) nullptr, &CFRelease);
+        if(matching_dictionary.get() == nullptr)
             throw_line("failed to create matching dictionary");
         CFDictionarySetValue(matching_dictionary.get(), CFSTR(kIOPropertyMatchKey), authoring_dictionary.get());
 
-        io_iterator_t iterator = 0;
-        auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary.get(), &iterator);
-        if(kret != KERN_SUCCESS)
+        io_iterator_t it;
+        if(auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary.release(), &it); kret != KERN_SUCCESS)
             throw_line("failed to get matching services, MACH ({})", mach_error_string(kret));
+        auto iterator = make_unique_resource_checked(std::move(it), (io_iterator_t)0, &IOObjectRelease);
 
-        if(iterator)
+        for(;;)
         {
-            for(io_service_t service = IOIteratorNext(iterator); service; service = IOIteratorNext(iterator))
+            auto service = make_unique_resource_checked(IOIteratorNext(iterator.get()), (io_object_t)0, &IOObjectRelease);
+            if(!service)
+                break;
+
+            auto bsd_name = make_unique_resource_checked(IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively),
+                (CFTypeRef) nullptr, &CFRelease);
+            if(bsd_name.get() != nullptr && CFStringToString((CFStringRef)bsd_name.get()) == drive_path)
             {
-                auto bsd_name = (CFStringRef)IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively);
-                if(bsd_name != nullptr && CFStringToString(bsd_name) == drive_path)
-                {
-                    _service = service;
+                _service = service.release();
 
-                    kern_return_t kret;
+                kern_return_t kret;
 
-                    SInt32 score;
-                    kret = IOCreatePlugInInterfaceForService(service, kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &_plugInInterface, &score);
-                    if(kret != KERN_SUCCESS)
-                        throw_line("failed to create service plugin interface, MACH ({})", mach_error_string(kret));
-
-                    HRESULT herr = (*_plugInInterface)->QueryInterface(_plugInInterface, CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface);
-                    if(herr != S_OK)
-                        throw_line("failed to get MMC interface (error: {})", herr);
-
-                    _scsiTaskDeviceInterface = (*_mmcDeviceInterface)->GetSCSITaskDeviceInterface(_mmcDeviceInterface);
-                    if(_scsiTaskDeviceInterface == nullptr)
-                        throw_line("failed to get SCSI task device interface");
-
-                    kret = (*_scsiTaskDeviceInterface)->ObtainExclusiveAccess(_scsiTaskDeviceInterface);
-                    if(kret != KERN_SUCCESS)
-                        throw_line("failed to obtain exclusive access, MACH ({})", mach_error_string(kret));
-
-                    break;
-                }
-                kret = IOObjectRelease(service);
+                SInt32 score;
+                kret = IOCreatePlugInInterfaceForService(service, kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &_plugInInterface, &score);
                 if(kret != KERN_SUCCESS)
-                    throw_line("failed to release service, MACH ({})", mach_error_string(kret));
+                    throw_line("failed to create service plugin interface, MACH ({})", mach_error_string(kret));
+
+                HRESULT herr = (*_plugInInterface)->QueryInterface(_plugInInterface, CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface);
+                if(herr != S_OK)
+                    throw_line("failed to get MMC interface (error: {})", herr);
+
+                _scsiTaskDeviceInterface = (*_mmcDeviceInterface)->GetSCSITaskDeviceInterface(_mmcDeviceInterface);
+                if(_scsiTaskDeviceInterface == nullptr)
+                    throw_line("failed to get SCSI task device interface");
+
+                kret = (*_scsiTaskDeviceInterface)->ObtainExclusiveAccess(_scsiTaskDeviceInterface);
+                if(kret != KERN_SUCCESS)
+                    throw_line("failed to obtain exclusive access, MACH ({})", mach_error_string(kret));
+
+                break;
             }
-
-            IOObjectRelease(iterator);
-            if(kret != KERN_SUCCESS)
-                throw_line("failed to release iterator, MACH ({})", mach_error_string(kret));
         }
-
 #else
         _handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
         if(_handle < 0)
@@ -275,34 +266,32 @@ public:
             }
         }
 #elif defined(__APPLE__)
-        auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef)nullptr, &CFRelease);
-        if(authoring_dictionary == nullptr)
+        auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef) nullptr, &CFRelease);
+        if(authoring_dictionary.get() == nullptr)
             throw_line("failed to create authoring dictionary");
-        CFDictionarySetValue(authoring_dictionary, CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
+        CFDictionarySetValue(authoring_dictionary.get(), CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
 
-        auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef)nullptr, &CFRelease);
-        if(matching_dictionary == nullptr)
+        auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef) nullptr, &CFRelease);
+        if(matching_dictionary.get() == nullptr)
             throw_line("failed to create matching dictionary");
-        CFDictionarySetValue(matching_dictionary, CFSTR(kIOPropertyMatchKey), authoring_dictionary);
+        CFDictionarySetValue(matching_dictionary.get(), CFSTR(kIOPropertyMatchKey), authoring_dictionary.get());
 
         io_iterator_t it;
-        if(auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary, &it); kret != KERN_SUCCESS)
+        if(auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary.release(), &it); kret != KERN_SUCCESS)
             throw_line("failed to get matching services, MACH ({})", mach_error_string(kret));
         auto iterator = make_unique_resource_checked(std::move(it), (io_iterator_t)0, &IOObjectRelease);
 
         for(;;)
         {
-            auto service = make_unique_resource_checked(IOIteratorNext(iterator), (io_object_t)0, &IOObjectRelease);
+            auto service = make_unique_resource_checked(IOIteratorNext(iterator.get()), (io_object_t)0, &IOObjectRelease);
             if(!service)
                 break;
-                
-            auto bsd_name = (CFStringRef)IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively);
-            if(bsd_name != nullptr)
-                drives.emplace(CFStringToString(bsd_name));
-        }
 
-//        if(auto kret = IOObjectRelease(iterator); kret != KERN_SUCCESS)
-//            throw_line("failed to release iterator, MACH ({})", mach_error_string(kret));
+            auto bsd_name = make_unique_resource_checked(IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively),
+                (CFTypeRef) nullptr, &CFRelease);
+            if(bsd_name.get() != nullptr)
+                drives.emplace(CFStringToString((CFStringRef)bsd_name.get()));
+        }
 #else
         // detect available drives using sysfs
         // according to sysfs kernel rules, it's planned to merge all 3 classification directories

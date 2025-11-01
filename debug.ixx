@@ -22,6 +22,7 @@ import drive;
 import drive.mediatek;
 import dvd.dump;
 import options;
+import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import utils.endian;
@@ -119,6 +120,31 @@ export int redumper_debug(Context &ctx, Options &options)
     std::filesystem::path cue_path(image_prefix + ".cue");
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
+
+    if(1)
+    {
+        auto drives = SPTD::listDrives();
+
+        for(const auto &d : drives)
+        {
+            try
+            {
+                SPTD sptd(d);
+
+                auto status = cmd_drive_ready(sptd);
+                if(!status.status_code)
+                {
+                    LOG("chosen drive: {}", d);
+                    break;
+                }
+            }
+            // drive busy
+            catch(const std::exception &e)
+            {
+                LOG("caught: {}", e.what());
+            }
+        }
+    }
 
     if(0)
     {
@@ -256,7 +282,7 @@ export int redumper_debug(Context &ctx, Options &options)
     }
 
     // LG/ASUS cache dump extract
-    if(1)
+    if(0)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 

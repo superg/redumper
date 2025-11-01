@@ -65,15 +65,18 @@ public:
         if(_handle == INVALID_HANDLE_VALUE)
             throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
 #elif defined(__APPLE__)
-        auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef) nullptr, &CFRelease);
-        if(authoring_dictionary.get() == nullptr)
-            throw_line("failed to create authoring dictionary");
-        CFDictionarySetValue(authoring_dictionary.get(), CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
-
-        auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef) nullptr, &CFRelease);
+        auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks),
+            (CFMutableDictionaryRef) nullptr, &CFRelease);
         if(matching_dictionary.get() == nullptr)
             throw_line("failed to create matching dictionary");
-        CFDictionarySetValue(matching_dictionary.get(), CFSTR(kIOPropertyMatchKey), authoring_dictionary.get());
+        {
+            auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks),
+                (CFMutableDictionaryRef) nullptr, &CFRelease);
+            if(authoring_dictionary.get() == nullptr)
+                throw_line("failed to create authoring dictionary");
+            CFDictionarySetValue(authoring_dictionary.get(), CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
+            CFDictionarySetValue(matching_dictionary.get(), CFSTR(kIOPropertyMatchKey), authoring_dictionary.get());
+        }
 
         io_iterator_t it;
         if(auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary.release(), &it); kret != KERN_SUCCESS)
@@ -130,7 +133,8 @@ public:
         if(CloseHandle(_handle) != TRUE)
             LOG("warning: unable to close drive (SYSTEM: {})", getLastError());
 #elif defined(__APPLE__)
-        (*_scsiTaskDeviceInterface)->ReleaseExclusiveAccess(_scsiTaskDeviceInterface);
+        if(auto kret = (*_scsiTaskDeviceInterface)->ReleaseExclusiveAccess(_scsiTaskDeviceInterface); kret != KERN_SUCCESS)
+            LOG("warning: failed to release exclusive access (MACH: {})", mach_error_string(kret));
 
         (*_scsiTaskDeviceInterface)->Release(_scsiTaskDeviceInterface);
         (*_mmcDeviceInterface)->Release(_mmcDeviceInterface);
@@ -173,46 +177,41 @@ public:
         }
 #elif defined(__APPLE__)
         SCSITaskInterface **task = (*_scsiTaskDeviceInterface)->CreateSCSITask(_scsiTaskDeviceInterface);
-        if(task != nullptr)
+        if(task == nullptr)
+            throw_line("failed to create SCSI task");
+
+        if(auto kret = (*task)->SetCommandDescriptorBlock(task, (UInt8 *)cdb, cdb_length); kret != KERN_SUCCESS)
+            throw_line("failed to set CDB (MACH: {})", mach_error_string(kret));
+
+        auto range = std::make_unique<IOVirtualRange>();
+        if(buffer_length)
         {
-            kern_return_t kret;
+            range->address = (IOVirtualAddress)buffer;
+            range->length = buffer_length;
 
-            kret = (*task)->SetCommandDescriptorBlock(task, (UInt8 *)cdb, cdb_length);
-            if(kret != KERN_SUCCESS)
-                throw_line("failed to set CDB (MACH: {})", mach_error_string(kret));
-
-            auto range = std::make_unique<IOVirtualRange>();
-            if(buffer_length)
-            {
-                range->address = (IOVirtualAddress)buffer;
-                range->length = buffer_length;
-
-                kret = (*task)->SetScatterGatherEntries(task, range.get(), 1, buffer_length, out ? kSCSIDataTransfer_FromInitiatorToTarget : kSCSIDataTransfer_FromTargetToInitiator);
-                if(kret != KERN_SUCCESS)
-                    throw_line("failed to set scatter gather entries (MACH: {})", mach_error_string(kret));
-            }
-
-            kret = (*task)->SetTimeoutDuration(task, timeout);
-            if(kret != KERN_SUCCESS)
-                throw_line("failed to set timeout duration (MACH: {})", mach_error_string(kret));
-
-            UInt64 transferCount = 0;
-            SCSITaskStatus taskStatus;
-            SCSI_Sense_Data senseData = {};
-            kret = (*task)->ExecuteTaskSync(task, &senseData, &taskStatus, &transferCount);
-            if(kret != KERN_SUCCESS)
-                throw_line("failed to execute task (MACH: {})", mach_error_string(kret));
-
-            if(taskStatus != kSCSITaskStatus_GOOD)
-            {
-                status.status_code = taskStatus;
-                status.sense_key = senseData.SENSE_KEY & 0x0F;
-                status.asc = senseData.ADDITIONAL_SENSE_CODE;
-                status.ascq = senseData.ADDITIONAL_SENSE_CODE_QUALIFIER;
-            }
-
-            (*task)->Release(task);
+            if(auto kret = (*task)->SetScatterGatherEntries(task, range.get(), 1, buffer_length, out ? kSCSIDataTransfer_FromInitiatorToTarget : kSCSIDataTransfer_FromTargetToInitiator); kret != KERN_SUCCESS)
+                throw_line("failed to set scatter gather entries (MACH: {})", mach_error_string(kret));
         }
+
+        if(auto kret = (*task)->SetTimeoutDuration(task, timeout); kret != KERN_SUCCESS)
+            throw_line("failed to set timeout duration (MACH: {})", mach_error_string(kret));
+
+        UInt64 transfer_count = 0;
+        SCSITaskStatus task_status;
+        SCSI_Sense_Data sense_data = {};
+        
+        if(auto kret = (*task)->ExecuteTaskSync(task, &sense_data, &task_status, &transfer_count); kret != KERN_SUCCESS)
+            throw_line("failed to execute task (MACH: {})", mach_error_string(kret));
+
+        if(task_status != kSCSITaskStatus_GOOD)
+        {
+            status.status_code = task_status;
+            status.sense_key = sense_data.SENSE_KEY & 0x0F;
+            status.asc = sense_data.ADDITIONAL_SENSE_CODE;
+            status.ascq = sense_data.ADDITIONAL_SENSE_CODE_QUALIFIER;
+        }
+
+        (*task)->Release(task);
 #else
         SenseData sense_data;
 
@@ -264,15 +263,18 @@ public:
             }
         }
 #elif defined(__APPLE__)
-        auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef) nullptr, &CFRelease);
-        if(authoring_dictionary.get() == nullptr)
-            throw_line("failed to create authoring dictionary");
-        CFDictionarySetValue(authoring_dictionary.get(), CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
-
-        auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, nullptr, nullptr), (CFMutableDictionaryRef) nullptr, &CFRelease);
+        auto matching_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks),
+            (CFMutableDictionaryRef) nullptr, &CFRelease);
         if(matching_dictionary.get() == nullptr)
             throw_line("failed to create matching dictionary");
-        CFDictionarySetValue(matching_dictionary.get(), CFSTR(kIOPropertyMatchKey), authoring_dictionary.get());
+        {
+            auto authoring_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks),
+                (CFMutableDictionaryRef) nullptr, &CFRelease);
+            if(authoring_dictionary.get() == nullptr)
+                throw_line("failed to create authoring dictionary");
+            CFDictionarySetValue(authoring_dictionary.get(), CFSTR(kIOPropertySCSITaskDeviceCategory), CFSTR(kIOPropertySCSITaskAuthoringDevice));
+            CFDictionarySetValue(matching_dictionary.get(), CFSTR(kIOPropertyMatchKey), authoring_dictionary.get());
+        }
 
         io_iterator_t it;
         if(auto kret = IOServiceGetMatchingServices(kIOMainPortDefault, matching_dictionary.release(), &it); kret != KERN_SUCCESS)

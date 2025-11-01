@@ -54,6 +54,9 @@ public:
 
 
     SPTD(const std::string &drive_path)
+#if defined(__APPLE__)
+        : _service(make_unique_resource_checked((io_service_t)0, (io_service_t)0, &IOObjectRelease))
+#endif
     {
 #if defined(_WIN32)
         _handle = CreateFile(std::format("//./{}:", drive_path[0]).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
@@ -85,10 +88,10 @@ public:
                 (CFTypeRef) nullptr, &CFRelease);
             if(bsd_name.get() != nullptr && CFStringToString((CFStringRef)bsd_name.get()) == drive_path)
             {
-                _service = service.release();
+                _service = std::move(service);
 
                 SInt32 score;
-                if(auto kret = IOCreatePlugInInterfaceForService(_service, kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &_plugInInterface, &score); kret != KERN_SUCCESS)
+                if(auto kret = IOCreatePlugInInterfaceForService(_service.get(), kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &_plugInInterface, &score); kret != KERN_SUCCESS)
                     throw_line("failed to create service plugin interface, MACH ({})", mach_error_string(kret));
 
                 if(auto herr = (*_plugInInterface)->QueryInterface(_plugInInterface, CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface); herr != S_OK)
@@ -105,7 +108,7 @@ public:
             }
         }
 
-        if(!_service)
+        if(!_service.get())
             throw_line("failed to find matching SCSI authoring device with BSD name '{}'", drive_path);
 #else
         _handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
@@ -129,8 +132,6 @@ public:
         if(auto kret = IODestroyPlugInInterface(_plugInInterface); kret != KERN_SUCCESS)
             LOG("warning: failed to destroy service plugin interface, MACH ({})", mach_error_string(kret));
 
-        if(auto kret = IOObjectRelease(_service); kret != KERN_SUCCESS)
-            LOG("warning: failed to release service, MACH ({})", mach_error_string(kret));
 #else
         if(close(_handle))
             LOG("warning: unable to close drive (SYSTEM: {})", getLastError());
@@ -390,8 +391,7 @@ private:
 
     HANDLE _handle;
 #elif defined(__APPLE__)
-    // TODO: RAII
-    io_service_t _service;
+    unique_resource<io_service_t, decltype(&IOObjectRelease)> _service;
     IOCFPlugInInterface **_plugInInterface;
     MMCDeviceInterface **_mmcDeviceInterface;
     SCSITaskDeviceInterface **_scsiTaskDeviceInterface;

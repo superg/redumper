@@ -78,37 +78,35 @@ public:
         for(;;)
         {
             auto service = make_unique_resource_checked(IOIteratorNext(iterator.get()), (io_object_t)0, &IOObjectRelease);
-            if(!service)
+            if(!service.get())
                 break;
 
-            auto bsd_name = make_unique_resource_checked(IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively),
+            auto bsd_name = make_unique_resource_checked(IORegistryEntrySearchCFProperty(service.get(), kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively),
                 (CFTypeRef) nullptr, &CFRelease);
             if(bsd_name.get() != nullptr && CFStringToString((CFStringRef)bsd_name.get()) == drive_path)
             {
                 _service = service.release();
 
-                kern_return_t kret;
-
                 SInt32 score;
-                kret = IOCreatePlugInInterfaceForService(service, kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &_plugInInterface, &score);
-                if(kret != KERN_SUCCESS)
+                if(auto kret = IOCreatePlugInInterfaceForService(_service, kIOMMCDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &_plugInInterface, &score); kret != KERN_SUCCESS)
                     throw_line("failed to create service plugin interface, MACH ({})", mach_error_string(kret));
 
-                HRESULT herr = (*_plugInInterface)->QueryInterface(_plugInInterface, CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface);
-                if(herr != S_OK)
+                if(auto herr = (*_plugInInterface)->QueryInterface(_plugInInterface, CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface); herr != S_OK)
                     throw_line("failed to get MMC interface (error: {})", herr);
 
                 _scsiTaskDeviceInterface = (*_mmcDeviceInterface)->GetSCSITaskDeviceInterface(_mmcDeviceInterface);
                 if(_scsiTaskDeviceInterface == nullptr)
                     throw_line("failed to get SCSI task device interface");
 
-                kret = (*_scsiTaskDeviceInterface)->ObtainExclusiveAccess(_scsiTaskDeviceInterface);
-                if(kret != KERN_SUCCESS)
+                if(auto kret = (*_scsiTaskDeviceInterface)->ObtainExclusiveAccess(_scsiTaskDeviceInterface); kret != KERN_SUCCESS)
                     throw_line("failed to obtain exclusive access, MACH ({})", mach_error_string(kret));
 
                 break;
             }
         }
+
+        if(!_service)
+            throw_line("failed to find matching SCSI authoring device with BSD name '{}'", drive_path);
 #else
         _handle = open(drive_path.c_str(), O_RDWR | O_NONBLOCK | O_EXCL);
         if(_handle < 0)
@@ -284,10 +282,10 @@ public:
         for(;;)
         {
             auto service = make_unique_resource_checked(IOIteratorNext(iterator.get()), (io_object_t)0, &IOObjectRelease);
-            if(!service)
+            if(!service.get())
                 break;
 
-            auto bsd_name = make_unique_resource_checked(IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively),
+            auto bsd_name = make_unique_resource_checked(IORegistryEntrySearchCFProperty(service.get(), kIOServicePlane, CFSTR(kIOBSDNameKey), kCFAllocatorDefault, kIORegistryIterateRecursively),
                 (CFTypeRef) nullptr, &CFRelease);
             if(bsd_name.get() != nullptr)
                 drives.emplace(CFStringToString((CFStringRef)bsd_name.get()));

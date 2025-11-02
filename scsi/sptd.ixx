@@ -177,11 +177,11 @@ public:
             status.ascq = sptd_sd.sd.AdditionalSenseCodeQualifier;
         }
 #elif defined(__APPLE__)
-        SCSITaskInterface **task = (*_scsiTaskDeviceInterface)->CreateSCSITask(_scsiTaskDeviceInterface);
-        if(task == nullptr)
+        auto task = make_unique_resource_checked((*_scsiTaskDeviceInterface)->CreateSCSITask(_scsiTaskDeviceInterface), (SCSITaskInterface **)nullptr, [](SCSITaskInterface **t) { (*t)->Release(t); });
+        if(task.get() == nullptr)
             throw_line("failed to create SCSI task");
 
-        if(auto kret = (*task)->SetCommandDescriptorBlock(task, (UInt8 *)cdb, cdb_length); kret != KERN_SUCCESS)
+        if(auto kret = (*task.get())->SetCommandDescriptorBlock(task.get(), (UInt8 *)cdb, cdb_length); kret != KERN_SUCCESS)
             throw_line("failed to set CDB (MACH: {})", mach_error_string(kret));
 
         auto range = std::make_unique<IOVirtualRange>();
@@ -190,19 +190,19 @@ public:
             range->address = (IOVirtualAddress)buffer;
             range->length = buffer_length;
 
-            if(auto kret = (*task)->SetScatterGatherEntries(task, range.get(), 1, buffer_length, out ? kSCSIDataTransfer_FromInitiatorToTarget : kSCSIDataTransfer_FromTargetToInitiator);
+            if(auto kret = (*task.get())->SetScatterGatherEntries(task.get(), range.get(), 1, buffer_length, out ? kSCSIDataTransfer_FromInitiatorToTarget : kSCSIDataTransfer_FromTargetToInitiator);
                 kret != KERN_SUCCESS)
                 throw_line("failed to set scatter gather entries (MACH: {})", mach_error_string(kret));
         }
 
-        if(auto kret = (*task)->SetTimeoutDuration(task, timeout); kret != KERN_SUCCESS)
+        if(auto kret = (*task.get())->SetTimeoutDuration(task.get(), timeout); kret != KERN_SUCCESS)
             throw_line("failed to set timeout duration (MACH: {})", mach_error_string(kret));
 
         UInt64 transfer_count = 0;
         SCSITaskStatus task_status;
         SCSI_Sense_Data sense_data = {};
 
-        if(auto kret = (*task)->ExecuteTaskSync(task, &sense_data, &task_status, &transfer_count); kret != KERN_SUCCESS)
+        if(auto kret = (*task.get())->ExecuteTaskSync(task.get(), &sense_data, &task_status, &transfer_count); kret != KERN_SUCCESS)
             throw_line("failed to execute task (MACH: {})", mach_error_string(kret));
 
         if(task_status != kSCSITaskStatus_GOOD)
@@ -212,8 +212,6 @@ public:
             status.asc = sense_data.ADDITIONAL_SENSE_CODE;
             status.ascq = sense_data.ADDITIONAL_SENSE_CODE_QUALIFIER;
         }
-
-        (*task)->Release(task);
 #else
         SenseData sense_data;
 

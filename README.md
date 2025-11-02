@@ -20,10 +20,10 @@ The preferred way is to run it without arguments (equivalent to running `redumpe
 The full command list is available by running `redumper --help`.
 
 ## Windows
-The drive is specified using its drive letter: e.g. `--drive=E:` or `--drive=E`.
+The drive is specified using its drive letter: `--drive=E:` or `--drive=E`.
 
 ## Linux
-The drive is specified using the full path of its device file: e.g. `--drive=/dev/sg0` or `--drive=/dev/sg1`.
+The drive is specified using the full path of its device file: `--drive=/dev/sg1`.
 
 The disc has to be unmounted before running redumper. I suggest disabling removable drives automounting.
 
@@ -32,11 +32,11 @@ At the time of writing, drive autodetection doesn't work for some Linux distribu
 Note that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). This will mean using a device file like /dev/sg0 rather than /dev/sr0.
 
 ## macOS
-Before running for the first time, you'll need to install an `llvm` prerequisite via Homebrew: `brew install llvm@18`. (Without this installed, you will get an error: `Library not loaded: /opt/homebrew/opt/llvm/lib/c++/libc++.1.dylib`.) Additionally, you may also require removing the quarantine block that macOS may add to a downloaded redumper executable: `xattr -dr com.apple.quarantine {your/path/to/}redumper`, adjusting the path to redumper for your machine.
+The drive is specified using its BSD name: `--drive=disk2`
 
-The drive is specified using its BSD name, e.g. for /dev/disk2 that will be: `--drive=disk2`. As with Linux, the disc has to be unmounted before running redumper. Insert the disc, use `diskutil list` to see a list of all disks in the system. Identify your disc drive and execute `diskutil unmountDisk /dev/disk2`. After redumper finishes executing, macOS takes over and mounts the disc again, which is very annoying. Also my Mac Mini seems to scan a disc before mounting. I haven't found a way how to disable that, and this will be blocking the disc access until done.
+Run `diskutil list` to see a list of all disks in the system.
 
-Currently, the macOS version is distributed as an ELF binary only - there is no installation package available. You should download and extract the binary and run it from the command line. Another issue is that the binary requires SCSI drive access and doesn't run from Desktop / Downloads / Documents directories. I suggest to copy it to /usr/local/bin and run it from there. Overall, the macOS version needs more work (auto unmount, better package support etc.) and I will work on it at some point but right now it's low priority.
+Currently, the macOS version is distributed as an archive with binary executable and its C++ runtime library dependencies - there is no installation package available. You should download and extract the archive while preserving the directory structure (the binary needs to locate its library dependencies). The binary requires SCSI drive access and won't run from Desktop / Downloads / Documents home directories due to macOS security restrictions. If you attempt to run redumper from these restricted directories, you will see an error: `error: failed to create service plugin interface, MACH ((iokit/common) resource shortage)`. It's recommended to copy the entire extracted directory structure to a different location and run the binary from there.
 
 ## Supported Drives
 Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommended for the perfect dump. The full list is [HERE](drive.ixx#L130). Drives listed under "//OTHER" are bad drives that I own, they are listed purely for experimentation - please do not buy these drives!

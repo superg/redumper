@@ -261,7 +261,6 @@ public:
                 std::string drive(std::format("{}:", (char)('A' + i)));
                 if(GetDriveType(std::format("{}\\", drive).c_str()) == DRIVE_CDROM)
                     drives.emplace(drive);
-                ;
             }
         }
 #elif defined(__APPLE__)
@@ -411,7 +410,6 @@ private:
         message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
 
         LocalFree(buffer);
-        message = strerror(errno);
 
         return message;
     }
@@ -455,7 +453,7 @@ private:
 
         DASessionScheduleWithRunLoop(session.get(), CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 
-        // attempt to claim the disk to check if OS is busy mounting
+        // attempt to claim the disk to check if the OS is busy mounting it
         std::optional<bool> disk_claimed;
         DADiskClaim(
             disk.get(), kDADiskClaimOptionDefault, nullptr, nullptr,
@@ -468,46 +466,41 @@ private:
         if(!disk_claimed)
             CFRunLoopRunInMode(kCFRunLoopDefaultMode, _DA_CALLBACK_TIMEOUT_SECONDS, false);
 
-        // callback triggered
+        // callback has been triggered
         if(disk_claimed)
         {
-            // just release
+            // claim was successful, just release it
             if(*disk_claimed)
                 DADiskUnclaim(disk.get());
-            // wait until OS finishes mounting
+            // claim failed, wait until the OS finishes mounting
             else
             {
-                struct MountContext
+                bool mount_completed = false;
+                DADiskDescriptionChangedCallback mount_callback = [](DADiskRef disk, CFArrayRef, void *ctx)
                 {
-                    const char *bsd_name;
-                } mount_context = { bsd_name.c_str() };
-
-                DADiskDescriptionChangedCallback mount_callback = [](DADiskRef disk, CFArrayRef keys, void *ctx)
-                {
-                    auto mount_ctx = static_cast<MountContext *>(ctx);
-                    const char *disk_bsd_name = DADiskGetBSDName(disk);
-                    if(disk_bsd_name != nullptr && strcmp(disk_bsd_name, mount_ctx->bsd_name) == 0)
+                    auto description = make_unique_resource_checked(DADiskCopyDescription(disk), (CFDictionaryRef) nullptr, &CFRelease);
+                    if(description.get() != nullptr && CFDictionaryGetValue(description.get(), kDADiskDescriptionVolumePathKey))
                     {
-                        auto description = DADiskCopyDescription(disk);
-                        if(description != nullptr)
-                        {
-                            auto volume_path = (CFURLRef)CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey);
-                            if(volume_path != nullptr)
-                            {
-                                CFRunLoopStop(CFRunLoopGetCurrent());
-                            }
-                            CFRelease(description);
-                        }
+                        *(bool *)ctx = true;
+                        CFRunLoopStop(CFRunLoopGetCurrent());
                     }
                 };
 
-                DARegisterDiskDescriptionChangedCallback(session.get(), nullptr, kDADiskDescriptionWatchVolumePath, mount_callback, &mount_context);
-                CFRunLoopRunInMode(kCFRunLoopDefaultMode, _DA_CALLBACK_TIMEOUT_SECONDS, false);
-                DAUnregisterCallback(session.get(), (void *)mount_callback, &mount_context);
+                auto match_dictionary = make_unique_resource_checked(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks),
+                    (CFMutableDictionaryRef) nullptr, &CFRelease);
+                {
+                    auto bsd_name_cf = make_unique_resource_checked(CFStringCreateWithCString(kCFAllocatorDefault, bsd_name.c_str(), kCFStringEncodingUTF8), (CFStringRef) nullptr, &CFRelease);
+                    CFDictionarySetValue(match_dictionary.get(), kDADiskDescriptionMediaBSDNameKey, bsd_name_cf.get());
+                }
+
+                DARegisterDiskDescriptionChangedCallback(session.get(), match_dictionary.get(), kDADiskDescriptionWatchVolumePath, mount_callback, &mount_completed);
+                if(!mount_completed)
+                    CFRunLoopRunInMode(kCFRunLoopDefaultMode, _DA_CALLBACK_TIMEOUT_SECONDS, false);
+                DAUnregisterCallback(session.get(), (void *)mount_callback, &mount_completed);
             }
         }
 
-        // unmount disc if mounted
+        // unmount the disk if it is mounted
         std::optional<std::string> unmount_failed_message;
         DADiskUnmount(
             disk.get(), kDADiskUnmountOptionForce | kDADiskUnmountOptionWhole,
@@ -523,7 +516,7 @@ private:
                     else
                     {
                         auto status_string = DADissenterGetStatusString(dissenter);
-                        *(std::optional<std::string> *)ctx = status_string == nullptr ? std::format("unknown status (0x{:08x})", status) : CFStringToString(status_string);
+                        *(std::optional<std::string> *)ctx = status_string == nullptr ? std::format("unknown status (0x{:08x})", (uint32_t)status) : CFStringToString(status_string);
                     }
                 }
 
@@ -540,6 +533,11 @@ private:
     }
 #else
     int _handle;
+
+    static std::string getLastError()
+    {
+        return strerror(errno);
+    }
 #endif
 };
 

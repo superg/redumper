@@ -59,6 +59,8 @@ public:
 #if defined(__APPLE__)
         : _service(make_unique_resource_checked((io_service_t)0, (io_service_t)0, &safeIORelease<io_object_t, IOObjectRelease>))
         , _plugInInterface(make_unique_resource_checked((IOCFPlugInInterface **)nullptr, (IOCFPlugInInterface **)nullptr, &safeIORelease<IOCFPlugInInterface **, IODestroyPlugInInterface>))
+        , _mmcDeviceInterface(make_unique_resource_checked((MMCDeviceInterface **)nullptr, (MMCDeviceInterface **)nullptr, &safeCOMRelease<MMCDeviceInterface **>))
+        , _scsiTaskDeviceInterface(make_unique_resource_checked((SCSITaskDeviceInterface **)nullptr, (SCSITaskDeviceInterface **)nullptr, &safeCOMRelease<SCSITaskDeviceInterface **>))
 #endif
     {
 #if defined(_WIN32)
@@ -110,14 +112,17 @@ public:
             throw_line("failed to create service plugin interface (MACH: {})", mach_error_string(kret));
         _plugInInterface = make_unique_resource_checked(plug_in_interface, (IOCFPlugInInterface **)nullptr, &safeIORelease<IOCFPlugInInterface **, IODestroyPlugInInterface>);
 
-        if(auto herr = (*_plugInInterface.get())->QueryInterface(_plugInInterface.get(), CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&_mmcDeviceInterface); herr != S_OK)
+        MMCDeviceInterface **mmc_device_interface;
+        if(auto herr = (*_plugInInterface.get())->QueryInterface(_plugInInterface.get(), CFUUIDGetUUIDBytes(kIOMMCDeviceInterfaceID), (LPVOID *)&mmc_device_interface); herr != S_OK)
             throw_line("failed to get MMC interface (error: {})", herr);
+        _mmcDeviceInterface = make_unique_resource_checked(mmc_device_interface, (MMCDeviceInterface **)nullptr, &safeCOMRelease<MMCDeviceInterface **>);
 
-        _scsiTaskDeviceInterface = (*_mmcDeviceInterface)->GetSCSITaskDeviceInterface(_mmcDeviceInterface);
-        if(_scsiTaskDeviceInterface == nullptr)
+        _scsiTaskDeviceInterface = make_unique_resource_checked((*_mmcDeviceInterface.get())->GetSCSITaskDeviceInterface(_mmcDeviceInterface.get()), (SCSITaskDeviceInterface **)nullptr,
+            &safeCOMRelease<SCSITaskDeviceInterface **>);
+        if(_scsiTaskDeviceInterface.get() == nullptr)
             throw_line("failed to get SCSI task device interface");
 
-        if(auto kret = (*_scsiTaskDeviceInterface)->ObtainExclusiveAccess(_scsiTaskDeviceInterface); kret != KERN_SUCCESS)
+        if(auto kret = (*_scsiTaskDeviceInterface.get())->ObtainExclusiveAccess(_scsiTaskDeviceInterface.get()); kret != KERN_SUCCESS)
             throw_line("failed to obtain exclusive access (MACH: {})", mach_error_string(kret));
 
 #else
@@ -134,11 +139,8 @@ public:
         if(CloseHandle(_handle) != TRUE)
             LOG("warning: unable to close drive (SYSTEM: {})", getLastError());
 #elif defined(__APPLE__)
-        if(auto kret = (*_scsiTaskDeviceInterface)->ReleaseExclusiveAccess(_scsiTaskDeviceInterface); kret != KERN_SUCCESS)
+        if(auto kret = (*_scsiTaskDeviceInterface.get())->ReleaseExclusiveAccess(_scsiTaskDeviceInterface.get()); kret != KERN_SUCCESS)
             LOG("warning: failed to release exclusive access (MACH: {})", mach_error_string(kret));
-
-        (*_scsiTaskDeviceInterface)->Release(_scsiTaskDeviceInterface);
-        (*_mmcDeviceInterface)->Release(_mmcDeviceInterface);
 
 #else
         if(close(_handle))
@@ -177,7 +179,8 @@ public:
             status.ascq = sptd_sd.sd.AdditionalSenseCodeQualifier;
         }
 #elif defined(__APPLE__)
-        auto task = make_unique_resource_checked((*_scsiTaskDeviceInterface)->CreateSCSITask(_scsiTaskDeviceInterface), (SCSITaskInterface **)nullptr, [](SCSITaskInterface **t) { (*t)->Release(t); });
+        auto task = make_unique_resource_checked((*_scsiTaskDeviceInterface.get())->CreateSCSITask(_scsiTaskDeviceInterface.get()), (SCSITaskInterface **)nullptr,
+            [](SCSITaskInterface **t) { (*t)->Release(t); });
         if(task.get() == nullptr)
             throw_line("failed to create SCSI task");
 
@@ -419,11 +422,17 @@ private:
             LOG("warning: IO release failed (MACH: {})", mach_error_string(kret));
     }
 
+    template<typename R>
+    static void safeCOMRelease(R iface)
+    {
+        (*iface)->Release(iface);
+    }
+
     static constexpr double _DA_CALLBACK_TIMEOUT_SECONDS = 10;
     unique_resource<io_service_t, decltype(&safeIORelease<io_object_t, IOObjectRelease>)> _service;
     unique_resource<IOCFPlugInInterface **, decltype(&safeIORelease<IOCFPlugInInterface **, IODestroyPlugInInterface>)> _plugInInterface;
-    MMCDeviceInterface **_mmcDeviceInterface;
-    SCSITaskDeviceInterface **_scsiTaskDeviceInterface;
+    unique_resource<MMCDeviceInterface **, decltype(&safeCOMRelease<MMCDeviceInterface **>)> _mmcDeviceInterface;
+    unique_resource<SCSITaskDeviceInterface **, decltype(&safeCOMRelease<SCSITaskDeviceInterface **>)> _scsiTaskDeviceInterface;
 
     static std::string CFStringToString(CFStringRef cf_string)
     {

@@ -425,8 +425,6 @@ private:
     MMCDeviceInterface **_mmcDeviceInterface;
     SCSITaskDeviceInterface **_scsiTaskDeviceInterface;
 
-    SCSITaskInterface **_handle;
-
     static std::string CFStringToString(CFStringRef cf_string)
     {
         std::string s;

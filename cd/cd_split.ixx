@@ -240,8 +240,10 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
                 LOG("errors detected, track: {}, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", toc.getTrackString(t.track_number), skip_sectors, c2_sectors, skip_samples, c2_samples);
                 if(cdr)
                 {
+                    // CD-R lead-in/lead-out areas may have manufacturing defects
                     if(optional_track(t.track_number))
                         LOG("warning: CD-R lead-in/lead-out C2 errors detected");
+                    // CD-R trailing errors are acceptable if all C2 errors are trailing and within threshold
                     else if(c2_sectors_last == c2_sectors && c2_sectors_last <= options.cdr_error_threshold)
                         LOG("warning: CD-R trailing C2 errors detected");
                     else

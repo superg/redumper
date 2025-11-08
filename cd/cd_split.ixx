@@ -179,9 +179,9 @@ bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager> offse
 
 
 bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection,
-    const Options &options)
+    bool cdr, const Options &options)
 {
-    bool no_errors = true;
+    bool errors = false;
 
     std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
@@ -199,6 +199,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
             uint32_t c2_samples = 0;
             uint32_t skip_sectors = 0;
             uint32_t c2_sectors = 0;
+            uint32_t c2_sectors_last = 0;
 
             auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, offset_manager, options);
 
@@ -228,18 +229,33 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
                 {
                     c2_samples += c2_count;
                     ++c2_sectors;
+                    ++c2_sectors_last;
                 }
+                else
+                    c2_sectors_last = 0;
             }
 
             if(skip_sectors && !optional_track(t.track_number) || c2_sectors)
             {
                 LOG("errors detected, track: {}, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", toc.getTrackString(t.track_number), skip_sectors, c2_sectors, skip_samples, c2_samples);
-                no_errors = false;
+                if(cdr)
+                {
+                    // CD-R lead-in/lead-out areas may have manufacturing defects
+                    if(optional_track(t.track_number))
+                        LOG("warning: CD-R lead-in/lead-out C2 errors detected");
+                    // CD-R trailing errors are acceptable if all C2 errors are trailing and within threshold
+                    else if(!skip_sectors && c2_sectors_last == c2_sectors && c2_sectors_last <= options.cdr_error_threshold)
+                        LOG("warning: CD-R trailing C2 errors detected");
+                    else
+                        errors = true;
+                }
+                else
+                    errors = true;
             }
         }
     }
 
-    return no_errors;
+    return errors;
 }
 
 
@@ -892,6 +908,8 @@ export void redumper_split_cd(Context &ctx, Options &options)
     std::filesystem::path toc_path(image_prefix + ".toc");
     std::filesystem::path fulltoc_path(image_prefix + ".fulltoc");
     std::filesystem::path cdtext_path(image_prefix + ".cdtext");
+    std::filesystem::path atip_path(image_prefix + ".atip");
+    std::filesystem::path pma_path(image_prefix + ".pma");
 
     uint32_t subcode_sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
 
@@ -902,6 +920,8 @@ export void redumper_split_cd(Context &ctx, Options &options)
     std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
     if(!state_fs.is_open())
         throw_line("unable to open file ({})", state_path.filename().string());
+
+    bool cdr = std::filesystem::exists(atip_path) || std::filesystem::exists(pma_path);
 
     std::vector<uint8_t> toc_buffer = read_vector(toc_path);
     std::vector<uint8_t> full_toc_buffer;
@@ -1325,7 +1345,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     // check tracks
     LOG("checking tracks");
-    if(!check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, options) && !options.force_split)
+    if(check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, cdr, options) && !options.force_split)
         throw_line("data errors detected, unable to continue");
     LOG("done");
     LOG("");

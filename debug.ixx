@@ -111,6 +111,8 @@ export int redumper_debug(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
+#ifndef NDEBUG
+
     std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
     std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path cache_path(image_prefix + ".cache");
@@ -121,7 +123,7 @@ export int redumper_debug(Context &ctx, Options &options)
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
 
-    if(1)
+    if(0)
     {
         auto drives = SPTD::listDrives();
 
@@ -385,6 +387,8 @@ export int redumper_debug(Context &ctx, Options &options)
     }
 
     LOG("");
+
+#endif
 
     return exit_code;
 }

@@ -187,6 +187,8 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
     for(auto const &se : toc.sessions)
     {
+        uint32_t c2_sectors_last = 0;
+
         for(auto const &t : se.tracks)
         {
             // skip empty tracks
@@ -199,7 +201,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
             uint32_t c2_samples = 0;
             uint32_t skip_sectors = 0;
             uint32_t c2_sectors = 0;
-            uint32_t c2_sectors_last = 0;
+            uint32_t c2_sectors_first = 0;
 
             auto lba_end = iso9660_trim_if_needed(ctx, t, scm_fs, offset_manager, options);
 
@@ -232,22 +234,44 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
                     ++c2_sectors_last;
                 }
                 else
+                {
+                    // account for leading C2 errors if it's a continuation of trailing C2 errors from the previous track
+                    if(c2_sectors_last <= options.cdr_error_threshold && c2_sectors_last > lba - t.lba_start)
+                        c2_sectors_first = lba - t.lba_start;
+
                     c2_sectors_last = 0;
+                }
             }
 
+            // reset trailing C2 errors if above threshold
+            if(c2_sectors_last > options.cdr_error_threshold)
+                c2_sectors_last = 0;
+
             if(skip_sectors && !optional_track(t.track_number) || c2_sectors)
-            {
                 LOG("errors detected, track: {}, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", toc.getTrackString(t.track_number), skip_sectors, c2_sectors, skip_samples, c2_samples);
+
+            if(skip_sectors && !optional_track(t.track_number))
+                errors = true;
+            else if(c2_sectors)
+            {
+                // CD-R specific checks
                 if(cdr)
                 {
-                    // CD-R lead-in/lead-out areas may have manufacturing defects
+                    // lead-in/lead-out areas may have manufacturing defects
                     if(optional_track(t.track_number))
                         LOG("warning: CD-R lead-in/lead-out C2 errors detected");
-                    // CD-R trailing errors are acceptable if all C2 errors are trailing and within threshold
-                    else if(!skip_sectors && c2_sectors_last == c2_sectors && c2_sectors_last <= options.cdr_error_threshold)
-                        LOG("warning: CD-R trailing C2 errors detected");
+                    // data tracks may have leading/trailing C2 errors
                     else
-                        errors = true;
+                    {
+                        if(c2_sectors_first)
+                            LOG("warning: CD-R leading C2 errors detected (sectors: {})", c2_sectors_first);
+                        if(c2_sectors_last)
+                            LOG("warning: CD-R trailing C2 errors detected (sectors: {})", c2_sectors_last);
+
+                        // make sure there are no extra C2 errors except leading/trailing
+                        if(c2_sectors_first + c2_sectors_last != c2_sectors)
+                            errors = true;
+                    }
                 }
                 else
                     errors = true;

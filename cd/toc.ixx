@@ -674,25 +674,8 @@ export struct TOC
         {
             auto &s = sessions[j];
 
-            // output standard sizes here for now
-            // can be calculated precisely if whole lead-out/toc/pre-gap range is dumped
             if(multisession)
-            {
-                MSF msf;
-                if(j)
-                {
-                    msf = LBA_to_MSF(CD_LEADOUT_MIN_SIZE + MSF_LBA_SHIFT);
-                    os << std::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-                }
                 os << std::format("REM SESSION {:02}", s.session_number) << std::endl;
-                if(j)
-                {
-                    msf = LBA_to_MSF(CD_LEADIN_MIN_SIZE + MSF_LBA_SHIFT);
-                    os << std::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-                    msf = LBA_to_MSF(CD_PREGAP_SIZE + MSF_LBA_SHIFT);
-                    os << std::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
-                }
-            }
 
             for(auto const &t : s.tracks)
             {

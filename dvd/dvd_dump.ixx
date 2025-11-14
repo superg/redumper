@@ -433,7 +433,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             if(physical_sectors_count != sectors_count)
             {
                 // Kreon PFI sector count is only for Video portion when XGD present
-                if(ctx.drive_config.vendor_specific.starts_with("KREON V1.00"))
+                if(is_kreon_firmware(ctx.drive_config))
                     is_xbox = true;
                 else
                 {
@@ -447,7 +447,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(is_xbox)
         {
             std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
-            std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
 
             bool complete_ss = xbox_get_security_sector(*ctx.sptd, security_sector, options.kreon_partial_ss);
             if(!complete_ss)
@@ -465,24 +464,22 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
             if(is_xbox && !physical_structures.empty())
             {
+                std::string ss_message = "valid";
                 if(xgd_type == XGD_Type::XGD3)
                 {
-                    // repair XGD3 security sector on supported drives (read leadout)
-                    bool repaired = false;
-                    if(is_custom_kreon_firmware(ctx.drive_config.product_revision_level))
-                    {
-                        status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, XGD_SS_LEADOUT_SECTOR, 1, false);
-                        if(!status.status_code)
-                            repaired = xbox_repair_xgd3_ss(security_sector, ss_leadout);
-                    }
+                    ss_message = "invalid";
 
-                    if(repaired)
-                        LOG("Kreon Drive with XGD3 detected, SS repaired using leadout");
-                    else
-                        LOG("Kreon Drive with XGD3 detected, SS is invalid");
+                    // repair XGD3 security sector on supported drives (read leadout)
+                    if(is_custom_kreon_firmware(ctx.drive_config))
+                    {
+                        std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
+                        status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, XGD_SS_LEADOUT_SECTOR, 1, false);
+                        if(!status.status_code && xbox_repair_xgd3_ss(security_sector, ss_leadout))
+                            ss_message = "repaired using lead-out";
+                    }
                 }
-                else
-                    LOG("Kreon Drive with XGD{} detected", (uint8_t)xgd_type);
+                
+                LOG("Kreon Drive with XGD{} detected, SS: {}", (uint8_t)xgd_type, ss_message);
                 LOG("");
 
                 auto security_sector_fn = image_prefix + ".security";

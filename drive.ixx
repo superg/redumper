@@ -399,4 +399,16 @@ export SectorLayout sector_order_layout(const SectorOrder &sector_order)
     return sector_layout;
 }
 
+
+export bool is_kreon_firmware(const DriveConfig &drive_config)
+{
+    return drive_config.vendor_specific.starts_with("KREON V1.00");
+}
+
+
+export bool is_custom_kreon_firmware(const DriveConfig &drive_config)
+{
+    return drive_config.product_revision_level == "DC02" || drive_config.product_revision_level == "ZZ01";
+}
+
 }

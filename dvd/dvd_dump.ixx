@@ -393,6 +393,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(block_length != FORM1_DATA_SIZE)
         throw_line("unsupported block size (block size: {})", block_length);
     uint32_t sectors_count = sector_last + 1;
+    LOG("sectors count (READ_CAPACITY): {}", sectors_count);
 
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
 

@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -232,27 +233,23 @@ export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
 
 export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_data, bool kreon_partial_ss)
 {
-    SPTD::Status status;
-
     const uint8_t ss_vals[4] = { 0x01, 0x03, 0x05, 0x07 };
-    for(int i = 0; i < sizeof(ss_vals); ++i)
+
+    std::size_t i = 0;
+    for(; i < (kreon_partial_ss ? 1 : sizeof(ss_vals)); ++i)
     {
-        status = cmd_kreon_get_security_sector(sptd, response_data, ss_vals[i]);
+        auto status = cmd_kreon_get_security_sector(sptd, response_data, ss_vals[i]);
         if(status.status_code)
         {
             // fail if cannot get initial response, otherwise just note partial response
             if(i == 0)
                 throw_line("failed to get security sector, SCSI ({})", SPTD::StatusMessage(status));
 
-            return false;
-        }
-        else if(kreon_partial_ss)
-        {
-            return false;
+            break;
         }
     }
 
-    return true;
+    return i == sizeof(ss_vals);
 }
 
 export bool is_custom_kreon_firmware(const std::string &rev)

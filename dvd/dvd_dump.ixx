@@ -378,7 +378,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     SPTD::Status status;
 
     // unlock drive if Kreon firmware detected so we can identify XGD later
-    if(ctx.drive_config.vendor_specific.starts_with("KREON V1.00"))
+    if(is_kreon_firmware(ctx.drive_config))
     {
         status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)
@@ -393,7 +393,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(block_length != FORM1_DATA_SIZE)
         throw_line("unsupported block size (block size: {})", block_length);
     uint32_t sectors_count = sector_last + 1;
-    LOG("sectors count (READ_CAPACITY): {}", sectors_count);
 
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
 
@@ -425,7 +424,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
                     throw_line("invalid layer descriptor size (layer: {})", i);
 
-                auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
+                auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
 
                 physical_sectors_count += get_layer_length(layer_descriptor);
             }

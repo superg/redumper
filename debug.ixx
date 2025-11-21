@@ -30,6 +30,7 @@ import utils.file_io;
 import utils.logger;
 import utils.misc;
 import utils.win32;
+import utils.xbox;
 
 
 
@@ -122,6 +123,15 @@ export int redumper_debug(Context &ctx, Options &options)
     std::filesystem::path cue_path(image_prefix + ".cue");
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
+
+    if(1)
+    {
+        auto ss = read_vector("security_sector0.debug");
+        auto &ss_layer_descriptor = (XGD_SecuritySector &)ss[0];
+
+        LOG("sizeof {}", sizeof(XGD_SecuritySector));
+        LOG("");
+    }
 
     if(0)
     {

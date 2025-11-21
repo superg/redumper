@@ -19,6 +19,62 @@ import utils.misc;
 namespace gpsxre
 {
 
+#pragma pack(push, 1)
+export union XGD_SecuritySector
+{
+    struct Challenge
+    {
+        uint8_t valid;
+        uint8_t challenge_id;
+        uint32_t challenge_value;
+        uint8_t response_modifier;
+        uint32_t response_value;
+    };
+
+    struct Range
+    {
+        uint8_t unknown[3];
+        uint8_t psn_start[3];
+        uint8_t psn_end[3];
+    };
+
+    READ_DVD_STRUCTURE_LayerDescriptor ld;
+    struct
+    {
+        uint8_t layer_descriptor[17]; // 0x000    0
+        uint8_t unknown_011[703];     // 0x011   17
+        uint32_t cpr_mai;             // 0x2D0  720
+        uint8_t unknown_2D4[44];      // 0x2D4  724
+        uint8_t challenge_version;    // 0x300  768
+        uint8_t challenge_count;      // 0x301  769
+        uint8_t challenges[285];      // 0x302  770
+        uint64_t creation_filetime;   // 0x41F 1055
+        uint8_t unknown_427[16];      // 0x427 1063
+        uint32_t unknown_437;         // 0x437 1079
+        uint8_t unknown_43B[16];      // 0x43B 1083
+        uint8_t unknown_44B[84];      // 0x44B 1099
+        uint64_t authoring_filetime;  // 0x49F 1183
+        uint32_t cert_unixtime;       // 0x4A7 1191
+        uint8_t unknown_4AB[15];      // 0x4AB 1195
+        uint8_t type_a;               // 0x4BA 1210
+        uint8_t game_id[16];          // 0x4BB 1211
+        uint8_t sha1_a[20];           // 0x4CB 1227
+        uint8_t signature_a[256];     // 0x4DF 1247
+        uint64_t mastering_filetime;  // 0x5DF 1503
+        uint8_t unknown_5E7[19];      // 0x5E7 1511
+        uint8_t type_b;               // 0x5FA 1530
+        uint8_t factory_id[16];       // 0x5FB 1531
+        uint8_t sha1_b[20];           // 0x60B 1547
+        uint8_t signature_b[64];      // 0x61F 1567
+        uint8_t range_version;        // 0x65F 1631
+        uint8_t range_count;          // 0x660 1632
+        Range ranges[23];             // 0x661 1633
+        Range ranges_copy[23];        // 0x730 1840
+        uint8_t unknown_7FF;          // 0x7FF 2047
+    };
+};
+#pragma pack(pop)
+
 export const uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
 
 export enum class XGD_Type : uint8_t
@@ -27,39 +83,6 @@ export enum class XGD_Type : uint8_t
     XGD1,
     XGD2,
     XGD3
-};
-
-export struct XGD1_SecuritySector
-{
-    uint8_t reserved1[703];
-    uint32_t cpr_mai;
-    uint8_t reserved2[44];
-    uint8_t ccrt_version;
-    uint8_t ccrt_length;
-    uint8_t ccrt[285];
-    uint64_t creation_filetime;
-    uint8_t unknown2[16];
-    uint32_t reserved3;
-    uint8_t unknown3[16];
-    uint8_t reserved4[84];
-    uint64_t authoring_filetime;
-    uint32_t cert_time_t;
-    uint8_t reserved5[15];
-    uint8_t typeA;
-    uint8_t game_id[16];
-    uint8_t sha1A[20];
-    uint8_t signatureA[256];
-    uint64_t mastering_filetime;
-    uint8_t reserved6[19];
-    uint8_t typeB;
-    uint8_t factory_id[16];
-    uint8_t sha1B[20];
-    uint8_t signatureB[64];
-    uint8_t ss_version;
-    uint8_t ranges_length;
-    uint8_t security_ranges[207];
-    uint8_t security_ranges_duplicate[207];
-    uint8_t reserved7;
 };
 
 export struct XGD2_SecuritySector

@@ -418,28 +418,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             LOG("warning: Blu-ray current profile mismatch, dump will be trimmed to disc filesystem size");
         }
 
-        if(ctx.disc_type != DiscType::BLURAY && ctx.disc_type != DiscType::BLURAY_R)
+        if(ctx.disc_type != DiscType::BLURAY && ctx.disc_type != DiscType::BLURAY_R && !physical_structures.empty())
         {
-            for(uint32_t i = 0; i < physical_structures.size(); ++i)
-            {
-                auto const &structure = physical_structures[i];
-
-                if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-                    throw_line("invalid layer descriptor size (layer: {})", i);
-
-                auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
-
-                if(!sectors_count_physical)
-                    sectors_count_physical = 0;
-
-                sectors_count_physical = *sectors_count_physical + get_layer_length(layer_descriptor);
-            }
-
             // Kreon physical sector count is only for Video portion when XGD present
-            if(kreon_firmware && sectors_count_physical && *sectors_count_physical != sectors_count_capacity)
+            if(kreon_firmware && physical_structures.size() == 1
+                && get_layer_length((READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)]) != sectors_count_capacity)
             {
                 std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
-
                 bool complete_ss = xbox_get_security_sector(*ctx.sptd, security_sector, options.kreon_partial_ss);
                 if(!complete_ss)
                     LOG("warning: could not get complete security sector");
@@ -448,15 +433,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 XGD_Type xgd_type = get_xgd_type((READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0]);
                 if(xgd_type == XGD_Type::UNKNOWN)
                 {
-                    LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");
                     LOG("warning: Kreon Drive with malformed XGD detected, reverting to normal DVD mode");
                     LOG("");
-                    xbox_disc = false;
                 }
                 else
-                    xbox_disc = true;
-
-                if(xbox_disc && !physical_structures.empty())
                 {
                     std::string ss_message = "valid";
                     if(xgd_type == XGD_Type::XGD3)
@@ -541,11 +521,25 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     sss += l1_video_length;
 
                     // overwrite physical structure with true layer0_last from SS, so that disc structure logging is correct
-                    if(xbox_disc)
-                        layer_descriptor.layer0_end_sector = ss_layer_descriptor.layer0_end_sector;
+                    layer_descriptor.layer0_end_sector = ss_layer_descriptor.layer0_end_sector;
 
-                    *sectors_count_physical = sss;
+                    xbox_disc = true;
                 }
+            }
+
+            for(uint32_t i = 0; i < physical_structures.size(); ++i)
+            {
+                auto const &structure = physical_structures[i];
+
+                if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+                    throw_line("invalid layer descriptor size (layer: {})", i);
+
+                auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
+
+                if(!sectors_count_physical)
+                    sectors_count_physical = 0;
+
+                *sectors_count_physical = *sectors_count_physical + get_layer_length(layer_descriptor);
             }
         }
 

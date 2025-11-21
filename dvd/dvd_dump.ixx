@@ -429,17 +429,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 if(!complete_ss)
                     LOG("warning: could not get complete security sector");
 
-                // validate security sector
-                XGD_Type xgd_type = get_xgd_type((READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0]);
-                if(xgd_type == XGD_Type::UNKNOWN)
-                {
-                    LOG("warning: Kreon Drive with malformed XGD detected, reverting to normal DVD mode");
-                    LOG("");
-                }
-                else
+                auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
+                int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
+
+                if(ss_layer0_last == XGD1_LAYER0_LAST || ss_layer0_last == XGD2_LAYER0_LAST || ss_layer0_last == XGD3_LAYER0_LAST)
                 {
                     std::string ss_message = "valid";
-                    if(xgd_type == XGD_Type::XGD3)
+                    if(ss_layer0_last == XGD3_LAYER0_LAST)
                     {
                         ss_message = "invalid";
 
@@ -453,7 +449,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         }
                     }
 
-                    LOG("Kreon Drive with XGD{} detected, SS: {}", (uint8_t)xgd_type, ss_message);
+                    LOG("Kreon Drive with XGD detected, L0: {} SS: {}", ss_layer0_last, ss_message);
                     LOG("");
 
                     auto security_sector_fn = image_prefix + ".security";
@@ -491,16 +487,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     uint32_t l1_video_start = layer0_last + 1 - lba_first;
                     uint32_t l1_video_length = get_layer_length(layer_descriptor) - l1_video_start;
 
-                    auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
-
                     int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor.data_start_sector));
 
                     uint32_t l1_padding_length = ss_lba_first - layer0_last - 1;
-                    if(xgd_type == XGD_Type::XGD3)
+                    if(ss_layer0_last == XGD3_LAYER0_LAST)
                         l1_padding_length += 4096;
 
                     // extract security sector ranges from security sector
-                    xbox_skip_ranges = get_security_sector_ranges(ss_layer_descriptor);
+                    xbox_skip_ranges = get_security_sector_ranges((XGD_SecuritySector &)ss_layer_descriptor);
 
                     auto sss = sectors_count_capacity;
 
@@ -524,6 +518,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     layer_descriptor.layer0_end_sector = ss_layer_descriptor.layer0_end_sector;
 
                     xbox_disc = true;
+                }
+                else
+                {
+                    LOG("warning: Kreon Drive with malformed XGD detected, reverting to normal DVD mode");
+                    LOG("");
                 }
             }
 

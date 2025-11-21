@@ -112,7 +112,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
                     ctx.dat->push_back(ss_rom_entry.xmlLine());
 
                 LOG("security sector ranges:");
-                auto security_ranges = get_security_sector_ranges((READ_DVD_STRUCTURE_LayerDescriptor &)security[0]);
+                auto security_ranges = get_security_sector_ranges((XGD_SecuritySector &)security[0]);
                 for(const auto &range : security_ranges)
                 {
                     LOG("  {}-{}", range.first, range.second);

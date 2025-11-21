@@ -77,14 +77,6 @@ export union XGD_SecuritySector
 
 export const uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
 
-export enum class XGD_Type : uint8_t
-{
-    UNKNOWN,
-    XGD1,
-    XGD2,
-    XGD3
-};
-
 export struct XGD2_SecuritySector
 {
     uint8_t reserved1[239];
@@ -122,41 +114,29 @@ export struct XGD2_SecuritySector
     uint8_t reserved10;
 };
 
-export XGD_Type get_xgd_type(const READ_DVD_STRUCTURE_LayerDescriptor &ss_layer_descriptor)
-{
-    const uint32_t xgd_type = endian_swap<uint32_t>(ss_layer_descriptor.layer0_end_sector);
+// TODO: maybe map?
+export constexpr int32_t XGD1_LAYER0_LAST = 2110383;
+export constexpr int32_t XGD2_LAYER0_LAST = 2110367;
+export constexpr int32_t XGD3_LAYER0_LAST = 2330127;
 
-    // Return XGD type based on value
-    switch(xgd_type)
-    {
-    case 0x2033AF:
-        return XGD_Type::XGD1;
-    case 0x20339F:
-        return XGD_Type::XGD2;
-    case 0x238E0F:
-        return XGD_Type::XGD3;
-    default:
-        return XGD_Type::UNKNOWN;
-    }
-}
 
-export std::vector<std::pair<uint32_t, uint32_t>> get_security_sector_ranges(const READ_DVD_STRUCTURE_LayerDescriptor &ss_layer_descriptor)
+export std::vector<std::pair<uint32_t, uint32_t>> get_security_sector_ranges(const XGD_SecuritySector &ss_layer_descriptor)
 {
     std::vector<std::pair<uint32_t, uint32_t>> ss_ranges;
 
     const auto media_specific_offset = offsetof(READ_DVD_STRUCTURE_LayerDescriptor, media_specific);
-    uint8_t num_ss_regions = ss_layer_descriptor.media_specific[1632 - media_specific_offset];
-    bool is_xgd1 = (get_xgd_type(ss_layer_descriptor) == XGD_Type::XGD1);
+    uint8_t num_ss_regions = ss_layer_descriptor.ld.media_specific[1632 - media_specific_offset];
     // partial pre-compute of conversion to Layer 1
-    int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
+    int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.ld.layer0_end_sector));
+    bool is_xgd1 = ss_layer0_last == XGD1_LAYER0_LAST;
     const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x30000 + 1;
 
     for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, ++i)
     {
-        uint32_t start_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 4] << 8)
-                           | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 5];
-        uint32_t end_psn = ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 6] << 16) | ((uint32_t)ss_layer_descriptor.media_specific[ss_pos + 7] << 8)
-                         | (uint32_t)ss_layer_descriptor.media_specific[ss_pos + 8];
+        uint32_t start_psn = ((uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 4] << 8)
+                           | (uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 5];
+        uint32_t end_psn = ((uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 6] << 16) | ((uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 7] << 8)
+                         | (uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 8];
         if((i < 8 && is_xgd1) || (i == 0 && !is_xgd1))
         {
             // Layer 0
@@ -174,16 +154,11 @@ export std::vector<std::pair<uint32_t, uint32_t>> get_security_sector_ranges(con
 
 export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
 {
-    XGD_Type xgd_type = get_xgd_type((READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0]);
+    auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
+    int32_t layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
 
-    bool ssv2 = false;
-    switch(xgd_type)
+    if(layer0_last == XGD2_LAYER0_LAST)
     {
-    case XGD_Type::XGD1:
-        // no fix needed
-        break;
-
-    case XGD_Type::XGD2:
         security_sector[552] = 0x01;
         security_sector[553] = 0x00;
         security_sector[555] = 0x00;
@@ -203,11 +178,11 @@ export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
         security_sector[580] = 0x01;
         security_sector[582] = 0x00;
         security_sector[583] = 0x00;
-        break;
-
-    case XGD_Type::XGD3:
+    }
+    else if(layer0_last == XGD3_LAYER0_LAST)
+    {
         // determine if ssv1 (Kreon) or ssv2 (0800)
-        ssv2 = std::any_of(security_sector.begin() + 32, security_sector.begin() + 32 + 72, [](uint8_t x) { return x != 0; });
+        bool ssv2 = std::any_of(security_sector.begin() + 32, security_sector.begin() + 32 + 72, [](uint8_t x) { return x != 0; });
 
         if(ssv2)
         {
@@ -245,12 +220,6 @@ export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
             security_sector[579] = 0x0F;
             security_sector[580] = 0x01;
         }
-        break;
-
-    case XGD_Type::UNKNOWN:
-    default:
-        // cannot clean
-        break;
     }
 }
 

@@ -418,11 +418,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             LOG("warning: Blu-ray current profile mismatch, dump will be trimmed to disc filesystem size");
         }
 
+        // DVD
         if(ctx.disc_type != DiscType::BLURAY && ctx.disc_type != DiscType::BLURAY_R && !physical_structures.empty())
         {
-            // Kreon physical sector count is only for Video portion when XGD present
-            if(kreon_firmware && physical_structures.size() == 1
-                && get_layer_length((READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)]) != sectors_count_capacity)
+            // verify physical structures are valid
+            for(uint32_t i = 0; i < physical_structures.size(); ++i)
+                if(physical_structures[i].size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+                    throw_line("invalid layer descriptor size (layer: {})", i);
+
+            // kreon physical sector count is only for video portion when XGD present
+            if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
+                kreon_firmware && physical_structures.size() == 1 && get_layer_length(layer0_ld) != sectors_count_capacity)
             {
                 std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
                 bool complete_ss = xbox::read_security_layer_descriptor(*ctx.sptd, security_sector, options.kreon_partial_ss);
@@ -474,18 +480,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                             throw_line("disc / file security sector doesn't match, refining from a different disc?");
                     }
 
-                    auto &structure = physical_structures.front();
-
-                    if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-                        throw_line("invalid layer descriptor size (layer: 0)");
-
-                    auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
-
-                    int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
-                    int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
+                    int32_t lba_first = sign_extend<24>(endian_swap(layer0_ld.data_start_sector));
+                    int32_t layer0_last = sign_extend<24>(endian_swap(layer0_ld.layer0_end_sector));
 
                     uint32_t l1_video_start = layer0_last + 1 - lba_first;
-                    uint32_t l1_video_length = get_layer_length(layer_descriptor) - l1_video_start;
+                    uint32_t l1_video_length = get_layer_length(layer0_ld) - l1_video_start;
 
                     int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor.data_start_sector));
 
@@ -515,7 +514,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     sss += l1_video_length;
 
                     // overwrite physical structure with true layer0_last from SS, so that disc structure logging is correct
-                    layer_descriptor.layer0_end_sector = ss_layer_descriptor.layer0_end_sector;
+                    layer0_ld.layer0_end_sector = ss_layer_descriptor.layer0_end_sector;
 
                     xbox_disc = true;
                 }
@@ -529,9 +528,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             for(uint32_t i = 0; i < physical_structures.size(); ++i)
             {
                 auto const &structure = physical_structures[i];
-
-                if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-                    throw_line("invalid layer descriptor size (layer: {})", i);
 
                 auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
 
@@ -634,9 +630,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 if(!physical_structures.empty())
                 {
                     auto const &structure = physical_structures.front();
-
-                    if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-                        throw_line("invalid layer descriptor size (layer: {})", 0);
 
                     auto layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
 

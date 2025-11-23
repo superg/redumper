@@ -126,10 +126,22 @@ export int redumper_debug(Context &ctx, Options &options)
 
     if(1)
     {
-        auto ss = read_vector("security_sector0.debug");
-        auto &ss_layer_descriptor = (XGD_SecuritySector &)ss[0];
+        // auto ss = read_vector("security_sector3.debug");
+        auto ss = read_vector("dvd.security");
+        auto &ss_layer_descriptor = (xbox::SecurityLayerDescriptor &)ss[0];
+        clean_security_layer_descriptor(ss_layer_descriptor);
+        write_vector("security_sector3_cleaned.debug", ss);
 
-        LOG("sizeof {}", sizeof(XGD_SecuritySector));
+        // auto ranges = get_security_layer_descriptor_ranges(ss_layer_descriptor);
+        /*
+        auto ss = read_vector("ss.raw");
+        auto leadout = read_vector("leadout.raw");
+        xbox::merge_xgd3_security_layer_descriptor(ss, leadout);
+        write_vector("ss_repaired.raw", ss);
+        */
+        LOG("");
+        // LOG("{:X}", offsetof(xbox::SecurityLayerDescriptor, xgd23.xgd3.crd[4]));
+        LOG("sizeof {}", sizeof(xbox::SecurityLayerDescriptor));
         LOG("");
     }
 

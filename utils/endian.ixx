@@ -1,6 +1,7 @@
 module;
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cstdint>
 #include <cstdlib>
 
@@ -56,6 +57,26 @@ uint64_t endian_swap<uint64_t>(const uint64_t &v)
 #else
     return __builtin_bswap64(v);
 #endif
+}
+
+
+export template<typename T, typename U, std::size_t N>
+T endian_swap_from_array(const U (&a)[N])
+{
+    T v = 0;
+
+    for(size_t i = 0; i < N; ++i)
+        v |= (T)a[i] << CHAR_BIT * sizeof(U) * (N - 1 - i);
+
+    return v;
+}
+
+
+export template<typename T, typename U, std::size_t N>
+void endian_swap_to_array(U (&a)[N], T v)
+{
+    for(size_t i = 0; i < N; ++i)
+        a[i] = (U)(v >> CHAR_BIT * sizeof(U) * (N - 1 - i));
 }
 
 }

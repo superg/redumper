@@ -425,17 +425,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 && get_layer_length((READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)]) != sectors_count_capacity)
             {
                 std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
-                bool complete_ss = xbox_get_security_sector(*ctx.sptd, security_sector, options.kreon_partial_ss);
+                bool complete_ss = xbox::read_security_layer_descriptor(*ctx.sptd, security_sector, options.kreon_partial_ss);
                 if(!complete_ss)
                     LOG("warning: could not get complete security sector");
 
                 auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
                 int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
 
-                if(ss_layer0_last == XGD1_LAYER0_LAST || ss_layer0_last == XGD2_LAYER0_LAST || ss_layer0_last == XGD3_LAYER0_LAST)
+                if(ss_layer0_last == xbox::XGD1_L0_LAST || ss_layer0_last == xbox::XGD2_L0_LAST || ss_layer0_last == xbox::XGD3_L0_LAST)
                 {
                     std::string ss_message = "valid";
-                    if(ss_layer0_last == XGD3_LAYER0_LAST)
+                    if(ss_layer0_last == xbox::XGD3_L0_LAST)
                     {
                         ss_message = "invalid";
 
@@ -443,8 +443,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         if(is_custom_kreon_firmware(ctx.drive_config))
                         {
                             std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
-                            status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, XGD_SS_LEADOUT_SECTOR, 1, false);
-                            if(!status.status_code && xbox_repair_xgd3_ss(security_sector, ss_leadout))
+                            status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, xbox::XGD_SS_LEADOUT_SECTOR, 1, false);
+                            if(!status.status_code && xbox::merge_xgd3_security_layer_descriptor(security_sector, ss_leadout))
                                 ss_message = "repaired using lead-out";
                         }
                     }
@@ -457,7 +457,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     if(dump_mode == DumpMode::DUMP)
                         write_vector(security_sector_fn, security_sector);
 
-                    clean_xbox_security_sector(security_sector);
+                    clean_security_layer_descriptor((xbox::SecurityLayerDescriptor &)security_sector[0]);
 
                     if(dump_mode == DumpMode::REFINE && !options.force_refine)
                     {
@@ -466,7 +466,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         if(std::filesystem::exists(security_sector_fn))
                         {
                             auto refined_security_sector = read_vector(security_sector_fn);
-                            clean_xbox_security_sector(refined_security_sector);
+                            clean_security_layer_descriptor((xbox::SecurityLayerDescriptor &)refined_security_sector[0]);
                             invalid_ss = (refined_security_sector != security_sector);
                         }
 
@@ -490,11 +490,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     int32_t ss_lba_first = sign_extend<24>(endian_swap(ss_layer_descriptor.data_start_sector));
 
                     uint32_t l1_padding_length = ss_lba_first - layer0_last - 1;
-                    if(ss_layer0_last == XGD3_LAYER0_LAST)
+                    if(ss_layer0_last == xbox::XGD3_L0_LAST)
                         l1_padding_length += 4096;
 
                     // extract security sector ranges from security sector
-                    xbox_skip_ranges = get_security_sector_ranges((XGD_SecuritySector &)ss_layer_descriptor);
+                    xbox_skip_ranges = get_security_layer_descriptor_ranges((xbox::SecurityLayerDescriptor &)ss_layer_descriptor);
 
                     auto sss = sectors_count_capacity;
 

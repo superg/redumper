@@ -16,21 +16,12 @@ import utils.misc;
 
 
 
-namespace gpsxre
+namespace gpsxre::xbox
 {
 
 #pragma pack(push, 1)
-export union XGD_SecuritySector
+export union SecurityLayerDescriptor
 {
-    struct Challenge
-    {
-        uint8_t valid;
-        uint8_t challenge_id;
-        uint32_t challenge_value;
-        uint8_t response_modifier;
-        uint32_t response_value;
-    };
-
     struct Range
     {
         uint8_t unknown[3];
@@ -38,192 +29,109 @@ export union XGD_SecuritySector
         uint8_t psn_end[3];
     };
 
+    struct ChallengeResponse
+    {
+        uint8_t unknown[9];
+    };
+
     READ_DVD_STRUCTURE_LayerDescriptor ld;
     struct
     {
-        uint8_t layer_descriptor[17]; // 0x000    0
-        uint8_t unknown_011[703];     // 0x011   17
-        uint32_t cpr_mai;             // 0x2D0  720
-        uint8_t unknown_2D4[44];      // 0x2D4  724
-        uint8_t challenge_version;    // 0x300  768
-        uint8_t challenge_count;      // 0x301  769
-        uint8_t challenges[285];      // 0x302  770
-        uint64_t creation_filetime;   // 0x41F 1055
-        uint8_t unknown_427[16];      // 0x427 1063
-        uint32_t unknown_437;         // 0x437 1079
-        uint8_t unknown_43B[16];      // 0x43B 1083
-        uint8_t unknown_44B[84];      // 0x44B 1099
-        uint64_t authoring_filetime;  // 0x49F 1183
-        uint32_t cert_unixtime;       // 0x4A7 1191
-        uint8_t unknown_4AB[15];      // 0x4AB 1195
-        uint8_t type_a;               // 0x4BA 1210
-        uint8_t game_id[16];          // 0x4BB 1211
-        uint8_t sha1_a[20];           // 0x4CB 1227
-        uint8_t signature_a[256];     // 0x4DF 1247
-        uint64_t mastering_filetime;  // 0x5DF 1503
-        uint8_t unknown_5E7[19];      // 0x5E7 1511
-        uint8_t type_b;               // 0x5FA 1530
-        uint8_t factory_id[16];       // 0x5FB 1531
-        uint8_t sha1_b[20];           // 0x60B 1547
-        uint8_t signature_b[64];      // 0x61F 1567
-        uint8_t range_version;        // 0x65F 1631
-        uint8_t range_count;          // 0x660 1632
-        Range ranges[23];             // 0x661 1633
-        Range ranges_copy[23];        // 0x730 1840
-        uint8_t unknown_7FF;          // 0x7FF 2047
+        uint8_t ld_raw[17]; // 0x000    0
+
+        union
+        {
+            struct
+            {
+                uint8_t reserved_011[703];  // 0x011   17
+                uint32_t cpr_mai;           // 0x2D0  720
+                uint8_t reserved_2D4[44];   // 0x2D4  724
+                uint8_t ccrt_version;       // 0x300  768
+                uint8_t ccrt_count;         // 0x301  769
+                uint8_t ccrt[253];          // 0x302  770
+                uint8_t reserved_3FF[32];   // 0x3FF 1023
+                uint64_t creation_filetime; // 0x41F 1055
+                uint8_t unknown_427[16];    // 0x427 1063
+                uint32_t reserved_437;      // 0x437 1079
+                uint8_t unknown_43B[16];    // 0x43B 1083
+                uint8_t reserved_44B[84];   // 0x44B 1099
+            } xgd1;
+
+            struct
+            {
+                union
+                {
+                    struct
+                    {
+                        uint8_t reserved_011[239]; // 0x011   17
+                        uint32_t unknown_100;      // 0x100  256
+                        uint32_t unknown_104;      // 0x104  260
+                        uint8_t unknown_108[20];   // 0x108  264
+                        uint8_t reserved_11C[228]; // 0x11C  284
+                        ChallengeResponse crd[23]; // 0x200  512
+                        uint8_t reserved_2CF;      // 0x2CF  719
+                        uint32_t cpr_mai;          // 0x2D0  720
+                        uint8_t reserved_2D4[44];  // 0x2D4  724
+                    } xgd2;
+
+                    struct
+                    {
+                        uint8_t reserved_011[10];  // 0x011   17
+                        uint8_t unknown_1B;        // 0x01B   27
+                        uint8_t reserved_1C[4];    // 0x01C   28
+                        ChallengeResponse crd[23]; // 0x020   32
+                        uint8_t reserved_0EF;      // 0x0EF  239
+                        uint32_t cpr_mai;          // 0x0F0  240
+                        uint8_t reserved_0F4[12];  // 0x0F4  244
+                        uint32_t unknown_100;      // 0x100  257
+                        uint32_t unknown_104;      // 0x104  261
+                        uint8_t unknown_108[504];  // 0x108  265
+                    } xgd3;
+                };
+
+                uint8_t ccrt_version;     // 0x300  768
+                uint8_t ccrt_count;       // 0x301  769
+                uint8_t reserved_302[2];  // 0x302  770
+                uint8_t ccrt[252];        // 0x304  772
+                uint8_t reserved_400[96]; // 0x400 1024
+                uint8_t media_id[16];     // 0x460 1120
+                uint8_t reserved_470[46]; // 0x470 1136
+                uint8_t unknown_49E;      // 0x49E 1182
+            } xgd23;
+        };
+
+        uint64_t authoring_filetime; // 0x49F 1183
+        uint32_t cert_unixtime;      // 0x4A7 1191
+        uint8_t reserved_4AB[15];    // 0x4AB 1195
+        uint8_t unknown_4BA;         // 0x4BA 1210
+        uint8_t game_id[16];         // 0x4BB 1211
+        uint8_t sha1_a[20];          // 0x4CB 1227
+        uint8_t signature_a[256];    // 0x4DF 1247
+        uint64_t mastering_filetime; // 0x5DF 1503
+        uint8_t reserved_5E7[4];     // 0x5E7 1511
+        uint8_t reserved_5EB[15];    // 0x5EB 1515
+        uint8_t unknown_5FA;         // 0x5FA 1530
+        uint8_t factory_id[16];      // 0x5FB 1531
+        uint8_t sha1_b[20];          // 0x60B 1547
+        uint8_t signature_b[64];     // 0x61F 1567
+        uint8_t version;             // 0x65F 1631
+        uint8_t range_count;         // 0x660 1632
+        Range ranges[23];            // 0x661 1633
+        Range ranges_copy[23];       // 0x730 1840
+        uint8_t reserved_7FF;        // 0x7FF 2047
     };
 };
 #pragma pack(pop)
 
-export const uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
-
-export struct XGD2_SecuritySector
-{
-    uint8_t reserved1[239];
-    uint64_t unknown1;
-    uint8_t sha1X[20];
-    uint8_t reserved2[228];
-    uint8_t cr_data[207];
-    uint8_t reserved3;
-    uint32_t cpr_mai;
-    uint8_t reserved4[44];
-    uint8_t ccrt_version;
-    uint8_t ccrt_length;
-    uint8_t reserved5[2];
-    uint8_t ccrt[252];
-    uint8_t reserved6[96];
-    uint8_t media_id[16];
-    uint8_t reserved7[46];
-    uint8_t unknown2;
-    uint64_t authoring_filetime;
-    uint8_t reserved8[19];
-    uint8_t typeA;
-    uint8_t game_id[16];
-    uint8_t sha1A[20];
-    uint8_t signatureA[256];
-    uint64_t mastering_filetime;
-    uint8_t reserved9[19];
-    uint8_t typeB;
-    uint8_t factory_id[16];
-    uint8_t sha1B[20];
-    uint8_t signatureB[64];
-    uint8_t ss_version;
-    uint8_t ranges_length;
-    uint8_t security_ranges[207];
-    uint8_t security_ranges_duplicate[207];
-    uint8_t reserved10;
-};
 
 // TODO: maybe map?
-export constexpr int32_t XGD1_LAYER0_LAST = 2110383;
-export constexpr int32_t XGD2_LAYER0_LAST = 2110367;
-export constexpr int32_t XGD3_LAYER0_LAST = 2330127;
+export constexpr int32_t XGD1_L0_LAST = 2110383;
+export constexpr int32_t XGD2_L0_LAST = 2110367;
+export constexpr int32_t XGD3_L0_LAST = 2330127;
+export constexpr uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
 
 
-export std::vector<std::pair<uint32_t, uint32_t>> get_security_sector_ranges(const XGD_SecuritySector &ss_layer_descriptor)
-{
-    std::vector<std::pair<uint32_t, uint32_t>> ss_ranges;
-
-    const auto media_specific_offset = offsetof(READ_DVD_STRUCTURE_LayerDescriptor, media_specific);
-    uint8_t num_ss_regions = ss_layer_descriptor.ld.media_specific[1632 - media_specific_offset];
-    // partial pre-compute of conversion to Layer 1
-    int32_t ss_layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.ld.layer0_end_sector));
-    bool is_xgd1 = ss_layer0_last == XGD1_LAYER0_LAST;
-    const uint32_t layer1_offset = (ss_layer0_last * 2) - 0x30000 + 1;
-
-    for(int ss_pos = 1633 - media_specific_offset, i = 0; i < num_ss_regions; ss_pos += 9, ++i)
-    {
-        uint32_t start_psn = ((uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 3] << 16) | ((uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 4] << 8)
-                           | (uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 5];
-        uint32_t end_psn = ((uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 6] << 16) | ((uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 7] << 8)
-                         | (uint32_t)ss_layer_descriptor.ld.media_specific[ss_pos + 8];
-        if((i < 8 && is_xgd1) || (i == 0 && !is_xgd1))
-        {
-            // Layer 0
-            ss_ranges.push_back({ start_psn - 0x30000, end_psn - 0x30000 });
-        }
-        else if((i < 16 && is_xgd1) || (i == 3 && !is_xgd1))
-        {
-            // Layer 1
-            ss_ranges.push_back({ layer1_offset - (start_psn ^ 0xFFFFFF), layer1_offset - (end_psn ^ 0xFFFFFF) });
-        }
-    }
-
-    return ss_ranges;
-}
-
-export void clean_xbox_security_sector(std::vector<uint8_t> &security_sector)
-{
-    auto &ss_layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)security_sector[0];
-    int32_t layer0_last = sign_extend<24>(endian_swap(ss_layer_descriptor.layer0_end_sector));
-
-    if(layer0_last == XGD2_LAYER0_LAST)
-    {
-        security_sector[552] = 0x01;
-        security_sector[553] = 0x00;
-        security_sector[555] = 0x00;
-        security_sector[556] = 0x00;
-
-        security_sector[561] = 0x5B;
-        security_sector[562] = 0x00;
-        security_sector[564] = 0x00;
-        security_sector[565] = 0x00;
-
-        security_sector[570] = 0xB5;
-        security_sector[571] = 0x00;
-        security_sector[573] = 0x00;
-        security_sector[574] = 0x00;
-
-        security_sector[579] = 0x0F;
-        security_sector[580] = 0x01;
-        security_sector[582] = 0x00;
-        security_sector[583] = 0x00;
-    }
-    else if(layer0_last == XGD3_LAYER0_LAST)
-    {
-        // determine if ssv1 (Kreon) or ssv2 (0800)
-        bool ssv2 = std::any_of(security_sector.begin() + 32, security_sector.begin() + 32 + 72, [](uint8_t x) { return x != 0; });
-
-        if(ssv2)
-        {
-            security_sector[72] = 0x01;
-            security_sector[73] = 0x00;
-            security_sector[75] = 0x01;
-            security_sector[76] = 0x00;
-
-            security_sector[81] = 0x5B;
-            security_sector[82] = 0x00;
-            security_sector[84] = 0x5B;
-            security_sector[85] = 0x00;
-
-            security_sector[90] = 0xB5;
-            security_sector[91] = 0x00;
-            security_sector[93] = 0xB5;
-            security_sector[94] = 0x00;
-
-            security_sector[99] = 0x0F;
-            security_sector[100] = 0x01;
-            security_sector[102] = 0x0F;
-            security_sector[103] = 0x01;
-        }
-        else
-        {
-            security_sector[552] = 0x01;
-            security_sector[553] = 0x00;
-
-            security_sector[561] = 0x5B;
-            security_sector[562] = 0x00;
-
-            security_sector[570] = 0xB5;
-            security_sector[571] = 0x00;
-
-            security_sector[579] = 0x0F;
-            security_sector[580] = 0x01;
-        }
-    }
-}
-
-export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_data, bool kreon_partial_ss)
+export bool read_security_layer_descriptor(SPTD &sptd, std::vector<uint8_t> &response_data, bool kreon_partial_ss)
 {
     const uint8_t ss_vals[4] = { 0x01, 0x03, 0x05, 0x07 };
 
@@ -244,33 +152,80 @@ export bool xbox_get_security_sector(SPTD &sptd, std::vector<uint8_t> &response_
     return i == sizeof(ss_vals);
 }
 
-export bool xbox_repair_xgd3_ss(std::vector<uint8_t> &security_sector, std::vector<uint8_t> &ss_leadout)
+
+uint32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
 {
-    // simple sanity check that leadout sector is a valid SS to repair from
-    if(!std::equal(security_sector.begin(), security_sector.begin() + 32, ss_leadout.begin()))
-        return false;
+    psn -= 0x30000;
+    if(psn < 0)
+        psn += (layer0_last + 1) * 2;
 
-    // move incorrectly placed challenge data and cpr.mai key
-    std::memcpy(&security_sector[0x020], &security_sector[0x200], 8);
-    std::memcpy(&security_sector[0x029], &security_sector[0x209], 8);
-    std::memcpy(&security_sector[0x032], &security_sector[0x212], 8);
-    std::memcpy(&security_sector[0x03B], &security_sector[0x21B], 8);
-    std::memcpy(&security_sector[0x044], &security_sector[0x224], 6);
-    std::memcpy(&security_sector[0x04D], &security_sector[0x22D], 6);
-    std::memcpy(&security_sector[0x056], &security_sector[0x236], 6);
-    std::memcpy(&security_sector[0x05F], &security_sector[0x23F], 6);
-    std::memcpy(&security_sector[0x0F0], &security_sector[0x2D0], 4);
+    return psn;
+}
 
-    // repair using correct values from leadout sector
-    std::memcpy(&security_sector[0x200], &ss_leadout[0x200], 8);
-    std::memcpy(&security_sector[0x209], &ss_leadout[0x209], 8);
-    std::memcpy(&security_sector[0x212], &ss_leadout[0x212], 8);
-    std::memcpy(&security_sector[0x21B], &ss_leadout[0x21B], 8);
-    std::memcpy(&security_sector[0x224], &ss_leadout[0x224], 6);
-    std::memcpy(&security_sector[0x22D], &ss_leadout[0x22D], 6);
-    std::memcpy(&security_sector[0x236], &ss_leadout[0x236], 6);
-    std::memcpy(&security_sector[0x23F], &ss_leadout[0x23F], 6);
-    std::memcpy(&security_sector[0x2D0], &ss_leadout[0x2D0], 4);
+
+export std::vector<std::pair<uint32_t, uint32_t>> get_security_layer_descriptor_ranges(const SecurityLayerDescriptor &sld)
+{
+    std::vector<std::pair<uint32_t, uint32_t>> ranges;
+
+    int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
+
+    for(uint32_t i = 0; i < (uint32_t)sld.range_count; ++i)
+    {
+        if(layer0_last == XGD1_L0_LAST && i >= 16 || layer0_last != XGD1_L0_LAST && i != 0 && i != 3)
+            continue;
+
+        auto psn_start = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_start));
+        auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_end));
+
+        ranges.push_back({ PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) });
+    }
+
+    return ranges;
+}
+
+
+export void clean_security_layer_descriptor(SecurityLayerDescriptor &sld)
+{
+    int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
+
+    constexpr uint16_t DEFAULT_VALUES[] = { 0x01, 0x5B, 0xB5, 0x10F };
+
+    if(layer0_last == XGD2_L0_LAST)
+    {
+        for(std::size_t i = 0; i < std::size(DEFAULT_VALUES); ++i)
+        {
+            (uint16_t &)sld.xgd23.xgd2.crd[4 + i].unknown[4] = DEFAULT_VALUES[i];
+            (uint16_t &)sld.xgd23.xgd2.crd[4 + i].unknown[7] = 0;
+        }
+    }
+    else if(layer0_last == XGD3_L0_LAST)
+    {
+        for(std::size_t i = 0; i < std::size(DEFAULT_VALUES); ++i)
+        {
+            (uint16_t &)sld.xgd23.xgd3.crd[4 + i].unknown[4] = DEFAULT_VALUES[i];
+            (uint16_t &)sld.xgd23.xgd3.crd[4 + i].unknown[7] = DEFAULT_VALUES[i];
+        }
+    }
+}
+
+
+export bool merge_xgd3_security_layer_descriptor(std::vector<uint8_t> &security_sector, const std::vector<uint8_t> &ss_leadout)
+{
+    std::vector<uint8_t> security_sector_copy = security_sector;
+    security_sector = ss_leadout;
+
+    SecurityLayerDescriptor &sld = (SecurityLayerDescriptor &)security_sector[0];
+    SecurityLayerDescriptor &sld_kreon = (SecurityLayerDescriptor &)security_sector_copy[0];
+
+    memcpy(sld.ranges, sld_kreon.ranges, sizeof(sld.ranges));
+    memcpy(sld.ranges_copy, sld_kreon.ranges_copy, sizeof(sld.ranges_copy));
+    sld.xgd23.xgd3.cpr_mai = sld_kreon.xgd23.xgd2.cpr_mai;
+
+    for(uint32_t i = 0; i < 4; ++i)
+    {
+        memcpy(sld.xgd23.xgd3.crd[i].unknown, sld_kreon.xgd23.xgd2.crd[i].unknown, 8);
+        memcpy(sld.xgd23.xgd3.crd[4 + i].unknown, sld_kreon.xgd23.xgd2.crd[4 + i].unknown, 6);
+    }
 
     return true;
 }

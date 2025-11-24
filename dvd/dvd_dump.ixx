@@ -525,6 +525,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 }
             }
 
+            // calculate sectors count based on all layers of physical structures
             for(uint32_t i = 0; i < physical_structures.size(); ++i)
             {
                 auto const &structure = physical_structures[i];
@@ -540,7 +541,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(dump_mode == DumpMode::DUMP)
         {
-            std::vector<std::vector<uint8_t>> manufacturer_structures;
+            // read and store manufacturer structure files
             if(readable_formats.find(READ_DISC_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
             {
                 for(uint32_t i = 0; i < physical_structures.size(); ++i)
@@ -550,16 +551,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     if(status.status_code)
                         throw_line("failed to read disc manufacturer structure, SCSI ({})", SPTD::StatusMessage(status));
 
-                    manufacturer_structures.push_back(structure);
+                    write_vector(std::format("{}{}.manufacturer", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : ""), structure);
                 }
             }
 
-            // store structure files
+            // store physical structure files
             for(uint32_t i = 0; i < physical_structures.size(); ++i)
                 write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : ""), physical_structures[i]);
-            for(uint32_t i = 0; i < manufacturer_structures.size(); ++i)
-                write_vector(std::format("{}{}.manufacturer", image_prefix, manufacturer_structures.size() > 1 ? std::format(".{}", i) : ""), manufacturer_structures[i]);
 
+            // print physical structures information
             if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
             {
                 uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
@@ -665,7 +665,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 auto structure_fn = std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : "");
 
                 if(!std::filesystem::exists(structure_fn) || read_vector(structure_fn) != structure)
-                    throw_line("disc / file physical structure doesn't match, refining from a different disc?");
+                    throw_line("disc / file physical structure don't match, refining from a different disc?");
             }
         }
     }
@@ -926,9 +926,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             s += sectors_to_read;
     }
 
+    // re-unlock drive before returning
     if(xbox_disc)
     {
-        // re-unlock drive before returning
         status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)
             LOG("warning: failed to unlock drive at end of dump, SCSI ({})", SPTD::StatusMessage(status));

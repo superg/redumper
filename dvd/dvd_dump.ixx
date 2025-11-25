@@ -737,63 +737,71 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     {
         bool increment = true;
 
+        int32_t sector_shift = 0;
         uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
 
-        if(xbox_disc && !kreon_locked)
+        if(xbox_disc)
         {
-            // skip xbox security sector ranges and L1 filler range
-            if(skip_range_idx < xbox_skip_ranges.size())
+            if(kreon_locked)
             {
-                if(xbox_skip_ranges[skip_range_idx].first <= s && s <= xbox_skip_ranges[skip_range_idx].second + 1)
+                sector_shift = -xbox_l1_video_shift;
+            }
+            else
+            {
+                // skip xbox security sector ranges and L1 filler range
+                if(skip_range_idx < xbox_skip_ranges.size())
                 {
-                    if(s == xbox_skip_ranges[skip_range_idx].second + 1)
+                    if(xbox_skip_ranges[skip_range_idx].first <= s && s <= xbox_skip_ranges[skip_range_idx].second + 1)
                     {
-                        if(options.verbose)
-                            LOG_R("skipped sectors: {}-{}", xbox_skip_ranges[skip_range_idx].first, xbox_skip_ranges[skip_range_idx].second);
+                        if(s == xbox_skip_ranges[skip_range_idx].second + 1)
+                        {
+                            if(options.verbose)
+                                LOG_R("skipped sectors: {}-{}", xbox_skip_ranges[skip_range_idx].first, xbox_skip_ranges[skip_range_idx].second);
 
-                        ++skip_range_idx;
-                        // skip any overlapping ranges we have already completed
-                        while(skip_range_idx < xbox_skip_ranges.size() && s >= xbox_skip_ranges[skip_range_idx].second + 1)
                             ++skip_range_idx;
+                            // skip any overlapping ranges we have already completed
+                            while(skip_range_idx < xbox_skip_ranges.size() && s >= xbox_skip_ranges[skip_range_idx].second + 1)
+                                ++skip_range_idx;
 
-                        // if still in a security sector range do not allow later read to happen
-                        if(skip_range_idx < xbox_skip_ranges.size() && xbox_skip_ranges[skip_range_idx].first <= s)
+                            // if still in a security sector range do not allow later read to happen
+                            if(skip_range_idx < xbox_skip_ranges.size() && xbox_skip_ranges[skip_range_idx].first <= s)
+                                continue;
+                        }
+                        else
+                        {
+                            // skip at most to the end of the security sector range
+                            sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].second + 1 - s);
+                            progress_output(s, sectors_count, errors.scsi);
+
+                            std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
+                            write_entry(fs_iso, zeroes.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
+                            std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
+                            write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+
+                            rom_entry.update(zeroes.data(), sectors_to_read * FORM1_DATA_SIZE);
+
+                            s += sectors_to_read;
                             continue;
+                        }
                     }
                     else
                     {
-                        // skip at most to the end of the security sector range
-                        sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].second + 1 - s);
-                        progress_output(s, sectors_count, errors.scsi);
-
-                        std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
-                        write_entry(fs_iso, zeroes.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
-                        std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
-                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
-
-                        rom_entry.update(zeroes.data(), sectors_to_read * FORM1_DATA_SIZE);
-
-                        s += sectors_to_read;
-                        continue;
+                        sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].first - s);
                     }
                 }
-                else
-                {
-                    sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].first - s);
-                }
-            }
 
-            // check if Kreon drive needs locking
-            if(s < xbox_lock_sector && s + sectors_to_read >= xbox_lock_sector)
-                sectors_to_read = std::min(sectors_to_read, xbox_lock_sector - s);
-            else if(s == xbox_lock_sector)
-            {
-                status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
-                if(status.status_code)
-                    throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
-                if(options.verbose)
-                    LOG_R("locked kreon drive at sector: {}", s);
-                kreon_locked = true;
+                // check if Kreon drive needs locking
+                if(s < xbox_lock_sector && s + sectors_to_read >= xbox_lock_sector)
+                    sectors_to_read = std::min(sectors_to_read, xbox_lock_sector - s);
+                else if(s == xbox_lock_sector)
+                {
+                    status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
+                    if(status.status_code)
+                        throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
+                    if(options.verbose)
+                        LOG_R("locked kreon drive at sector: {}", s);
+                    kreon_locked = true;
+                }
             }
         }
 
@@ -821,11 +829,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
             std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
 
-            uint32_t dump_sector = s;
-            if(kreon_locked)
-                dump_sector -= xbox_l1_video_shift;
-
-            status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, dump_sector, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+            status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s + sector_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
 
             if(status.status_code)
             {
@@ -911,10 +915,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
                 }
             }
-        }
 
-        if(dump_mode == DumpMode::DUMP && !errors.scsi)
-            rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
+            if(dump_mode == DumpMode::DUMP && !errors.scsi)
+                rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
+        }
 
         if(signal.interrupt())
         {

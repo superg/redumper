@@ -379,6 +379,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     SPTD::Status status;
 
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
+    bool kreon_locked = false;
 
     // unlock Kreon drive early, otherwise get capacity will return different value and check for xbox disc will fail
     if(kreon_firmware)
@@ -401,10 +402,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     bool trim_to_filesystem_size = false;
 
-    bool xbox_disc = false;
-    std::vector<std::pair<uint32_t, uint32_t>> xbox_skip_ranges;
-    uint32_t xbox_lock_sector = 0;
-    uint32_t xbox_l1_video_shift = 0;
+    std::optional<xbox::Context> xbox_context;
 
     std::optional<uint32_t> sectors_count_physical;
     if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
@@ -430,6 +428,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
                 kreon_firmware && physical_structures.size() == 1 && get_layer_length(layer0_ld) != sectors_count_capacity)
             {
+                xbox_context = xbox::Context();
+
                 std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
                 bool complete_ss = xbox::read_security_layer_descriptor(*ctx.sptd, security_sector, options.kreon_partial_ss);
                 if(!complete_ss)
@@ -493,30 +493,31 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         l1_padding_length += 4096;
 
                     // extract security sector ranges from security sector
-                    xbox_skip_ranges = get_security_layer_descriptor_ranges((xbox::SecurityLayerDescriptor &)ss_layer_descriptor);
+                    xbox_context->skip_ranges = get_security_layer_descriptor_ranges((xbox::SecurityLayerDescriptor &)ss_layer_descriptor);
 
                     auto sss = sectors_count_capacity;
 
                     // append L1 padding to skip ranges
-                    xbox_skip_ranges.push_back({ sss, sss + l1_padding_length - 1 });
+                    xbox_context->skip_ranges.push_back({ sss, sss + l1_padding_length - 1 });
+
+                    xbox_context->range_idx = 0;
 
                     // sort the skip ranges
-                    std::sort(xbox_skip_ranges.begin(), xbox_skip_ranges.end(), [](const std::pair<uint32_t, uint32_t> &a, const std::pair<uint32_t, uint32_t> &b) { return a.first < b.first; });
+                    std::sort(xbox_context->skip_ranges.begin(), xbox_context->skip_ranges.end(),
+                        [](const std::pair<uint32_t, uint32_t> &a, const std::pair<uint32_t, uint32_t> &b) { return a.first < b.first; });
 
                     // add L1 padding to sectors count
                     sss += l1_padding_length;
 
                     // must relock drive to read L1 video
-                    xbox_lock_sector = sss;
-                    xbox_l1_video_shift = xbox_lock_sector - l1_video_start;
+                    xbox_context->lock_sector = sss;
+                    xbox_context->l1_video_shift = xbox_context->lock_sector - l1_video_start;
 
                     // add L1 video to sectors count
                     sss += l1_video_length;
 
                     // overwrite physical structure with true layer0_last from SS, so that disc structure logging is correct
                     layer0_ld.layer0_end_sector = ss_layer_descriptor.layer0_end_sector;
-
-                    xbox_disc = true;
                 }
                 else
                 {
@@ -701,7 +702,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     uint32_t sectors_count = sectors_count_capacity;
     if(sectors_count_physical)
     {
-        if(!xbox_disc && *sectors_count_physical != sectors_count_capacity)
+        if(!xbox_context && *sectors_count_physical != sectors_count_capacity)
             LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");
 
         sectors_count = *sectors_count_physical;
@@ -731,8 +732,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     SignalINT signal;
 
-    uint8_t skip_range_idx = 0;
-    bool kreon_locked = false;
     for(uint32_t s = 0; s < sectors_count;)
     {
         bool increment = true;
@@ -740,37 +739,33 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         int32_t sector_shift = 0;
         uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
 
-        if(xbox_disc)
+        if(xbox_context)
         {
-            if(kreon_locked)
-            {
-                sector_shift = -xbox_l1_video_shift;
-            }
-            else
+            if(!kreon_locked)
             {
                 // skip xbox security sector ranges and L1 filler range
-                if(skip_range_idx < xbox_skip_ranges.size())
+                if(xbox_context->range_idx < xbox_context->skip_ranges.size())
                 {
-                    if(xbox_skip_ranges[skip_range_idx].first <= s && s <= xbox_skip_ranges[skip_range_idx].second + 1)
+                    if(xbox_context->skip_ranges[xbox_context->range_idx].first <= s && s <= xbox_context->skip_ranges[xbox_context->range_idx].second + 1)
                     {
-                        if(s == xbox_skip_ranges[skip_range_idx].second + 1)
+                        if(s == xbox_context->skip_ranges[xbox_context->range_idx].second + 1)
                         {
                             if(options.verbose)
-                                LOG_R("skipped sectors: {}-{}", xbox_skip_ranges[skip_range_idx].first, xbox_skip_ranges[skip_range_idx].second);
+                                LOG_R("skipped sectors: {}-{}", xbox_context->skip_ranges[xbox_context->range_idx].first, xbox_context->skip_ranges[xbox_context->range_idx].second);
 
-                            ++skip_range_idx;
+                            ++xbox_context->range_idx;
                             // skip any overlapping ranges we have already completed
-                            while(skip_range_idx < xbox_skip_ranges.size() && s >= xbox_skip_ranges[skip_range_idx].second + 1)
-                                ++skip_range_idx;
+                            while(xbox_context->range_idx < xbox_context->skip_ranges.size() && s >= xbox_context->skip_ranges[xbox_context->range_idx].second + 1)
+                                ++xbox_context->range_idx;
 
                             // if still in a security sector range do not allow later read to happen
-                            if(skip_range_idx < xbox_skip_ranges.size() && xbox_skip_ranges[skip_range_idx].first <= s)
+                            if(xbox_context->range_idx < xbox_context->skip_ranges.size() && xbox_context->skip_ranges[xbox_context->range_idx].first <= s)
                                 continue;
                         }
                         else
                         {
                             // skip at most to the end of the security sector range
-                            sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].second + 1 - s);
+                            sectors_to_read = std::min(sectors_to_read, xbox_context->skip_ranges[xbox_context->range_idx].second + 1 - s);
                             progress_output(s, sectors_count, errors.scsi);
 
                             std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
@@ -786,14 +781,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     }
                     else
                     {
-                        sectors_to_read = std::min(sectors_to_read, xbox_skip_ranges[skip_range_idx].first - s);
+                        sectors_to_read = std::min(sectors_to_read, xbox_context->skip_ranges[xbox_context->range_idx].first - s);
                     }
                 }
 
                 // check if Kreon drive needs locking
-                if(s < xbox_lock_sector && s + sectors_to_read >= xbox_lock_sector)
-                    sectors_to_read = std::min(sectors_to_read, xbox_lock_sector - s);
-                else if(s == xbox_lock_sector)
+                if(s < xbox_context->lock_sector)
+                    sectors_to_read = std::min(sectors_to_read, xbox_context->lock_sector - s);
+                else if(s == xbox_context->lock_sector)
                 {
                     status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
                     if(status.status_code)
@@ -802,6 +797,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         LOG_R("locked kreon drive at sector: {}", s);
                     kreon_locked = true;
                 }
+            }
+
+            // must be here for the first iteration
+            if(kreon_locked)
+            {
+                sector_shift = -xbox_context->l1_video_shift;
             }
         }
 
@@ -931,7 +932,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     }
 
     // re-unlock drive before returning
-    if(xbox_disc)
+    if(kreon_locked)
     {
         status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)

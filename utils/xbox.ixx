@@ -19,6 +19,15 @@ import utils.misc;
 namespace gpsxre::xbox
 {
 
+export struct Context
+{
+    std::vector<std::pair<uint32_t, uint32_t>> skip_ranges;
+    uint8_t range_idx;
+    uint32_t lock_sector;
+    uint32_t l1_video_shift;
+};
+
+
 #pragma pack(push, 1)
 export union SecurityLayerDescriptor
 {

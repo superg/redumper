@@ -166,7 +166,7 @@ uint32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
 {
     psn -= 0x30000;
     if(psn < 0)
-        psn += (layer0_last + 1) * 2;
+        psn += 2 * (layer0_last + 1);
 
     return psn;
 }

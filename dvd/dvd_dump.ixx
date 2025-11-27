@@ -2,8 +2,6 @@ module;
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <functional>
-#include <map>
 #include <optional>
 #include <set>
 #include <utility>
@@ -732,12 +730,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         bool increment = true;
 
         int32_t sector_shift = 0;
-        uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
 
-        if(auto range = find_range(xbox_context->skip_ranges, s); range != nullptr)
-            sectors_to_read = std::min(sectors_to_read, range->end - s);
-        else if(auto range = find_range(xbox_context->skip_ranges, s + sectors_at_once); range != nullptr)
-            sectors_to_read = std::min(sectors_to_read, range->start - s);
+        // ensure all sectors in the read belong to the same range (skip or non-skip)
+        uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
+        for(uint32_t i = 0; i < sectors_to_read; ++i)
+        {
+            if(find_range(xbox_context->skip_ranges, s) != find_range(xbox_context->skip_ranges, s + i))
+            {
+                sectors_to_read = i;
+                break;
+            }
+        }
 
         if(xbox_context)
         {

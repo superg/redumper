@@ -56,7 +56,7 @@ jobs:
     - name: CTest
       if: ${{ matrix.arch != 'arm64' }}
       working-directory: ${{github.workspace}}/BUILD
-      run: ctest -C Release
+      run: ctest -C Release --output-on-failure --verbose
     - name: CPack
       working-directory: ${{github.workspace}}/BUILD
       run: cpack -G ZIP --config CPackConfig.cmake
@@ -96,7 +96,7 @@ jobs:
       run: cmake --build ${{github.workspace}}/BUILD --config Release
     - name: CTest
       working-directory: ${{github.workspace}}/BUILD
-      run: ctest -C Release
+      run: ctest -C Release --output-on-failure --verbose
     - name: CPack
       working-directory: ${{github.workspace}}/BUILD
       run: cpack -G ZIP --config CPackConfig.cmake
@@ -130,7 +130,7 @@ jobs:
       run: cmake --build ${{github.workspace}}/BUILD --config Release
     - name: CTest
       working-directory: ${{github.workspace}}/BUILD
-      run: ctest -C Release
+      run: ctest -C Release --output-on-failure --verbose
     - name: CPack
       working-directory: ${{github.workspace}}/BUILD
       run: cpack -G ZIP --config CPackConfig.cmake

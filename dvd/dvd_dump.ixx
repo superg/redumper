@@ -499,8 +499,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     auto sss = sectors_count_capacity;
 
                     // append L1 padding to skip ranges
-                    if(!insert_range(xbox_context->skip_ranges, { sss, sss + l1_padding_length }))
-                        throw_line("invalid range configuration");
+                    insert_range(xbox_context->skip_ranges, { sss, sss + l1_padding_length });
 
                     // add L1 padding to sectors count
                     sss += l1_padding_length;

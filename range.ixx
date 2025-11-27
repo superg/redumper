@@ -2,6 +2,7 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <vector>
+#include "utils/throw_line.hh"
 
 export module range;
 
@@ -52,22 +53,32 @@ const Range<T> *find_range(const std::vector<Range<T>> &ranges, T number)
 }
 
 export template<typename T>
-bool insert_range(std::vector<Range<T>> &ranges, Range<T> range)
+void insert_range(std::vector<Range<T>> &ranges, Range<T> range)
 {
     if(!range.valid())
-        return false;
+        throw_line("insertion failed, invalid range configuration: [{}, {})", range.start, range.end);
 
     auto it = std::lower_bound(ranges.begin(), ranges.end(), range);
 
-    // overlap check
-    if(it != ranges.end() && range.end > it->start)
-        return false;
-    if(it != ranges.begin() && (it - 1)->end > range.start)
-        return false;
+    // find all ranges that overlap with the new range
+    auto first_overlap = it;
+    while(first_overlap != ranges.begin() && (first_overlap - 1)->end >= range.start)
+        --first_overlap;
+
+    auto last_overlap = it;
+    while(last_overlap != ranges.end() && last_overlap->start <= range.end)
+        ++last_overlap;
+
+    // merge all overlapping ranges
+    if(first_overlap != last_overlap)
+    {
+        range.start = std::min(range.start, first_overlap->start);
+        range.end = std::max(range.end, (last_overlap - 1)->end);
+        ranges.erase(first_overlap, last_overlap);
+        it = std::lower_bound(ranges.begin(), ranges.end(), range);
+    }
 
     ranges.insert(it, range);
-
-    return true;
 }
 
 }

@@ -184,8 +184,7 @@ export void get_security_layer_descriptor_ranges(std::vector<Range<uint32_t>> &s
         auto psn_start = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_start));
         auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_end));
 
-        if(!insert_range(skip_ranges, { PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) + 1 }))
-            throw_line("invalid range configuration");
+        insert_range(skip_ranges, { PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) + 1 });
     }
 }
 

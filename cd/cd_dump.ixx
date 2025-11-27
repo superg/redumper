@@ -282,8 +282,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     for(uint32_t i = 1; i < toc.sessions.size(); ++i)
     {
         Range r{ toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + ctx.drive_config.pregap_start };
-        if(!insert_range(session_gaps, r))
-            throw_line("invalid session gap configuration");
+        insert_range(session_gaps, r);
     }
 
     Errors errors_initial = {};

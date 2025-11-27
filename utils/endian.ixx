@@ -27,7 +27,7 @@ T endian_swap(const T &v)
 }
 
 
-export template<>
+template<>
 uint16_t endian_swap<uint16_t>(const uint16_t &v)
 {
 #ifdef _MSC_VER
@@ -38,7 +38,7 @@ uint16_t endian_swap<uint16_t>(const uint16_t &v)
 }
 
 
-export template<>
+template<>
 uint32_t endian_swap<uint32_t>(const uint32_t &v)
 {
 #ifdef _MSC_VER
@@ -49,7 +49,7 @@ uint32_t endian_swap<uint32_t>(const uint32_t &v)
 }
 
 
-export template<>
+template<>
 uint64_t endian_swap<uint64_t>(const uint64_t &v)
 {
 #ifdef _MSC_VER

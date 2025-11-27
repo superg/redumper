@@ -6,6 +6,7 @@ module;
 #include <optional>
 #include <set>
 #include <utility>
+#include <vector>
 #include "throw_line.hh"
 
 export module dvd.dump;

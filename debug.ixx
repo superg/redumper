@@ -21,6 +21,7 @@ import common;
 import drive;
 import drive.mediatek;
 import dvd.dump;
+import dvd.xbox;
 import options;
 import scsi.cmd;
 import scsi.mmc;
@@ -30,7 +31,6 @@ import utils.file_io;
 import utils.logger;
 import utils.misc;
 import utils.win32;
-import utils.xbox;
 
 
 
@@ -124,12 +124,11 @@ export int redumper_debug(Context &ctx, Options &options)
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
 
-    if(1)
+    if(0)
     {
         // auto ss = read_vector("security_sector3.debug");
         auto ss = read_vector("dvd.security");
-        auto &ss_layer_descriptor = (xbox::SecurityLayerDescriptor &)ss[0];
-        clean_security_layer_descriptor(ss_layer_descriptor);
+        xbox::clean_security_sector(ss);
         write_vector("security_sector3_cleaned.debug", ss);
 
         // auto ranges = get_security_layer_descriptor_ranges(ss_layer_descriptor);
@@ -141,7 +140,7 @@ export int redumper_debug(Context &ctx, Options &options)
         */
         LOG("");
         // LOG("{:X}", offsetof(xbox::SecurityLayerDescriptor, xgd23.xgd3.crd[4]));
-        LOG("sizeof {}", sizeof(xbox::SecurityLayerDescriptor));
+        // LOG("sizeof {}", sizeof(xbox::SecurityLayerDescriptor));
         LOG("");
     }
 

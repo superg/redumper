@@ -276,7 +276,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
     std::vector<Range<int32_t>> protection;
     protection_to_ranges(protection, ctx.protection);
-    protection_ranges_from_lba_ranges(protection, string_to_ranges(options.skip), -ctx.drive_config.read_offset);
+    protection_ranges_from_lba_ranges(protection, string_to_ranges<int32_t>(options.skip), -ctx.drive_config.read_offset);
 
     std::vector<Range<int32_t>> session_gaps;
     for(uint32_t i = 1; i < toc.sessions.size(); ++i)

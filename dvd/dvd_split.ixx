@@ -11,6 +11,7 @@ export module dvd.split;
 
 import cd.cdrom;
 import common;
+import dvd.xbox;
 import options;
 import range;
 import rom_entry;
@@ -18,7 +19,6 @@ import scsi.mmc;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
-import utils.xbox;
 
 
 
@@ -102,7 +102,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
             auto security = read_vector(security_path);
             if(!security.empty() && security.size() == FORM1_DATA_SIZE)
             {
-                clean_security_layer_descriptor((xbox::SecurityLayerDescriptor &)security[0]);
+                xbox::clean_security_sector(security);
                 write_vector(ss_path, security);
 
                 ROMEntry ss_rom_entry(ss_path.filename().string());
@@ -111,12 +111,10 @@ void generate_extra_xbox(Context &ctx, Options &options)
                     ctx.dat->push_back(ss_rom_entry.xmlLine());
 
                 LOG("security sector ranges:");
-                std::vector<Range<uint32_t>> skip_ranges;
-                get_security_layer_descriptor_ranges(skip_ranges, (xbox::SecurityLayerDescriptor &)security[0]);
-                for(const auto &range : skip_ranges)
-                {
-                    LOG("  {}-{}", range.start, range.end - 1);
-                }
+                std::vector<Range<uint32_t>> protection;
+                xbox::get_security_layer_descriptor_ranges(protection, security);
+                for(const auto &r : protection)
+                    LOG("  {}-{}", r.start, r.end - 1);
             }
             else
             {

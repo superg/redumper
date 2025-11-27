@@ -1,18 +1,21 @@
 module;
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <map>
+#include <memory>
 #include <vector>
 #include "throw_line.hh"
 
-export module utils.xbox;
+export module dvd.xbox;
 
+import cd.cdrom;
 import range;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import utils.endian;
+import utils.logger;
 import utils.misc;
 
 
@@ -22,14 +25,14 @@ namespace gpsxre::xbox
 
 export struct Context
 {
-    std::vector<Range<uint32_t>> skip_ranges;
-    uint32_t lock_sector;
-    uint32_t l1_video_shift;
+    std::vector<uint8_t> security_sector;
+    uint32_t lock_sector_start;
+    uint32_t layer1_video_start;
 };
 
 
 #pragma pack(push, 1)
-export union SecurityLayerDescriptor
+union SecurityLayerDescriptor
 {
     struct Range
     {
@@ -133,14 +136,33 @@ export union SecurityLayerDescriptor
 #pragma pack(pop)
 
 
-// TODO: maybe map?
-export constexpr int32_t XGD1_L0_LAST = 2110383;
-export constexpr int32_t XGD2_L0_LAST = 2110367;
-export constexpr int32_t XGD3_L0_LAST = 2330127;
-export constexpr uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
+const std::map<int32_t, uint32_t> XGD_VERSION_MAP = {
+    { 2110383, 1 },
+    { 2110367, 2 },
+    { 2330127, 3 }
+};
+
+constexpr uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
 
 
-export bool read_security_layer_descriptor(SPTD &sptd, std::vector<uint8_t> &response_data, bool kreon_partial_ss)
+uint32_t xgd_version(int32_t layer0_last)
+{
+    auto it = XGD_VERSION_MAP.find(layer0_last);
+    return it == XGD_VERSION_MAP.end() ? 0 : it->second;
+}
+
+
+uint32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
+{
+    psn -= 0x30000;
+    if(psn < 0)
+        psn += 2 * (layer0_last + 1);
+
+    return psn;
+}
+
+
+bool read_security_layer_descriptor(SPTD &sptd, std::vector<uint8_t> &response_data, bool kreon_partial_ss)
 {
     const uint8_t ss_vals[4] = { 0x01, 0x03, 0x05, 0x07 };
 
@@ -162,40 +184,48 @@ export bool read_security_layer_descriptor(SPTD &sptd, std::vector<uint8_t> &res
 }
 
 
-uint32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
+void merge_xgd3_security_layer_descriptor(SecurityLayerDescriptor &sld, const SecurityLayerDescriptor &sld_kreon)
 {
-    psn -= 0x30000;
-    if(psn < 0)
-        psn += 2 * (layer0_last + 1);
+    memcpy(sld.ranges, sld_kreon.ranges, sizeof(sld.ranges));
+    memcpy(sld.ranges_copy, sld_kreon.ranges_copy, sizeof(sld.ranges_copy));
+    sld.xgd23.xgd3.cpr_mai = sld_kreon.xgd23.xgd2.cpr_mai;
 
-    return psn;
+    for(uint32_t i = 0; i < 4; ++i)
+    {
+        memcpy(sld.xgd23.xgd3.crd[i].unknown, sld_kreon.xgd23.xgd2.crd[i].unknown, 8);
+        memcpy(sld.xgd23.xgd3.crd[4 + i].unknown, sld_kreon.xgd23.xgd2.crd[4 + i].unknown, 6);
+    }
 }
 
 
-export void get_security_layer_descriptor_ranges(std::vector<Range<uint32_t>> &skip_ranges, const SecurityLayerDescriptor &sld)
+export void get_security_layer_descriptor_ranges(std::vector<Range<uint32_t>> &protection, const std::vector<uint8_t> &security_sector)
 {
+    auto const &sld = (SecurityLayerDescriptor &)security_sector[0];
+
     int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
 
     for(uint32_t i = 0; i < (uint32_t)sld.range_count; ++i)
     {
-        if(layer0_last == XGD1_L0_LAST && i >= 16 || layer0_last != XGD1_L0_LAST && i != 0 && i != 3)
+        if(xgd_version(layer0_last) == 1 && i >= 16 || xgd_version(layer0_last) != 1 && i != 0 && i != 3)
             continue;
 
         auto psn_start = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_start));
         auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_end));
 
-        insert_range(skip_ranges, { PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) + 1 });
+        insert_range(protection, { PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) + 1 });
     }
 }
 
 
-export void clean_security_layer_descriptor(SecurityLayerDescriptor &sld)
+export void clean_security_sector(std::vector<uint8_t> &security_sector)
 {
+    auto &sld = (xbox::SecurityLayerDescriptor &)security_sector[0];
+
     int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
 
     constexpr uint16_t DEFAULT_VALUES[] = { 0x01, 0x5B, 0xB5, 0x10F };
 
-    if(layer0_last == XGD2_L0_LAST)
+    if(xgd_version(layer0_last) == 2)
     {
         for(std::size_t i = 0; i < std::size(DEFAULT_VALUES); ++i)
         {
@@ -203,7 +233,7 @@ export void clean_security_layer_descriptor(SecurityLayerDescriptor &sld)
             (uint16_t &)sld.xgd23.xgd2.crd[4 + i].unknown[7] = 0;
         }
     }
-    else if(layer0_last == XGD3_L0_LAST)
+    else if(xgd_version(layer0_last) == 3)
     {
         for(std::size_t i = 0; i < std::size(DEFAULT_VALUES); ++i)
         {
@@ -214,25 +244,65 @@ export void clean_security_layer_descriptor(SecurityLayerDescriptor &sld)
 }
 
 
-export bool merge_xgd3_security_layer_descriptor(std::vector<uint8_t> &security_sector, const std::vector<uint8_t> &ss_leadout)
+export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protection, READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, SPTD &sptd, uint32_t sectors_count_capacity, bool partial_ss,
+    bool kreon_custom_firmware)
 {
-    std::vector<uint8_t> security_sector_copy = security_sector;
-    security_sector = ss_leadout;
+    std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
+    if(bool complete_ss = read_security_layer_descriptor(sptd, security_sector, partial_ss); !complete_ss)
+        LOG("kreon: failed to get complete security sector");
 
-    SecurityLayerDescriptor &sld = (SecurityLayerDescriptor &)security_sector[0];
-    SecurityLayerDescriptor &sld_kreon = (SecurityLayerDescriptor &)security_sector_copy[0];
+    auto &sld = (SecurityLayerDescriptor &)security_sector[0];
+    int32_t ss_layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
 
-    memcpy(sld.ranges, sld_kreon.ranges, sizeof(sld.ranges));
-    memcpy(sld.ranges_copy, sld_kreon.ranges_copy, sizeof(sld.ranges_copy));
-    sld.xgd23.xgd3.cpr_mai = sld_kreon.xgd23.xgd2.cpr_mai;
+    if(!xgd_version(ss_layer0_last))
+        return nullptr;
 
-    for(uint32_t i = 0; i < 4; ++i)
+    std::string ss_message = "valid";
+    if(xgd_version(ss_layer0_last) == 3)
     {
-        memcpy(sld.xgd23.xgd3.crd[i].unknown, sld_kreon.xgd23.xgd2.crd[i].unknown, 8);
-        memcpy(sld.xgd23.xgd3.crd[4 + i].unknown, sld_kreon.xgd23.xgd2.crd[4 + i].unknown, 6);
+        ss_message = "invalid";
+
+        // repair XGD3 security sector on supported drives (read leadout)
+        if(kreon_custom_firmware)
+        {
+            std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
+            auto status = cmd_read(sptd, ss_leadout.data(), FORM1_DATA_SIZE, XGD_SS_LEADOUT_SECTOR, 1, false);
+            if(status.status_code)
+                LOG("kreon: failed to read XGD3 security sector lead-out, SCSI ({})", SPTD::StatusMessage(status));
+            else
+            {
+                merge_xgd3_security_layer_descriptor((SecurityLayerDescriptor &)ss_leadout[0], sld);
+                security_sector = ss_leadout;
+                ss_message = "repaired";
+            }
+        }
     }
 
-    return true;
+    LOG("kreon: XGD detected (version: {}, security sector: {})", xgd_version(ss_layer0_last), ss_message);
+    LOG("");
+
+    int32_t lba_first = sign_extend<24>(endian_swap(layer0_ld.data_start_sector));
+    int32_t layer0_last = sign_extend<24>(endian_swap(layer0_ld.layer0_end_sector));
+    int32_t ss_lba_first = sign_extend<24>(endian_swap(sld.ld.data_start_sector));
+
+    uint32_t l1_padding_length = ss_lba_first - layer0_last - 1;
+    if(xgd_version(ss_layer0_last) == 3)
+        l1_padding_length += 4096;
+
+    // extract security sector ranges from security sector
+    get_security_layer_descriptor_ranges(protection, security_sector);
+
+    // append L1 padding to skip ranges
+    insert_range(protection, { sectors_count_capacity, sectors_count_capacity + l1_padding_length });
+
+    // overwrite physical structure with true layer0_last from SS, so that disc structure logging is correct
+    layer0_ld.layer0_end_sector = sld.ld.layer0_end_sector;
+
+    auto xbox = std::make_shared<Context>();
+    xbox->security_sector.swap(security_sector);
+    xbox->lock_sector_start = sectors_count_capacity + l1_padding_length;
+    xbox->layer1_video_start = layer0_last + 1 - lba_first;
+    return xbox;
 }
 
 }

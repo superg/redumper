@@ -376,27 +376,28 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(dump_mode == DumpMode::DUMP)
         image_check_overwrite(options);
 
-    SPTD::Status status;
-
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
     bool kreon_locked = false;
 
     // unlock Kreon drive early, otherwise get capacity will return different value and check for xbox disc will fail
     if(kreon_firmware)
     {
-        status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
+        auto status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)
             LOG("warning: failed to unlock Kreon drive, SCSI ({})", SPTD::StatusMessage(status));
     }
 
     // get capacity
-    uint32_t sector_last, block_length;
-    status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
-    if(status.status_code)
-        throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
-    if(block_length != FORM1_DATA_SIZE)
-        throw_line("unsupported block size (block size: {})", block_length);
-    uint32_t sectors_count_capacity = sector_last + 1;
+    uint32_t sectors_count_capacity;
+    {
+        uint32_t sector_last, block_length;
+        auto status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
+        if(status.status_code)
+            throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
+        if(block_length != FORM1_DATA_SIZE)
+            throw_line("unsupported block size (block size: {})", block_length);
+        sectors_count_capacity = sector_last + 1;
+    }
 
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
 
@@ -449,7 +450,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         if(is_custom_kreon_firmware(ctx.drive_config))
                         {
                             std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
-                            status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, xbox::XGD_SS_LEADOUT_SECTOR, 1, false);
+                            auto status = cmd_read(*ctx.sptd, ss_leadout.data(), FORM1_DATA_SIZE, xbox::XGD_SS_LEADOUT_SECTOR, 1, false);
                             if(!status.status_code && xbox::merge_xgd3_security_layer_descriptor(security_sector, ss_leadout))
                                 ss_message = "repaired using lead-out";
                         }
@@ -493,18 +494,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         l1_padding_length += 4096;
 
                     // extract security sector ranges from security sector
-                    xbox_context->skip_ranges = get_security_layer_descriptor_ranges((xbox::SecurityLayerDescriptor &)ss_layer_descriptor);
+                    get_security_layer_descriptor_ranges(xbox_context->skip_ranges, (xbox::SecurityLayerDescriptor &)ss_layer_descriptor);
 
                     auto sss = sectors_count_capacity;
 
                     // append L1 padding to skip ranges
-                    xbox_context->skip_ranges.push_back({ sss, sss + l1_padding_length - 1 });
-
-                    xbox_context->range_idx = 0;
-
-                    // sort the skip ranges
-                    std::sort(xbox_context->skip_ranges.begin(), xbox_context->skip_ranges.end(),
-                        [](const std::pair<uint32_t, uint32_t> &a, const std::pair<uint32_t, uint32_t> &b) { return a.first < b.first; });
+                    if(!insert_range(xbox_context->skip_ranges, { sss, sss + l1_padding_length }))
+                        throw_line("invalid range configuration");
 
                     // add L1 padding to sectors count
                     sss += l1_padding_length;
@@ -548,7 +544,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 for(uint32_t i = 0; i < physical_structures.size(); ++i)
                 {
                     std::vector<uint8_t> structure;
-                    status = cmd_read_disc_structure(*ctx.sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
+                    auto status = cmd_read_disc_structure(*ctx.sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
                     if(status.status_code)
                         throw_line("failed to read disc manufacturer structure, SCSI ({})", SPTD::StatusMessage(status));
 
@@ -675,7 +671,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(dump_mode == DumpMode::DUMP && readable_formats.find(READ_DISC_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
     {
         std::vector<uint8_t> copyright;
-        status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
+        auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
         if(!status.status_code)
         {
             strip_response_header(copyright);
@@ -739,71 +735,29 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         int32_t sector_shift = 0;
         uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
 
+        if(auto range = find_range(xbox_context->skip_ranges, s); range != nullptr)
+            sectors_to_read = std::min(sectors_to_read, range->end - s);
+        else if(auto range = find_range(xbox_context->skip_ranges, s + sectors_at_once); range != nullptr)
+            sectors_to_read = std::min(sectors_to_read, range->start - s);
+
         if(xbox_context)
         {
-            if(!kreon_locked)
+            if(s < xbox_context->lock_sector)
+                sectors_to_read = std::min(sectors_to_read, xbox_context->lock_sector - s);
+
+            // lock Kreon drive before L1 video reading
+            if(!kreon_locked && s >= xbox_context->lock_sector)
             {
-                // skip xbox security sector ranges and L1 filler range
-                if(xbox_context->range_idx < xbox_context->skip_ranges.size())
-                {
-                    if(xbox_context->skip_ranges[xbox_context->range_idx].first <= s && s <= xbox_context->skip_ranges[xbox_context->range_idx].second + 1)
-                    {
-                        if(s == xbox_context->skip_ranges[xbox_context->range_idx].second + 1)
-                        {
-                            if(options.verbose)
-                                LOG_R("skipped sectors: {}-{}", xbox_context->skip_ranges[xbox_context->range_idx].first, xbox_context->skip_ranges[xbox_context->range_idx].second);
-
-                            ++xbox_context->range_idx;
-                            // skip any overlapping ranges we have already completed
-                            while(xbox_context->range_idx < xbox_context->skip_ranges.size() && s >= xbox_context->skip_ranges[xbox_context->range_idx].second + 1)
-                                ++xbox_context->range_idx;
-
-                            // if still in a security sector range do not allow later read to happen
-                            if(xbox_context->range_idx < xbox_context->skip_ranges.size() && xbox_context->skip_ranges[xbox_context->range_idx].first <= s)
-                                continue;
-                        }
-                        else
-                        {
-                            // skip at most to the end of the security sector range
-                            sectors_to_read = std::min(sectors_to_read, xbox_context->skip_ranges[xbox_context->range_idx].second + 1 - s);
-                            progress_output(s, sectors_count, errors.scsi);
-
-                            std::vector<uint8_t> zeroes(sectors_to_read * FORM1_DATA_SIZE);
-                            write_entry(fs_iso, zeroes.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
-                            std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
-                            write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
-
-                            rom_entry.update(zeroes.data(), sectors_to_read * FORM1_DATA_SIZE);
-
-                            s += sectors_to_read;
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        sectors_to_read = std::min(sectors_to_read, xbox_context->skip_ranges[xbox_context->range_idx].first - s);
-                    }
-                }
-
-                // check if Kreon drive needs locking
-                if(s < xbox_context->lock_sector)
-                    sectors_to_read = std::min(sectors_to_read, xbox_context->lock_sector - s);
-                else if(s == xbox_context->lock_sector)
-                {
-                    status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
-                    if(status.status_code)
-                        throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
-                    if(options.verbose)
-                        LOG_R("locked kreon drive at sector: {}", s);
-                    kreon_locked = true;
-                }
+                auto status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
+                if(status.status_code)
+                    throw_line("failed to set lock state, SCSI ({})", SPTD::StatusMessage(status));
+                if(options.verbose)
+                    LOG_R("locked kreon drive at sector: {}", s);
+                kreon_locked = true;
             }
 
-            // must be here for the first iteration
             if(kreon_locked)
-            {
                 sector_shift = -xbox_context->l1_video_shift;
-            }
         }
 
         bool read = false;
@@ -828,39 +782,47 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         {
             progress_output(s, sectors_count, errors.scsi);
 
+            bool store = false;
+
             std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
-
-            status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s + sector_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
-
-            if(status.status_code)
+            if(auto range = find_range(xbox_context->skip_ranges, s); range != nullptr)
+                store = true;
+            else
             {
-                if(options.verbose)
+                auto status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s + sector_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+                if(status.status_code)
                 {
-                    std::string status_retries;
-                    if(dump_mode == DumpMode::REFINE)
-                        status_retries = std::format(", retry: {}", refine_counter + 1);
-                    for(uint32_t i = 0; i < sectors_to_read; ++i)
-                        LOG_R("[sector: {}] SCSI error ({}{})", s + i, SPTD::StatusMessage(status), status_retries);
-                }
-
-                if(dump_mode == DumpMode::DUMP)
-                    errors.scsi += sectors_to_read;
-                else if(dump_mode == DumpMode::REFINE)
-                {
-                    ++refine_counter;
-                    if(refine_counter < refine_retries)
-                        increment = false;
-                    else
+                    if(options.verbose)
                     {
-                        if(options.verbose)
-                            for(uint32_t i = 0; i < sectors_to_read; ++i)
-                                LOG_R("[sector: {}] correction failure", s + i);
+                        std::string status_retries;
+                        if(dump_mode == DumpMode::REFINE)
+                            status_retries = std::format(", retry: {}", refine_counter + 1);
+                        for(uint32_t i = 0; i < sectors_to_read; ++i)
+                            LOG_R("[sector: {}] SCSI error ({}{})", s + i, SPTD::StatusMessage(status), status_retries);
+                    }
 
-                        refine_counter = 0;
+                    if(dump_mode == DumpMode::DUMP)
+                        errors.scsi += sectors_to_read;
+                    else if(dump_mode == DumpMode::REFINE)
+                    {
+                        ++refine_counter;
+                        if(refine_counter < refine_retries)
+                            increment = false;
+                        else
+                        {
+                            if(options.verbose)
+                                for(uint32_t i = 0; i < sectors_to_read; ++i)
+                                    LOG_R("[sector: {}] correction failure", s + i);
+
+                            refine_counter = 0;
+                        }
                     }
                 }
+                else
+                    store = true;
             }
-            else
+
+            if(store)
             {
                 if(dump_mode == DumpMode::DUMP)
                 {
@@ -934,7 +896,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     // re-unlock drive before returning
     if(kreon_locked)
     {
-        status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
+        auto status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::WXRIPPER);
         if(status.status_code)
             LOG("warning: failed to unlock drive at end of dump, SCSI ({})", SPTD::StatusMessage(status));
     }

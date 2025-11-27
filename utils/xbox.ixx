@@ -8,6 +8,7 @@ module;
 
 export module utils.xbox;
 
+import range;
 import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
@@ -21,8 +22,7 @@ namespace gpsxre::xbox
 
 export struct Context
 {
-    std::vector<std::pair<uint32_t, uint32_t>> skip_ranges;
-    uint8_t range_idx;
+    std::vector<Range<uint32_t>> skip_ranges;
     uint32_t lock_sector;
     uint32_t l1_video_shift;
 };
@@ -172,10 +172,8 @@ uint32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
 }
 
 
-export std::vector<std::pair<uint32_t, uint32_t>> get_security_layer_descriptor_ranges(const SecurityLayerDescriptor &sld)
+export void get_security_layer_descriptor_ranges(std::vector<Range<uint32_t>> &skip_ranges, const SecurityLayerDescriptor &sld)
 {
-    std::vector<std::pair<uint32_t, uint32_t>> ranges;
-
     int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
 
     for(uint32_t i = 0; i < (uint32_t)sld.range_count; ++i)
@@ -186,10 +184,9 @@ export std::vector<std::pair<uint32_t, uint32_t>> get_security_layer_descriptor_
         auto psn_start = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_start));
         auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_end));
 
-        ranges.push_back({ PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) });
+        if(!insert_range(skip_ranges, { PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) + 1 }))
+            throw_line("invalid range configuration");
     }
-
-    return ranges;
 }
 
 

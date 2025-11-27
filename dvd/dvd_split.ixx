@@ -12,6 +12,7 @@ export module dvd.split;
 import cd.cdrom;
 import common;
 import options;
+import range;
 import rom_entry;
 import scsi.mmc;
 import utils.file_io;
@@ -110,10 +111,11 @@ void generate_extra_xbox(Context &ctx, Options &options)
                     ctx.dat->push_back(ss_rom_entry.xmlLine());
 
                 LOG("security sector ranges:");
-                auto security_ranges = get_security_layer_descriptor_ranges((xbox::SecurityLayerDescriptor &)security[0]);
-                for(const auto &range : security_ranges)
+                std::vector<Range<uint32_t>> skip_ranges;
+                get_security_layer_descriptor_ranges(skip_ranges, (xbox::SecurityLayerDescriptor &)security[0]);
+                for(const auto &range : skip_ranges)
                 {
-                    LOG("  {}-{}", range.first, range.second);
+                    LOG("  {}-{}", range.start, range.end - 1);
                 }
             }
             else

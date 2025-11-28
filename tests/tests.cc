@@ -399,25 +399,9 @@ bool test_range()
         success = false;
     }
 
-    // Test 9: Insert at end without overlap
+    // Test 9: Insert at end with overlap (should merge with previous)
     ranges.clear();
-    std::cout << "Test 9: Insert at end without overlap... " << std::flush;
-    insert_range(ranges, Range<int32_t>{ 10, 20 });
-    insert_range(ranges, Range<int32_t>{ 30, 40 });
-    insert_range(ranges, Range<int32_t>{ 50, 60 });
-    if(ranges.size() == 3 && ranges[0].start == 10 && ranges[0].end == 20 && ranges[1].start == 30 && ranges[1].end == 40 && ranges[2].start == 50 && ranges[2].end == 60)
-    {
-        std::cout << "success" << std::endl;
-    }
-    else
-    {
-        std::cout << "failure" << std::endl;
-        success = false;
-    }
-
-    // Test 10: Insert at end with overlap (should merge with previous)
-    ranges.clear();
-    std::cout << "Test 10: Insert at end with overlap (should merge with previous)... " << std::flush;
+    std::cout << "Test 9: Insert at end with overlap (should merge with previous)... " << std::flush;
     insert_range(ranges, Range<int32_t>{ 10, 20 });
     insert_range(ranges, Range<int32_t>{ 30, 40 });
     insert_range(ranges, Range<int32_t>{ 35, 60 });

@@ -63,6 +63,8 @@ uint64_t endian_swap<uint64_t>(const uint64_t &v)
 export template<typename T, typename U, std::size_t N>
 T endian_swap_from_array(const U (&a)[N])
 {
+    static_assert(sizeof(T) >= N * sizeof(U), "target type T must be large enough to hold all array data");
+
     T v = 0;
 
     for(size_t i = 0; i < N; ++i)
@@ -75,6 +77,8 @@ T endian_swap_from_array(const U (&a)[N])
 export template<typename T, typename U, std::size_t N>
 void endian_swap_to_array(U (&a)[N], T v)
 {
+    static_assert(sizeof(T) >= N * sizeof(U), "source type T must be large enough to contain all array data");
+
     for(size_t i = 0; i < N; ++i)
         a[i] = (U)(v >> CHAR_BIT * sizeof(U) * (N - 1 - i));
 }

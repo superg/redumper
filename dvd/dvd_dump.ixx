@@ -473,11 +473,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 auto const &structure = physical_structures[i];
 
                 auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
-
-                if(!sectors_count_physical)
-                    sectors_count_physical = 0;
-
-                *sectors_count_physical = *sectors_count_physical + get_layer_length(layer_descriptor);
+                sectors_count_physical = sectors_count_physical.value_or(0) + get_layer_length(layer_descriptor);
             }
         }
 
@@ -681,9 +677,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         // ensure all sectors in the read belong to the same range (skip or non-skip)
         uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
+        auto base_range = find_range(protection, s);
         for(uint32_t i = 0; i < sectors_to_read; ++i)
         {
-            if(find_range(protection, s) != find_range(protection, s + i))
+            if(base_range != find_range(protection, s + i))
             {
                 sectors_to_read = i;
                 break;

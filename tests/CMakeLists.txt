@@ -1,6 +1,6 @@
 add_executable(tests)
 
-target_include_directories(tests PUBLIC ${CMAKE_SOURCE_DIR})
+target_include_directories(tests PUBLIC ${CMAKE_SOURCE_DIR} "${CMAKE_SOURCE_DIR}/utils")
 target_sources(tests
     PUBLIC
         "tests.cc"

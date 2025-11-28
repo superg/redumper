@@ -2,7 +2,7 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <vector>
-#include "utils/throw_line.hh"
+#include "throw_line.hh"
 
 export module range;
 

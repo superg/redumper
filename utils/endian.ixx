@@ -68,7 +68,7 @@ T endian_swap_from_array(const U (&a)[N])
     T v = 0;
 
     for(size_t i = 0; i < N; ++i)
-        v |= (T)a[i] << CHAR_BIT * sizeof(U) * (N - 1 - i);
+        v |= (std::make_unsigned_t<T>)a[i] << CHAR_BIT * sizeof(U) * (N - 1 - i);
 
     return v;
 }

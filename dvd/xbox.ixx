@@ -244,7 +244,18 @@ export void clean_security_sector(std::vector<uint8_t> &security_sector)
 }
 
 
-export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protection, READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, SPTD &sptd, uint32_t sectors_count_capacity, bool partial_ss,
+export READ_DVD_STRUCTURE_LayerDescriptor get_final_layer_descriptor(const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, const std::vector<uint8_t> &security_sector)
+{
+    auto const &sld = (SecurityLayerDescriptor &)security_sector[0];
+
+    auto layer_descriptor = layer0_ld;
+    layer_descriptor.layer0_end_sector = sld.ld.layer0_end_sector;
+
+    return layer_descriptor;
+}
+
+
+export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protection, SPTD &sptd, const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, uint32_t sectors_count_capacity, bool partial_ss,
     bool kreon_custom_firmware)
 {
     std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
@@ -294,9 +305,6 @@ export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protect
 
     // append L1 padding to skip ranges
     insert_range(protection, { sectors_count_capacity, sectors_count_capacity + l1_padding_length });
-
-    // overwrite physical structure with true layer0_last from SS, so that disc structure logging is correct
-    layer0_ld.layer0_end_sector = sld.ld.layer0_end_sector;
 
     auto xbox = std::make_shared<Context>();
     xbox->security_sector.swap(security_sector);

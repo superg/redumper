@@ -514,12 +514,11 @@ export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_st
 {
     // FF 08 01 01 (Legacy)
     // FF 08 01 11 xx
-    bool is_legacy = (lock_state == KREON_LockState::LEGACY);
     CDB10_KREON_SetLockState cdb = {};
     cdb.operation_code = 0xFF;
     cdb.unknown1 = 0x08;
     cdb.unknown2 = 0x01;
-    if(is_legacy)
+    if(lock_state == KREON_LockState::LEGACY)
     {
         cdb.lock_mode = 0x01;
     }

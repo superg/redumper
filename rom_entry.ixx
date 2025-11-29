@@ -27,6 +27,9 @@ public:
     }
 
 
+    ~ROMEntry() = default;
+
+
     void update(const uint8_t *data, uint64_t size)
     {
         _size += size;

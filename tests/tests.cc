@@ -11,6 +11,7 @@ import cd.scrambler;
 import crc.crc;
 import crc.crc16_gsm;
 import crc.crc32;
+import range;
 import utils.file_io;
 import utils.misc;
 import utils.strings;
@@ -273,6 +274,150 @@ bool test_crc()
 }
 
 
+bool test_range()
+{
+    bool success = true;
+
+    std::vector<Range<int32_t>> ranges;
+
+    // Test 1: Insert non-overlapping ranges
+    std::cout << "Test 1: Insert non-overlapping ranges... " << std::flush;
+    insert_range(ranges, Range<int32_t>{ 10, 20 });
+    insert_range(ranges, Range<int32_t>{ 30, 40 });
+    insert_range(ranges, Range<int32_t>{ 50, 60 });
+    if(ranges.size() == 3 && ranges[0].start == 10 && ranges[0].end == 20 && ranges[1].start == 30 && ranges[1].end == 40 && ranges[2].start == 50 && ranges[2].end == 60)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << "failure" << std::endl;
+        success = false;
+    }
+
+    // Test 2: Find values in ranges
+    std::cout << "Test 2: Find values in ranges... " << std::flush;
+    auto r1 = find_range(ranges, 15);
+    auto r2 = find_range(ranges, 35);
+    auto r3 = find_range(ranges, 55);
+    auto r4 = find_range(ranges, 25);
+    if(r1 && r1->start == 10 && r1->end == 20 && r2 && r2->start == 30 && r2->end == 40 && r3 && r3->start == 50 && r3->end == 60 && !r4)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << "failure" << std::endl;
+        success = false;
+    }
+
+    // Test 3: Insert overlapping range (should merge)
+    std::cout << "Test 3: Insert overlapping range (merge 10-20 and 30-40)... " << std::flush;
+    insert_range(ranges, Range<int32_t>{ 15, 35 });
+    if(ranges.size() == 2 && ranges[0].start == 10 && ranges[0].end == 40 && ranges[1].start == 50 && ranges[1].end == 60)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << std::format("failure (size: {}, ranges[0]: [{}, {}])", ranges.size(), ranges.empty() ? 0 : ranges[0].start, ranges.empty() ? 0 : ranges[0].end) << std::endl;
+        success = false;
+    }
+
+    // Test 4: Insert range that covers multiple ranges
+    std::cout << "Test 4: Insert range covering all existing ranges... " << std::flush;
+    insert_range(ranges, Range<int32_t>{ 5, 65 });
+    if(ranges.size() == 1 && ranges[0].start == 5 && ranges[0].end == 65)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << "failure" << std::endl;
+        success = false;
+    }
+
+    // Test 5: Insert adjacent ranges (should merge)
+    ranges.clear();
+    std::cout << "Test 5: Insert adjacent ranges (should merge)... " << std::flush;
+    insert_range(ranges, Range<int32_t>{ 10, 20 });
+    insert_range(ranges, Range<int32_t>{ 20, 30 });
+    if(ranges.size() == 1 && ranges[0].start == 10 && ranges[0].end == 30)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << std::format("failure (size: {}, range: [{}, {}])", ranges.size(), ranges.empty() ? 0 : ranges[0].start, ranges.empty() ? 0 : ranges[0].end) << std::endl;
+        success = false;
+    }
+
+    // Test 6: Insert range within existing range
+    ranges.clear();
+    std::cout << "Test 6: Insert range within existing range... " << std::flush;
+    insert_range(ranges, Range<int32_t>{ 10, 50 });
+    insert_range(ranges, Range<int32_t>{ 20, 30 });
+    if(ranges.size() == 1 && ranges[0].start == 10 && ranges[0].end == 50)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << "failure" << std::endl;
+        success = false;
+    }
+
+    // Test 7: Insert at start without overlap
+    ranges.clear();
+    std::cout << "Test 7: Insert at start without overlap... " << std::flush;
+    insert_range(ranges, Range<int32_t>{ 20, 30 });
+    insert_range(ranges, Range<int32_t>{ 40, 50 });
+    insert_range(ranges, Range<int32_t>{ 5, 10 });
+    if(ranges.size() == 3 && ranges[0].start == 5 && ranges[0].end == 10 && ranges[1].start == 20 && ranges[1].end == 30 && ranges[2].start == 40 && ranges[2].end == 50)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << "failure" << std::endl;
+        success = false;
+    }
+
+    // Test 8: Insert at start with overlap (should merge with next)
+    ranges.clear();
+    std::cout << "Test 8: Insert at start with overlap (should merge with next)... " << std::flush;
+    insert_range(ranges, Range<int32_t>{ 20, 30 });
+    insert_range(ranges, Range<int32_t>{ 40, 50 });
+    insert_range(ranges, Range<int32_t>{ 5, 25 });
+    if(ranges.size() == 2 && ranges[0].start == 5 && ranges[0].end == 30 && ranges[1].start == 40 && ranges[1].end == 50)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << std::format("failure (size: {}, ranges[0]: [{}, {}])", ranges.size(), ranges.empty() ? 0 : ranges[0].start, ranges.empty() ? 0 : ranges[0].end) << std::endl;
+        success = false;
+    }
+
+    // Test 9: Insert at end with overlap (should merge with previous)
+    ranges.clear();
+    std::cout << "Test 9: Insert at end with overlap (should merge with previous)... " << std::flush;
+    insert_range(ranges, Range<int32_t>{ 10, 20 });
+    insert_range(ranges, Range<int32_t>{ 30, 40 });
+    insert_range(ranges, Range<int32_t>{ 35, 60 });
+    if(ranges.size() == 2 && ranges[0].start == 10 && ranges[0].end == 20 && ranges[1].start == 30 && ranges[1].end == 60)
+    {
+        std::cout << "success" << std::endl;
+    }
+    else
+    {
+        std::cout << std::format("failure (size: {}, ranges[1]: [{}, {}])", ranges.size(), ranges.size() < 2 ? 0 : ranges[1].start, ranges.size() < 2 ? 0 : ranges[1].end) << std::endl;
+        success = false;
+    }
+
+    return success;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -287,6 +432,8 @@ int main(int argc, char *argv[])
     success |= (int)!test_unscramble();
     std::cout << std::endl;
     success |= (int)!test_crc();
+    std::cout << std::endl;
+    success |= (int)!test_range();
     std::cout << std::endl;
 
     return success;

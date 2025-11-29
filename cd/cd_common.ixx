@@ -694,19 +694,14 @@ export std::vector<std::pair<int32_t, int32_t>> get_protection_sectors(const Con
 export void protection_to_ranges(std::vector<Range<int32_t>> &ranges, std::span<const std::pair<int32_t, int32_t>> protection)
 {
     for(auto const &p : protection)
-        if(!insert_range(ranges, { p.first, p.second }))
-            throw_line("invalid protection configuration");
+        insert_range(ranges, { p.first, p.second });
 }
 
 
 export void protection_ranges_from_lba_ranges(std::vector<Range<int32_t>> &ranges, std::span<const std::pair<int32_t, int32_t>> lba_ranges, int32_t offset)
 {
     for(auto const &p : lba_ranges)
-    {
-        Range r{ lba_to_sample(p.first, offset), lba_to_sample(p.second, offset) };
-        if(!insert_range(ranges, r))
-            throw_line("invalid protection configuration");
-    }
+        insert_range(ranges, { lba_to_sample(p.first, offset), lba_to_sample(p.second, offset) });
 }
 
 }

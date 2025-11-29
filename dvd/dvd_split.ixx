@@ -9,22 +9,21 @@ module;
 
 export module dvd.split;
 
+import cd.cdrom;
 import common;
+import dvd.xbox;
 import options;
+import range;
 import rom_entry;
 import scsi.mmc;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
-import utils.xbox;
 
 
 
 namespace gpsxre
 {
-
-const uint32_t DVD_DESCRIPTOR_SIZE = 2048;
-
 
 void generate_extra_xbox(Context &ctx, Options &options)
 {
@@ -46,13 +45,13 @@ void generate_extra_xbox(Context &ctx, Options &options)
             else
             {
                 auto manufacturer = read_vector(manufacturer_path);
-                if(!manufacturer.empty() && manufacturer.size() == DVD_DESCRIPTOR_SIZE + 4)
+                if(!manufacturer.empty() && manufacturer.size() == FORM1_DATA_SIZE + 4)
                 {
                     manufacturer.erase(manufacturer.begin(), manufacturer.begin() + 4);
                     write_vector(dmi_path, manufacturer);
 
                     ROMEntry dmi_rom_entry(dmi_path.filename().string());
-                    dmi_rom_entry.update(manufacturer.data(), DVD_DESCRIPTOR_SIZE);
+                    dmi_rom_entry.update(manufacturer.data(), FORM1_DATA_SIZE);
                     if(ctx.dat.has_value())
                         ctx.dat->push_back(dmi_rom_entry.xmlLine());
                 }
@@ -75,13 +74,13 @@ void generate_extra_xbox(Context &ctx, Options &options)
             else
             {
                 auto physical = read_vector(physical_path);
-                if(!physical.empty() && physical.size() == DVD_DESCRIPTOR_SIZE + 4)
+                if(!physical.empty() && physical.size() == FORM1_DATA_SIZE + 4)
                 {
                     physical.erase(physical.begin(), physical.begin() + 4);
                     write_vector(pfi_path, physical);
 
                     ROMEntry pfi_rom_entry(pfi_path.filename().string());
-                    pfi_rom_entry.update(physical.data(), DVD_DESCRIPTOR_SIZE);
+                    pfi_rom_entry.update(physical.data(), FORM1_DATA_SIZE);
                     if(ctx.dat.has_value())
                         ctx.dat->push_back(pfi_rom_entry.xmlLine());
                 }
@@ -101,22 +100,21 @@ void generate_extra_xbox(Context &ctx, Options &options)
         else
         {
             auto security = read_vector(security_path);
-            if(!security.empty() && security.size() == DVD_DESCRIPTOR_SIZE)
+            if(!security.empty() && security.size() == FORM1_DATA_SIZE)
             {
-                clean_xbox_security_sector(security);
+                xbox::clean_security_sector(security);
                 write_vector(ss_path, security);
 
                 ROMEntry ss_rom_entry(ss_path.filename().string());
-                ss_rom_entry.update(security.data(), DVD_DESCRIPTOR_SIZE);
+                ss_rom_entry.update(security.data(), FORM1_DATA_SIZE);
                 if(ctx.dat.has_value())
                     ctx.dat->push_back(ss_rom_entry.xmlLine());
 
                 LOG("security sector ranges:");
-                auto security_ranges = get_security_sector_ranges((READ_DVD_STRUCTURE_LayerDescriptor &)security[0]);
-                for(const auto &range : security_ranges)
-                {
-                    LOG("  {}-{}", range.first, range.second);
-                }
+                std::vector<Range<uint32_t>> protection;
+                xbox::get_security_layer_descriptor_ranges(protection, security);
+                for(const auto &r : protection)
+                    LOG("  {}-{}", r.start, r.end - 1);
             }
             else
             {

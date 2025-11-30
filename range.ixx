@@ -74,8 +74,10 @@ void insert_range(std::vector<Range<T>> &ranges, Range<T> range)
     {
         range.start = std::min(range.start, first_overlap->start);
         range.end = std::max(range.end, (last_overlap - 1)->end);
+
+        auto insertion_index = first_overlap - ranges.begin();
         ranges.erase(first_overlap, last_overlap);
-        it = std::lower_bound(ranges.begin(), ranges.end(), range);
+        it = ranges.begin() + insertion_index;
     }
 
     ranges.insert(it, range);

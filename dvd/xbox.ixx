@@ -55,18 +55,18 @@ union SecurityLayerDescriptor
         {
             struct
             {
-                uint8_t reserved_011[703];  // 0x011   17
-                uint32_t cpr_mai;           // 0x2D0  720
-                uint8_t reserved_2D4[44];   // 0x2D4  724
-                uint8_t ccrt_version;       // 0x300  768
-                uint8_t ccrt_count;         // 0x301  769
-                uint8_t ccrt[253];          // 0x302  770
-                uint8_t reserved_3FF[32];   // 0x3FF 1023
-                uint64_t creation_filetime; // 0x41F 1055
-                uint8_t unknown_427[16];    // 0x427 1063
-                uint32_t reserved_437;      // 0x437 1079
-                uint8_t unknown_43B[16];    // 0x43B 1083
-                uint8_t reserved_44B[84];   // 0x44B 1099
+                uint8_t reserved_011[703];  // 0x011
+                uint32_t cpr_mai;           // 0x2D0
+                uint8_t reserved_2D4[44];   // 0x2D4
+                uint8_t ccrt_version;       // 0x300
+                uint8_t ccrt_count;         // 0x301
+                uint8_t ccrt[253];          // 0x302
+                uint8_t reserved_3FF[32];   // 0x3FF
+                uint64_t creation_filetime; // 0x41F
+                uint8_t unknown_427[16];    // 0x427
+                uint32_t reserved_437;      // 0x437
+                uint8_t unknown_43B[16];    // 0x43B
+                uint8_t reserved_44B[84];   // 0x44B
             } xgd1;
 
             struct
@@ -75,62 +75,62 @@ union SecurityLayerDescriptor
                 {
                     struct
                     {
-                        uint8_t reserved_011[239]; // 0x011   17
-                        uint32_t unknown_100;      // 0x100  256
-                        uint32_t unknown_104;      // 0x104  260
-                        uint8_t unknown_108[20];   // 0x108  264
-                        uint8_t reserved_11C[228]; // 0x11C  284
-                        ChallengeResponse crd[23]; // 0x200  512
-                        uint8_t reserved_2CF;      // 0x2CF  719
-                        uint32_t cpr_mai;          // 0x2D0  720
-                        uint8_t reserved_2D4[44];  // 0x2D4  724
+                        uint8_t reserved_011[239]; // 0x011
+                        uint32_t unknown_100;      // 0x100
+                        uint32_t unknown_104;      // 0x104
+                        uint8_t unknown_108[20];   // 0x108
+                        uint8_t reserved_11C[228]; // 0x11C
+                        ChallengeResponse crd[23]; // 0x200
+                        uint8_t reserved_2CF;      // 0x2CF
+                        uint32_t cpr_mai;          // 0x2D0
+                        uint8_t reserved_2D4[44];  // 0x2D4
                     } xgd2;
 
                     struct
                     {
-                        uint8_t reserved_011[10];  // 0x011   17
-                        uint8_t unknown_1B;        // 0x01B   27
-                        uint8_t reserved_1C[4];    // 0x01C   28
-                        ChallengeResponse crd[23]; // 0x020   32
-                        uint8_t reserved_0EF;      // 0x0EF  239
-                        uint32_t cpr_mai;          // 0x0F0  240
-                        uint8_t reserved_0F4[12];  // 0x0F4  244
-                        uint32_t unknown_100;      // 0x100  257
-                        uint32_t unknown_104;      // 0x104  261
-                        uint8_t unknown_108[504];  // 0x108  265
+                        uint8_t reserved_011[10];  // 0x011
+                        uint8_t unknown_1B;        // 0x01B
+                        uint8_t reserved_1C[4];    // 0x01C
+                        ChallengeResponse crd[23]; // 0x020
+                        uint8_t reserved_0EF;      // 0x0EF
+                        uint32_t cpr_mai;          // 0x0F0
+                        uint8_t reserved_0F4[12];  // 0x0F4
+                        uint32_t unknown_100;      // 0x100
+                        uint32_t unknown_104;      // 0x104
+                        uint8_t unknown_108[504];  // 0x108
                     } xgd3;
                 };
 
-                uint8_t ccrt_version;     // 0x300  768
-                uint8_t ccrt_count;       // 0x301  769
-                uint8_t reserved_302[2];  // 0x302  770
-                uint8_t ccrt[252];        // 0x304  772
-                uint8_t reserved_400[96]; // 0x400 1024
-                uint8_t media_id[16];     // 0x460 1120
-                uint8_t reserved_470[46]; // 0x470 1136
-                uint8_t unknown_49E;      // 0x49E 1182
+                uint8_t ccrt_version;     // 0x300
+                uint8_t ccrt_count;       // 0x301
+                uint8_t reserved_302[2];  // 0x302
+                uint8_t ccrt[252];        // 0x304
+                uint8_t reserved_400[96]; // 0x400
+                uint8_t media_id[16];     // 0x460
+                uint8_t reserved_470[46]; // 0x470
+                uint8_t unknown_49E;      // 0x49E
             } xgd23;
         };
 
-        uint64_t authoring_filetime; // 0x49F 1183
-        uint32_t cert_unixtime;      // 0x4A7 1191
-        uint8_t reserved_4AB[15];    // 0x4AB 1195
-        uint8_t unknown_4BA;         // 0x4BA 1210
-        uint8_t game_id[16];         // 0x4BB 1211
-        uint8_t sha1_a[20];          // 0x4CB 1227
-        uint8_t signature_a[256];    // 0x4DF 1247
-        uint64_t mastering_filetime; // 0x5DF 1503
-        uint8_t reserved_5E7[4];     // 0x5E7 1511
-        uint8_t reserved_5EB[15];    // 0x5EB 1515
-        uint8_t unknown_5FA;         // 0x5FA 1530
-        uint8_t factory_id[16];      // 0x5FB 1531
-        uint8_t sha1_b[20];          // 0x60B 1547
-        uint8_t signature_b[64];     // 0x61F 1567
-        uint8_t version;             // 0x65F 1631
-        uint8_t range_count;         // 0x660 1632
-        Range ranges[23];            // 0x661 1633
-        Range ranges_copy[23];       // 0x730 1840
-        uint8_t reserved_7FF;        // 0x7FF 2047
+        uint64_t authoring_filetime; // 0x49F
+        uint32_t cert_unixtime;      // 0x4A7
+        uint8_t reserved_4AB[15];    // 0x4AB
+        uint8_t unknown_4BA;         // 0x4BA
+        uint8_t game_id[16];         // 0x4BB
+        uint8_t sha1_a[20];          // 0x4CB
+        uint8_t signature_a[256];    // 0x4DF
+        uint64_t mastering_filetime; // 0x5DF
+        uint8_t reserved_5E7[4];     // 0x5E7
+        uint8_t reserved_5EB[15];    // 0x5EB
+        uint8_t unknown_5FA;         // 0x5FA
+        uint8_t factory_id[16];      // 0x5FB
+        uint8_t sha1_b[20];          // 0x60B
+        uint8_t signature_b[64];     // 0x61F
+        uint8_t version;             // 0x65F
+        uint8_t range_count;         // 0x660
+        Range ranges[23];            // 0x661
+        Range ranges_copy[23];       // 0x730
+        uint8_t reserved_7FF;        // 0x7FF
     };
 };
 #pragma pack(pop)
@@ -229,16 +229,17 @@ export void clean_security_sector(std::vector<uint8_t> &security_sector)
     {
         for(std::size_t i = 0; i < std::size(DEFAULT_VALUES); ++i)
         {
-            (uint16_t &)sld.xgd23.xgd2.crd[4 + i].unknown[4] = DEFAULT_VALUES[i];
-            (uint16_t &)sld.xgd23.xgd2.crd[4 + i].unknown[7] = 0;
+            memcpy(&sld.xgd23.xgd2.crd[4 + i].unknown[4], &DEFAULT_VALUES[i], sizeof(uint16_t));
+            uint16_t zero = 0;
+            memcpy(&sld.xgd23.xgd2.crd[4 + i].unknown[7], &zero, sizeof(uint16_t));
         }
     }
     else if(xgd_version(layer0_last) == 3)
     {
         for(std::size_t i = 0; i < std::size(DEFAULT_VALUES); ++i)
         {
-            (uint16_t &)sld.xgd23.xgd3.crd[4 + i].unknown[4] = DEFAULT_VALUES[i];
-            (uint16_t &)sld.xgd23.xgd3.crd[4 + i].unknown[7] = DEFAULT_VALUES[i];
+            memcpy(&sld.xgd23.xgd3.crd[4 + i].unknown[4], &DEFAULT_VALUES[i], sizeof(uint16_t));
+            memcpy(&sld.xgd23.xgd3.crd[4 + i].unknown[7], &DEFAULT_VALUES[i], sizeof(uint16_t));
         }
     }
 }

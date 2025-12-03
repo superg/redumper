@@ -301,9 +301,10 @@ export double str_to_double(const std::string &str)
 }
 
 
-export std::vector<std::pair<int32_t, int32_t>> string_to_ranges(const std::string &str)
+export template<typename T>
+std::vector<std::pair<T, T>> string_to_ranges(const std::string &str)
 {
-    std::vector<std::pair<int32_t, int32_t>> ranges;
+    std::vector<std::pair<T, T>> ranges;
 
     std::istringstream iss(str);
     for(std::string range; std::getline(iss, range, ':');)
@@ -312,30 +313,25 @@ export std::vector<std::pair<int32_t, int32_t>> string_to_ranges(const std::stri
         std::string s;
 
         std::getline(range_ss, s, '-');
-        uint32_t lba_start = str_to_int(s);
+        auto start = str_to_int(s);
+        if constexpr(std::is_unsigned_v<T>)
+        {
+            if(start < 0)
+                throw_line("negative value not allowed for unsigned range type ({})", start);
+        }
 
         std::getline(range_ss, s, '-');
-        uint32_t lba_end = str_to_int(s) + 1;
+        auto end = str_to_int(s);
+        if constexpr(std::is_unsigned_v<T>)
+        {
+            if(end < 0)
+                throw_line("negative value not allowed for unsigned range type ({})", end);
+        }
 
-        ranges.emplace_back(lba_start, lba_end);
+        ranges.emplace_back((T)start, (T)end + 1);
     }
 
     return ranges;
 }
-
-
-export std::string ranges_to_string(const std::vector<std::pair<int32_t, int32_t>> &ranges)
-{
-    std::string str;
-
-    for(auto const &r : ranges)
-        str += std::format("{}-{}:", r.first, r.second - 1);
-
-    if(!str.empty())
-        str.pop_back();
-
-    return str;
-}
-
 
 }

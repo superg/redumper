@@ -126,11 +126,11 @@ If the D8 read method is available, it might be a good hint that the drive is a 
 
 By setting the --drive-type value, you can instruct redumper to use good drive specific features, such as reading lead-in using PLEXTOR negative range or reading lead-out from LG/ASUS cache.
 
-To check for a good PLEXTOR, run `redumper dump --speed=8 --drive-type=PLEXTOR --drive-sector-order=<sector_order_from_previous_step> --drive-pregap-start=<pregap_start_from_previous_step> --drive-read-method=D8 --verbose --overwrite --image-name=drive_test`
+To check for a good PLEXTOR, run `redumper disc --speed=8 --drive-type=PLEXTOR --drive-sector-order=<sector_order_from_previous_step> --drive-pregap-start=<pregap_start_from_previous_step> --drive-read-method=D8 --verbose --overwrite --image-name=drive_test`
 
 Look for a "PLEXTOR: reading lead-in" message. If the process ends with a "PLEXTOR: lead-in found" message, this is a good PLEXTOR. If the LBA counter decreases all the way and it's at least a minute long, you can kill the process, as it's not a good PLEXTOR.
 
-To check for a good LG/ASUS, run `redumper dump --speed=8 --drive-type=LG_ASU8A --drive-sector-order=<sector_order_from_previous_step> --drive-pregap-start=<pregap_start_from_previous_step> --verbose --overwrite --image-name=drive_test`
+To check for a good LG/ASUS, run `redumper disc --speed=8 --drive-type=LG_ASU8A --drive-sector-order=<sector_order_from_previous_step> --drive-pregap-start=<pregap_start_from_previous_step> --verbose --overwrite --image-name=drive_test`
 
 Look for a "LG/ASUS: searching lead-out in cache" message which will appear right after reading the last LBA. If the next message is "LG/ASUS: lead-out found", it's a good LG/ASUS. If you get "error: read cache failed", there is no read cache command and it's not a good LG/ASUS.
 

@@ -15,7 +15,7 @@ Available for Windows, Linux and macOS.
 ## General
 redumper operates using commands.
 
-The preferred way is to run it without arguments (equivalent to running `redumper cd`). This is the most common use case that will dump the disc and generate the dump files. Everything that can be automated, is automated. If the `--drive` option is not specified, the first available drive with an inserted disc will be used. If the `--image-name` option is not specified, the image name will be generated based on the current date and drive name.
+The preferred way is to run it without arguments (equivalent to running `redumper disc`). This is the most common use case that will dump the disc and generate the dump files. Everything that can be automated, is automated. If the `--drive` option is not specified, the first available drive with an inserted disc will be used. If the `--image-name` option is not specified, the image name will be generated based on the current date and drive name.
 
 The full command list is available by running `redumper --help`.
 
@@ -29,7 +29,7 @@ The disc has to be unmounted before running redumper. I suggest disabling remova
 
 At the time of writing, drive autodetection doesn't work for some Linux distributions. Autodetection is based on kernel sysfs guidelines but some distributions deviate from that (or I didn't implement it right). This will be fixed at some point. If autodetection doesn't work for you, the current suggested workaround is to specify the drive directly.
 
-Note that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). This will mean using a device file like /dev/sg0 rather than /dev/sr0.
+Note that the device file has to represent a generic SCSI device as write commands will be executed (not in a sense of disc burning, but to alter drive state such as setting drive speed). This will mean using a device file like `/dev/sg0` rather than `/dev/sr0`.
 
 ## macOS
 The drive is specified using its BSD name: `--drive=disk2`
@@ -39,9 +39,11 @@ Run `diskutil list` to see a list of all disks in the system.
 Currently, the macOS version is distributed as an archive with binary executable and its C++ runtime library dependencies - there is no installation package available. You should download and extract the archive while preserving the directory structure (the binary needs to locate its library dependencies). The binary requires SCSI drive access and won't run from Desktop / Downloads / Documents home directories due to macOS security restrictions. If you attempt to run redumper from these restricted directories, you will see an error: `error: failed to create service plugin interface, MACH ((iokit/common) resource shortage)`. It's recommended to copy the entire extracted directory structure to a different location and run the binary from there.
 
 ## Supported Drives
-Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommended for the perfect dump. The full list is [HERE](drive.ixx#L130). Drives listed under "//OTHER" are bad drives that I own, they are listed purely for experimentation - please do not buy these drives!
+Known good PLEXTOR/LG/ASUS/LITE-ON drive models are fully supported and recommended for the perfect CD dump. The full list is [HERE](drive.ixx#L130). Drives listed under "//OTHER" are bad drives that I own, they are listed purely for experimentation - please do not buy these drives!
 
-While there is some GENERIC drive support implemented, GENERIC drives often will not provide a perfect dump due to drive firmware limitations. Feel free to use this functionality at your leisure but at the moment I don't have the bandwidth for supporting such cases, so you're on your own.
+DVD/HD-DVD/Blu-ray discs do not require specific drive models with the exception of Xbox and Xbox 360 DVD discs (XGD). Only "Kreon" custom firmware DVD drives are supported for XGD dumping.
+
+While there is some GENERIC drive support implemented, GENERIC drives often will not provide a perfect CD dump due to drive firmware limitations. Feel free to use this functionality at your leisure but at the moment I don't have the bandwidth for supporting such cases, so you're on your own.
 
 ## Good Drives Technical
 D8 and BE CDDA read opcodes are supported using compatible drives (PLEXTOR and LG/ASUS/LITE-ON respectively). Everything, including data tracks, is read as audio. On an initial dump pass, each sector is dumped from start to end in a linear fashion. Known slow sectors such as multisession gaps (session Lead-in area) are skipped. redumper never seeks back and a great care is exercised not to put an excessive wear on the drive.
@@ -56,17 +58,22 @@ In order to accomodate for first session lead-in sectors, primary scrambled dump
 
 The resulting dump is drive read offset corrected but not combined offset corrected (the disc write offset is determined at a later track split stage). Sector dump state (SUCCESS / SUCCESS_SCSI_OFF / SUCCESS_C2_OFF / ERROR_C2 / ERROR_SKIP) is stored for each sample. 1 sample is 4 bytes (2 16-bit signed samples of stereo audio data), e.g. for 1 sector there are 588 state values. All this allows an incremental dump improvement with sample granularity using different drives with different read offsets.
 
-Subchannel data is stored uncorrected RAW (multiplexed). Both TOC-based and Subchannel Q-based splits are supported; subchannel Q is corrected in memory and never stored on disk. This allows to keep subchannel-based protection schemes (libcrypt, SecuROM etc.) for a later analysis, as well as future R-W packs extraction (CD+G, CD+MIDI). Disc write offset detection is calculated based on a variety of methods: data track as an addressing difference between data sector MSF and subchannel Q MSF, data / audio track intersection of BE read method was used, silence based Perfect Audio Offset detection, CDi-Ready data in index 0 offset detection. The split will fail if the track sector range contains SCSI/C2 errors or is inaccessible, e.g.: a track split of an ASUS dump without cache lead-out data if the combined offset is positive. 
+Subchannel data is stored uncorrected RAW (multiplexed). Both TOC-based and Subchannel Q-based splits are supported; subchannel Q is corrected in memory and never stored on disk. This allows to keep subchannel-based protection schemes (libcrypt, SecuROM etc.) for a later analysis, as well as future R-W packs extraction (CD+G, CD+MIDI). Disc write offset detection is calculated based on a variety of methods: data track as an addressing difference between data sector MSF and subchannel Q MSF, data / audio track intersection of BE read method was used, silence based Perfect Audio Offset detection, CDi-Ready data in index 0 offset detection. The split will fail if the track sector range contains SCSI/C2 errors or is inaccessible, e.g.: a track split of an ASUS dump without cache lead-out data if the combined offset is positive.
 
 ## GENERIC Drives Feature Evaluation Guide
 ### General
-This is a guide that will help you to evaluate your GENERIC drive features and make it work with redumper manually. Eventually it will be automated but it's a low priority for now.
+This is a guide that will help you to evaluate your GENERIC drive features for CD dumping and make it work with redumper manually.
 I do not provide support and I don't need feedback. Please do not create issues related to adding GENERIC drives to redumper source code - I don't have bandwidth for that.
 
 ### Requirements
 Any not too scratched mixed-mode disc where the first track is a data track and following tracks are audio tracks will work (e.g. no multisession).
 
-### Steps
+### Automatic Evaluation
+Redumper supports automated GENERIC drive feature detection using `redumper drive::test` after inserting the mixed-mode disc.
+
+Some GENERIC drives may have unexpected behaviour or hang when redumper attempts to detect custom firmware features. If you encounter this issue, power cycle your drive and use `--drive-test-skip-plextor-leadin` to skip the "PLEXTOR lead-in" step and/or `--drive-test-skip-cache-read` to skip the "MEDIATEK cache read" step.
+
+### Manual Evaluation Steps
 **1. Identify drive sector order**
 
 According to SCSI MMC specifications, RAW CD sector order is data-c2-subcode (DATA_C2_SUB). In practice, this is not always the case. For some drives it's data-subcode-c2 (DATA_SUB_C2). This is complicated by the fact that there are drives that don't support C2 error vectors and there are drives that don't support subcode (subchannel) reading. Some, but not all, drive features can be queried using SCSI GET_CONFIGURATION and MODE_SENSE commands but again, sometimes these declarations don't match what the drive firmware actually does. For these reasons, redumper doesn't use any feature information from the drive, instead, the logic is based on executing the actual commands and checking returned status codes. It's recommended to always specify the drive speed as some drives don't have good defaults (too slow or too fast) and in particular for this test it's advised to keep drive speed on the lower end so 8 is a good default. Setting drive type to GENERIC is absolutely required as by default redumper accepts only known good drives. The default drive sector order is DATA_C2_SUB but it's specified here to make it obvious. The other arguments are making redumper verbose, allowing overwrite of output files and specifying the default dump name. Dump files will be overwritten by the subsequent redumper invocations and after the test, dump files can be safely deleted - they don't serve any purpose. redumper can be killed any moment from the console by sending it SIGINT signal (Ctrl+C); there is no need to wait for the full dump if it's obvious that something is not right.
@@ -131,29 +138,28 @@ Look for a "LG/ASUS: searching lead-out in cache" message which will appear righ
 
 A proper distinction between different cache partition configurations is very important but it requires manual cache dump analysis. In a nutshell, first you have to establish the true cache size. The above command hardcodes an 8 MB cache size as it's the maximum possible size. If the cache size is smaller, for example 3 MB, and it's being read as 8 MB, it wraps around by the firmware. Basically you have to open the .asus cache file in a hex editor and determine where it starts repeating data. For example, search for the next appearance of the first 8 bytes you see at the start of the file. If you found a match, it's address will basically be the cache size. If it's not found, it's likely a 8 MB cache size. Even if the cache size is the same, multiple partition configurations are possible. Some are already enumerated [HERE](drive.ixx#L256), where the first value is the cache size in MB, and the second value is a number of sectors that are stored in cache. Determining the second value is out of scope here - it requires parsing cache subchannel to see where the boundary is. I have some tools for that but it's not user friendly at the moment. When you determine the cache size, predefined cache configurations most likely will work but that requires extensive testing using discs with various write offsets and comparing to a known good dump.
 
-
 ## Flashing drive firmware
 
 redumper can be used to flash the firmware on certain drive models. At the moment, this is limited to drives that use the MT1339 chipset, such as the TS-H353C. Other drive models may be supported in the future.
 
 Although this function has been used successfully by many users, flashing is inherently a dangerous process and is done at your own risk. redumper does not do any checks that the firmware file you provide is correct for the drive model, or that the drive model is of the correct chipset. Providing an incorrect firmware file for your drive, or trying to flash an unsupported drive, may permanently brick your drive. Losing the data connection to the drive during flashing, or losing power during flashing, may also permanently brick your drive. Flashing takes a few seconds in most cases.
 
-Flashing can be done using `redumper flash::mt1339 --drive=<drive> --firmware=<filename>` where the drive is specified using the syntax described above specific to the operating system you are using. The firmware file should be in .bin format.
+Flashing can be done using `redumper flash::mt1339 --drive=<drive> --firmware=<filename>` where the drive is specified using the syntax described above specific to the operating system you are using. The firmware file should be in `.bin` format.
 
 ## Examples
 **1.**
 
 `redumper`
 
-If run without arguments, redumper will use the first available supported drive with a disc inside and "cd" aggregate mode. The image name will be autogenerated based on a date/time and drive path and will be put in the current process working directory. If you have two drives and the first drive is already busy dumping, running redumper again will dump the disc in the next available drive and so on, for easy daisy chaining. Please take into account that no SCSI/C2 rereads will be performed on errors unless you specify --retries=100, but don't worry as it won't let you split to tracks if tracks have errors.
+If run without arguments, redumper will use the first available supported drive with a disc inside and "disc" aggregate mode. The image name will be autogenerated based on a date/time and drive path and will be put in the current process working directory. If you have two drives and the first drive is already busy dumping, running redumper again will dump the disc in the next available drive and so on, for easy daisy chaining. Please take into account that no SCSI/C2 rereads will be performed on errors unless you specify --retries=100, but don't worry as it won't let you split to tracks if tracks have errors.
 
 **2.**
 
-`redumper cd --verbose --drive=F: --retries=100 --image-name=my_dump_name --image-path=my_dump_directory`
+`redumper disc --verbose --drive=F: --retries=100 --image-name=my_dump_name --image-path=my_dump_directory`
 
 or (you can use spaces and = interchangeably)
 
-`redumper cd --verbose --drive F: --retries 100 --image-name my_dump_name --image-path my_dump_directory`
+`redumper disc --verbose --drive F: --retries 100 --image-name my_dump_name --image-path my_dump_directory`
 
 This will dump a disc in drive F: with 100 retries count in case of errors (refine). The dump files will be stored in the my_dump_directory directory, dump files will have a my_dump_name base name, and you will get verbose messages.
 

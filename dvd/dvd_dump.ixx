@@ -680,7 +680,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     SignalINT signal;
 
-    for(uint32_t s = 0; s < sectors_count;)
+    int32_t lba_start = options.lba_start ? *options.lba_start : 0;
+    int32_t lba_end = options.lba_end ? *options.lba_end : sectors_count;
+
+    for(uint32_t s = lba_start; s < lba_end;)
     {
         bool increment = true;
 

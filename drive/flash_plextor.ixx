@@ -2,7 +2,9 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
+#include <map>
 #include <span>
+#include <string>
 #include <vector>
 #include "throw_line.hh"
 
@@ -20,6 +22,24 @@ import utils.logger;
 
 namespace gpsxre
 {
+
+const std::map<std::string, uint32_t> PLEXTOR_BLOCK_SIZE = {
+    { "CD-R PX-W4012A", 0x1000 },
+    { "CD-R PX-W4012S", 0x1000 },
+    { "CD-R PX-W4824A", 0x1000 },
+    { "CD-R PX-W5224A", 0x1000 },
+    { "CD-R PREMIUM",   0x1000 },
+    { "CD-R PREMIUM2",  0x1000 },
+    { "DVDR PX-704A",   0x1000 },
+    { "DVDR PX-708A",   0x1000 },
+    { "DVDR PX-708A2",  0x1000 },
+    { "DVDR PX-712A",   0x4000 },
+    { "DVDR PX-714A",   0x4000 },
+    { "DVDR PX-716A",   0x4000 },
+    { "DVDR PX-716AL",  0x4000 },
+    { "DVDR PX-755A",   0x4000 },
+    { "DVDR PX-760A",   0x4000 }
+};
 
 export void flash_plextor(SPTD &sptd, const std::span<const uint8_t> firmware_data, uint32_t block_size)
 {
@@ -49,16 +69,19 @@ export int redumper_flash_plextor(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    if(ctx.drive_config.vendor_id != "PLEXTOR")
-        throw_line("drive is not PLEXTOR");
+    uint32_t block_size = PLEXTOR_BLOCK_SIZE.begin()->second;
 
-    if(ctx.drive_config.c2_shift != 294 && ctx.drive_config.c2_shift != 295)
-        throw_line("this PLEXTOR drive is unsupported");
+    if(!options.force_flash)
+    {
+        if(ctx.drive_config.vendor_id != "PLEXTOR")
+            throw_line("drive is not PLEXTOR");
 
-    // according to the original flasher, older drives seem to use 4KB, newer 16KB, C2 shift is a handy way to distinguish between them
-    uint32_t block_size = ctx.drive_config.c2_shift == 294 ? 0x1000 : 0x4000;
+        if(auto it = PLEXTOR_BLOCK_SIZE.find(ctx.drive_config.product_id); it == PLEXTOR_BLOCK_SIZE.end())
+            throw_line("flashing of this PLEXTOR drive is unsupported");
+        else
+            block_size = it->second;
+    }
 
-    // TODO: implement inquiry patching for drives with same hardware but different product id
     // TODO: verify SCSI commands for flashing PX-712A EPS firmware
 
     flash_plextor(*ctx.sptd, read_vector(options.firmware), block_size);

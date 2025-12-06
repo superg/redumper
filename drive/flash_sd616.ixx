@@ -2,6 +2,7 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <set>
+#include <string>
 #include <vector>
 #include "throw_line.hh"
 

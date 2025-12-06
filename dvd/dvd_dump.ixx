@@ -163,12 +163,12 @@ static const std::string BLURAY_CHANNEL_LENGTH[] =
 
 uint32_t get_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor)
 {
-    int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
-    int32_t lba_last = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
+    int32_t psn_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
+    int32_t psn_last = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
     int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
 
     // for opposite layout the initial length is a difference between two layers (negative value)
-    int32_t length = lba_last + 1 - lba_first;
+    int32_t length = psn_last + 1 - psn_first;
     if(layer_descriptor.track_path)
         length += 2 * (layer0_last + 1);
 
@@ -192,17 +192,17 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 
     std::string indent(4, ' ');
 
-    uint32_t lba_first_raw = endian_swap(layer_descriptor.data_start_sector);
-    uint32_t lba_last_raw = endian_swap(layer_descriptor.data_end_sector);
+    uint32_t psn_first_raw = endian_swap(layer_descriptor.data_start_sector);
+    uint32_t psn_last_raw = endian_swap(layer_descriptor.data_end_sector);
     uint32_t layer0_last_raw = endian_swap(layer_descriptor.layer0_end_sector);
 
-    int32_t lba_first = sign_extend<24>(lba_first_raw);
-    int32_t lba_last = sign_extend<24>(lba_last_raw);
+    int32_t psn_first = sign_extend<24>(psn_first_raw);
+    int32_t psn_last = sign_extend<24>(psn_last_raw);
     int32_t layer0_last = sign_extend<24>(layer0_last_raw);
 
     uint32_t length = get_layer_length(layer_descriptor);
 
-    LOG("{}data {{ LBA: [{} .. {}], length: {}, hLBA: [0x{:06X} .. 0x{:06X}] }}", indent, lba_first, lba_last, length, lba_first_raw, lba_last_raw);
+    LOG("{}data {{ LBA: [{} .. {}], length: {}, hLBA: [0x{:06X} .. 0x{:06X}] }}", indent, psn_first, psn_last, length, psn_first_raw, psn_last_raw);
     if(layer0_last)
         LOG("{}data layer 0 last {{ LBA: {}, hLBA: 0x{:06X} }}", indent, layer0_last, layer0_last_raw);
     LOG("{}book type: {}", indent, BOOK_TYPE[layer_descriptor.book_type]);
@@ -358,12 +358,11 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool blur
 }
 
 
-void progress_output(uint32_t sector, uint32_t sectors_count, uint32_t errors)
+void progress_output(uint32_t lba, uint32_t lba_end, uint32_t errors)
 {
-    char animation = sector == sectors_count ? '*' : spinner_animation();
+    char animation = lba == lba_end ? '*' : spinner_animation();
 
-    LOGC_RF("{} [{:3}%] sector: {}/{}, errors: {{ SCSI: {} }}", animation, (uint64_t)sector * 100 / sectors_count, extend_left(std::to_string(sector), ' ', digits_count(sectors_count)), sectors_count,
-        errors);
+    LOGC_RF("{} [{:3}%] LBA: {}/{}, errors: {{ SCSI: {} }}", animation, (uint64_t)lba * 100 / lba_end, extend_left(std::to_string(lba), ' ', digits_count(lba_end)), lba_end, errors);
 }
 
 
@@ -395,13 +394,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     // get capacity
     uint32_t sectors_count_capacity;
     {
-        uint32_t sector_last, block_length;
-        auto status = cmd_read_capacity(*ctx.sptd, sector_last, block_length, false, 0, false);
+        uint32_t lba_last, block_length;
+        auto status = cmd_read_capacity(*ctx.sptd, lba_last, block_length, false, 0, false);
         if(status.status_code)
             throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
         if(block_length != FORM1_DATA_SIZE)
             throw_line("unsupported block size (block size: {})", block_length);
-        sectors_count_capacity = sector_last + 1;
+        sectors_count_capacity = lba_last + 1;
     }
 
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
@@ -580,10 +579,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     // opposite
                     if(layer_descriptor.track_path)
                     {
-                        int32_t lba_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
+                        int32_t psn_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
                         int32_t layer0_last = sign_extend<24>(endian_swap(layer_descriptor.layer0_end_sector));
 
-                        layer_break = layer0_last + 1 - lba_first;
+                        layer_break = layer0_last + 1 - psn_first;
                     }
                     // parallel
                     else if(layer_descriptors.size() > 1)
@@ -680,18 +679,34 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     SignalINT signal;
 
-    for(uint32_t s = 0; s < sectors_count;)
+    uint32_t lba_start = 0;
+    if(options.lba_start)
+    {
+        if(*options.lba_start < 0)
+            throw_line("lba_start must be non-negative");
+        lba_start = *options.lba_start;
+    }
+
+    uint32_t lba_end = sectors_count;
+    if(options.lba_end)
+    {
+        if(*options.lba_end < 0)
+            throw_line("lba_end must be non-negative");
+        lba_end = *options.lba_end;
+    }
+
+    for(uint32_t lba = lba_start; lba < lba_end;)
     {
         bool increment = true;
 
-        int32_t sector_shift = 0;
+        int32_t lba_shift = 0;
 
         // ensure all sectors in the read belong to the same range (skip or non-skip)
-        uint32_t sectors_to_read = std::min(sectors_at_once, sectors_count - s);
-        auto base_range = find_range(protection, s);
+        uint32_t sectors_to_read = std::min(sectors_at_once, lba_end - lba);
+        auto base_range = find_range(protection, lba);
         for(uint32_t i = 0; i < sectors_to_read; ++i)
         {
-            if(base_range != find_range(protection, s + i))
+            if(base_range != find_range(protection, lba + i))
             {
                 sectors_to_read = i;
                 break;
@@ -700,22 +715,22 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(xbox)
         {
-            if(s < xbox->lock_sector_start)
-                sectors_to_read = std::min(sectors_to_read, xbox->lock_sector_start - s);
+            if(lba < xbox->lock_lba_start)
+                sectors_to_read = std::min(sectors_to_read, xbox->lock_lba_start - lba);
 
             // lock kreon drive before L1 video reading
-            if(!kreon_locked && s >= xbox->lock_sector_start)
+            if(!kreon_locked && lba >= xbox->lock_lba_start)
             {
                 auto status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
                 if(status.status_code)
                     throw_line("kreon: failed lock drive, SCSI ({})", SPTD::StatusMessage(status));
                 if(options.verbose)
-                    LOG_R("[sector: {}] kreon: drive locked", s);
+                    LOG_R("[LBA: {}] kreon: drive locked", lba);
                 kreon_locked = true;
             }
 
             if(kreon_locked)
-                sector_shift = xbox->layer1_video_start - xbox->lock_sector_start;
+                lba_shift = xbox->layer1_video_lba_start - xbox->lock_lba_start;
         }
 
         bool read = false;
@@ -725,29 +740,29 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
         else if(dump_mode == DumpMode::REFINE)
         {
-            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
             read = std::count(file_state.begin(), file_state.end(), State::ERROR_SKIP);
         }
         else if(dump_mode == DumpMode::VERIFY)
         {
-            read_entry(fs_iso, (uint8_t *)file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0, 0);
+            read_entry(fs_iso, (uint8_t *)file_data.data(), FORM1_DATA_SIZE, lba, sectors_to_read, 0, 0);
 
-            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
             read = true;
         }
 
         if(read)
         {
-            progress_output(s, sectors_count, errors.scsi);
+            progress_output(lba, lba_end, errors.scsi);
 
             bool store = false;
 
             std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
-            if(auto range = find_range(protection, s); range != nullptr)
+            if(auto range = find_range(protection, lba); range != nullptr)
                 store = true;
             else
             {
-                auto status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, s + sector_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+                auto status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
                 if(status.status_code)
                 {
                     if(options.verbose)
@@ -756,7 +771,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         if(dump_mode == DumpMode::REFINE)
                             status_retries = std::format(", retry: {}", refine_counter + 1);
                         for(uint32_t i = 0; i < sectors_to_read; ++i)
-                            LOG_R("[sector: {}] SCSI error ({}){}", s + i, SPTD::StatusMessage(status), status_retries);
+                            LOG_R("[LBA: {}] SCSI error ({}){}", lba + i, SPTD::StatusMessage(status), status_retries);
                     }
 
                     if(dump_mode == DumpMode::DUMP)
@@ -770,7 +785,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         {
                             if(options.verbose)
                                 for(uint32_t i = 0; i < sectors_to_read; ++i)
-                                    LOG_R("[sector: {}] correction failure", s + i);
+                                    LOG_R("[LBA: {}] correction failure", lba + i);
 
                             refine_counter = 0;
                         }
@@ -786,9 +801,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 {
                     file_data.swap(drive_data);
 
-                    write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
+                    write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, lba, sectors_to_read, 0);
                     std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
-                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0);
                 }
                 else if(dump_mode == DumpMode::REFINE)
                 {
@@ -798,7 +813,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                             continue;
 
                         if(options.verbose)
-                            LOG_R("[sector: {}] correction success", s + i);
+                            LOG_R("[LBA: {}] correction success", lba + i);
 
                         std::copy(drive_data.begin() + i * FORM1_DATA_SIZE, drive_data.begin() + (i + 1) * FORM1_DATA_SIZE, file_data.begin() + i * FORM1_DATA_SIZE);
                         file_state[i] = State::SUCCESS;
@@ -808,8 +823,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                     refine_counter = 0;
 
-                    write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, s, sectors_to_read, 0);
-                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+                    write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, lba, sectors_to_read, 0);
+                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0);
                 }
                 else if(dump_mode == DumpMode::VERIFY)
                 {
@@ -823,7 +838,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         if(!std::equal(file_data.begin() + i * FORM1_DATA_SIZE, file_data.begin() + (i + 1) * FORM1_DATA_SIZE, drive_data.begin() + i * FORM1_DATA_SIZE))
                         {
                             if(options.verbose)
-                                LOG_R("[sector: {}] data mismatch, sector state updated", s + i);
+                                LOG_R("[LBA: {}] data mismatch, sector state updated", lba + i);
 
                             file_state[i] = State::ERROR_SKIP;
                             update = true;
@@ -833,7 +848,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     }
 
                     if(update)
-                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), s, sectors_to_read, 0);
+                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0);
                 }
             }
 
@@ -843,12 +858,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(signal.interrupt())
         {
-            LOG_R("[sector: {}] forced stop ", s);
+            LOG_R("[LBA: {}] forced stop ", lba);
             break;
         }
 
         if(increment)
-            s += sectors_to_read;
+            lba += sectors_to_read;
     }
 
     // re-unlock drive before returning
@@ -861,7 +876,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     if(!signal.interrupt())
     {
-        progress_output(sectors_count, sectors_count, errors.scsi);
+        progress_output(lba_end, lba_end, errors.scsi);
         LOG("");
     }
     LOG("");

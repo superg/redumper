@@ -23,6 +23,9 @@ export int redumper_flash_sd616(Context &ctx, Options &options)
 
     constexpr uint32_t block_size = 0x10000;
 
+    if(!options.force_flash && (ctx.drive_config.vendor_id != "SAMSUNG" || ctx.drive_config.product_id != "DVD-ROM SD-616F"))
+        throw_line("flashing of this drive is unsupported");
+
     auto firmware_file = read_vector(options.firmware);
     if(firmware_file.size() != 0x20000)
         throw_line("failed to flash firmware, file is not 128KB");

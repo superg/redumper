@@ -77,7 +77,7 @@ export int redumper_flash_plextor(Context &ctx, Options &options)
             throw_line("drive is not PLEXTOR");
 
         if(auto it = PLEXTOR_BLOCK_SIZE.find(ctx.drive_config.product_id); it == PLEXTOR_BLOCK_SIZE.end())
-            throw_line("flashing of this PLEXTOR drive is unsupported");
+            throw_line("flashing of this drive is unsupported");
         else
             block_size = it->second;
     }

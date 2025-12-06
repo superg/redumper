@@ -5,7 +5,6 @@ module;
 #include <map>
 #include <span>
 #include <string>
-#include <vector>
 #include "throw_line.hh"
 
 export module drive.flash.plextor;
@@ -23,7 +22,7 @@ import utils.logger;
 namespace gpsxre
 {
 
-const std::map<std::string, uint32_t> PLEXTOR_BLOCK_SIZE = {
+const std::map<std::string, uint32_t> PLEXTOR_SUPPORTED_DRIVES = {
     { "CD-R PX-W4012A", 0x1000 },
     { "CD-R PX-W4012S", 0x1000 },
     { "CD-R PX-W4824A", 0x1000 },
@@ -69,9 +68,9 @@ export int redumper_flash_plextor(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    uint32_t block_size = PLEXTOR_BLOCK_SIZE.begin()->second;
-    auto it = PLEXTOR_BLOCK_SIZE.find(ctx.drive_config.product_id);
-    if(it != PLEXTOR_BLOCK_SIZE.end())
+    uint32_t block_size = PLEXTOR_SUPPORTED_DRIVES.begin()->second;
+    auto it = PLEXTOR_SUPPORTED_DRIVES.find(ctx.drive_config.product_id);
+    if(it != PLEXTOR_SUPPORTED_DRIVES.end())
         block_size = it->second;
 
     if(!options.force_flash)
@@ -79,7 +78,7 @@ export int redumper_flash_plextor(Context &ctx, Options &options)
         if(ctx.drive_config.vendor_id != "PLEXTOR")
             throw_line("drive is not PLEXTOR");
 
-        if(it == PLEXTOR_BLOCK_SIZE.end())
+        if(it == PLEXTOR_SUPPORTED_DRIVES.end())
             throw_line("flashing of this drive is unsupported");
     }
 

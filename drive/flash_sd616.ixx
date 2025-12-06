@@ -1,6 +1,7 @@
 module;
 #include <algorithm>
 #include <cstdint>
+#include <set>
 #include <vector>
 #include "throw_line.hh"
 
@@ -17,13 +18,15 @@ import utils.file_io;
 namespace gpsxre
 {
 
+const std::set<std::string> SAMSUNG_SUPPORTED_DRIVES = { "DVD-ROM SD-616F" };
+
 export int redumper_flash_sd616(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
     constexpr uint32_t block_size = 0x10000;
 
-    if(!options.force_flash && (ctx.drive_config.vendor_id != "SAMSUNG" || ctx.drive_config.product_id != "DVD-ROM SD-616F"))
+    if(!options.force_flash && (ctx.drive_config.vendor_id != "SAMSUNG" || !SAMSUNG_SUPPORTED_DRIVES.contains(ctx.drive_config.product_id)))
         throw_line("flashing of this drive is unsupported");
 
     auto firmware_file = read_vector(options.firmware);

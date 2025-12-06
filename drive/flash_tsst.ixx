@@ -2,8 +2,8 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
+#include <set>
 #include <span>
-#include <vector>
 #include "throw_line.hh"
 
 export module drive.flash.tsst;
@@ -20,6 +20,9 @@ import utils.logger;
 
 namespace gpsxre
 {
+
+const std::set<std::string> TSST_SUPPORTED_DRIVES = { "DVD-ROM SH-D163A", "DVD-ROM SH-D163B", "DVD-ROM SH-D162C", "DVD-ROM SH-D163C", "DVD-ROM SH-D162D", "DVD-ROM TS-H353A", "DVD-ROM TS-H353B",
+    "DVD-ROM TS-H353C", "DVD-ROM TS-H352C", "DVD-ROM TS-H352D", "DVD-ROM SH-116AB", "DVD-ROM SH-118CB" };
 
 export void flash_tsst(SPTD &sptd, const std::span<const uint8_t> firmware_data, uint32_t block_size, FLASH_TSST_Mode end_mode)
 {
@@ -46,6 +49,9 @@ export void flash_tsst(SPTD &sptd, const std::span<const uint8_t> firmware_data,
 export int redumper_flash_tsst(Context &ctx, Options &options)
 {
     int exit_code = 0;
+
+    if(!options.force_flash && (ctx.drive_config.vendor_id != "TSSTcorp" || !TSST_SUPPORTED_DRIVES.contains(ctx.drive_config.product_id)))
+        throw_line("flashing of this drive is unsupported");
 
     // block size is how much data is sent in one command, potentially it can vary but current value is taken from the original flasher
     constexpr uint32_t block_size = 0xFC00;

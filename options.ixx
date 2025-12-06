@@ -73,6 +73,7 @@ export struct Options
     bool force_unscrambled;
     bool force_refine;
     std::string firmware;
+    bool force_flash;
     bool drive_test_skip_plextor_leadin;
     bool drive_test_skip_cache_read;
     bool skip_subcode_desync;
@@ -113,6 +114,7 @@ export struct Options
         , overread_leadout(false)
         , force_unscrambled(false)
         , force_refine(false)
+        , force_flash(false)
         , drive_test_skip_plextor_leadin(false)
         , drive_test_skip_cache_read(false)
         , skip_subcode_desync(false)
@@ -288,6 +290,8 @@ export struct Options
                         force_refine = true;
                     else if(key == "--firmware")
                         s_value = &firmware;
+                    else if(key == "--force-flash")
+                        force_flash = true;
                     else if(key == "--drive-test-skip-plextor-leadin")
                         drive_test_skip_plextor_leadin = true;
                     else if(key == "--drive-test-skip-cache-read")
@@ -433,6 +437,7 @@ export struct Options
         LOG("\t--force-unscrambled             \tdo not attempt to read data sectors as audio (BE read method only)");
         LOG("\t--force-refine                  \tdo not check TOC when refining a disc");
         LOG("\t--firmware=VALUE                \tfirmware filename");
+        LOG("\t--force-flash                   \tskip drive vendor/model verification when flashing firmware (WARNING: can brick your drive)");
         LOG("\t--skip-subcode-desync           \tskip storing sectors with mismatching subcode Q absolute MSF");
         LOG("\t--rings                         \tenable filesystem based rings detection");
         LOG("\t--cdr-error-threshold=VALUE     \tmaximum number of trailing C2 errors allowed on a CD-R (default: {})", cdr_error_threshold);

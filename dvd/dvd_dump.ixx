@@ -679,8 +679,21 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     SignalINT signal;
 
-    int32_t lba_start = options.lba_start ? *options.lba_start : 0;
-    int32_t lba_end = options.lba_end ? *options.lba_end : sectors_count;
+    uint32_t lba_start = 0;
+    if(options.lba_start)
+    {
+        if(*options.lba_start < 0)
+            throw_line("lba_start must be non-negative");
+        lba_start = *options.lba_start;
+    }
+
+    uint32_t lba_end = sectors_count;
+    if(options.lba_end)
+    {
+        if(*options.lba_end < 0)
+            throw_line("lba_end must be non-negative");
+        lba_end = *options.lba_end;
+    }
 
     for(uint32_t lba = lba_start; lba < lba_end;)
     {

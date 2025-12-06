@@ -26,8 +26,8 @@ namespace gpsxre::xbox
 export struct Context
 {
     std::vector<uint8_t> security_sector;
-    uint32_t lock_sector_start;
-    uint32_t layer1_video_start;
+    uint32_t lock_lba_start;
+    uint32_t layer1_video_lba_start;
 };
 
 
@@ -293,11 +293,11 @@ export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protect
     LOG("kreon: XGD detected (version: {}, security sector: {})", xgd_version(ss_layer0_last), ss_message);
     LOG("");
 
-    int32_t lba_first = sign_extend<24>(endian_swap(layer0_ld.data_start_sector));
+    int32_t psn_first = sign_extend<24>(endian_swap(layer0_ld.data_start_sector));
     int32_t layer0_last = sign_extend<24>(endian_swap(layer0_ld.layer0_end_sector));
-    int32_t ss_lba_first = sign_extend<24>(endian_swap(sld.ld.data_start_sector));
+    int32_t ss_psn_first = sign_extend<24>(endian_swap(sld.ld.data_start_sector));
 
-    uint32_t l1_padding_length = ss_lba_first - layer0_last - 1;
+    uint32_t l1_padding_length = ss_psn_first - layer0_last - 1;
     if(xgd_version(ss_layer0_last) == 3)
         l1_padding_length += 4096;
 
@@ -309,8 +309,8 @@ export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protect
 
     auto xbox = std::make_shared<Context>();
     xbox->security_sector.swap(security_sector);
-    xbox->lock_sector_start = sectors_count_capacity + l1_padding_length;
-    xbox->layer1_video_start = layer0_last + 1 - lba_first;
+    xbox->lock_lba_start = sectors_count_capacity + l1_padding_length;
+    xbox->layer1_video_lba_start = layer0_last + 1 - psn_first;
     return xbox;
 }
 

@@ -70,16 +70,17 @@ export int redumper_flash_plextor(Context &ctx, Options &options)
     int exit_code = 0;
 
     uint32_t block_size = PLEXTOR_BLOCK_SIZE.begin()->second;
+    auto it = PLEXTOR_BLOCK_SIZE.find(ctx.drive_config.product_id);
+    if(it != PLEXTOR_BLOCK_SIZE.end())
+        block_size = it->second;
 
     if(!options.force_flash)
     {
         if(ctx.drive_config.vendor_id != "PLEXTOR")
             throw_line("drive is not PLEXTOR");
 
-        if(auto it = PLEXTOR_BLOCK_SIZE.find(ctx.drive_config.product_id); it == PLEXTOR_BLOCK_SIZE.end())
+        if(it == PLEXTOR_BLOCK_SIZE.end())
             throw_line("flashing of this drive is unsupported");
-        else
-            block_size = it->second;
     }
 
     // TODO: verify SCSI commands for flashing PX-712A EPS firmware

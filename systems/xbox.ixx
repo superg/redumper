@@ -9,9 +9,12 @@ module;
 
 export module systems.xbox;
 
+import cd.cdrom;
 import dvd.xbox;
 import filesystem.iso9660;
+import range;
 import readers.data_reader;
+import utils.file_io;
 import utils.misc;
 import utils.strings;
 
@@ -35,14 +38,20 @@ public:
 
     void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &iso_path, bool) const override
     {
-        std::filesystem::path security_path = track_extract_basename(iso_path.string()) + ".security";
+        std::string basename = iso_path.string()
+        auto pos = basename.find_last_of('.');
+        if(pos != std::string::npos)
+            basename = std::string(basename, 0, pos);
+
+        std::filesystem::path security_path = basename + ".security";
         if(!std::filesystem::exists(security_path))
             return;
+
         auto security_sector = read_vector(security_path);
         if(security_sector.empty() || security_sector.size() == FORM1_DATA_SIZE)
             return;
 
-        std::filesystem::path manufacturer_path = track_extract_basename(iso_path.string()) + ".manufacturer";
+        std::filesystem::path manufacturer_path = basename + ".manufacturer";
         if(std::filesystem::exists(manufacturer_path))
         {
             auto manufacturer = read_vector(manufacturer_path);
@@ -76,11 +85,11 @@ public:
             }
         }
 
-        LOG("security sector ranges:");
+        os << "  security sector ranges:" << std::endl;
         std::vector<Range<uint32_t>> protection;
         xbox::get_security_layer_descriptor_ranges(protection, security_sector);
         for(const auto &r : protection)
-            LOG("  {}-{}", r.start, r.end - 1);
+            os << std::format("    {}-{}", r.start, r.end - 1) << std::endl;
     }
 
 private:
@@ -144,7 +153,7 @@ private:
                                 char disc_total;
                                 char reserved_04E[2];
                             } long_version;
-                        }
+                        };
                     } xemid;
                     char xemid_string[16];
                 };

@@ -87,7 +87,7 @@ public:
         }
 
         bool valid_ss = true;
-        auto const &sld = (SecurityLayerDescriptor &)security_sector[0];
+        auto const &sld = (xbox::SecurityLayerDescriptor &)security_sector[0];
         for(uint8_t i = 0; i < 23; ++i)
         {
             if(sld.ranges[i].start < 0 || sld.ranges[i].end - sld.ranges[i].start != 4095)

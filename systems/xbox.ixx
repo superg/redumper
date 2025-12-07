@@ -101,12 +101,11 @@ public:
             auto psn_start = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_start));
             auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_end));
 
-            if(psn_start < 0 || psn_end - psn_start != 4095)
+            if(psn_end - psn_start != 4095)
             {
-                os << std::format("  {}-{}={} ", psn_start, psn_end, psn_end - psn_start) << std::endl;
                 valid_ss = false;
                 os << "  warning: unexpected security sector" << std::endl;
-                // break;
+                break;
             }
         }
 

@@ -86,17 +86,25 @@ public:
             }
         }
 
-        try
+        bool valid_ss = true;
+        auto const &sld = (SecurityLayerDescriptor &)security_sector[0];
+        for(uint8_t i = 0; i < 23; ++i)
+        {
+            if(sld.ranges[i].start < 0 || sld.ranges[i].end - sld.ranges[i].start != 4095)
+            {
+                valid_ss = false;
+                os << "  warning: unexpected security sector" << std::endl;
+                break;
+            }
+        }
+
+        if (valid_ss)
         {
             std::vector<Range<uint32_t>> protection;
             xbox::get_security_layer_descriptor_ranges(protection, security_sector);
             os << "  security sector ranges:" << std::endl;
             for(const auto &r : protection)
                 os << std::format("    {}-{}", r.start, r.end - 1) << std::endl;
-        }
-        catch
-        {
-            os << "  warning: unexpected security sector" << std::endl;
         }
     }
 

@@ -33,16 +33,16 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &, bool) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &iso_path, bool) const override
     {
-        std::filesystem::path security_path = track_extract_basename(track_path.string()) + ".security";
+        std::filesystem::path security_path = track_extract_basename(iso_path.string()) + ".security";
         if(!std::filesystem::exists(security_path))
             return;
         auto security_sector = read_vector(security_path);
         if(security_sector.empty() || security_sector.size() == FORM1_DATA_SIZE)
             return;
 
-        std::filesystem::path manufacturer_path = track_extract_basename(track_path.string()) + ".manufacturer";
+        std::filesystem::path manufacturer_path = track_extract_basename(iso_path.string()) + ".manufacturer";
         if(std::filesystem::exists(manufacturer_path))
         {
             auto manufacturer = read_vector(manufacturer_path);

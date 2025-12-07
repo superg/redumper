@@ -68,7 +68,7 @@ public:
                 if(dmi.version == 1)
                 {
                     os << std::format("  serial: {:.2}-{:.3}", dmi.xgd1.xmid.publisher_id, dmi.xgd1.xmid.game_id) << std::endl;
-                    os << std::format("  xmid: {}", dmi.xgd1.xmid_string) << std::endl;
+                    os << std::format("  xmid: {:.8}", dmi.xgd1.xmid_string) << std::endl;
                 }
                 else if(dmi.version == 2)
                 {
@@ -79,7 +79,7 @@ public:
                     ss << std::uppercase << std::hex << std::setfill('0');
                     for(uint32_t i = 12; i < 16; ++i)
                         ss << std::setw(2) << (uint32_t)dmi.xgd23.media_id[i];
-                    os << std::format("  ringcode: {}", ss.str()) << std::endl;
+                    os << std::format("  ringcode: {:.8}", ss.str()) << std::endl;
                 }
                 else
                 {

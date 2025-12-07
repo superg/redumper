@@ -56,7 +56,10 @@ public:
         auto const &sld = (xbox::SecurityLayerDescriptor &)security_sector[0];
         int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
         uint32_t xgd_type = xbox::xgd_version(layer0_last);
-        os << std::format("  system: {} (XGD{})", xgd_type == 1 ? "Xbox" : "Xbox 360", (char)(xgd_type + '0')) << std::endl;
+        if (xgd_type == 0)
+            os << "  warning: unexpected security sector" << std::endl;
+        else
+            os << std::format("  system: {} (XGD{})", xgd_type == 1 ? "Xbox" : "Xbox 360", (char)(xgd_type + '0')) << std::endl;
 
         std::filesystem::path manufacturer_path = basename + ".manufacturer";
         if(std::filesystem::exists(manufacturer_path))
@@ -104,7 +107,8 @@ public:
             if(psn_end - psn_start != 4095)
             {
                 valid_ss = false;
-                os << "  warning: unexpected security sector" << std::endl;
+                if (xgd_type != 0)
+                    os << "  warning: unexpected security sector" << std::endl;
                 break;
             }
         }

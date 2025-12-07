@@ -15,6 +15,7 @@ import dvd.xbox;
 import filesystem.iso9660;
 import range;
 import readers.data_reader;
+import utils.endian;
 import utils.file_io;
 import utils.misc;
 import utils.strings;
@@ -54,7 +55,7 @@ public:
 
         auto const &sld = (xbox::SecurityLayerDescriptor &)security_sector[0];
         int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
-        uint32_t xgd_type = xgd_version(layer0_last);
+        uint32_t xgd_type = xbox::xgd_version(layer0_last);
         os << std::format("  system: {} (XGD{})", xgd_type == 1 ? "Xbox" : "Xbox 360", (char)(xgd_type + '0')) << std::endl;
 
         std::filesystem::path manufacturer_path = basename + ".manufacturer";

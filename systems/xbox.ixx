@@ -37,9 +37,9 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &iso_path, bool) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &image_path, bool) const override
     {
-        std::string basename = iso_path.string();
+        std::string basename = image_path.string();
         auto pos = basename.find_last_of('.');
         if(pos != std::string::npos)
             basename = std::string(basename, 0, pos);
@@ -49,7 +49,7 @@ public:
             return;
 
         auto security_sector = read_vector(security_path);
-        if(security_sector.empty() || security_sector.size() == FORM1_DATA_SIZE)
+        if(security_sector.empty() || security_sector.size() != FORM1_DATA_SIZE)
             return;
 
         std::filesystem::path manufacturer_path = basename + ".manufacturer";

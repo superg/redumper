@@ -49,12 +49,12 @@ public:
             if(!manufacturer.empty() && manufacturer.size() == FORM1_DATA_SIZE + 4)
             {
                 auto const &dmi = (DMI &)manufacturer[3];
-                if (dmi.version == 1)
+                if(dmi.version == 1)
                 {
                     os << std::format("  serial: {}-{}", dmi.xgd1.xmid.publisher_id, dmi.xgd1.xmid.game_id) << std::endl;
                     os << std::format("  xmid: {}", dmi.xgd1.xmid_string) << std::endl;
                 }
-                else if (dmi.version == 2)
+                else if(dmi.version == 2)
                 {
                     os << std::format("  serial: {}-{}", dmi.xgd23.xemid.publisher_id, dmi.xgd23.xemid.game_id) << std::endl;
                     os << std::format("  xemid: {}", dmi.xgd23.xemid_string) << std::endl;

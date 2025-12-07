@@ -52,6 +52,11 @@ public:
         if(security_sector.empty() || security_sector.size() != FORM1_DATA_SIZE)
             return;
 
+        auto const &sld = (xbox::SecurityLayerDescriptor &)security_sector[0];
+        int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
+        uint32_t xgd_type = xgd_version(layer0_last);
+        os << std::format("  system: {} (XGD{})", xgd_type == 1 ? "Xbox" : "Xbox 360", (char)(xgd_type + '0')) << std::endl;
+
         std::filesystem::path manufacturer_path = basename + ".manufacturer";
         if(std::filesystem::exists(manufacturer_path))
         {
@@ -87,10 +92,15 @@ public:
         }
 
         bool valid_ss = true;
-        auto const &sld = (xbox::SecurityLayerDescriptor &)security_sector[0];
-        for(uint8_t i = 0; i < 23; ++i)
+        for(uint32_t i = 0; i < (uint32_t)sld.range_count; ++i)
         {
-            if(sld.ranges[i].start < 0 || sld.ranges[i].end - sld.ranges[i].start != 4095)
+            if(xgd_type == 1 && i >= 16 || xgd_type != 1 && i != 0 && i != 3)
+                continue;
+
+            auto psn_start = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_start));
+            auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_end));
+
+            if(psn_start < 0 || psn_end - psn_start != 4095)
             {
                 valid_ss = false;
                 os << "  warning: unexpected security sector" << std::endl;

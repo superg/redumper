@@ -145,7 +145,7 @@ const std::map<int32_t, uint32_t> XGD_VERSION_MAP = {
 constexpr uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
 
 
-uint32_t xgd_version(int32_t layer0_last)
+export uint32_t xgd_version(int32_t layer0_last)
 {
     auto it = XGD_VERSION_MAP.find(layer0_last);
     return it == XGD_VERSION_MAP.end() ? 0 : it->second;

@@ -639,15 +639,18 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
+    LOG("sectors count (READ_CAPACITY): {}", sectors_count_capacity);
     uint32_t sectors_count = sectors_count_capacity;
     if(sectors_count_xbox)
     {
+        LOG("sectors count (XBOX): {}", *sectors_count_xbox);
         sectors_count = *sectors_count_xbox;
     }
     else
     {
         if(sectors_count_physical)
         {
+            LOG("sectors count (PHYSICAL): {}", *sectors_count_physical);
             if(*sectors_count_physical != sectors_count_capacity)
                 LOG("warning: READ_CAPACITY / PHYSICAL sectors count mismatch, using PHYSICAL");
 

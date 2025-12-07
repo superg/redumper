@@ -32,7 +32,7 @@ export struct Context
 
 
 #pragma pack(push, 1)
-union SecurityLayerDescriptor
+export union SecurityLayerDescriptor
 {
     struct Range
     {

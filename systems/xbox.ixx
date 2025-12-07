@@ -58,7 +58,7 @@ public:
             auto manufacturer = read_vector(manufacturer_path);
             if(!manufacturer.empty() && manufacturer.size() == FORM1_DATA_SIZE + 4)
             {
-                auto const &dmi = (DMI &)manufacturer[3];
+                auto const &dmi = (DMI &)manufacturer[4];
                 if(dmi.version == 1)
                 {
                     os << std::format("  serial: {}-{}", dmi.xgd1.xmid.publisher_id, dmi.xgd1.xmid.game_id) << std::endl;
@@ -86,11 +86,18 @@ public:
             }
         }
 
-        os << "  security sector ranges:" << std::endl;
-        std::vector<Range<uint32_t>> protection;
-        xbox::get_security_layer_descriptor_ranges(protection, security_sector);
-        for(const auto &r : protection)
-            os << std::format("    {}-{}", r.start, r.end - 1) << std::endl;
+        try
+        {
+            std::vector<Range<uint32_t>> protection;
+            xbox::get_security_layer_descriptor_ranges(protection, security_sector);
+            os << "  security sector ranges:" << std::endl;
+            for(const auto &r : protection)
+                os << std::format("    {}-{}", r.start, r.end - 1) << std::endl;
+        }
+        catch
+        {
+            os << "  warning: unexpected security sector" << std::endl;
+        }
     }
 
 private:

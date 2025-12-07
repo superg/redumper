@@ -98,7 +98,7 @@ public:
             }
         }
 
-        if (valid_ss)
+        if(valid_ss)
         {
             std::vector<Range<uint32_t>> protection;
             xbox::get_security_layer_descriptor_ranges(protection, security_sector);

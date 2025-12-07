@@ -38,7 +38,7 @@ public:
 
     void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &iso_path, bool) const override
     {
-        std::string basename = iso_path.string()
+        std::string basename = iso_path.string();
         auto pos = basename.find_last_of('.');
         if(pos != std::string::npos)
             basename = std::string(basename, 0, pos);

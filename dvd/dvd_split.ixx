@@ -109,12 +109,6 @@ void generate_extra_xbox(Context &ctx, Options &options)
                 ss_rom_entry.update(security.data(), FORM1_DATA_SIZE);
                 if(ctx.dat.has_value())
                     ctx.dat->push_back(ss_rom_entry.xmlLine());
-
-                LOG("security sector ranges:");
-                std::vector<Range<uint32_t>> protection;
-                xbox::get_security_layer_descriptor_ranges(protection, security);
-                for(const auto &r : protection)
-                    LOG("  {}-{}", r.start, r.end - 1);
             }
             else
             {

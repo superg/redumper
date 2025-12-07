@@ -1,0 +1,159 @@
+module;
+#include <filesystem>
+#include <format>
+#include <map>
+#include <ostream>
+#include <span>
+#include "system.hh"
+#include "throw_line.hh"
+
+export module systems.xbox;
+
+import dvd.xbox;
+import filesystem.iso9660;
+import readers.data_reader;
+import utils.misc;
+import utils.strings;
+
+
+
+namespace gpsxre
+{
+
+export class SystemXbox : public System
+{
+public:
+    std::string getName() override
+    {
+        return "Xbox";
+    }
+
+    Type getType() override
+    {
+        return Type::ISO;
+    }
+
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &, bool) const override
+    {
+        std::filesystem::path security_path = track_extract_basename(track_path.string()) + ".security";
+        if(!std::filesystem::exists(security_path))
+            return;
+        auto security_sector = read_vector(security_path);
+        if(security_sector.empty() || security_sector.size() == FORM1_DATA_SIZE)
+            return;
+
+        std::filesystem::path manufacturer_path = track_extract_basename(track_path.string()) + ".manufacturer";
+        if(std::filesystem::exists(manufacturer_path))
+        {
+            auto manufacturer = read_vector(manufacturer_path);
+            if(!manufacturer.empty() && manufacturer.size() == FORM1_DATA_SIZE + 4)
+            {
+                auto const &dmi = (DMI &)manufacturer[3];
+                if (dmi.version == 1)
+                {
+                    os << std::format("  serial: {}-{}", dmi.xgd1.xmid.publisher_id, dmi.xgd1.xmid.game_id) << std::endl;
+                    os << std::format("  xmid: {}", dmi.xgd1.xmid_string) << std::endl;
+                }
+                else if (dmi.version == 2)
+                {
+                    os << std::format("  serial: {}-{}", dmi.xgd23.xemid.publisher_id, dmi.xgd23.xemid.game_id) << std::endl;
+                    os << std::format("  xemid: {}", dmi.xgd23.xemid_string) << std::endl;
+
+                    std::ostringstream ss;
+                    ss << std::uppercase << std::hex << std::setfill('0');
+                    for(uint32_t i = 12; i < 16; ++i)
+                        ss << std::setw(2) << (uint32_t)dmi.xgd23.media_id[i];
+                    os << std::format("  ringcode: {}", ss.str()) << std::endl;
+                }
+                else
+                {
+                    os << "  warning: unexpected DMI" << std::endl;
+                }
+            }
+            else
+            {
+                os << "  warning: unexpected DMI" << std::endl;
+            }
+        }
+
+        LOG("security sector ranges:");
+        std::vector<Range<uint32_t>> protection;
+        xbox::get_security_layer_descriptor_ranges(protection, security_sector);
+        for(const auto &r : protection)
+            LOG("  {}-{}", r.start, r.end - 1);
+    }
+
+private:
+    struct DMI
+    {
+        uint8_t version;
+
+        union
+        {
+            struct
+            {
+                uint8_t reserved_001[7];
+                union
+                {
+                    struct
+                    {
+                        char publisher_id[2];
+                        char game_id[3];
+                        char sku[2];
+                        char region;
+                    } xmid;
+                    char xmid_string[8];
+                };
+                uint8_t timestamp[8];
+                uint8_t xor_key_id;
+                uint8_t reserved_019[55];
+            } xgd1;
+
+            struct
+            {
+                uint8_t reserved_001[15];
+                uint8_t timestamp[8];
+                uint8_t xor_key_id;
+                uint8_t reserved_019[7];
+                uint8_t media_id[16];
+                uint8_t reserved_030[16];
+                union
+                {
+                    struct
+                    {
+                        char publisher_id[2];
+                        char game_id[4];
+                        char sku[2];
+                        char region;
+                        union
+                        {
+                            struct
+                            {
+                                char version_id;
+                                char media_id;
+                                char disc_number;
+                                char disc_total;
+                                char reserved_04E[3];
+                            } short_version;
+
+                            struct
+                            {
+                                char version_id[2];
+                                char media_id;
+                                char disc_number;
+                                char disc_total;
+                                char reserved_04E[2];
+                            } long_version;
+                        }
+                    } xemid;
+                    char xemid_string[16];
+                };
+            } xgd23;
+        };
+
+        uint8_t reserved_050[1508];
+        uint8_t dmi_trailer[460];
+    };
+};
+
+}

@@ -55,7 +55,7 @@ public:
         if(xgd_type != 0)
             os << std::format("  system: {} (XGD{})", xgd_type == 1 ? "Xbox" : "Xbox 360", (char)(xgd_type + '0')) << std::endl;
 
-        std::filesystem::path security_path = track_extract_basename(track_path.string()) + ".manufacturer";
+        std::filesystem::path manufacturer_path = track_extract_basename(track_path.string()) + ".manufacturer";
         if(std::filesystem::exists(manufacturer_path))
         {
             auto manufacturer = read_vector(manufacturer_path);

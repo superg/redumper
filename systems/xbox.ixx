@@ -89,7 +89,7 @@ public:
             for(const auto &r : protection)
                 os << std::format("    {}-{}", r.start, r.end - 1) << std::endl;
         }
-        catch(const std::runtime_error& e)
+        catch(const std::runtime_error &e)
         {
             // invalid SS ranges, don't print
             ;

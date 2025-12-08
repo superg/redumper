@@ -4,6 +4,7 @@ module;
 #include <map>
 #include <ostream>
 #include <span>
+#include <string_view>
 #include <vector>
 #include "system.hh"
 #include "throw_line.hh"
@@ -64,12 +65,12 @@ public:
                 auto const &dmi = (xbox::DMI &)manufacturer[4];
                 if(dmi.version == 1)
                 {
-                    os << std::format("  serial: {:.2}-{:.3}", dmi.xgd1.xmid.publisher_id, dmi.xgd1.xmid.game_id) << std::endl;
+                    os << std::format("  serial: {:.2}-{:.3}", std::string_view(dmi.xgd1.xmid.publisher_id, 2), std::string_view(dmi.xgd1.xmid.game_id, 3)) << std::endl;
                     os << std::format("  xmid: {:.8}", dmi.xgd1.xmid_string) << std::endl;
                 }
                 else if(dmi.version == 2)
                 {
-                    os << std::format("  serial: {:.2}-{:.4}", dmi.xgd23.xemid.publisher_id, dmi.xgd23.xemid.game_id) << std::endl;
+                    os << std::format("  serial: {:.2}-{:.4}", std::string_view(dmi.xgd23.xemid.publisher_id, 2), std::string_view(dmi.xgd23.xemid.game_id, 4)) << std::endl;
                     os << std::format("  xemid: {:.16}", dmi.xgd23.xemid_string) << std::endl;
 
                     std::ostringstream ss;

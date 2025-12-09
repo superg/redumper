@@ -5,6 +5,7 @@ module;
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <utility>
 #include <vector>
 #include "throw_line.hh"
@@ -358,6 +359,41 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool blur
 }
 
 
+struct ContextISO9660
+{
+    bool search = true;
+};
+
+
+std::optional<uint32_t> iso9660_process(ContextISO9660 &ctx, std::span<uint8_t> data, uint32_t lba)
+{
+    if(ctx.search)
+    {
+        if(lba >= iso9660::SYSTEM_AREA_SIZE)
+        {
+            auto const &descriptor = (iso9660::VolumeDescriptor &)data[0];
+
+            if(memcmp(descriptor.standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier))
+                && memcmp(descriptor.standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
+            {
+                ctx.search = false;
+            }
+
+            if(descriptor.type == iso9660::VolumeDescriptorType::PRIMARY)
+            {
+                ctx.search = false;
+                auto const &pvd = (iso9660::PrimaryVolumeDescriptor &)descriptor;
+                return pvd.volume_space_size.lsb;
+            }
+            else if(descriptor.type == iso9660::VolumeDescriptorType::SET_TERMINATOR)
+                ctx.search = false;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
 void progress_output(uint32_t lba, uint32_t lba_end, uint32_t errors)
 {
     char animation = lba == lba_end ? '*' : spinner_animation();
@@ -406,6 +442,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
 
     bool trim_to_filesystem_size = false;
+    ContextISO9660 ctx_iso9660;
 
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
@@ -758,7 +795,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
         if(read)
         {
-            std::vector<uint8_t> drive_data(sectors_at_once * FORM1_DATA_SIZE);
+            std::vector<uint8_t> drive_data(file_data.size());
             if(auto range = find_range(protection, lba); range != nullptr)
                 store = true;
             else
@@ -857,7 +894,16 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(!read || store)
         {
             if(rom_update)
-                rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
+                rom_entry.update(file_data.data(), file_data.size());
+
+            for(uint32_t i = 0; i < sectors_to_read; ++i)
+            {
+                auto sectors_count_iso9660 = iso9660_process(ctx_iso9660, std::span(&file_data[i * FORM1_DATA_SIZE], FORM1_DATA_SIZE), lba + i);
+                if(sectors_count_iso9660)
+                {
+                    LOG_R("sectors count (ISO9660): {}", *sectors_count_iso9660);
+                }
+            }
         }
         else
             rom_update = false;

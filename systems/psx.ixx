@@ -173,9 +173,10 @@ private:
     {
         std::string region;
 
-        const std::set<std::string> REGION_J{ "ESPM", "PAPX", "PCPX", "PDPX", "SCPM", "SCPS", "SCZS", "SIPS", "SLKA", "SLPM", "SLPS" };
+        const std::set<std::string> REGION_J{ "ESPM", "PAPX", "PCPX", "PDPX", "SCPM", "SCPS", "SCZS", "SIPS", "SLPM", "SLPS" };
         const std::set<std::string> REGION_U{ "LSP", "PUPX", "SCUS", "SLUS", "SLUSP" };
         const std::set<std::string> REGION_E{ "PEPX", "SCED", "SCES", "SLED", "SLES" };
+        const std::set<std::string> REGION_K{ "SCKA", "SLKA" };
         // multi: "DTL", "PBPX"
 
         if(REGION_J.find(prefix) != REGION_J.end())
@@ -184,6 +185,8 @@ private:
             region = "USA";
         else if(REGION_E.find(prefix) != REGION_E.end())
             region = "Europe";
+        else if(REGION_K.find(prefix) != REGION_K.end())
+            region = "South Korea";
 
         return region;
     }

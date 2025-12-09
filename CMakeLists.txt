@@ -150,6 +150,7 @@ target_sources(redumper
     "systems/ps4.ixx"
     "systems/ps5.ixx"
     "systems/sat.ixx"
+    "systems/xbox.ixx"
     "systems/systems.ixx"
     "utils/animation.ixx"
     "utils/endian.ixx"

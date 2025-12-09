@@ -32,7 +32,7 @@ export struct Context
 
 
 #pragma pack(push, 1)
-union SecurityLayerDescriptor
+export union SecurityLayerDescriptor
 {
     struct Range
     {
@@ -135,6 +135,77 @@ union SecurityLayerDescriptor
 };
 #pragma pack(pop)
 
+export struct DMI
+{
+    uint8_t version;
+
+    union
+    {
+        struct
+        {
+            uint8_t reserved_001[7];
+            union
+            {
+                struct
+                {
+                    char publisher_id[2];
+                    char game_id[3];
+                    char sku[2];
+                    char region;
+                } xmid;
+                char xmid_string[8];
+            };
+            uint8_t timestamp[8];
+            uint8_t xor_key_id;
+            uint8_t reserved_019[55];
+        } xgd1;
+
+        struct
+        {
+            uint8_t reserved_001[15];
+            uint8_t timestamp[8];
+            uint8_t xor_key_id;
+            uint8_t reserved_019[7];
+            uint8_t media_id[16];
+            uint8_t reserved_030[16];
+            union
+            {
+                struct
+                {
+                    char publisher_id[2];
+                    char game_id[4];
+                    char sku[2];
+                    char region;
+                    union
+                    {
+                        struct
+                        {
+                            char version_id;
+                            char media_id;
+                            char disc_number;
+                            char disc_total;
+                            char reserved_04E[3];
+                        } short_version;
+
+                        struct
+                        {
+                            char version_id[2];
+                            char media_id;
+                            char disc_number;
+                            char disc_total;
+                            char reserved_04E[2];
+                        } long_version;
+                    };
+                } xemid;
+                char xemid_string[16];
+            };
+        } xgd23;
+    };
+
+    uint8_t reserved_050[1508];
+    uint8_t dmi_trailer[460];
+};
+
 
 const std::map<int32_t, uint32_t> XGD_VERSION_MAP = {
     { 2110383, 1 },
@@ -145,7 +216,7 @@ const std::map<int32_t, uint32_t> XGD_VERSION_MAP = {
 constexpr uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
 
 
-uint32_t xgd_version(int32_t layer0_last)
+export uint32_t xgd_version(int32_t layer0_last)
 {
     auto it = XGD_VERSION_MAP.find(layer0_last);
     return it == XGD_VERSION_MAP.end() ? 0 : it->second;

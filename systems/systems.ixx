@@ -18,6 +18,7 @@ import systems.ps4;
 import systems.ps5;
 import systems.securom;
 import systems.sat;
+import systems.xbox;
 
 
 
@@ -47,6 +48,7 @@ public:
         systems.push_back([]() { return std::make_unique<SystemPS4>(); });
         systems.push_back([]() { return std::make_unique<SystemPS5>(); });
         systems.push_back([]() { return std::make_unique<SystemSAT>(); });
+        systems.push_back([]() { return std::make_unique<SystemXBOX>(); });
 
         return systems;
     }

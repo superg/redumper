@@ -55,7 +55,7 @@ export struct Options
     bool legacy_subs;
     std::string skip;
     int skip_fill;
-    bool iso9660_trim;
+    bool filesystem_trim;
     bool plextor_skip_leadin;
     int plextor_leadin_retries;
     bool plextor_leadin_force_store;
@@ -99,7 +99,7 @@ export struct Options
         , force_qtoc(false)
         , legacy_subs(false)
         , skip_fill(0x55)
-        , iso9660_trim(false)
+        , filesystem_trim(false)
         , plextor_skip_leadin(false)
         , plextor_leadin_retries(4)
         , plextor_leadin_force_store(false)
@@ -248,8 +248,8 @@ export struct Options
                         s_value = &skip;
                     else if(key == "--skip-fill")
                         i_value = &skip_fill;
-                    else if(key == "--iso9660-trim")
-                        iso9660_trim = true;
+                    else if(key == "--filesystem-trim")
+                        filesystem_trim = true;
                     else if(key == "--plextor-skip-leadin")
                         plextor_skip_leadin = true;
                     else if(key == "--plextor-leadin-retries")
@@ -418,7 +418,7 @@ export struct Options
         LOG("\t--force-qtoc                    \tforce QTOC based track split");
         LOG("\t--legacy-subs                   \treplicate DIC style subchannel based track split");
         LOG("\t--skip-fill=VALUE               \tfill byte value for skipped sectors (default: 0x{:02X})", skip_fill);
-        LOG("\t--iso9660-trim                  \ttrim each ISO9660 data track to PVD volume size, useful for discs with fake TOC");
+        LOG("\t--filesystem-trim               \ttrim data track to filesystem size (ISO9660: all media, UDF: DVD and later)");
         LOG("");
         LOG("\t(drive test)");
         LOG("\t--drive-test-skip-plextor-leadin\tskip testing for PLEXTOR negative lead-in range access");

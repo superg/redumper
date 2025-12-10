@@ -88,7 +88,7 @@ int32_t iso9660_trim_if_needed(Context &ctx, const TOC::Session::Track &t, std::
 {
     int32_t lba_end = t.lba_end;
 
-    if((ctx.protection_trim && *ctx.protection_trim || options.iso9660_trim) && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty())
+    if((ctx.protection_trim && *ctx.protection_trim || options.filesystem_trim) && t.control & (uint8_t)ChannelQ::Control::DATA && !t.indices.empty())
     {
         uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + offset_manager->getOffset(t.indices.front()) * CD_SAMPLE_SIZE;
         auto form1_reader = std::make_unique<Image_SCRAM_Reader>(scm_fs, file_offset, t.lba_end - t.indices.front());

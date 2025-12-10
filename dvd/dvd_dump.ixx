@@ -18,6 +18,7 @@ import drive;
 import dvd.css;
 import dvd.xbox;
 import filesystem.iso9660;
+import filesystem.udf;
 import options;
 import range;
 import rom_entry;
@@ -365,6 +366,12 @@ struct ContextISO9660
 };
 
 
+struct ContextUDF
+{
+    std::vector<std::pair<uint32_t, uint32_t>> vds;
+};
+
+
 std::optional<uint32_t> iso9660_process(ContextISO9660 &ctx, std::span<uint8_t> data, uint32_t lba)
 {
     if(ctx.search)
@@ -388,6 +395,56 @@ std::optional<uint32_t> iso9660_process(ContextISO9660 &ctx, std::span<uint8_t> 
             else if(descriptor.type == iso9660::VolumeDescriptorType::SET_TERMINATOR)
                 ctx.search = false;
         }
+    }
+
+    return std::nullopt;
+}
+
+
+std::optional<uint32_t> udf_process(ContextUDF &ctx, std::fstream &fs_iso, std::fstream &fs_state, std::span<uint8_t> data, uint32_t lba)
+{
+    if(lba == udf::AVDP_PRIMARY_LBA)
+    {
+        if(auto const &avdp = (udf::AnchorVolumeDescriptorPointer &)data[0]; avdp.tag.tag_identifier == udf::TagIdentifierType::ANCHOR_POINTER)
+        {
+            // ordering is intentional
+            ctx.vds.emplace_back(avdp.reserve_vds.location, scale_up(avdp.reserve_vds.length, FORM1_DATA_SIZE));
+            ctx.vds.emplace_back(avdp.main_vds.location, scale_up(avdp.main_vds.length, FORM1_DATA_SIZE));
+        }
+    }
+
+    if(!ctx.vds.empty() && ctx.vds.back().first + ctx.vds.back().second <= lba)
+    {
+        std::vector<uint8_t> file_data(ctx.vds.back().second * FORM1_DATA_SIZE);
+        std::vector<State> file_state(ctx.vds.back().second);
+
+        read_entry(fs_iso, (uint8_t *)file_data.data(), FORM1_DATA_SIZE, ctx.vds.back().first, ctx.vds.back().second, 0, 0);
+        read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), ctx.vds.back().first, ctx.vds.back().second, 0, (uint8_t)State::ERROR_SKIP);
+
+        if(std::all_of(file_state.begin(), file_state.end(), [](State s) { return s == State::SUCCESS; }))
+        {
+            uint32_t sectors_count = 0;
+
+            for(uint32_t i = 0; i < ctx.vds.back().second; ++i)
+            {
+                auto const &tag = (udf::Tag &)file_data[i * FORM1_DATA_SIZE];
+
+                if(tag.tag_identifier == udf::TagIdentifierType::PARTITION)
+                {
+                    auto const &partition = (udf::PartitionDescriptor &)file_data[i * FORM1_DATA_SIZE];
+
+                    sectors_count = std::max(sectors_count, partition.partition_start_location + partition.partition_length);
+                }
+                else if(tag.tag_identifier == udf::TagIdentifierType::TERMINATING)
+                    break;
+            }
+
+            ctx.vds.clear();
+
+            return sectors_count + 1;
+        }
+        else
+            ctx.vds.pop_back();
     }
 
     return std::nullopt;
@@ -443,6 +500,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     bool trim_to_filesystem_size = false;
     ContextISO9660 ctx_iso9660;
+    ContextUDF ctx_udf;
 
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
@@ -694,15 +752,18 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             sectors_count = *sectors_count_physical;
         }
     }
-    LOG("");
 
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
     std::vector<uint8_t> file_data(sectors_at_once * FORM1_DATA_SIZE);
     std::vector<State> file_state(sectors_at_once);
 
-    std::fstream fs_iso(iso_path, std::fstream::out | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in) | std::fstream::binary);
-    std::fstream fs_state(state_path, std::fstream::out | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in) | std::fstream::binary);
+    auto file_mode = std::fstream::out | std::fstream::in | std::fstream::binary;
+    if(dump_mode == DumpMode::DUMP)
+        file_mode |= std::fstream::trunc;
+
+    std::fstream fs_iso(iso_path, file_mode);
+    std::fstream fs_state(state_path, file_mode);
 
     uint32_t refine_counter = 0;
     uint32_t refine_retries = options.retries ? options.retries : 1;
@@ -900,9 +961,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             {
                 auto sectors_count_iso9660 = iso9660_process(ctx_iso9660, std::span(&file_data[i * FORM1_DATA_SIZE], FORM1_DATA_SIZE), lba + i);
                 if(sectors_count_iso9660)
-                {
                     LOG_R("sectors count (ISO9660): {}", *sectors_count_iso9660);
-                }
+
+                auto sectors_count_udf = udf_process(ctx_udf, fs_iso, fs_state, std::span(&file_data[i * FORM1_DATA_SIZE], FORM1_DATA_SIZE), lba + i);
+                if(sectors_count_udf)
+                    LOG_R("sectors count (UDF): {}", *sectors_count_udf);
             }
         }
         else

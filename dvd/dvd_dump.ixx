@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <memory>

@@ -79,4 +79,14 @@ export void image_check_overwrite(const Options &options)
         throw_line("dump already exists (image name: {})", options.image_name);
 }
 
+
+export void image_check_exists(const Options &options)
+{
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+    std::string state_path(image_prefix + ".state");
+
+    if(!std::filesystem::exists(state_path))
+        throw_line("dump doesn't exist (image name: {})", options.image_name);
+}
+
 }

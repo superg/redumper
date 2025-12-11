@@ -453,7 +453,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     std::filesystem::path state_path(image_prefix + ".state");
 
     if(dump_mode == DumpMode::DUMP)
+    {
         image_check_overwrite(options);
+
+        if(!options.image_path.empty())
+            std::filesystem::create_directories(options.image_path);
+    }
+    else
+        image_check_exists(options);
 
     std::vector<Range<uint32_t>> protection;
     for(auto const &p : string_to_ranges<uint32_t>(options.skip))

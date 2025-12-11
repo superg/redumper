@@ -226,6 +226,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         if(!options.image_path.empty())
             std::filesystem::create_directories(options.image_path);
     }
+    else
+        image_check_exists(options);
 
     auto toc = toc_process(ctx, options, dump_mode == DumpMode::DUMP);
     if(dump_mode == DumpMode::DUMP)

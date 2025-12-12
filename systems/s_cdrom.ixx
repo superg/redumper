@@ -171,12 +171,13 @@ public:
                         if(memcmp(ecc.p_parity, sector.mode2.xa.form1.ecc.p_parity, sizeof(ecc.p_parity)) || memcmp(ecc.q_parity, sector.mode2.xa.form1.ecc.q_parity, sizeof(ecc.q_parity)))
                         {
                             ranges_append(ecc_errors, lba_positional);
-                            error_detected = true;
                         }
                         else
                         {
                             ranges_append(ecc_nc_errors, lba_positional);
                         }
+
+                        error_detected = true;
                     }
 
                     // restore modified sector header

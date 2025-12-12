@@ -50,6 +50,7 @@ public:
         std::vector<std::pair<int32_t, int32_t>> msf_errors;
         std::vector<std::pair<int32_t, int32_t>> invalid_modes;
         std::vector<std::pair<int32_t, int32_t>> ecc_errors;
+        std::vector<std::pair<int32_t, int32_t>> ecc_nc_errors;
         std::vector<std::pair<int32_t, int32_t>> edc_errors;
         std::vector<std::pair<int32_t, int32_t>> subheader_mismatches;
         uint32_t redump_errors = 0;
@@ -164,7 +165,18 @@ public:
                     Sector::ECC ecc(ECC().Generate((uint8_t *)&sector.header));
                     if(memcmp(ecc.p_parity, sector.mode2.xa.form1.ecc.p_parity, sizeof(ecc.p_parity)) || memcmp(ecc.q_parity, sector.mode2.xa.form1.ecc.q_parity, sizeof(ecc.q_parity)))
                     {
-                        ranges_append(ecc_errors, lba_positional);
+                        // [PSX] On multi-track discs with zeroed Form2 EDC, the last sector of the data track has ECC calculated with a non-zeroed header
+                        sector.header = header;
+                        ecc = ECC().Generate((uint8_t *)&sector.header);
+                        if(memcmp(ecc.p_parity, sector.mode2.xa.form1.ecc.p_parity, sizeof(ecc.p_parity)) || memcmp(ecc.q_parity, sector.mode2.xa.form1.ecc.q_parity, sizeof(ecc.q_parity)))
+                        {
+                            ranges_append(ecc_errors, lba_positional);
+                        }
+                        else
+                        {
+                            ranges_append(ecc_nc_errors, lba_positional);
+                        }
+
                         error_detected = true;
                     }
 
@@ -198,6 +210,8 @@ public:
             os << std::format("  generated sectors (0x55): {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(generated)) : "") << std::endl;
         if(auto count = ranges_count(msf_errors); count)
             os << std::format("  MSF errors: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(msf_errors)) : "") << std::endl;
+        if(auto count = ranges_count(ecc_nc_errors); count)
+            os << std::format("  ECC errors (non-compliant): {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(ecc_nc_errors)) : "") << std::endl;
         if(auto count = ranges_count(ecc_errors); count)
             os << std::format("  ECC errors: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(ecc_errors)) : "") << std::endl;
         if(auto count = ranges_count(edc_errors); count)

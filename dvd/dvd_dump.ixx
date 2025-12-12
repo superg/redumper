@@ -4,6 +4,7 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <set>
 #include <span>
@@ -164,7 +165,7 @@ static const std::string BLURAY_CHANNEL_LENGTH[] =
 // clang-format on
 
 
-uint32_t get_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor)
+uint32_t get_dvd_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor)
 {
     int32_t psn_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
     int32_t psn_last = sign_extend<24>(endian_swap(layer_descriptor.data_end_sector));
@@ -176,6 +177,37 @@ uint32_t get_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descri
         length += 2 * (layer0_last + 1);
 
     return length;
+}
+
+
+std::vector<uint32_t> get_bluray_layer_lengths(const std::vector<uint8_t> &structure, bool rom)
+{
+    std::vector<uint32_t> layer_lengths;
+
+    auto di_units = &structure[sizeof(CMD_ParameterListHeader)];
+    uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
+    for(uint32_t j = 0; j < 32; ++j)
+    {
+        auto &unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)di_units[j * unit_size];
+        std::string identifier((char *)unit.header.identifier, sizeof(unit.header.identifier));
+        if(identifier != "DI")
+            break;
+
+        if(unit.header.format == 1)
+        {
+            auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit.body;
+
+            auto last_psn = endian_swap(body->last_psn);
+            auto first_aun = endian_swap(body->first_aun);
+            auto last_aun = endian_swap(body->last_aun);
+
+            auto layers_count = unit.header.layer + 1;
+            layer_lengths.resize(layers_count);
+            layer_lengths[unit.header.layer] = (layers_count == body->layers_count ? last_psn - 1 : last_aun) - first_aun + 2;
+        }
+    }
+
+    return layer_lengths;
 }
 
 
@@ -203,7 +235,7 @@ void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
     int32_t psn_last = sign_extend<24>(psn_last_raw);
     int32_t layer0_last = sign_extend<24>(layer0_last_raw);
 
-    uint32_t length = get_layer_length(layer_descriptor);
+    uint32_t length = get_dvd_layer_length(layer_descriptor);
 
     LOG("{}data {{ LBA: [{} .. {}], length: {}, hLBA: [0x{:06X} .. 0x{:06X}] }}", indent, psn_first, psn_last, length, psn_first_raw, psn_last_raw);
     if(layer0_last)
@@ -510,58 +542,67 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             LOG("warning: Blu-ray current profile mismatch, dump will be trimmed to disc filesystem size");
         }
 
-        // DVD
-        if(ctx.disc_type != DiscType::BLURAY && ctx.disc_type != DiscType::BLURAY_R && !physical_structures.empty())
+        if(!physical_structures.empty())
         {
-            for(uint32_t i = 0; i < physical_structures.size(); ++i)
+            // Blu-ray
+            if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
             {
-                auto const &structure = physical_structures[i];
-
-                // verify physical structure is valid
-                if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
-                    throw_line("invalid layer descriptor size (layer: {})", i);
-
-                // calculate physical sectors count based on all layers of physical structures
-                auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
-                sectors_count_physical = sectors_count_physical.value_or(0) + get_layer_length(layer_descriptor);
+                auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
+                sectors_count_physical = std::accumulate(layer_lengths.begin(), layer_lengths.end(), (uint32_t)0);
             }
-
-            // kreon physical sector count is only for L1 video portion when XGD present
-            if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
-                kreon_firmware && physical_structures.size() == 1 && get_layer_length(layer0_ld) != sectors_count_capacity)
+            // DVD
+            else
             {
-                xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, is_custom_kreon_firmware(ctx.drive_config));
-
-                if(xbox)
+                for(uint32_t i = 0; i < physical_structures.size(); ++i)
                 {
-                    sectors_count_xbox = get_layer_length(xbox::get_final_layer_descriptor(layer0_ld, xbox->security_sector));
+                    auto const &structure = physical_structures[i];
 
-                    // store security sector
-                    auto security_sector_fn = image_prefix + ".security";
-                    if(dump_mode == DumpMode::DUMP)
-                        write_vector(security_sector_fn, xbox->security_sector);
-                    else if(dump_mode == DumpMode::REFINE && !options.force_refine)
-                    {
-                        auto ss(xbox->security_sector);
-                        xbox::clean_security_sector(ss);
+                    // verify physical structure is valid
+                    if(structure.size() < sizeof(CMD_ParameterListHeader) + sizeof(READ_DVD_STRUCTURE_LayerDescriptor))
+                        throw_line("invalid layer descriptor size (layer: {})", i);
 
-                        // compare cleaned security sector to stored to make sure it's the same disc
-                        bool match = false;
-                        if(std::filesystem::exists(security_sector_fn))
-                        {
-                            auto ss_file = read_vector(security_sector_fn);
-                            xbox::clean_security_sector(ss_file);
-                            match = ss_file == ss;
-                        }
-
-                        if(!match)
-                            throw_line("disc / file security sector mismatch, refining from a different disc?");
-                    }
+                    // calculate physical sectors count based on all layers of physical structures
+                    auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
+                    sectors_count_physical = sectors_count_physical.value_or(0) + get_dvd_layer_length(layer_descriptor);
                 }
-                else
+
+                // kreon physical sector count is only for L1 video portion when XGD present
+                if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
+                    kreon_firmware && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
                 {
-                    LOG("kreon: malformed XGD detected, continuing in normal dump mode");
-                    LOG("");
+                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, is_custom_kreon_firmware(ctx.drive_config));
+
+                    if(xbox)
+                    {
+                        sectors_count_xbox = get_dvd_layer_length(xbox::get_final_layer_descriptor(layer0_ld, xbox->security_sector));
+
+                        // store security sector
+                        auto security_sector_fn = image_prefix + ".security";
+                        if(dump_mode == DumpMode::DUMP)
+                            write_vector(security_sector_fn, xbox->security_sector);
+                        else if(dump_mode == DumpMode::REFINE && !options.force_refine)
+                        {
+                            auto ss(xbox->security_sector);
+                            xbox::clean_security_sector(ss);
+
+                            // compare cleaned security sector to stored to make sure it's the same disc
+                            bool match = false;
+                            if(std::filesystem::exists(security_sector_fn))
+                            {
+                                auto ss_file = read_vector(security_sector_fn);
+                                xbox::clean_security_sector(ss_file);
+                                match = ss_file == ss;
+                            }
+
+                            if(!match)
+                                throw_line("disc / file security sector mismatch, refining from a different disc?");
+                        }
+                    }
+                    else
+                    {
+                        LOG("kreon: malformed XGD detected, continuing in normal dump mode");
+                        LOG("");
+                    }
                 }
             }
         }
@@ -599,46 +640,16 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 // layer break
                 if(!physical_structures.empty())
                 {
-                    auto const &structure = physical_structures.front();
+                    auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
 
-                    std::vector<uint32_t> layer_sizes(8);
-
-                    auto di_units = &structure[sizeof(CMD_ParameterListHeader)];
-                    for(uint32_t j = 0; j < 32; ++j)
-                    {
-                        auto &unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)di_units[j * unit_size];
-                        std::string identifier((char *)unit.header.identifier, sizeof(unit.header.identifier));
-                        if(identifier != "DI")
-                            break;
-
-                        if(unit.header.format == 1)
-                        {
-                            auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit.body;
-                            auto last_psn = endian_swap(body->last_psn);
-                            auto first_aun = endian_swap(body->first_aun);
-                            auto last_aun = endian_swap(body->last_aun);
-
-                            layer_sizes[unit.header.layer] = last_aun - first_aun + 2;
-                        }
-                    }
-
-                    std::vector<uint32_t> layer_breaks;
                     uint32_t layer_break = 0;
-                    for(uint32_t i = 0; i < layer_sizes.size() && layer_sizes[i]; ++i)
+                    for(uint32_t i = 0; i + 1 < layer_lengths.size(); ++i)
                     {
-                        if(layer_break)
-                            layer_breaks.push_back(layer_break);
-
-                        layer_break += layer_sizes[i];
+                        layer_break += layer_lengths[i];
+                        LOG("layer break{}: {}", layer_lengths.size() > 1 ? std::format(" (layer: {})", i) : "", layer_break);
                     }
 
-                    if(!layer_breaks.empty())
-                    {
-                        for(uint32_t i = 0; i < layer_breaks.size(); ++i)
-                            LOG("layer break{}: {}", layer_breaks.size() > 1 ? std::format(" (layer: {})", i) : "", layer_breaks[i]);
-
-                        LOG("");
-                    }
+                    LOG("");
                 }
             }
             // print physical structures information (DVD)
@@ -674,7 +685,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     }
                     // parallel
                     else if(layer_descriptors.size() > 1)
-                        layer_break = get_layer_length(layer_descriptor);
+                        layer_break = get_dvd_layer_length(layer_descriptor);
 
                     if(layer_break)
                     {

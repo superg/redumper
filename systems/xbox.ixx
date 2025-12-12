@@ -1,13 +1,12 @@
 module;
 #include <filesystem>
 #include <format>
-#include <map>
+#include <iomanip>
 #include <ostream>
-#include <span>
+#include <sstream>
 #include <string_view>
 #include <vector>
 #include "system.hh"
-#include "throw_line.hh"
 
 export module systems.xbox;
 

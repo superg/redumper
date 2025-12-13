@@ -411,7 +411,7 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
         {
             auto const &descriptor = (iso9660::VolumeDescriptor &)data[0];
 
-            if(std::string si((char *)descriptor.standard_identifier, sizeof(descriptor.standard_identifier)); si == iso9660::DESCRIPTOR_ID_CD)
+            if(auto si = to_string_view(descriptor.standard_identifier); si == iso9660::DESCRIPTOR_ID_CD)
             {
                 if(descriptor.type == iso9660::VolumeDescriptorType::PRIMARY)
                 {

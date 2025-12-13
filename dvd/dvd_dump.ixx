@@ -416,7 +416,8 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
                 if(descriptor.type == iso9660::VolumeDescriptorType::PRIMARY)
                 {
                     auto const &pvd = (iso9660::PrimaryVolumeDescriptor &)descriptor;
-                    ss = std::make_pair(pvd.volume_space_size.lsb, false);
+                    if(pvd.volume_space_size.lsb)
+                        ss = std::make_pair(pvd.volume_space_size.lsb, false);
                 }
             }
             else if(udf::DESCRIPTORS.find(si) != udf::DESCRIPTORS.end())

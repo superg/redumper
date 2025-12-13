@@ -1262,7 +1262,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
                 iso9660::PrimaryVolumeDescriptor pvd;
                 if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, form1_reader.get(), iso9660::VolumeDescriptorType::PRIMARY)
-                    && !memcmp(pvd.standard_identifier, iso9660::STANDARD_IDENTIFIER_CDI, sizeof(pvd.standard_identifier)))
+                    && to_string_view(pvd.standard_identifier) == iso9660::DESCRIPTOR_ID_CDI)
                     t.cdi = true;
             }
 

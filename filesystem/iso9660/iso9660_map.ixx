@@ -84,8 +84,7 @@ std::vector<Area> area_map(DataReader *data_reader, uint32_t sectors_count)
         if(data_reader->read((uint8_t *)&descriptor, data_reader->sectorsBase() + SYSTEM_AREA_SIZE + descriptors_count, 1) != 1)
             break;
 
-        if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier))
-            && memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
+        if(std::string si(to_string_view(descriptor.standard_identifier)); si != DESCRIPTOR_ID_CD && si != DESCRIPTOR_ID_CDI)
             break;
 
         ++descriptors_count;

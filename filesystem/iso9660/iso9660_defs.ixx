@@ -3,8 +3,8 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
-#include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "throw_line.hh"
 
@@ -21,8 +21,8 @@ export namespace gpsxre::iso9660
 {
 
 constexpr uint32_t SYSTEM_AREA_SIZE = 16;
-constexpr uint8_t STANDARD_IDENTIFIER[] = "CD001";
-constexpr uint8_t STANDARD_IDENTIFIER_CDI[] = "CD-I ";
+constexpr std::string_view DESCRIPTOR_ID_CD = "CD001";
+constexpr std::string_view DESCRIPTOR_ID_CDI = "CD-I ";
 
 
 enum class VolumeDescriptorType : uint8_t

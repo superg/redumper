@@ -393,79 +393,93 @@ std::vector<std::vector<uint8_t>> read_physical_structures(SPTD &sptd, bool blur
 }
 
 
-std::optional<uint32_t> iso9660_search_size(bool &search, std::span<uint8_t> data, uint32_t lba)
+struct FilesystemContext
 {
-    if(search)
+    bool search = true;
+    bool udf = false;
+    std::vector<std::pair<uint32_t, uint32_t>> udf_vds;
+};
+
+
+std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContext &ctx, std::fstream &fs_iso, std::fstream &fs_state, std::span<uint8_t> data, uint32_t lba)
+{
+    std::optional<std::pair<uint32_t, bool>> ss;
+
+    if(ctx.search)
     {
         if(lba >= iso9660::SYSTEM_AREA_SIZE)
         {
             auto const &descriptor = (iso9660::VolumeDescriptor &)data[0];
 
-            if(memcmp(descriptor.standard_identifier, iso9660::STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier)) || descriptor.type == iso9660::VolumeDescriptorType::SET_TERMINATOR)
+            if(std::string si((char *)descriptor.standard_identifier, sizeof(descriptor.standard_identifier)); si == iso9660::DESCRIPTOR_ID_CD)
             {
-                search = false;
-            }
-            else if(descriptor.type == iso9660::VolumeDescriptorType::PRIMARY)
-            {
-                search = false;
-                auto const &pvd = (iso9660::PrimaryVolumeDescriptor &)descriptor;
-                return pvd.volume_space_size.lsb;
-            }
-        }
-    }
-
-    return std::nullopt;
-}
-
-
-std::optional<uint32_t> udf_search_size(std::vector<std::pair<uint32_t, uint32_t>> &vds, std::fstream &fs_iso, std::fstream &fs_state, std::span<uint8_t> data, uint32_t lba)
-{
-    if(lba == udf::AVDP_PRIMARY_LBA)
-    {
-        if(auto const &avdp = (udf::AnchorVolumeDescriptorPointer &)data[0]; avdp.descriptor_tag.tag_identifier == udf::TagIdentifier::ANCHOR_POINTER)
-        {
-            // ordering is intentional
-            vds.emplace_back(avdp.reserve_vds.location, scale_up(avdp.reserve_vds.length, FORM1_DATA_SIZE));
-            vds.emplace_back(avdp.main_vds.location, scale_up(avdp.main_vds.length, FORM1_DATA_SIZE));
-        }
-    }
-
-    if(!vds.empty() && vds.back().first + vds.back().second <= lba)
-    {
-        std::vector<uint8_t> file_data(vds.back().second * FORM1_DATA_SIZE);
-        std::vector<State> file_state(vds.back().second);
-
-        read_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, vds.back().first, vds.back().second, 0, 0);
-        read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), vds.back().first, vds.back().second, 0, (uint8_t)State::ERROR_SKIP);
-
-        if(std::all_of(file_state.begin(), file_state.end(), [](State s) { return s == State::SUCCESS; }))
-        {
-            uint32_t sectors_count = 0;
-
-            for(uint32_t i = 0; i < vds.back().second; ++i)
-            {
-                auto const &tag = (udf::DescriptorTag &)file_data[i * FORM1_DATA_SIZE];
-
-                if(tag.tag_identifier == udf::TagIdentifier::PARTITION)
+                if(descriptor.type == iso9660::VolumeDescriptorType::PRIMARY)
                 {
-                    auto const &partition = (udf::PartitionDescriptor &)file_data[i * FORM1_DATA_SIZE];
-
-                    sectors_count = std::max(sectors_count, partition.partition_starting_location + partition.partition_length);
+                    auto const &pvd = (iso9660::PrimaryVolumeDescriptor &)descriptor;
+                    ss = std::make_pair(pvd.volume_space_size.lsb, false);
                 }
-                else if(tag.tag_identifier == udf::TagIdentifier::TERMINATING)
-                    break;
             }
-
-            vds.clear();
-
-            // account for trailing AVDP
-            return sectors_count + 1;
+            else if(udf::DESCRIPTORS.find(si) != udf::DESCRIPTORS.end())
+            {
+                if(si == udf::DESCRIPTOR_ID_NSR2 || si == udf::DESCRIPTOR_ID_NSR3)
+                    ctx.udf = true;
+                else if(si == udf::DESCRIPTOR_ID_TEA)
+                    ctx.search = false;
+            }
+            else
+                ctx.search = false;
         }
-        else
-            vds.pop_back();
     }
 
-    return std::nullopt;
+    if(ctx.udf)
+    {
+        if(lba == udf::AVDP_PRIMARY_LBA)
+        {
+            if(auto const &avdp = (udf::AnchorVolumeDescriptorPointer &)data[0]; avdp.descriptor_tag.tag_identifier == udf::TagIdentifier::ANCHOR_POINTER)
+            {
+                // ordering is intentional
+                ctx.udf_vds.emplace_back(avdp.reserve_vds.location, scale_up(avdp.reserve_vds.length, FORM1_DATA_SIZE));
+                ctx.udf_vds.emplace_back(avdp.main_vds.location, scale_up(avdp.main_vds.length, FORM1_DATA_SIZE));
+            }
+        }
+
+        if(!ctx.udf_vds.empty() && ctx.udf_vds.back().first + ctx.udf_vds.back().second <= lba)
+        {
+            std::vector<uint8_t> file_data(ctx.udf_vds.back().second * FORM1_DATA_SIZE);
+            std::vector<State> file_state(ctx.udf_vds.back().second);
+
+            read_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, ctx.udf_vds.back().first, ctx.udf_vds.back().second, 0, 0);
+            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), ctx.udf_vds.back().first, ctx.udf_vds.back().second, 0, (uint8_t)State::ERROR_SKIP);
+
+            if(std::all_of(file_state.begin(), file_state.end(), [](State s) { return s == State::SUCCESS; }))
+            {
+                uint32_t sectors_count = 0;
+
+                for(uint32_t i = 0; i < ctx.udf_vds.back().second; ++i)
+                {
+                    auto const &tag = (udf::DescriptorTag &)file_data[i * FORM1_DATA_SIZE];
+
+                    if(tag.tag_identifier == udf::TagIdentifier::PARTITION)
+                    {
+                        auto const &partition = (udf::PartitionDescriptor &)file_data[i * FORM1_DATA_SIZE];
+
+                        sectors_count = std::max(sectors_count, partition.partition_starting_location + partition.partition_length);
+                    }
+                    else if(tag.tag_identifier == udf::TagIdentifier::TERMINATING)
+                        break;
+                }
+
+                ctx.udf_vds.clear();
+
+                // account for trailing AVDP
+                ss = std::make_pair(sectors_count + 1, true);
+            }
+            else
+                ctx.udf_vds.pop_back();
+        }
+    }
+
+    return ss;
 }
 
 
@@ -524,8 +538,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
 
     bool trim_to_filesystem_size = options.filesystem_trim;
-    bool iso9660_search = true;
-    std::vector<std::pair<uint32_t, uint32_t>> udf_vds;
+    FilesystemContext fs_ctx;
 
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
@@ -964,24 +977,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
             for(uint32_t i = 0; i < sectors_to_read; ++i)
             {
-                std::optional<uint32_t> trim_sectors_count;
-
-                if(auto sectors_count_iso9660 = iso9660_search_size(iso9660_search, std::span(&file_data[i * FORM1_DATA_SIZE], FORM1_DATA_SIZE), lba + i); sectors_count_iso9660)
+                if(auto ss = filesystem_search_size(fs_ctx, fs_iso, fs_state, std::span(&file_data[i * FORM1_DATA_SIZE], FORM1_DATA_SIZE), lba + i); ss)
                 {
-                    LOG_R("sectors count (ISO9660): {}", *sectors_count_iso9660);
-                    trim_sectors_count = *sectors_count_iso9660;
-                }
+                    LOG_R("sectors count ({}): {}", ss->second ? "UDF" : "ISO9660", ss->first);
 
-                if(auto sectors_count_udf = udf_search_size(udf_vds, fs_iso, fs_state, std::span(&file_data[i * FORM1_DATA_SIZE], FORM1_DATA_SIZE), lba + i); sectors_count_udf)
-                {
-                    LOG_R("sectors count (UDF): {}", *sectors_count_udf);
-                    trim_sectors_count = *sectors_count_udf;
-                }
-
-                if(trim_sectors_count && trim_to_filesystem_size && !options.lba_end)
-                {
-                    lba_end = *trim_sectors_count;
-                    trim_to_filesystem_size = false;
+                    if(trim_to_filesystem_size && !options.lba_end)
+                    {
+                        lba_end = ss->first;
+                        trim_to_filesystem_size = false;
+                    }
                 }
             }
         }

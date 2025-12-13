@@ -42,8 +42,7 @@ public:
 
         for(uint32_t s = SYSTEM_AREA_SIZE; data_reader->read((uint8_t *)&descriptor, data_reader->sectorsBase() + s, 1) == 1; ++s)
         {
-            if(memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER, sizeof(descriptor.standard_identifier))
-                && memcmp(descriptor.standard_identifier, STANDARD_IDENTIFIER_CDI, sizeof(descriptor.standard_identifier)))
+            if(auto si(to_string_view(descriptor.standard_identifier)); si != DESCRIPTOR_ID_CD && si != DESCRIPTOR_ID_CDI)
                 break;
 
             if(descriptor.type == type)

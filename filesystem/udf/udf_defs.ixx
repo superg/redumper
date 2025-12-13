@@ -1,5 +1,7 @@
 module;
 #include <cstdint>
+#include <set>
+#include <string_view>
 
 export module filesystem.udf:defs;
 
@@ -9,6 +11,13 @@ export namespace gpsxre::udf
 {
 
 constexpr uint32_t AVDP_PRIMARY_LBA = 256;
+constexpr std::string_view DESCRIPTOR_ID_BEA = "BEA01";
+constexpr std::string_view DESCRIPTOR_ID_BOOT2 = "BOOT2";
+constexpr std::string_view DESCRIPTOR_ID_CDW = "CDW02";
+constexpr std::string_view DESCRIPTOR_ID_NSR2 = "NSR02";
+constexpr std::string_view DESCRIPTOR_ID_NSR3 = "NSR03";
+constexpr std::string_view DESCRIPTOR_ID_TEA = "TEA01";
+const std::set<std::string_view> DESCRIPTORS = { DESCRIPTOR_ID_BEA, DESCRIPTOR_ID_BOOT2, DESCRIPTOR_ID_CDW, DESCRIPTOR_ID_NSR2, DESCRIPTOR_ID_NSR3, DESCRIPTOR_ID_TEA };
 
 
 enum class TagIdentifier : uint16_t

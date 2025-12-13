@@ -334,4 +334,11 @@ std::vector<std::pair<T, T>> string_to_ranges(const std::string &str)
     return ranges;
 }
 
+
+export template<typename T, std::size_t N>
+std::string_view to_string_view(const T (&arr)[N])
+{
+    return std::string_view(reinterpret_cast<const char *>(arr), N * sizeof(T));
+}
+
 }

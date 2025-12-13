@@ -471,8 +471,9 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
 
                 ctx.udf_vds.clear();
 
-                // account for trailing AVDP
-                ss = std::make_pair(sectors_count + 1, true);
+                if(sectors_count)
+                    // account for trailing AVDP
+                    ss = std::make_pair(sectors_count + 1, true);
             }
             else
                 ctx.udf_vds.pop_back();

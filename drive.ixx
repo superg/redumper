@@ -59,11 +59,11 @@ export enum class Type
 {
     GENERIC,
     PLEXTOR,
-    LG_ASU8A,
-    LG_ASU8B,
-    LG_ASU8C,
-    LG_ASU3,
-    LG_ASU2
+    MTK8A,
+    MTK8B,
+    MTK8C,
+    MTK3,
+    MTK2
 };
 
 export struct DriveConfig
@@ -91,13 +91,13 @@ export struct SectorLayout
 
 
 static const std::map<Type, std::string> TYPE_STRING = {
-    { Type::GENERIC,  "GENERIC"  },
-    { Type::PLEXTOR,  "PLEXTOR"  },
-    { Type::LG_ASU8A, "LG_ASU8A" },
-    { Type::LG_ASU8B, "LG_ASU8B" },
-    { Type::LG_ASU8C, "LG_ASU8C" },
-    { Type::LG_ASU3,  "LG_ASU3"  },
-    { Type::LG_ASU2,  "LG_ASU2"  }
+    { Type::GENERIC, "GENERIC" },
+    { Type::PLEXTOR, "PLEXTOR" },
+    { Type::MTK8A,   "MTK8A"   },
+    { Type::MTK8B,   "MTK8B"   },
+    { Type::MTK8C,   "MTK8C"   },
+    { Type::MTK3,    "MTK3"    },
+    { Type::MTK2,    "MTK2"    }
 };
 
 
@@ -144,31 +144,31 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "PLEXTOR" , "DVDR PX-755A"     , "1.08", "08/18/07 15:10"      ,  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
     { "PLEXTOR" , "DVDR PX-760A"     , "1.07", "08/18/07 15:10"      ,  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
     // MEDIATEK (8Mb/3Mb/2Mb cache)
-    { "ATAPI"   , "iHBS112 2"        , "PL06", "2012/09/17 10:50"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // CHECKED: LITE-ON
-    { "HL-DT-ST", "BD-RE BU40N"      , "1.00", "N003103MOAL36D3653"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8B }, // RibShark
-    { "ASUS"    , "BW-16D1HT"        , "3.02", "W000800KL8J9NJ3134"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU3  }, // CHECKED
-    { "HL-DT-ST", "BD-RE BH16NS55"   , "1.02", "N000200SIK92G9OF211" ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU3  }, // TheMuso
-    { "HL-DT-ST", "BD-RE BP50NB40"   , "1.00", "N005505MD8F8BD0700"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU3  }, // olofolleola4
-    { "Slimtype", "BD E DS4E1S"      , "EA2B", "2009/11/13 15:21"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU2  }, // olofolleola4
-    { "Optiarc" , "BD RW BD-5300S"   , "2.03", "2012/02/07 11:25"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "TEAC"    , "BD-W512GSA"       , "PT11", "2012/12/05 19:08"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "ASUS"    , "BW-12B1ST"        , "1.03", "2011/04/18 21:48"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "SONY"    , "BD RW BWU-500S"   , "2.63", "2012/02/07 11:48"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "PLDS"    , "BD-RE DH-8B2SH"   , "SD11", "2011/01/11 17:17"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "hp"      , "BD B DH8B2SHB"    , "SHDQ", "2012/05/09 11:33"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "PLEXTOR" , "BD-R PX-B950SA"   , "1.04", "2012/10/30 10:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "PLEXTOR" , "BD-R PX-B950UE"   , "1.05", "2012/10/30 10:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "PLEXTOR" , "BD-R PX-LB950SA"  , "1.04", "2012/10/30 10:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "PLEXTOR" , "BD-R PX-LB950UE"  , "1.05", "2012/10/30 10:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "HP"      , "BD Writer bd335e" , "YH23", "2011/09/09 13:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "HP"      , "BD Writer bd335i" , "QH21", "2011/05/26 13:49"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "ATAPI"   , "eHBU212 2"        , "ZL06", "2012/11/05 16:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "ATAPI"   , "iHBS212 2"        , "HL05", "2012/09/17 10:50"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "ATAPI"   , "iHBS312 2"        , "PL17", "2012/10/31 13:50"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8A }, // olofolleola4
-    { "HL-DT-ST", "BD-RE WH14NS40"   , "1.03", "N0A09A0K9HF6ND5914"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8C }, // Lugamo
-    { "hp",       "BD-RE BH40N"      , "B7C6", "P100800336CF002420"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8C }, // TonyLizard
-    { "HL-DT-ST", "BD-RE BH16NS40"   , "1.03", "N0A03A0K9JF41A3139"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8C }, // breversa
-    { "BUFFALO" , "Optical Drive"    , "1.00", "N003103MO6LAL95700"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::LG_ASU8B }, // Low_Plankton_3329
+    { "ATAPI"   , "iHBS112 2"        , "PL06", "2012/09/17 10:50"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // CHECKED: LITE-ON
+    { "HL-DT-ST", "BD-RE BU40N"      , "1.00", "N003103MOAL36D3653"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8B }, // RibShark
+    { "ASUS"    , "BW-16D1HT"        , "3.02", "W000800KL8J9NJ3134"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK3  }, // CHECKED
+    { "HL-DT-ST", "BD-RE BH16NS55"   , "1.02", "N000200SIK92G9OF211" ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK3  }, // TheMuso
+    { "HL-DT-ST", "BD-RE BP50NB40"   , "1.00", "N005505MD8F8BD0700"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK3  }, // olofolleola4
+    { "Slimtype", "BD E DS4E1S"      , "EA2B", "2009/11/13 15:21"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK2  }, // olofolleola4
+    { "Optiarc" , "BD RW BD-5300S"   , "2.03", "2012/02/07 11:25"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "TEAC"    , "BD-W512GSA"       , "PT11", "2012/12/05 19:08"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "ASUS"    , "BW-12B1ST"        , "1.03", "2011/04/18 21:48"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "SONY"    , "BD RW BWU-500S"   , "2.63", "2012/02/07 11:48"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "PLDS"    , "BD-RE DH-8B2SH"   , "SD11", "2011/01/11 17:17"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "hp"      , "BD B DH8B2SHB"    , "SHDQ", "2012/05/09 11:33"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "PLEXTOR" , "BD-R PX-B950SA"   , "1.04", "2012/10/30 10:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "PLEXTOR" , "BD-R PX-B950UE"   , "1.05", "2012/10/30 10:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "PLEXTOR" , "BD-R PX-LB950SA"  , "1.04", "2012/10/30 10:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "PLEXTOR" , "BD-R PX-LB950UE"  , "1.05", "2012/10/30 10:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "HP"      , "BD Writer bd335e" , "YH23", "2011/09/09 13:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "HP"      , "BD Writer bd335i" , "QH21", "2011/05/26 13:49"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "ATAPI"   , "eHBU212 2"        , "ZL06", "2012/11/05 16:10"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "ATAPI"   , "iHBS212 2"        , "HL05", "2012/09/17 10:50"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "ATAPI"   , "iHBS312 2"        , "PL17", "2012/10/31 13:50"    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8A }, // olofolleola4
+    { "HL-DT-ST", "BD-RE WH14NS40"   , "1.03", "N0A09A0K9HF6ND5914"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8C }, // Lugamo
+    { "hp",       "BD-RE BH40N"      , "B7C6", "P100800336CF002420"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8C }, // TonyLizard
+    { "HL-DT-ST", "BD-RE BH16NS40"   , "1.03", "N0A03A0K9JF41A3139"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8C }, // breversa
+    { "BUFFALO" , "Optical Drive"    , "1.00", "N003103MO6LAL95700"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8B }, // Low_Plankton_3329
     // PATCHED
     { "ASUS"    , "BW-16D1HT"        , "3.10", "WM01601KLZL4TG5625"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // 3.10MK or RibShark FW definition
     { "TSSTcorp", "DVD-ROM TS-H353C" , "ZZ00", ""                    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM

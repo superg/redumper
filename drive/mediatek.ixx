@@ -37,11 +37,11 @@ struct MediatekConfig
 constexpr uint32_t MEDIATEK_CACHE_ENTRY_SIZE = 0xB00;
 
 static const std::map<Type, MediatekConfig> MEDIATEK_CACHE_CONFIG = {
-    { Type::LG_ASU8A, { 8, 2806 } },
-    { Type::LG_ASU8B, { 8, 1079 } },
-    { Type::LG_ASU8C, { 8, 1268 } },
-    { Type::LG_ASU3,  { 3, 1070 } },
-    { Type::LG_ASU2,  { 2, 586 }  }
+    { Type::MTK2,  { 2, 586 }  },
+    { Type::MTK3,  { 3, 1070 } },
+    { Type::MTK8A, { 8, 2806 } },
+    { Type::MTK8B, { 8, 1079 } },
+    { Type::MTK8C, { 8, 1268 } }
 };
 
 

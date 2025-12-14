@@ -299,7 +299,7 @@ export int redumper_debug(Context &ctx, Options &options)
     {
         SPTD sptd(options.drive);
         std::vector<uint8_t> cache;
-        SPTD::Status status = mediatek_cache_read(sptd, cache, 1024 * 1024 * mediatek_get_config(Type::LG_ASU3).size_mb);
+        SPTD::Status status = mediatek_cache_read(sptd, cache, 1024 * 1024 * mediatek_get_config(Type::MTK3).size_mb);
 
         LOG("");
     }
@@ -309,7 +309,7 @@ export int redumper_debug(Context &ctx, Options &options)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 
-        auto drive_type = Type::LG_ASU8B;
+        auto drive_type = Type::MTK8B;
         mediatek_cache_print_subq(cache, drive_type);
 
         // auto asd = mediatek_cache_unroll(cache);

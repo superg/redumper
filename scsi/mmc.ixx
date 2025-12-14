@@ -28,7 +28,7 @@ export enum class CDB_OperationCode : uint8_t
     READ_CD_MSF_D5 = 0xD5,
     READ_CDDA = 0xD8,
     PLEXTOR_RESET = 0xEE,
-    ASUS_READ_CACHE = 0xF1,
+    MEDIATEK_READ_CACHE = 0xF1,
     TSST_FLASH_FIRMWARE = 0xFF
 };
 
@@ -642,7 +642,7 @@ export struct CDB10_ReadTOC
 
 
 #pragma pack(push, 1)
-export struct CDB10_ASUS_ReadCache
+export struct CDB10_MEDIATEK_ReadCache
 {
     uint8_t operation_code;
     uint8_t unknown;

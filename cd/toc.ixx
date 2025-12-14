@@ -157,7 +157,7 @@ export struct TOC
                 sessions.back().tracks.back().lba_end = lba + 1;
         }
 
-        // if pre-gap is missing a few first sectors (LG/ASUS for instance)
+        // if pre-gap is missing a few first sectors
         // extend it to the default size, it will be handled later during split
         uint32_t pregap_count = sessions.front().tracks.front().lba_start - MSF_LBA_SHIFT;
         for(auto &s : sessions)
@@ -220,7 +220,7 @@ export struct TOC
             }
         }
 
-        // if pre-gap is missing a few first sectors (LG/ASUS for instance)
+        // if pre-gap is missing a few first sectors
         // extend it to the default size, it will be handled later during split
         uint32_t pregap_count = sessions.front().tracks.front().lba_start - MSF_LBA_SHIFT;
         for(auto &s : sessions)

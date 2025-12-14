@@ -59,8 +59,8 @@ export struct Options
     bool plextor_skip_leadin;
     int plextor_leadin_retries;
     bool plextor_leadin_force_store;
-    bool asus_skip_leadout;
-    int asus_leadout_retries;
+    bool mediatek_skip_leadout;
+    int mediatek_leadout_retries;
     bool kreon_partial_ss;
     bool disable_cdtext;
     bool correct_offset_shift;
@@ -103,8 +103,8 @@ export struct Options
         , plextor_skip_leadin(false)
         , plextor_leadin_retries(4)
         , plextor_leadin_force_store(false)
-        , asus_skip_leadout(false)
-        , asus_leadout_retries(32)
+        , mediatek_skip_leadout(false)
+        , mediatek_leadout_retries(32)
         , kreon_partial_ss(false)
         , disable_cdtext(false)
         , correct_offset_shift(false)
@@ -256,10 +256,10 @@ export struct Options
                         i_value = &plextor_leadin_retries;
                     else if(key == "--plextor-leadin-force-store")
                         plextor_leadin_force_store = true;
-                    else if(key == "--asus-skip-leadout")
-                        asus_skip_leadout = true;
-                    else if(key == "--asus-leadout-retries")
-                        i_value = &asus_leadout_retries;
+                    else if(key == "--mediatek-skip-leadout")
+                        mediatek_skip_leadout = true;
+                    else if(key == "--mediatek-leadout-retries")
+                        i_value = &mediatek_leadout_retries;
                     else if(key == "--kreon-partial-ss")
                         kreon_partial_ss = true;
                     else if(key == "--disable-cdtext")
@@ -389,7 +389,7 @@ export struct Options
         LOG("\t--disc-type=VALUE               \toverride detected disc type (current profile), possible values: CD, DVD, BLURAY, BLURAY-R, HD-DVD");
         LOG("");
         LOG("\t(drive configuration)");
-        LOG("\t--drive-type=VALUE              \toverride drive type, possible values: GENERIC, PLEXTOR, LG_ASU2, LG_ASU3, LG_ASU8A, LG_ASU8B, LG_ASU8C");
+        LOG("\t--drive-type=VALUE              \toverride drive type, possible values: GENERIC, PLEXTOR, MTK2, MTK3, MTK8A, MTK8B, MTK8C");
         LOG("\t--drive-read-offset=VALUE       \toverride drive read offset");
         LOG("\t--drive-c2-shift=VALUE          \toverride drive C2 shift");
         LOG("\t--drive-pregap-start=VALUE      \toverride drive pre-gap start LBA");
@@ -402,8 +402,8 @@ export struct Options
         LOG("\t--plextor-leadin-force-store    \tstore unverified lead-in");
         LOG("\t--kreon-partial-ss              \tget minimal security sector (fixes bad firmware)");
 
-        LOG("\t--asus-skip-leadout             \tskip extracting lead-out from drive cache");
-        LOG("\t--asus-leadout-retries          \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", asus_leadout_retries);
+        LOG("\t--mediatek-skip-leadout         \tskip extracting lead-out from drive cache");
+        LOG("\t--mediatek-leadout-retries      \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", mediatek_leadout_retries);
         LOG("\t--disable-cdtext                \tdisable CD-TEXT reading");
         LOG("");
         LOG("\t(offset)");

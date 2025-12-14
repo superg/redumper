@@ -294,37 +294,37 @@ export int redumper_debug(Context &ctx, Options &options)
         LOG("");
     }
 
-    // LG/ASUS cache read
+    // MEDIATEK cache read
     if(0)
     {
         SPTD sptd(options.drive);
         std::vector<uint8_t> cache;
-        SPTD::Status status = asus_cache_read(sptd, cache, 1024 * 1024 * asus_get_config(Type::LG_ASU3).size_mb);
+        SPTD::Status status = mediatek_cache_read(sptd, cache, 1024 * 1024 * mediatek_get_config(Type::MTK3).size_mb);
 
         LOG("");
     }
 
-    // LG/ASUS cache dump extract
+    // MEDIATEK cache dump extract
     if(1)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 
-        auto drive_type = Type::LG_ASU8B;
-        asus_cache_print_subq(cache, drive_type);
+        auto drive_type = Type::MTK8B;
+        mediatek_cache_print_subq(cache, drive_type);
 
-        // auto asd = asus_cache_unroll(cache);
-        // auto asd = asus_cache_extract(cache, 128224, 0);
-        auto asus_leadout_buffer = asus_cache_extract(cache, 271204, 100, drive_type);
-        uint32_t entries_count = (uint32_t)asus_leadout_buffer.size() / CD_RAW_DATA_SIZE;
+        // auto asd = mediatek_cache_unroll(cache);
+        // auto asd = mediatek_cache_extract(cache, 128224, 0);
+        auto mediatek_leadout_buffer = mediatek_cache_extract(cache, 271204, 100, drive_type);
+        uint32_t entries_count = (uint32_t)mediatek_leadout_buffer.size() / CD_RAW_DATA_SIZE;
 
         LOG("entries count: {}", entries_count);
 
-        std::ofstream ofs_data(image_prefix + ".asus.data", std::ofstream::binary);
-        std::ofstream ofs_c2(image_prefix + ".asus.c2", std::ofstream::binary);
-        std::ofstream ofs_sub(image_prefix + ".asus.sub", std::ofstream::binary);
+        std::ofstream ofs_data(image_prefix + ".mediatek.data", std::ofstream::binary);
+        std::ofstream ofs_c2(image_prefix + ".mediatek.c2", std::ofstream::binary);
+        std::ofstream ofs_sub(image_prefix + ".mediatek.sub", std::ofstream::binary);
         for(uint32_t i = 0; i < entries_count; ++i)
         {
-            uint8_t *entry = &asus_leadout_buffer[CD_RAW_DATA_SIZE * i];
+            uint8_t *entry = &mediatek_leadout_buffer[CD_RAW_DATA_SIZE * i];
 
             ofs_data.write((char *)entry, CD_DATA_SIZE);
             ofs_c2.write((char *)entry + CD_DATA_SIZE, CD_C2_SIZE);

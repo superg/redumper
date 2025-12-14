@@ -434,10 +434,10 @@ export SPTD::Status cmd_set_cd_speed(SPTD &sptd, uint16_t speed)
 }
 
 
-export SPTD::Status cmd_asus_read_cache(SPTD &sptd, uint8_t *buffer, uint32_t offset, uint32_t size)
+export SPTD::Status cmd_mediatek_read_cache(SPTD &sptd, uint8_t *buffer, uint32_t offset, uint32_t size)
 {
-    CDB10_ASUS_ReadCache cdb;
-    cdb.operation_code = (uint8_t)CDB_OperationCode::ASUS_READ_CACHE;
+    CDB10_MEDIATEK_ReadCache cdb;
+    cdb.operation_code = (uint8_t)CDB_OperationCode::MEDIATEK_READ_CACHE;
     cdb.unknown = 6;
     cdb.offset = endian_swap(offset);
     cdb.size = endian_swap(size);

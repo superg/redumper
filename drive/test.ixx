@@ -345,11 +345,11 @@ export int redumper_drive_test(Context &ctx, Options &options)
         leadout_count = LEADOUT_OVERREAD_COUNT;
     LOG("lead-out: {}", leadout_count ? std::format("{}{} sectors", leadout_count, leadout_more ? "+" : "") : "no");
 
-    bool mediatek_cache_read = false;
+    bool mt_cache_read = false;
     if(!options.drive_test_skip_cache_read)
     {
         std::vector<uint8_t> cache;
-        status = asus_cache_read(*ctx.sptd, cache, 1024 * 1024 * 32);
+        status = mediatek_cache_read(*ctx.sptd, cache, 1024 * 1024 * 32);
         if(status.status_code)
         {
             if(options.verbose)
@@ -357,14 +357,14 @@ export int redumper_drive_test(Context &ctx, Options &options)
         }
         else
         {
-            uint32_t cache_size = asus_find_cache_size(cache, 256 * 1024, 95);
+            uint32_t cache_size = mediatek_find_cache_size(cache, 256 * 1024, 95);
 
             LOG("MEDIATEK memory space: {}Mb", cache_size / 1024 / 1024);
 
-            mediatek_cache_read = true;
+            mt_cache_read = true;
         }
     }
-    LOG("MEDIATEK cache read (F1): {}", options.drive_test_skip_cache_read ? "skipped" : (mediatek_cache_read ? "yes" : "no"));
+    LOG("MEDIATEK cache read (F1): {}", options.drive_test_skip_cache_read ? "skipped" : (mt_cache_read ? "yes" : "no"));
 
     return exit_code;
 }

@@ -33,7 +33,7 @@ import utils.logger;
 namespace gpsxre
 {
 
-constexpr uint32_t ASUS_LEADOUT_DISCARD_COUNT = 2;
+constexpr uint32_t MEDIATEK_LEADOUT_DISCARD_COUNT = 2;
 
 
 void store_data(std::fstream &fs_scram, std::fstream &fs_state, std::span<const uint8_t> data_buffer, std::span<const State> state_buffer, int32_t sample)
@@ -219,7 +219,7 @@ void plextor_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
 }
 
 
-void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, std::fstream &fs_state, std::fstream &fs_subcode, Options &options)
+void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, std::fstream &fs_state, std::fstream &fs_subcode, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
 
@@ -228,7 +228,7 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
         int32_t lba = s.tracks.back().lba_start - 1;
 
         std::vector<uint8_t> cache;
-        for(uint32_t i = 0; i < options.asus_leadout_retries; ++i)
+        for(uint32_t i = 0; i < options.mediatek_leadout_retries; ++i)
         {
             // dummy read to cache lead-out
             std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
@@ -237,13 +237,13 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
             if(status.status_code && options.verbose)
                 LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 
-            status = asus_cache_read(*ctx.sptd, cache, 1024 * 1024 * asus_get_config(ctx.drive_config.type).size_mb);
+            status = mediatek_cache_read(*ctx.sptd, cache, 1024 * 1024 * mediatek_get_config(ctx.drive_config.type).size_mb);
             if(status.status_code)
                 throw_line("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
 
-            uint32_t sectors_count = (uint32_t)asus_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type).size() / CD_RAW_DATA_SIZE;
+            uint32_t sectors_count = (uint32_t)mediatek_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type).size() / CD_RAW_DATA_SIZE;
 
-            LOG_R("LG/ASUS: preloading cache (LBA: {:6}, sectors: {:3}, retry: {})", lba, sectors_count, i + 1);
+            LOG_R("MEDIATEK: preloading cache (LBA: {:6}, sectors: {:3}, retry: {})", lba, sectors_count, i + 1);
             if(sectors_count == LEADOUT_OVERREAD_COUNT)
                 break;
         }
@@ -254,17 +254,17 @@ void asus_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scram, 
             session_message = std::format(".{}", s.session_number);
         write_vector(std::format("{}{}.cache", image_prefix, session_message), cache);
 
-        auto leadout = asus_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type);
+        auto leadout = mediatek_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type);
 
         uint32_t sectors_count = (uint32_t)leadout.size() / CD_RAW_DATA_SIZE;
 
         // discard couple last sectors as there is a chance that they are incomplete
-        sectors_count = sectors_count >= ASUS_LEADOUT_DISCARD_COUNT ? sectors_count - ASUS_LEADOUT_DISCARD_COUNT : 0;
+        sectors_count = sectors_count >= MEDIATEK_LEADOUT_DISCARD_COUNT ? sectors_count - MEDIATEK_LEADOUT_DISCARD_COUNT : 0;
 
         if(sectors_count)
-            LOG("LG/ASUS: storing lead-out (LBA: {:6}, sectors: {})", lba, sectors_count);
+            LOG("MEDIATEK: storing lead-out (LBA: {:6}, sectors: {})", lba, sectors_count);
         else
-            LOG("LG/ASUS: lead-out not found");
+            LOG("MEDIATEK: lead-out not found");
 
         std::vector<State> state_buffer(sectors_count * CD_DATA_SIZE_SAMPLES);
         std::vector<uint8_t> data_buffer(sectors_count * CD_DATA_SIZE);
@@ -329,10 +329,10 @@ export int redumper_dump_extra(Context &ctx, Options &options)
         if(!options.plextor_skip_leadin)
             plextor_process_leadin(ctx, toc, fs_scram, fs_state, fs_subcode, options);
     }
-    else if(drive_is_asus(ctx.drive_config))
+    else if(drive_is_mediatek(ctx.drive_config))
     {
-        if(!options.asus_skip_leadout)
-            asus_process_leadout(ctx, toc, fs_scram, fs_state, fs_subcode, options);
+        if(!options.mediatek_skip_leadout)
+            mediatek_process_leadout(ctx, toc, fs_scram, fs_state, fs_subcode, options);
     }
 
     return exit_code;

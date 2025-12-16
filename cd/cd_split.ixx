@@ -285,7 +285,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
 bool check_for_pid(const TOC::Session::Track &t, std::fstream &scm_fs, std::shared_ptr<const OffsetManager> offset_manager)
 {
-    if(t.control & (uint8_t)ChannelQ::Control::DATA == 0)
+    if(!(t.control & (uint8_t)ChannelQ::Control::DATA))
         return false;
     if(t.lba_end - t.lba_start != 600)
         return false;
@@ -298,7 +298,7 @@ bool check_for_pid(const TOC::Session::Track &t, std::fstream &scm_fs, std::shar
         read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offset_manager->getOffset(lba) * CD_SAMPLE_SIZE, 0);
         scrambler.process(sector.data(), sector.data(), 0, sector.size());
         Sector &s = *(Sector *)sector.data();
-        if(lba < t.lba_start + 150 || lba > t.lba_end - 150)
+        if(lba < t.lba_start + 150 || lba >= t.lba_start + 450)
         {
             // outer 300 sectors must have zeroed user data
             if(s.header.mode == 1)
@@ -438,7 +438,7 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
                     }
 
                     // remove postscribed ID not present on master (data unique to each disc, lasered after disc has been pressed)
-                    if(has_pid && lba >= t.lba_start + 150 && lba <= t.lba_end - 150)
+                    if(has_pid && lba >= t.lba_start + 150 && lba < t.lba_start + 450)
                     {
                         Sector &s = *(Sector *)sector.data();
                         memcpy(s.mode2.xa.form2.user_data, PID_DUMMY_PATTERN, FORM2_DATA_SIZE);

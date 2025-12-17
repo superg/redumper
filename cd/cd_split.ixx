@@ -317,8 +317,8 @@ bool check_for_pid(const TOC::Session::Track &t, std::fstream &scm_fs, std::shar
                     return false;
             }
         }
-        // middle 300 sectors must look like mode 2 form 2 dummy pattern (ignore 301st)
-        else if(lba != t.lba_end - 150)
+        // middle 299 sectors must look like mode 2 form 2 dummy pattern (ignore 300th/301st)
+        else if(lba != t.lba_end - 151 && lba != t.lba_end - 150)
         {
             if(!((s.header.mode == 2) && (s.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)))
                 return false;
@@ -327,7 +327,7 @@ bool check_for_pid(const TOC::Session::Track &t, std::fstream &scm_fs, std::shar
             {
                 mismatches += s.mode2.xa.form2.user_data[i] != PID_DUMMY_PATTERN[i];
             }
-            if(mismatches > 82)
+            if(mismatches > 50)
                 return false;
         }
     }

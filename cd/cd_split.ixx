@@ -296,7 +296,7 @@ bool check_for_pid(const TOC::Session::Track &t, std::fstream &scm_fs, std::shar
     for(int32_t lba = t.lba_start; lba < t.lba_end; ++lba)
     {
         read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offset_manager->getOffset(lba) * CD_SAMPLE_SIZE, 0);
-        scrambler.process(sector.data(), sector.data(), 0, sector.size());
+        scrambler.descramble(sector.data(), &lba);
         Sector &s = *(Sector *)sector.data();
         // first 150 sectors and last 149 sectors must have zeroed user data
         if(lba < t.lba_start + 150 || lba > t.lba_end - 150)
@@ -437,13 +437,13 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
                             else
                                 descramble_errors.back().second = lba;
                         }
-                    }
 
-                    // remove postscribed ID not present on master (data unique to each disc, lasered after disc has been pressed)
-                    if(has_pid && lba >= t.lba_start + 150 && lba < t.lba_end - 150)
-                    {
-                        Sector &s = *(Sector *)sector.data();
-                        memcpy(s.mode2.xa.form2.user_data, PID_DUMMY_PATTERN, FORM2_DATA_SIZE);
+                        // remove postscribed ID not present on master (data unique to each disc, lasered after disc has been pressed)
+                        if(has_pid && lba >= t.lba_start + 150 && lba < t.lba_end - 151)
+                        {
+                            Sector &s = *(Sector *)sector.data();
+                            memcpy(s.mode2.xa.form2.user_data, PID_DUMMY_PATTERN, FORM2_DATA_SIZE);
+                        }
                     }
                 }
 

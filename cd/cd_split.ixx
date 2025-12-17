@@ -441,6 +441,7 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
                         // remove postscribed ID not present on master (data unique to each disc, lasered after disc has been pressed)
                         if(!options.leave_unchanged && has_pid && lba >= t.lba_start + 150 && lba < t.lba_end - 151)
                         {
+                            LOG("warning: removed postscribed ID, you may split with leave unchanged option to keep it ({})", track_name);
                             Sector &s = *(Sector *)sector.data();
                             memcpy(s.mode2.xa.form2.user_data, PID_DUMMY_PATTERN, FORM2_DATA_SIZE);
                         }

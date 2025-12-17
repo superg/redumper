@@ -322,7 +322,7 @@ bool check_for_pid(const TOC::Session::Track &t, std::fstream &scm_fs, std::shar
         {
             if(!((s.header.mode == 2) && (s.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)))
                 return false;
-            uint8_t mismatches = 0;
+            uint32_t mismatches = 0;
             for(uint32_t i = 0; i < FORM2_DATA_SIZE; ++i)
             {
                 mismatches += s.mode2.xa.form2.user_data[i] != PID_DUMMY_PATTERN[i];

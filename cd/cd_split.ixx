@@ -24,6 +24,7 @@ import cd.common;
 import cd.ecc;
 import cd.edc;
 import cd.offset_manager;
+import cd.pid;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
@@ -283,59 +284,6 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 }
 
 
-bool check_for_pid(const TOC::Session::Track &t, std::fstream &scm_fs, std::shared_ptr<const OffsetManager> offset_manager)
-{
-    if(!(t.control & (uint8_t)ChannelQ::Control::DATA))
-        return false;
-    if(t.lba_end - t.lba_start != 600)
-        return false;
-    if(t.track_number <= 1)
-        return false;
-    std::vector<uint8_t> sector(CD_DATA_SIZE);
-    Scrambler scrambler;
-    for(int32_t lba = t.lba_start; lba < t.lba_end; ++lba)
-    {
-        read_entry(scm_fs, sector.data(), CD_DATA_SIZE, lba - LBA_START, 1, -offset_manager->getOffset(lba) * CD_SAMPLE_SIZE, 0);
-        scrambler.descramble(sector.data(), &lba);
-        Sector &s = *(Sector *)sector.data();
-        // first 150 sectors and last 149 sectors must have zeroed user data
-        if(lba < t.lba_start + 150 || lba > t.lba_end - 150)
-        {
-            if(s.header.mode == 1)
-            {
-                if(!is_zeroed(s.mode1.user_data, FORM1_DATA_SIZE))
-                    return false;
-            }
-            else if(s.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
-            {
-                if(!is_zeroed(s.mode2.xa.form2.user_data, FORM2_DATA_SIZE))
-                    return false;
-            }
-            else
-            {
-                if(!is_zeroed(s.mode2.xa.form1.user_data, FORM1_DATA_SIZE))
-                    return false;
-            }
-        }
-        // middle 299 sectors must look like mode 2 form 2 dummy pattern (ignore 300th/301st)
-        else if(lba != t.lba_end - 151 && lba != t.lba_end - 150)
-        {
-            if(!((s.header.mode == 2) && (s.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)))
-                return false;
-            uint32_t mismatches = 0;
-            for(uint32_t i = 0; i < FORM2_DATA_SIZE; ++i)
-            {
-                mismatches += s.mode2.xa.form2.user_data[i] != PID_DUMMY_PATTERN[i];
-            }
-            if(mismatches > 50)
-                return false;
-        }
-    }
-
-    return true;
-}
-
-
 std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
     const std::vector<Range<int32_t>> &protection, const Options &options)
 {
@@ -358,8 +306,6 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
                 continue;
 
             bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
-
-            bool has_pid = check_for_pid(t, scm_fs, offset_manager);
 
             std::string track_string = toc.getTrackString(t.track_number);
             bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
@@ -430,20 +376,17 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
                         else
                             success = scrambler.descramble(sector.data(), &lba);
 
-                        if(!success)
+                        if(success)
+                        {
+                            if(!options.leave_unchanged && !lilo && pid_patch(sector, t, lba))
+                                LOG("warning: removed postscribed ID (track: {})", track_name);
+                        }
+                        else
                         {
                             if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
                                 descramble_errors.emplace_back(lba, lba);
                             else
                                 descramble_errors.back().second = lba;
-                        }
-
-                        // remove postscribed ID not present on master (data unique to each disc, lasered after disc has been pressed)
-                        if(!options.leave_unchanged && has_pid && lba >= t.lba_start + 150 && lba < t.lba_end - 151)
-                        {
-                            LOG("warning: removed postscribed ID, you may split with leave unchanged option to keep it ({})", track_name);
-                            Sector &s = *(Sector *)sector.data();
-                            memcpy(s.mode2.xa.form2.user_data, PID_DUMMY_PATTERN, FORM2_DATA_SIZE);
                         }
                     }
                 }

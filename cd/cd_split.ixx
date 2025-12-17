@@ -319,8 +319,8 @@ bool check_for_pid(const TOC::Session::Track &t, std::fstream &scm_fs, std::shar
         }
         else if(lba != t.lba_end - 150)
         {
-            // middle 300 sectors must look like mode 2 form 2 dummy pattern (ignore 301th)
-            if(s.header.mode != 2 || !(s.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2))
+            // middle 300 sectors must look like mode 2 form 2 dummy pattern (ignore 301st)
+            if(!(s.header.mode == 2 && (s.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)))
                 return false;
             uint8_t mismatches = 0;
             for(uint8_t i = 0; i < FORM2_DATA_SIZE; ++i)

@@ -99,7 +99,7 @@ export bool pid_patch(std::vector<uint8_t> &sector, const TOC::Session::Track &t
         return false;
     if(t.lba_end - t.lba_start != 600)
         return false;
-    if(lba < t.lba_start + 150 || lba >= t.lba_end - 151)
+    if(lba < t.lba_start + CD_PREGAP_SIZE || lba >= t.lba_end - (CD_PREGAP_SIZE + 1))
         return false;
 
     Sector &s = *(Sector *)sector.data();

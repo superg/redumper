@@ -95,7 +95,7 @@ constexpr uint8_t PID_DUMMY_PATTERN[] = {
 
 export bool pid_patch(std::vector<uint8_t> &sector, const TOC::Session::Track &t, int32_t lba)
 {
-    if(t.track_number <= 1)
+    if(t.track_number == 1)
         return false;
     if(t.lba_end - t.lba_start != 600)
         return false;

@@ -24,6 +24,7 @@ import cd.common;
 import cd.ecc;
 import cd.edc;
 import cd.offset_manager;
+import cd.pid;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
@@ -308,6 +309,7 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
             std::string track_string = toc.getTrackString(t.track_number);
             bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
+            bool patched_pid = false;
 
             // add session number to lead-in/lead-out track string to make filename unique
             if(lilo && toc.sessions.size() > 1)
@@ -375,7 +377,15 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
                         else
                             success = scrambler.descramble(sector.data(), &lba);
 
-                        if(!success)
+                        if(success)
+                        {
+                            if(!options.leave_unchanged && !lilo && pid_patch(sector, t, lba) && !patched_pid)
+                            {
+                                patched_pid = true;
+                                LOG("warning: removed postscribed ID (track: {})", track_name);
+                            }
+                        }
+                        else
                         {
                             if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
                                 descramble_errors.emplace_back(lba, lba);

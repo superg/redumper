@@ -97,6 +97,7 @@ target_sources(redumper
     "cd/edc.ixx"
     "cd/fix_msf.ixx"
     "cd/offset_manager.ixx"
+    "cd/pid.ixx"
     "cd/protection.ixx"
     "cd/scrambler.ixx"
     "cd/cd_split.ixx"

@@ -309,6 +309,7 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
             std::string track_string = toc.getTrackString(t.track_number);
             bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
+            bool patched_pid = false;
 
             // add session number to lead-in/lead-out track string to make filename unique
             if(lilo && toc.sessions.size() > 1)
@@ -378,8 +379,11 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
                         if(success)
                         {
-                            if(!options.leave_unchanged && !lilo && pid_patch(sector, t, lba))
+                            if(!options.leave_unchanged && !lilo && pid_patch(sector, t, lba) && !patched_pid)
+                            {
+                                patched_pid = true;
                                 LOG("warning: removed postscribed ID (track: {})", track_name);
+                            }
                         }
                         else
                         {

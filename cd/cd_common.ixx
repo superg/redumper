@@ -126,6 +126,30 @@ export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<
 }
 
 
+export std::vector<uint8_t> toc_read(SPTD &sptd)
+{
+    std::vector<uint8_t> toc_buffer;
+
+    SPTD::Status status = cmd_read_toc(sptd, toc_buffer, false, READ_TOC_Format::TOC, 1);
+    if(status.status_code)
+        throw_line("failed to read TOC, SCSI ({})", SPTD::StatusMessage(status));
+
+    return toc_buffer;
+}
+
+
+export std::vector<uint8_t> toc_full_read(SPTD &sptd)
+{
+    std::vector<uint8_t> full_toc_buffer;
+
+    SPTD::Status status = cmd_read_toc(sptd, full_toc_buffer, true, READ_TOC_Format::FULL_TOC, 1);
+    if(status.status_code)
+        LOG("warning: FULL_TOC is unavailable (no multisession information), SCSI ({})", SPTD::StatusMessage(status));
+
+    return full_toc_buffer;
+}
+
+
 export TOC toc_process(Context &ctx, const Options &options, bool store)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -136,19 +160,8 @@ export TOC toc_process(Context &ctx, const Options &options, bool store)
     std::string atip_path(image_prefix + ".atip");
     std::string cdtext_path(image_prefix + ".cdtext");
 
-    SPTD::Status status;
-
-    std::vector<uint8_t> toc_buffer;
-    status = cmd_read_toc(*ctx.sptd, toc_buffer, false, READ_TOC_Format::TOC, 1);
-    if(status.status_code)
-        throw_line("failed to read TOC, SCSI ({})", SPTD::StatusMessage(status));
-
-    // optional
-    std::vector<uint8_t> full_toc_buffer;
-    status = cmd_read_toc(*ctx.sptd, full_toc_buffer, true, READ_TOC_Format::FULL_TOC, 1);
-    if(status.status_code)
-        LOG("warning: FULL_TOC is unavailable (no multisession information), SCSI ({})", SPTD::StatusMessage(status));
-
+    auto toc_buffer = toc_read(*ctx.sptd);
+    auto full_toc_buffer = toc_full_read(*ctx.sptd);
     auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
     // store TOC information
@@ -161,14 +174,12 @@ export TOC toc_process(Context &ctx, const Options &options, bool store)
 
         // PMA
         std::vector<uint8_t> pma_buffer;
-        status = cmd_read_toc(*ctx.sptd, pma_buffer, true, READ_TOC_Format::PMA, 0);
-        if(!status.status_code && pma_buffer.size() > sizeof(CMD_ParameterListHeader))
+        if(auto status = cmd_read_toc(*ctx.sptd, pma_buffer, true, READ_TOC_Format::PMA, 0); !status.status_code && pma_buffer.size() > sizeof(CMD_ParameterListHeader))
             write_vector(pma_path, pma_buffer);
 
         // ATIP
         std::vector<uint8_t> atip_buffer;
-        status = cmd_read_toc(*ctx.sptd, atip_buffer, true, READ_TOC_Format::ATIP, 0);
-        if(!status.status_code && atip_buffer.size() > sizeof(CMD_ParameterListHeader))
+        if(auto status = cmd_read_toc(*ctx.sptd, atip_buffer, true, READ_TOC_Format::ATIP, 0); !status.status_code && atip_buffer.size() > sizeof(CMD_ParameterListHeader))
             write_vector(atip_path, atip_buffer);
 
         // CD-TEXT
@@ -177,8 +188,7 @@ export TOC toc_process(Context &ctx, const Options &options, bool store)
         else
         {
             std::vector<uint8_t> cd_text_buffer;
-            status = cmd_read_toc(*ctx.sptd, cd_text_buffer, false, READ_TOC_Format::CD_TEXT, 0);
-            if(status.status_code)
+            if(auto status = cmd_read_toc(*ctx.sptd, cd_text_buffer, false, READ_TOC_Format::CD_TEXT, 0); status.status_code)
                 LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
 
             if(cd_text_buffer.size() > sizeof(CMD_ParameterListHeader))

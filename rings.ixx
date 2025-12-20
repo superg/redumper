@@ -111,9 +111,7 @@ export int redumper_rings(Context &ctx, Options &options)
     if(ctx.disc_type != DiscType::CD)
         return exit_code;
 
-    std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
-    std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
-    auto toc = toc_choose(toc_buffer, full_toc_buffer);
+    auto toc = toc_choose(toc_read(*ctx.sptd), toc_full_read(*ctx.sptd));
 
     for(auto &s : toc.sessions)
     {

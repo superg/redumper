@@ -15,6 +15,7 @@ export module cd.dump;
 
 import cd.cd;
 import cd.common;
+import cd.dreamcast;
 import cd.subcode;
 import cd.toc;
 import common;
@@ -237,6 +238,25 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         LOG("");
     }
 
+    bool lba_end_by_subcode = options.lba_end_by_subcode;
+
+    // inject GD-ROM HD area session with maximal size
+    bool dreamcast = ctx.dreamcast && *ctx.dreamcast;
+    if(dreamcast)
+    {
+        TOC::Session::Track track = {};
+        track.lba_start = dreamcast::HD_INDEX1_LBA;
+        track.lba_end = LBA_LIMIT;
+        track.indices.push_back(dreamcast::HD_INDEX1_LBA);
+
+        TOC::Session session = {};
+        session.tracks.push_back(track);
+
+        toc.sessions.push_back(session);
+
+        lba_end_by_subcode = true;
+    }
+
     int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
     int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
 
@@ -283,7 +303,10 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     std::vector<Range<int32_t>> session_gaps;
     for(uint32_t i = 1; i < toc.sessions.size(); ++i)
     {
-        Range r{ toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + ctx.drive_config.pregap_start };
+        // reduce pre-gap for GD-ROM HD area to 1 second as drive is unable to read early sectors
+        int32_t pregap_start = dreamcast ? std::max(ctx.drive_config.pregap_start, (int32_t)-MSF_LIMIT.f) : ctx.drive_config.pregap_start;
+
+        Range r{ toc.sessions[i - 1].tracks.back().lba_end, toc.sessions[i].tracks.front().indices.front() + pregap_start };
         insert_range(session_gaps, r);
     }
 
@@ -371,6 +394,19 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
             {
                 LOG("warning: unscrambled sector read");
                 data_unscrambled_message = true;
+            }
+
+            if(lba_end_by_subcode && lba > toc.sessions.back().tracks.front().lba_start)
+            {
+                auto Q = subcode_extract_q(sector_subcode.data());
+                if(Q.isValid() && Q.adr == 1 && bcd_decode(Q.mode1.tno) == bcd_decode(CD_LEADOUT_TRACK_NUMBER))
+                {
+                    lba_end = lba;
+                    lba_overread = lba + 1;
+
+                    LOG_R("[LBA: {}] subcode lead-out detected", lba);
+                    lba_end_by_subcode = false;
+                }
             }
 
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;

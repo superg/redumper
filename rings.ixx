@@ -12,6 +12,7 @@ export module rings;
 import cd.cd;
 import cd.cdrom;
 import cd.common;
+import cd.dreamcast;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
@@ -138,11 +139,20 @@ export int redumper_rings(Context &ctx, Options &options)
             }
             LOG("");
 
-            // Datel V2 (Crazy Taxi based)
+            auto system_area = iso9660::Browser::readSystemArea(data_reader.get());
+            bool dreamcast = dreamcast::detect(system_area);
+            if(dreamcast && toc.sessions.size() == 1)
+            {
+                ctx.dreamcast = true;
+                LOG("dreamcast: GD-ROM detected");
+            }
+
             iso9660::PrimaryVolumeDescriptor pvd;
             if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
             {
                 auto volume_identifier = iso9660::identifier_to_string(pvd.volume_identifier);
+
+                // Datel V2 (Crazy Taxi based)
                 if(volume_identifier == "CRAZY_TAXI")
                 {
                     for(uint32_t i = 0; i + 1 < area_map.size(); ++i)

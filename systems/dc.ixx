@@ -15,6 +15,7 @@ module;
 
 export module systems.dc;
 
+import cd.dreamcast;
 import filesystem.iso9660;
 import readers.data_reader;
 import utils.hex_bin;
@@ -42,7 +43,7 @@ public:
     void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &, bool) const override
     {
         auto system_area = iso9660::Browser::readSystemArea(data_reader);
-        if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), _SYSTEM_MAGIC.data(), _SYSTEM_MAGIC.size()))
+        if(system_area.size() < _ROM_HEADER_OFFSET + sizeof(ROMHeader) || memcmp(system_area.data(), dreamcast::SYSTEM_AREA_MAGIC.data(), dreamcast::SYSTEM_AREA_MAGIC.size()))
             return;
 
         std::vector<uint8_t> rom_header_data(system_area.data() + _ROM_HEADER_OFFSET, system_area.data() + _ROM_HEADER_OFFSET + sizeof(ROMHeader));
@@ -90,7 +91,6 @@ public:
     }
 
 private:
-    static constexpr std::string_view _SYSTEM_MAGIC = "SEGA SEGAKATANA";
     static constexpr uint32_t _ROM_HEADER_OFFSET = 0x000;
     static constexpr uint32_t _DATE_SYMBOLS = 8;
     static constexpr uint32_t _YEAR_SYMBOLS = 4;

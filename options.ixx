@@ -78,7 +78,6 @@ export struct Options
     bool drive_test_skip_plextor_leadin;
     bool drive_test_skip_cache_read;
     bool skip_subcode_desync;
-    bool rings;
     int cdr_error_threshold;
 
 
@@ -120,7 +119,6 @@ export struct Options
         , drive_test_skip_plextor_leadin(false)
         , drive_test_skip_cache_read(false)
         , skip_subcode_desync(false)
-        , rings(false)
         , cdr_error_threshold(16)
     {
         for(int i = 1; i < argc; ++i)
@@ -302,8 +300,6 @@ export struct Options
                         drive_test_skip_cache_read = true;
                     else if(key == "--skip-subcode-desync")
                         skip_subcode_desync = true;
-                    else if(key == "--rings")
-                        rings = true;
                     else if(key == "--cdr-error-threshold")
                         i_value = &cdr_error_threshold;
                     // unknown option
@@ -444,7 +440,6 @@ export struct Options
         LOG("\t--firmware=VALUE                \tfirmware filename");
         LOG("\t--force-flash                   \tskip drive vendor/model verification when flashing firmware (WARNING: can brick your drive)");
         LOG("\t--skip-subcode-desync           \tskip storing sectors with mismatching subcode Q absolute MSF");
-        LOG("\t--rings                         \tenable filesystem based rings detection");
         LOG("\t--cdr-error-threshold=VALUE     \tmaximum number of trailing C2 errors allowed on a CD-R (default: {})", cdr_error_threshold);
     }
 };

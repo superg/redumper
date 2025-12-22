@@ -139,9 +139,7 @@ export int redumper_rings(Context &ctx, Options &options)
             }
             LOG("");
 
-            auto system_area = iso9660::Browser::readSystemArea(data_reader.get());
-            bool dreamcast = dreamcast::detect(system_area);
-            if(dreamcast && toc.sessions.size() == 1)
+            if(auto system_area = iso9660::Browser::readSystemArea(data_reader.get()); toc.sessions.size() == 1 && dreamcast ::detect(system_area))
             {
                 ctx.dreamcast = true;
                 LOG("dreamcast: GD-ROM detected");

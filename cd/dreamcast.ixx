@@ -7,6 +7,7 @@ module;
 
 export module cd.dreamcast;
 
+import cd.subcode;
 import cd.toc;
 
 

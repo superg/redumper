@@ -650,7 +650,7 @@ export struct TOC
     }
 
 
-    std::ostream &printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index) const
+    std::ostream &printCUE(std::ostream &os, const std::string &image_name, uint32_t cd_text_index, bool extra) const
     {
         bool multisession = sessions.size() > 1;
 
@@ -674,8 +674,24 @@ export struct TOC
         {
             auto &s = sessions[j];
 
+            // output standard sizes here for now
+            // can be calculated precisely if whole lead-out/toc/pre-gap range is dumped
             if(multisession)
+            {
+                if(extra && j)
+                {
+                    auto msf = LBA_to_MSF(CD_LEADOUT_MIN_SIZE + MSF_LBA_SHIFT);
+                    os << std::format("REM LEAD-OUT {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+                }
                 os << std::format("REM SESSION {:02}", s.session_number) << std::endl;
+                if(extra && j)
+                {
+                    auto msf = LBA_to_MSF(CD_LEADIN_MIN_SIZE + MSF_LBA_SHIFT);
+                    os << std::format("REM LEAD-IN {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+                    msf = LBA_to_MSF(CD_PREGAP_SIZE + MSF_LBA_SHIFT);
+                    os << std::format("REM PREGAP {:02}:{:02}:{:02}", msf.m, msf.s, msf.f) << std::endl;
+                }
+            }
 
             for(auto const &t : s.tracks)
             {

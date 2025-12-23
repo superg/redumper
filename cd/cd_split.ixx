@@ -8,6 +8,7 @@ module;
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -932,6 +933,26 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
 }
 
 
+void cue_process(std::string_view sheet_name, const TOC &toc, uint32_t cd_text_index, const Options &options)
+{
+    if(std::filesystem::exists(std::filesystem::path(options.image_path) / sheet_name) && !options.overwrite)
+        throw_line("file already exists ({})", sheet_name);
+
+    std::fstream fs(std::filesystem::path(options.image_path) / sheet_name, std::fstream::out);
+    if(!fs.is_open())
+        throw_line("unable to create file ({})", sheet_name);
+    toc.printCUE(fs, options.image_name, cd_text_index, false);
+
+    LOG("CUE [{}]:", sheet_name);
+    std::stringstream ss;
+    toc.printCUE(ss, options.image_name, cd_text_index, true);
+    std::string line;
+    while(std::getline(ss, line))
+        LOG("{}", line);
+    LOG("");
+}
+
+
 export void redumper_split_cd(Context &ctx, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -1390,37 +1411,6 @@ export void redumper_split_cd(Context &ctx, Options &options)
     LOG("done");
     LOG("");
 
-    // write CUE-sheet
-    std::vector<std::string> cue_sheets;
-    if(toc.cd_text_lang.size() > 1)
-    {
-        cue_sheets.resize(toc.cd_text_lang.size());
-        for(uint32_t i = 0; i < toc.cd_text_lang.size(); ++i)
-        {
-            cue_sheets[i] = i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name);
-
-            if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets[i]) && !options.overwrite)
-                throw_line("file already exists ({})", cue_sheets[i]);
-
-            std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets[i], std::fstream::out);
-            if(!fs.is_open())
-                throw_line("unable to create file ({})", cue_sheets[i]);
-            toc.printCUE(fs, options.image_name, i);
-        }
-    }
-    else
-    {
-        cue_sheets.push_back(std::format("{}.cue", options.image_name));
-
-        if(std::filesystem::exists(std::filesystem::path(options.image_path) / cue_sheets.front()) && !options.overwrite)
-            throw_line("file already exists ({})", cue_sheets.front());
-
-        std::fstream fs(std::filesystem::path(options.image_path) / cue_sheets.front(), std::fstream::out);
-        if(!fs.is_open())
-            throw_line("unable to create file ({})", cue_sheets.front());
-        toc.printCUE(fs, options.image_name, 0);
-    }
-
     if(toc.sessions.size() > 1)
     {
         LOG("multisession: ");
@@ -1429,18 +1419,14 @@ export void redumper_split_cd(Context &ctx, Options &options)
         LOG("");
     }
 
-    for(auto const &c : cue_sheets)
+    // write CUE-sheet
+    if(toc.cd_text_lang.size() > 1)
     {
-        LOG("CUE [{}]:", c);
-        std::filesystem::path cue_path(std::filesystem::path(options.image_path) / c);
-        std::fstream ifs(cue_path, std::fstream::in);
-        if(!ifs.is_open())
-            throw_line("unable to open file ({})", cue_path.filename().string());
-        std::string line;
-        while(std::getline(ifs, line))
-            LOG("{}", line);
-        LOG("");
+        for(uint32_t i = 0; i < toc.cd_text_lang.size(); ++i)
+            cue_process(i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name), toc, i, options);
     }
+    else
+        cue_process(std::format("{}.cue", options.image_name), toc, 0, options);
 
     if(ctx.dump_errors)
     {

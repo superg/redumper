@@ -935,7 +935,7 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
 }
 
 
-void cue_process(std::string_view sheet_name, const TOC &toc, uint32_t cd_text_index, const Options &options)
+void cue_process(std::string_view sheet_name, const TOC &toc, uint32_t cd_text_index, bool dreamcast, const Options &options)
 {
     if(std::filesystem::exists(std::filesystem::path(options.image_path) / sheet_name) && !options.overwrite)
         throw_line("file already exists ({})", sheet_name);
@@ -943,11 +943,11 @@ void cue_process(std::string_view sheet_name, const TOC &toc, uint32_t cd_text_i
     std::fstream fs(std::filesystem::path(options.image_path) / sheet_name, std::fstream::out);
     if(!fs.is_open())
         throw_line("unable to create file ({})", sheet_name);
-    toc.printCUE(fs, options.image_name, cd_text_index, false);
+    toc.printCUE(fs, options.image_name, cd_text_index, dreamcast, false);
 
     LOG("CUE [{}]:", sheet_name);
     std::stringstream ss;
-    toc.printCUE(ss, options.image_name, cd_text_index, true);
+    toc.printCUE(ss, options.image_name, cd_text_index, dreamcast, true);
     std::string line;
     while(std::getline(ss, line))
         LOG("{}", line);
@@ -1452,10 +1452,10 @@ export void redumper_split_cd(Context &ctx, Options &options)
     if(toc.cd_text_lang.size() > 1)
     {
         for(uint32_t i = 0; i < toc.cd_text_lang.size(); ++i)
-            cue_process(i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name), toc, i, options);
+            cue_process(i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name), toc, i, dreamcast, options);
     }
     else
-        cue_process(std::format("{}.cue", options.image_name), toc, 0, options);
+        cue_process(std::format("{}.cue", options.image_name), toc, 0, dreamcast, options);
 
     if(ctx.dump_errors)
     {

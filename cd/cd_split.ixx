@@ -288,7 +288,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
 
 std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-    const std::vector<Range<int32_t>> &protection, const Options &options)
+    const std::vector<Range<int32_t>> &protection, bool dreamcast, const Options &options)
 {
     std::vector<std::string> xml_lines;
 
@@ -298,7 +298,7 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
     // discs with offset shift usually have some corruption in a couple of transitional sectors preventing normal descramble detection,
     // as everything is scrambled in this case, force descrambling
-    bool force_descramble = offset_manager->isVariable();
+    bool force_descramble = offset_manager->isVariable() && !dreamcast;
 
     for(auto &s : toc.sessions)
     {
@@ -1438,7 +1438,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     // write tracks
     LOG("writing tracks");
-    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, options);
+    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, dreamcast, options);
     LOG("done");
     LOG("");
 

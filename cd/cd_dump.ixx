@@ -245,9 +245,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     if(dreamcast)
     {
         TOC::Session::Track track = {};
-        track.lba_start = dreamcast::HD_INDEX1_LBA;
+        track.lba_start = dreamcast::IP_BIN_LBA;
         track.lba_end = LBA_LIMIT;
-        track.indices.push_back(dreamcast::HD_INDEX1_LBA);
+        track.indices.push_back(dreamcast::IP_BIN_LBA);
 
         TOC::Session session = {};
         session.tracks.push_back(track);

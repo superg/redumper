@@ -1,6 +1,7 @@
 module;
 #include <cstdint>
 #include <cstring>
+#include <span>
 
 export module cd.cdrom;
 
@@ -94,5 +95,23 @@ export struct Sector
         } mode2;
     };
 };
+
+
+export std::span<const uint8_t> sector_user_data(const Sector &sector)
+{
+    if(sector.header.mode == 0)
+        return std::span<const uint8_t>(sector.mode2.user_data);
+    else if(sector.header.mode == 1)
+        return std::span<const uint8_t>(sector.mode1.user_data);
+    else if(sector.header.mode == 2)
+    {
+        if(sector.mode2.xa.sub_header.submode & (uint8_t)CDXAMode::FORM2)
+            return std::span<const uint8_t>(sector.mode2.xa.form2.user_data);
+        else
+            return std::span<const uint8_t>(sector.mode2.xa.form1.user_data);
+    }
+
+    return std::span<const uint8_t>();
+}
 
 }

@@ -968,8 +968,6 @@ export void redumper_split_cd(Context &ctx, Options &options)
     std::filesystem::path atip_path(image_prefix + ".atip");
     std::filesystem::path pma_path(image_prefix + ".pma");
 
-    uint32_t subcode_sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
-
     std::fstream scm_fs(scm_path, std::fstream::in | std::fstream::binary);
     if(!scm_fs.is_open())
         throw_line("unable to open file ({})", scm_path.filename().string());
@@ -1000,13 +998,22 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
             if(auto system_area = iso9660::Browser::readSystemArea(form1_reader.get()); dreamcast::detect(system_area))
             {
-                LOG("dreamcast: GD-ROM dump detected");
+                std::vector<uint8_t> sector(CD_DATA_SIZE);
+                read_entry(scm_fs, sector.data(), CD_DATA_SIZE, dreamcast::IP_BIN_LBA - LBA_START, 1, -*write_offset * CD_SAMPLE_SIZE, 0);
+                Scrambler scrambler;
+                scrambler.process(sector.data(), sector.data(), 0, sector.size());
+
+                dreamcast::update_toc(toc, sector);
                 dreamcast = true;
+
+                LOG("dreamcast: GD-ROM dump detected");
+                LOG("");
             }
         }
     }
 
     // preload subchannel P/Q
+    uint32_t subcode_sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
     std::vector<uint8_t> subp;
     std::vector<ChannelQ> subq;
     if(std::filesystem::exists(sub_path))
@@ -1025,47 +1032,39 @@ export void redumper_split_cd(Context &ctx, Options &options)
         LOG("");
     }
 
-    std::optional<TOC> qtoc;
     if(subq.empty())
     {
         LOG("warning: subchannel data is not available, generating TOC index 0 entries");
         toc.generateIndex0();
     }
     else
-    {
         toc.updateQ(subq.data(), subp.data(), subcode_sectors_count, LBA_START, options.legacy_subs);
-        toc.updateMCN(subq.data(), subcode_sectors_count);
-
-        qtoc = TOC(subq.data(), subcode_sectors_count, LBA_START);
-        qtoc->updateMCN(subq.data(), subcode_sectors_count);
-
-        if(dreamcast)
-        {
-            dreamcast::reconstruct_toc(toc, *qtoc);
-        }
-    }
 
     LOG("final TOC:");
     print_toc(toc);
     LOG("");
 
-    if(qtoc)
+    if(!subq.empty())
     {
+        TOC qtoc(subq.data(), subcode_sectors_count, LBA_START);
+
         // compare TOC and QTOC
-        if(toc_mismatch(toc, *qtoc))
+        if(toc_mismatch(toc, qtoc))
         {
             LOG("");
             LOG("final QTOC:");
-            print_toc(*qtoc);
+            print_toc(qtoc);
             LOG("");
         }
 
         if(options.force_qtoc)
         {
-            toc = *qtoc;
+            toc = qtoc;
             LOG("warning: split is performed by QTOC");
             LOG("");
         }
+
+        toc.updateMCN(subq.data(), subcode_sectors_count);
     }
 
     // CD-TEXT

@@ -265,13 +265,11 @@ DiscType profile_to_disc_type(GET_CONFIGURATION_FeatureCode_ProfileList profile)
 }
 
 
-std::list<std::pair<std::string, Command>> redumper_cd_get_commands(Options &options)
+std::list<std::pair<std::string, Command>> redumper_disc_get_commands(Options &options)
 {
     std::list<std::pair<std::string, Command>> commands;
 
-    std::list<std::string> cd_commands{ "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
-    if(options.rings)
-        cd_commands.insert(cd_commands.begin(), "rings");
+    std::list<std::string> cd_commands{ "rings", "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
     if(options.auto_eject)
     {
         if(auto it = std::find(cd_commands.begin(), cd_commands.end(), "split"); it != cd_commands.end())
@@ -286,10 +284,10 @@ std::list<std::pair<std::string, Command>> redumper_cd_get_commands(Options &opt
     {
         for(auto it = cd_commands.begin(); it != cit;)
         {
-            if(*it != "rings" && *it != "protection")
-                it = cd_commands.erase(it);
-            else
+            if(*it == "rings" && std::find(cit, cd_commands.end(), "dump") != cd_commands.end() || *it == "protection")
                 ++it;
+            else
+                it = cd_commands.erase(it);
         }
     }
 
@@ -357,7 +355,7 @@ export int redumper(Options &options)
 
     if(options.command.empty() || options.command == "disc")
     {
-        commands = redumper_cd_get_commands(options);
+        commands = redumper_disc_get_commands(options);
 
         for(auto const &c : commands)
         {

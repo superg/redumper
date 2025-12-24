@@ -1,7 +1,6 @@
 module;
 #include <algorithm>
 #include <cstdint>
-#include <fstream>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -59,7 +58,7 @@ struct IP_BIN
 
 export bool detect(std::span<const uint8_t> system_area)
 {
-    return std::equal(SYSTEM_AREA_MAGIC.begin(), SYSTEM_AREA_MAGIC.end(), system_area.begin());
+    return std::equal(SYSTEM_AREA_MAGIC.begin(), SYSTEM_AREA_MAGIC.end(), system_area.begin(), system_area.end());
 }
 
 

@@ -250,35 +250,38 @@ export void subcode_load_subpq(std::vector<ChannelP> &subp, std::vector<ChannelQ
         }
     }
 
-    LOG("subcode desync statistics: ");
-    for(auto const &e : desync_stats)
-        LOG("  shift: {:+}, count: {}", e.first, e.second);
-
-    if(auto it = std::max_element(desync_stats.begin(), desync_stats.end(), [](auto a, auto b) { return a.second < b.second; }); it != desync_stats.end() && it->first)
+    if(!desync_stats.empty() && !(desync_stats.size() == 1 && !desync_stats.begin()->first))
     {
-        uint32_t shift_value = std::abs(it->first);
+        LOG("subcode desync statistics: ");
+        for(auto const &e : desync_stats)
+            LOG("  shift: {:+}, count: {}", e.first, e.second);
 
-        LOG("warning: shifting subchannel data (shift: {:+})", it->first);
-
-        ChannelQ q_empty;
-        memset(&q_empty, 0, sizeof(q_empty));
-
-        if(it->first < 0)
+        if(auto it = std::max_element(desync_stats.begin(), desync_stats.end(), [](auto a, auto b) { return a.second < b.second; }); it != desync_stats.end() && it->first)
         {
-            subp.erase(subp.begin(), subp.begin() + shift_value);
-            subq.erase(subq.begin(), subq.begin() + shift_value);
-            subp.insert(subp.end(), shift_value, subp.back());
-            subq.insert(subq.end(), shift_value, q_empty);
+            uint32_t shift_value = std::abs(it->first);
+
+            LOG("warning: shifting subchannel data (shift: {:+})", it->first);
+
+            ChannelQ q_empty;
+            memset(&q_empty, 0, sizeof(q_empty));
+
+            if(it->first < 0)
+            {
+                subp.erase(subp.begin(), subp.begin() + shift_value);
+                subq.erase(subq.begin(), subq.begin() + shift_value);
+                subp.insert(subp.end(), shift_value, subp.back());
+                subq.insert(subq.end(), shift_value, q_empty);
+            }
+            else
+            {
+                subp.insert(subp.begin(), shift_value, subp.front());
+                subq.insert(subq.begin(), shift_value, q_empty);
+                subp.erase(subp.end() - shift_value, subp.end());
+                subq.erase(subq.end() - shift_value, subq.end());
+            }
         }
-        else
-        {
-            subp.insert(subp.begin(), shift_value, subp.front());
-            subq.insert(subq.begin(), shift_value, q_empty);
-            subp.erase(subp.end() - shift_value, subp.end());
-            subq.erase(subq.end() - shift_value, subq.end());
-        }
+        LOG("");
     }
-    LOG("");
 }
 
 

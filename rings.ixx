@@ -12,6 +12,7 @@ export module rings;
 import cd.cd;
 import cd.cdrom;
 import cd.common;
+import cd.dreamcast;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
@@ -111,9 +112,7 @@ export int redumper_rings(Context &ctx, Options &options)
     if(ctx.disc_type != DiscType::CD)
         return exit_code;
 
-    std::vector<uint8_t> toc_buffer = cmd_read_toc(*ctx.sptd);
-    std::vector<uint8_t> full_toc_buffer = cmd_read_full_toc(*ctx.sptd);
-    auto toc = toc_choose(toc_buffer, full_toc_buffer);
+    auto toc = toc_choose(toc_read(*ctx.sptd), toc_full_read(*ctx.sptd));
 
     for(auto &s : toc.sessions)
     {
@@ -140,11 +139,18 @@ export int redumper_rings(Context &ctx, Options &options)
             }
             LOG("");
 
-            // Datel V2 (Crazy Taxi based)
+            if(auto system_area = iso9660::Browser::readSystemArea(data_reader.get()); toc.sessions.size() == 1 && dreamcast::detect(system_area))
+            {
+                ctx.dreamcast = true;
+                LOG("dreamcast: GD-ROM detected");
+            }
+
             iso9660::PrimaryVolumeDescriptor pvd;
             if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)pvd, data_reader.get(), iso9660::VolumeDescriptorType::PRIMARY))
             {
                 auto volume_identifier = iso9660::identifier_to_string(pvd.volume_identifier);
+
+                // Datel V2 (Crazy Taxi based)
                 if(volume_identifier == "CRAZY_TAXI")
                 {
                     for(uint32_t i = 0; i + 1 < area_map.size(); ++i)

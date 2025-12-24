@@ -2,6 +2,7 @@ module;
 #include <algorithm>
 #include <climits>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <format>
@@ -126,6 +127,30 @@ export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<
 }
 
 
+export std::vector<uint8_t> toc_read(SPTD &sptd)
+{
+    std::vector<uint8_t> toc_buffer;
+
+    SPTD::Status status = cmd_read_toc(sptd, toc_buffer, false, READ_TOC_Format::TOC, 1);
+    if(status.status_code)
+        throw_line("failed to read TOC, SCSI ({})", SPTD::StatusMessage(status));
+
+    return toc_buffer;
+}
+
+
+export std::vector<uint8_t> toc_full_read(SPTD &sptd)
+{
+    std::vector<uint8_t> full_toc_buffer;
+
+    SPTD::Status status = cmd_read_toc(sptd, full_toc_buffer, true, READ_TOC_Format::FULL_TOC, 1);
+    if(status.status_code)
+        LOG("warning: FULL_TOC is unavailable (no multisession information), SCSI ({})", SPTD::StatusMessage(status));
+
+    return full_toc_buffer;
+}
+
+
 export TOC toc_process(Context &ctx, const Options &options, bool store)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -136,19 +161,8 @@ export TOC toc_process(Context &ctx, const Options &options, bool store)
     std::string atip_path(image_prefix + ".atip");
     std::string cdtext_path(image_prefix + ".cdtext");
 
-    SPTD::Status status;
-
-    std::vector<uint8_t> toc_buffer;
-    status = cmd_read_toc(*ctx.sptd, toc_buffer, false, READ_TOC_Format::TOC, 1);
-    if(status.status_code)
-        throw_line("failed to read TOC, SCSI ({})", SPTD::StatusMessage(status));
-
-    // optional
-    std::vector<uint8_t> full_toc_buffer;
-    status = cmd_read_toc(*ctx.sptd, full_toc_buffer, true, READ_TOC_Format::FULL_TOC, 1);
-    if(status.status_code)
-        LOG("warning: FULL_TOC is unavailable (no multisession information), SCSI ({})", SPTD::StatusMessage(status));
-
+    auto toc_buffer = toc_read(*ctx.sptd);
+    auto full_toc_buffer = toc_full_read(*ctx.sptd);
     auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
     // store TOC information
@@ -161,14 +175,12 @@ export TOC toc_process(Context &ctx, const Options &options, bool store)
 
         // PMA
         std::vector<uint8_t> pma_buffer;
-        status = cmd_read_toc(*ctx.sptd, pma_buffer, true, READ_TOC_Format::PMA, 0);
-        if(!status.status_code && pma_buffer.size() > sizeof(CMD_ParameterListHeader))
+        if(auto status = cmd_read_toc(*ctx.sptd, pma_buffer, true, READ_TOC_Format::PMA, 0); !status.status_code && pma_buffer.size() > sizeof(CMD_ParameterListHeader))
             write_vector(pma_path, pma_buffer);
 
         // ATIP
         std::vector<uint8_t> atip_buffer;
-        status = cmd_read_toc(*ctx.sptd, atip_buffer, true, READ_TOC_Format::ATIP, 0);
-        if(!status.status_code && atip_buffer.size() > sizeof(CMD_ParameterListHeader))
+        if(auto status = cmd_read_toc(*ctx.sptd, atip_buffer, true, READ_TOC_Format::ATIP, 0); !status.status_code && atip_buffer.size() > sizeof(CMD_ParameterListHeader))
             write_vector(atip_path, atip_buffer);
 
         // CD-TEXT
@@ -177,8 +189,7 @@ export TOC toc_process(Context &ctx, const Options &options, bool store)
         else
         {
             std::vector<uint8_t> cd_text_buffer;
-            status = cmd_read_toc(*ctx.sptd, cd_text_buffer, false, READ_TOC_Format::CD_TEXT, 0);
-            if(status.status_code)
+            if(auto status = cmd_read_toc(*ctx.sptd, cd_text_buffer, false, READ_TOC_Format::CD_TEXT, 0); status.status_code)
                 LOG("warning: unable to read CD-TEXT, SCSI ({})", SPTD::StatusMessage(status));
 
             if(cd_text_buffer.size() > sizeof(CMD_ParameterListHeader))
@@ -218,6 +229,7 @@ export void subcode_load_subpq(std::vector<ChannelP> &subp, std::vector<ChannelQ
     if(!fs.is_open())
         throw_line("unable to open file ({})", sub_path.filename().string());
 
+    std::map<int32_t, uint32_t> desync_stats;
 
     std::vector<uint8_t> sub_buffer(CD_SUBCODE_SIZE);
     for(uint32_t lba_index = 0; lba_index < subq.size(); ++lba_index)
@@ -226,6 +238,49 @@ export void subcode_load_subpq(std::vector<ChannelP> &subp, std::vector<ChannelQ
 
         subcode_extract_channel((uint8_t *)&subp[lba_index], sub_buffer.data(), Subchannel::P);
         subcode_extract_channel((uint8_t *)&subq[lba_index], sub_buffer.data(), Subchannel::Q);
+
+        auto const &Q = subq[lba_index];
+        if(Q.isValid() && Q.adr == 1)
+        {
+            int32_t lba = lba_index + LBA_START;
+            int32_t lbaq = BCDMSF_to_LBA(Q.mode1.a_msf);
+
+            int32_t shift = lbaq - lba;
+            ++desync_stats[shift];
+        }
+    }
+
+    if(!desync_stats.empty() && !(desync_stats.size() == 1 && !desync_stats.begin()->first))
+    {
+        LOG("subcode desync statistics: ");
+        for(auto const &e : desync_stats)
+            LOG("  shift: {:+}, count: {}", e.first, e.second);
+
+        if(auto it = std::max_element(desync_stats.begin(), desync_stats.end(), [](auto a, auto b) { return a.second < b.second; }); it != desync_stats.end() && it->first)
+        {
+            uint32_t shift_value = std::abs(it->first);
+
+            LOG("warning: shifting subchannel data (shift: {:+})", it->first);
+
+            ChannelQ q_empty;
+            memset(&q_empty, 0, sizeof(q_empty));
+
+            if(it->first < 0)
+            {
+                subp.erase(subp.begin(), subp.begin() + shift_value);
+                subq.erase(subq.begin(), subq.begin() + shift_value);
+                subp.insert(subp.end(), shift_value, subp.back());
+                subq.insert(subq.end(), shift_value, q_empty);
+            }
+            else
+            {
+                subp.insert(subp.begin(), shift_value, subp.front());
+                subq.insert(subq.begin(), shift_value, q_empty);
+                subp.erase(subp.end() - shift_value, subp.end());
+                subq.erase(subq.end() - shift_value, subq.end());
+            }
+        }
+        LOG("");
     }
 }
 

@@ -174,6 +174,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "TSSTcorp", "DVD-ROM TS-H353C" , "ZZ00", ""                    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
     // PATCHED KREON
     { "TSSTcorp", "DVD-ROM SH-D163B" , "ZZ01", "KREON V1.00.........",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
+    { "TSSTcorp", "DVD-ROM SH-D162C" , "DC02", "KREON V1.00.........",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // MoriGM
 
     // RECOMMENDED (GOOD) DRIVES ABOVE THIS LINE
     DRIVE_CONFIG_GENERIC,

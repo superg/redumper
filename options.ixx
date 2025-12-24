@@ -51,6 +51,7 @@ export struct Options
     std::unique_ptr<std::string> cd_continue;
     std::unique_ptr<int> lba_start;
     std::unique_ptr<int> lba_end;
+    bool lba_end_by_subcode;
     bool force_qtoc;
     bool legacy_subs;
     std::string skip;
@@ -77,7 +78,6 @@ export struct Options
     bool drive_test_skip_plextor_leadin;
     bool drive_test_skip_cache_read;
     bool skip_subcode_desync;
-    bool rings;
     int cdr_error_threshold;
 
 
@@ -96,6 +96,7 @@ export struct Options
         , retries(0)
         , refine_subchannel(false)
         , refine_sector_mode(false)
+        , lba_end_by_subcode(false)
         , force_qtoc(false)
         , legacy_subs(false)
         , skip_fill(0x55)
@@ -118,7 +119,6 @@ export struct Options
         , drive_test_skip_plextor_leadin(false)
         , drive_test_skip_cache_read(false)
         , skip_subcode_desync(false)
-        , rings(false)
         , cdr_error_threshold(16)
     {
         for(int i = 1; i < argc; ++i)
@@ -240,6 +240,8 @@ export struct Options
                         lba_end = std::make_unique<int>();
                         i_value = lba_end.get();
                     }
+                    else if(key == "--lba-end-by-subcode")
+                        lba_end_by_subcode = true;
                     else if(key == "--force-qtoc")
                         force_qtoc = true;
                     else if(key == "--legacy-subs")
@@ -298,8 +300,6 @@ export struct Options
                         drive_test_skip_cache_read = true;
                     else if(key == "--skip-subcode-desync")
                         skip_subcode_desync = true;
-                    else if(key == "--rings")
-                        rings = true;
                     else if(key == "--cdr-error-threshold")
                         i_value = &cdr_error_threshold;
                     // unknown option
@@ -425,9 +425,10 @@ export struct Options
         LOG("\t--drive-test-skip-cache-read    \tskip testing for MEDIATEK cache read command (F1)");
         LOG("");
         LOG("\t(miscellaneous)");
-        LOG("\t--continue=VALUE                \tcontinue \"cd\" command starting from VALUE command");
+        LOG("\t--continue=VALUE                \tcontinue \"disc\" command starting from VALUE command");
         LOG("\t--lba-start=VALUE               \tLBA to start dumping from");
         LOG("\t--lba-end=VALUE                 \tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
+        LOG("\t--lba-end-by-subcode            \tDynamically determine LBA end by the last session subcode");
         LOG("\t--refine-subchannel             \tin addition to SCSI/C2, refine subchannel");
         LOG("\t--refine-sector-mode            \tupdate sector data only if whole sector is C2 error free");
         LOG("\t--skip=VALUE                    \tLBA ranges of sectors to skip");
@@ -439,7 +440,6 @@ export struct Options
         LOG("\t--firmware=VALUE                \tfirmware filename");
         LOG("\t--force-flash                   \tskip drive vendor/model verification when flashing firmware (WARNING: can brick your drive)");
         LOG("\t--skip-subcode-desync           \tskip storing sectors with mismatching subcode Q absolute MSF");
-        LOG("\t--rings                         \tenable filesystem based rings detection");
         LOG("\t--cdr-error-threshold=VALUE     \tmaximum number of trailing C2 errors allowed on a CD-R (default: {})", cdr_error_threshold);
     }
 };

@@ -7,6 +7,7 @@ module;
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -22,6 +23,7 @@ import analyzers.sync_analyzer;
 import cd.cd;
 import cd.cdrom;
 import cd.common;
+import cd.dreamcast;
 import cd.ecc;
 import cd.edc;
 import cd.offset_manager;
@@ -286,7 +288,7 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
 
 std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-    const std::vector<Range<int32_t>> &protection, const Options &options)
+    const std::vector<Range<int32_t>> &protection, bool dreamcast, const Options &options)
 {
     std::vector<std::string> xml_lines;
 
@@ -296,7 +298,7 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
 
     // discs with offset shift usually have some corruption in a couple of transitional sectors preventing normal descramble detection,
     // as everything is scrambled in this case, force descrambling
-    bool force_descramble = offset_manager->isVariable();
+    bool force_descramble = offset_manager->isVariable() && !dreamcast;
 
     for(auto &s : toc.sessions)
     {
@@ -933,7 +935,7 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
 }
 
 
-void cue_process(std::string_view sheet_name, const TOC &toc, uint32_t cd_text_index, const Options &options)
+void cue_process(std::string_view sheet_name, const TOC &toc, uint32_t cd_text_index, bool dreamcast, const Options &options)
 {
     if(std::filesystem::exists(std::filesystem::path(options.image_path) / sheet_name) && !options.overwrite)
         throw_line("file already exists ({})", sheet_name);
@@ -941,11 +943,11 @@ void cue_process(std::string_view sheet_name, const TOC &toc, uint32_t cd_text_i
     std::fstream fs(std::filesystem::path(options.image_path) / sheet_name, std::fstream::out);
     if(!fs.is_open())
         throw_line("unable to create file ({})", sheet_name);
-    toc.printCUE(fs, options.image_name, cd_text_index, false);
+    toc.printCUE(fs, options.image_name, cd_text_index, dreamcast, false);
 
     LOG("CUE [{}]:", sheet_name);
     std::stringstream ss;
-    toc.printCUE(ss, options.image_name, cd_text_index, true);
+    toc.printCUE(ss, options.image_name, cd_text_index, dreamcast, true);
     std::string line;
     while(std::getline(ss, line))
         LOG("{}", line);
@@ -966,8 +968,6 @@ export void redumper_split_cd(Context &ctx, Options &options)
     std::filesystem::path atip_path(image_prefix + ".atip");
     std::filesystem::path pma_path(image_prefix + ".pma");
 
-    uint32_t subcode_sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
-
     std::fstream scm_fs(scm_path, std::fstream::in | std::fstream::binary);
     if(!scm_fs.is_open())
         throw_line("unable to open file ({})", scm_path.filename().string());
@@ -985,7 +985,38 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
+    // detect dreamcast dump
+    bool dreamcast = false;
+    if(auto &t = toc.sessions.front().tracks.front(); toc.sessions.size() == 1 && t.control & (uint8_t)ChannelQ::Control::DATA)
+    {
+        int32_t track1_end = toc.sessions.front().tracks[1].lba_start;
+
+        if(auto sd_write_offset = track_offset_by_sync(t.lba_start, track1_end, state_fs, scm_fs); sd_write_offset)
+        {
+            uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + *sd_write_offset * CD_SAMPLE_SIZE;
+            auto form1_reader = std::make_unique<Image_SCRAM_Reader>(scm_fs, file_offset, track1_end - t.indices.front());
+
+            if(auto system_area = iso9660::Browser::readSystemArea(form1_reader.get()); dreamcast::detect(system_area))
+            {
+                if(auto hd_write_offset = track_offset_by_sync(dreamcast::IP_BIN_LBA, dreamcast::IP_BIN_LBA + iso9660::SYSTEM_AREA_SIZE, state_fs, scm_fs); hd_write_offset)
+                {
+                    std::vector<uint8_t> sector(CD_DATA_SIZE);
+                    read_entry(scm_fs, sector.data(), CD_DATA_SIZE, dreamcast::IP_BIN_LBA - LBA_START, 1, -*hd_write_offset * CD_SAMPLE_SIZE, 0);
+                    Scrambler scrambler;
+                    scrambler.process(sector.data(), sector.data(), 0, sector.size());
+
+                    dreamcast::update_toc(toc, sector);
+                    dreamcast = true;
+
+                    LOG("dreamcast: GD-ROM dump detected");
+                    LOG("");
+                }
+            }
+        }
+    }
+
     // preload subchannel P/Q
+    uint32_t subcode_sectors_count = check_file(sub_path, CD_SUBCODE_SIZE);
     std::vector<uint8_t> subp;
     std::vector<ChannelQ> subq;
     if(std::filesystem::exists(sub_path))
@@ -1257,7 +1288,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
     auto offset_manager = std::make_shared<const OffsetManager>(offsets);
 
     // FIXME: rework non-zero area detection
-    if(!options.correct_offset_shift && offsets.size() > 1)
+    if(!options.correct_offset_shift && !dreamcast && offsets.size() > 1)
     {
         LOG("warning: offset shift detected, to apply correction please use an option");
 
@@ -1407,7 +1438,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     // write tracks
     LOG("writing tracks");
-    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, options);
+    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, dreamcast, options);
     LOG("done");
     LOG("");
 
@@ -1423,10 +1454,10 @@ export void redumper_split_cd(Context &ctx, Options &options)
     if(toc.cd_text_lang.size() > 1)
     {
         for(uint32_t i = 0; i < toc.cd_text_lang.size(); ++i)
-            cue_process(i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name), toc, i, options);
+            cue_process(i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name), toc, i, dreamcast, options);
     }
     else
-        cue_process(std::format("{}.cue", options.image_name), toc, 0, options);
+        cue_process(std::format("{}.cue", options.image_name), toc, 0, dreamcast, options);
 
     if(ctx.dump_errors)
     {

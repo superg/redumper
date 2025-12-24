@@ -62,6 +62,7 @@ export struct Context
     std::shared_ptr<SPTD> sptd;
     DriveConfig drive_config;
 
+    std::optional<bool> dreamcast;
     std::optional<Errors> dump_errors;
     std::vector<std::pair<int32_t, int32_t>> protection;
     std::optional<bool> protection_trim;

@@ -226,7 +226,7 @@ export int redumper_debug(Context &ctx, Options &options)
         }
 
         toc.updateQ(subq.data(), subp.data(), subcode_sectors_count, LBA_START, options.legacy_subs);
-        toc.printCUE(std::cout, options.image_name, 0, false);
+        toc.printCUE(std::cout, options.image_name, 0, false, false);
         LOG("");
     }
 
@@ -289,7 +289,7 @@ export int redumper_debug(Context &ctx, Options &options)
         std::fstream fs(cue_path, std::fstream::out);
         if(!fs.is_open())
             throw_line("unable to create file ({})", cue_path.string());
-        toc.printCUE(fs, options.image_name, 0, false);
+        toc.printCUE(fs, options.image_name, 0, false, false);
 
         LOG("");
     }

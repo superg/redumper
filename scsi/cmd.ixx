@@ -17,40 +17,9 @@ import utils.misc;
 namespace gpsxre
 {
 
-// clang-format off
-static const uint32_t READ_CD_C2_SIZES[] =
-{
-    0,
-    CD_C2_SIZE,
-    2 + CD_C2_SIZE,
-    0
-};
-
-static const uint32_t READ_CD_SUB_SIZES[] =
-{
-    0,
-    CD_SUBCODE_SIZE,
-    16,
-    0,
-    CD_SUBCODE_SIZE,
-    0,
-    0,
-    0
-};
-
-static const uint32_t READ_CDDA_SIZES[] =
-{
-    CD_DATA_SIZE,
-    CD_DATA_SIZE + 16,
-    CD_DATA_SIZE + CD_SUBCODE_SIZE,
-    CD_SUBCODE_SIZE,
-    0, //TODO: analyze other values
-    0,
-    0,
-    0,
-    CD_RAW_DATA_SIZE
-};
-// clang-format on
+static const uint32_t READ_CD_C2_SIZES[] = { 0, CD_C2_SIZE, 2 + CD_C2_SIZE, 0 };
+static const uint32_t READ_CD_SUB_SIZES[] = { 0, CD_SUBCODE_SIZE, 16, 0, CD_SUBCODE_SIZE, 0, 0, 0 };
+static const uint32_t READ_CDDA_SIZES[] = { CD_DATA_SIZE, CD_DATA_SIZE + 16, CD_DATA_SIZE + CD_SUBCODE_SIZE, CD_SUBCODE_SIZE, 0, 0, 0, 0, CD_RAW_DATA_SIZE };
 
 
 export void strip_response_header(std::vector<uint8_t> &data)
@@ -164,100 +133,6 @@ export SPTD::Status cmd_read_toc(SPTD &sptd, std::vector<uint8_t> &response_data
     cdb.track_number = track_number;
 
     return cdb_send_receive(sptd, response_data, cdb);
-}
-
-
-// OBSOLETE: remove after migrating to new CD dump code
-export std::vector<uint8_t> cmd_read_toc(SPTD &sptd)
-{
-    std::vector<uint8_t> toc;
-
-    CDB10_ReadTOC cdb = {};
-    cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
-    cdb.format = (uint8_t)READ_TOC_Format::TOC;
-    cdb.track_number = 1;
-
-    // read TOC header first to get the full TOC size
-    CMD_ParameterListHeader toc_response;
-    *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
-    auto status = sptd.sendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
-    if(!status.status_code)
-    {
-        uint16_t toc_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
-        toc.resize(round_up_pow2<uint16_t>(toc_buffer_size, sizeof(uint32_t)));
-
-        *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(toc_buffer_size);
-        status = sptd.sendCommand(&cdb, sizeof(cdb), toc.data(), (uint32_t)toc.size());
-        if(status.status_code)
-            toc.clear();
-        else
-            toc.resize(toc_buffer_size);
-    }
-
-    return toc;
-}
-
-
-// OBSOLETE: remove after migrating to new CD dump code
-export std::vector<uint8_t> cmd_read_full_toc(SPTD &sptd)
-{
-    std::vector<uint8_t> full_toc;
-
-    CDB10_ReadTOC cdb = {};
-    cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
-    cdb.format = (uint8_t)READ_TOC_Format::FULL_TOC;
-    cdb.track_number = 1;
-
-    // read TOC header first to get the full TOC size
-    CMD_ParameterListHeader toc_response;
-    *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
-    auto status = sptd.sendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
-    if(!status.status_code)
-    {
-        uint16_t toc_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
-        full_toc.resize(round_up_pow2<uint16_t>(toc_buffer_size, sizeof(uint32_t)));
-
-        *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(toc_buffer_size);
-        status = sptd.sendCommand(&cdb, sizeof(cdb), full_toc.data(), (uint32_t)full_toc.size());
-        if(status.status_code)
-            full_toc.clear();
-        else
-            full_toc.resize(toc_buffer_size);
-    }
-
-    return full_toc;
-}
-
-
-// OBSOLETE: remove after migrating to new CD dump code
-export SPTD::Status cmd_read_cd_text(SPTD &sptd, std::vector<uint8_t> &cd_text)
-{
-    SPTD::Status status;
-
-    CDB10_ReadTOC cdb = {};
-    cdb.operation_code = (uint8_t)CDB_OperationCode::READ_TOC;
-    cdb.format = (uint8_t)READ_TOC_Format::CD_TEXT;
-
-    // read CD-TEXT header first to get the full TOC size
-    CMD_ParameterListHeader toc_response;
-    *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(sizeof(toc_response));
-    status = sptd.sendCommand(&cdb, sizeof(cdb), &toc_response, sizeof(toc_response));
-    if(!status.status_code)
-    {
-        uint16_t cd_text_buffer_size = sizeof(toc_response.data_length) + endian_swap(toc_response.data_length);
-        if(cd_text_buffer_size > sizeof(toc_response))
-        {
-            cd_text.resize(round_up_pow2<uint16_t>(cd_text_buffer_size, sizeof(uint32_t)));
-
-            *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(cd_text_buffer_size);
-
-            status = sptd.sendCommand(&cdb, sizeof(cdb), cd_text.data(), (uint32_t)cd_text.size());
-            if(!status.status_code)
-                cd_text.resize(cd_text_buffer_size);
-        }
-    }
-
-    return status;
 }
 
 

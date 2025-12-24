@@ -991,23 +991,26 @@ export void redumper_split_cd(Context &ctx, Options &options)
     {
         int32_t track1_end = toc.sessions.front().tracks[1].lba_start;
 
-        if(auto write_offset = track_offset_by_sync(t.lba_start, track1_end, state_fs, scm_fs); write_offset)
+        if(auto sd_write_offset = track_offset_by_sync(t.lba_start, track1_end, state_fs, scm_fs); sd_write_offset)
         {
-            uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + *write_offset * CD_SAMPLE_SIZE;
+            uint32_t file_offset = (t.indices.front() - LBA_START) * CD_DATA_SIZE + *sd_write_offset * CD_SAMPLE_SIZE;
             auto form1_reader = std::make_unique<Image_SCRAM_Reader>(scm_fs, file_offset, track1_end - t.indices.front());
 
             if(auto system_area = iso9660::Browser::readSystemArea(form1_reader.get()); dreamcast::detect(system_area))
             {
-                std::vector<uint8_t> sector(CD_DATA_SIZE);
-                read_entry(scm_fs, sector.data(), CD_DATA_SIZE, dreamcast::IP_BIN_LBA - LBA_START, 1, -*write_offset * CD_SAMPLE_SIZE, 0);
-                Scrambler scrambler;
-                scrambler.process(sector.data(), sector.data(), 0, sector.size());
+                if(auto hd_write_offset = track_offset_by_sync(dreamcast::IP_BIN_LBA, dreamcast::IP_BIN_LBA + iso9660::SYSTEM_AREA_SIZE, state_fs, scm_fs); hd_write_offset)
+                {
+                    std::vector<uint8_t> sector(CD_DATA_SIZE);
+                    read_entry(scm_fs, sector.data(), CD_DATA_SIZE, dreamcast::IP_BIN_LBA - LBA_START, 1, -*hd_write_offset * CD_SAMPLE_SIZE, 0);
+                    Scrambler scrambler;
+                    scrambler.process(sector.data(), sector.data(), 0, sector.size());
 
-                dreamcast::update_toc(toc, sector);
-                dreamcast = true;
+                    dreamcast::update_toc(toc, sector);
+                    dreamcast = true;
 
-                LOG("dreamcast: GD-ROM dump detected");
-                LOG("");
+                    LOG("dreamcast: GD-ROM dump detected");
+                    LOG("");
+                }
             }
         }
     }
@@ -1285,7 +1288,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
     auto offset_manager = std::make_shared<const OffsetManager>(offsets);
 
     // FIXME: rework non-zero area detection
-    if(!options.correct_offset_shift && offsets.size() > 1)
+    if(!options.correct_offset_shift && !dreamcast && offsets.size() > 1)
     {
         LOG("warning: offset shift detected, to apply correction please use an option");
 

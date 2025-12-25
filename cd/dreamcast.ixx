@@ -58,7 +58,7 @@ struct IP_BIN
 
 export bool detect(std::span<const uint8_t> system_area)
 {
-    return std::equal(SYSTEM_AREA_MAGIC.begin(), SYSTEM_AREA_MAGIC.end(), system_area.begin(), system_area.end());
+    return std::equal(SYSTEM_AREA_MAGIC.begin(), SYSTEM_AREA_MAGIC.end(), system_area.begin());
 }
 
 

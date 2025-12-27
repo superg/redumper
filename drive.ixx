@@ -169,6 +169,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "hp",       "BD-RE BH40N"      , "B7C6", "P100800336CF002420"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8C }, // TonyLizard
     { "HL-DT-ST", "BD-RE BH16NS40"   , "1.03", "N0A03A0K9JF41A3139"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8C }, // breversa
     { "BUFFALO" , "Optical Drive"    , "1.00", "N003103MO6LAL95700"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8B }, // Low_Plankton_3329
+    { "HL-DT-ST", "BD-RE WH16NS48"   , "1.D3", "N000700K98D49I4725"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8C }, // scsi-wuzzy
     // PATCHED
     { "ASUS"    , "BW-16D1HT"        , "3.10", "WM01601KLZL4TG5625"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // 3.10MK or RibShark FW definition
     { "TSSTcorp", "DVD-ROM TS-H353C" , "ZZ00", ""                    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM

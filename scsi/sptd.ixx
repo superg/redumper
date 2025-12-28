@@ -44,8 +44,6 @@ namespace gpsxre
 export class SPTD
 {
 public:
-    static constexpr uint32_t DEFAULT_TIMEOUT = 50000;
-
     struct Status
     {
         uint8_t status_code;

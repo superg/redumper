@@ -304,7 +304,7 @@ std::list<std::pair<std::string, Command>> redumper_disc_get_commands(Options &o
 }
 
 
-std::string first_ready_drive()
+std::string first_ready_drive(const Options &options)
 {
     std::string drive;
 
@@ -312,7 +312,7 @@ std::string first_ready_drive()
     {
         try
         {
-            SPTD sptd(d);
+            SPTD sptd(d, options.scsi_timeout);
 
             auto status = cmd_drive_ready(sptd);
             if(!status.status_code)
@@ -384,7 +384,7 @@ export int redumper(Options &options)
         {
             if(aggregate.drive_autoselect)
             {
-                options.drive = first_ready_drive();
+                options.drive = first_ready_drive(options);
 
                 if(options.drive.empty())
                     throw_line("no ready drives detected on the system");
@@ -393,7 +393,7 @@ export int redumper(Options &options)
                 throw_line("drive is not provided");
         }
 
-        ctx.sptd = std::make_shared<SPTD>(options.drive);
+        ctx.sptd = std::make_shared<SPTD>(options.drive, options.scsi_timeout);
 
         if(aggregate.drive_ready)
         {

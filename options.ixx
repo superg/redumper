@@ -79,6 +79,7 @@ export struct Options
     bool drive_test_skip_cache_read;
     bool skip_subcode_desync;
     int cdr_error_threshold;
+    int scsi_timeout;
 
 
     Options(int argc, const char *argv[])
@@ -120,6 +121,7 @@ export struct Options
         , drive_test_skip_cache_read(false)
         , skip_subcode_desync(false)
         , cdr_error_threshold(16)
+        , scsi_timeout(50000)
     {
         for(int i = 1; i < argc; ++i)
             arguments += str_quoted_if_space(argv[i]) + " ";
@@ -302,6 +304,8 @@ export struct Options
                         skip_subcode_desync = true;
                     else if(key == "--cdr-error-threshold")
                         i_value = &cdr_error_threshold;
+                    else if(key == "--scsi-timeout")
+                        i_value = &scsi_timeout;
                     // unknown option
                     else
                     {
@@ -441,6 +445,7 @@ export struct Options
         LOG("\t--force-flash                   \tskip drive vendor/model verification when flashing firmware (WARNING: can brick your drive)");
         LOG("\t--skip-subcode-desync           \tskip storing sectors with mismatching subcode Q absolute MSF");
         LOG("\t--cdr-error-threshold=VALUE     \tmaximum number of trailing C2 errors allowed on a CD-R (default: {})", cdr_error_threshold);
+        LOG("\t--scsi-timeout=VALUE            \tSCSI command timeout, milliseconds (default: {})", scsi_timeout);
     }
 };
 

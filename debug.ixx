@@ -152,7 +152,7 @@ export int redumper_debug(Context &ctx, Options &options)
         {
             try
             {
-                SPTD sptd(d);
+                SPTD sptd(d, options.scsi_timeout);
 
                 auto status = cmd_drive_ready(sptd);
                 if(!status.status_code)
@@ -297,7 +297,7 @@ export int redumper_debug(Context &ctx, Options &options)
     // MEDIATEK cache read
     if(0)
     {
-        SPTD sptd(options.drive);
+        SPTD sptd(options.drive, options.scsi_timeout);
         std::vector<uint8_t> cache;
         SPTD::Status status = mediatek_cache_read(sptd, cache, 1024 * 1024 * mediatek_get_config(Type::MTK3).size_mb);
 

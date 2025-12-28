@@ -55,9 +55,10 @@ public:
     };
 
 
-    SPTD(const std::string &drive_path)
+    SPTD(const std::string &drive_path, uint32_t timeout)
+        : _timeout(timeout)
 #if defined(__APPLE__)
-        : _service(make_unique_resource_checked((io_service_t)0, (io_service_t)0, &safeIORelease<io_object_t, IOObjectRelease>))
+        , _service(make_unique_resource_checked((io_service_t)0, (io_service_t)0, &safeIORelease<io_object_t, IOObjectRelease>))
         , _plugInInterface(make_unique_resource_checked((IOCFPlugInInterface **)nullptr, (IOCFPlugInInterface **)nullptr, &safeIORelease<IOCFPlugInInterface **, IODestroyPlugInInterface>))
         , _mmcDeviceInterface(make_unique_resource_checked((MMCDeviceInterface **)nullptr, (MMCDeviceInterface **)nullptr, &safeCOMRelease<MMCDeviceInterface **>))
         , _scsiTaskDeviceInterface(make_unique_resource_checked((SCSITaskDeviceInterface **)nullptr, (SCSITaskDeviceInterface **)nullptr, &safeCOMRelease<SCSITaskDeviceInterface **>))
@@ -149,7 +150,7 @@ public:
     }
 
 
-    Status sendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, bool out = false, uint32_t timeout = DEFAULT_TIMEOUT)
+    Status sendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, bool out = false)
     {
         Status status = {};
 
@@ -161,7 +162,7 @@ public:
         sptd_sd.sptd.SenseInfoLength = sizeof(sptd_sd.sd);
         sptd_sd.sptd.DataIn = out ? SCSI_IOCTL_DATA_OUT : SCSI_IOCTL_DATA_IN;
         sptd_sd.sptd.DataTransferLength = buffer_length;
-        sptd_sd.sptd.TimeOutValue = timeout;
+        sptd_sd.sptd.TimeOutValue = _timeout;
         sptd_sd.sptd.DataBuffer = buffer;
         sptd_sd.sptd.SenseInfoOffset = offsetof(SPTD_SD, sd);
         memcpy(sptd_sd.sptd.Cdb, cdb, cdb_length);
@@ -198,7 +199,7 @@ public:
                 throw_line("failed to set scatter gather entries (MACH: {})", mach_error_string(kret));
         }
 
-        if(auto kret = (*task.get())->SetTimeoutDuration(task.get(), timeout); kret != KERN_SUCCESS)
+        if(auto kret = (*task.get())->SetTimeoutDuration(task.get(), _timeout); kret != KERN_SUCCESS)
             throw_line("failed to set timeout duration (MACH: {})", mach_error_string(kret));
 
         UInt64 transfer_count = 0;
@@ -227,7 +228,7 @@ public:
         hdr.dxferp = buffer;
         hdr.cmdp = (unsigned char *)cdb;
         hdr.sbp = (unsigned char *)&sense_data;
-        hdr.timeout = timeout;
+        hdr.timeout = _timeout;
 
         int result = ioctl(_handle, SG_IO, &hdr);
         if(result < 0)
@@ -388,6 +389,8 @@ private:
     static const std::map<uint8_t, std::string> _SCSISTAT_STRINGS;
     static const std::map<uint8_t, std::string> _SCSI_SENSE_STRINGS;
     static const std::map<uint8_t, std::string> _SCSI_ADSENSE_STRINGS;
+
+    uint32_t _timeout;
 
 #if defined(_WIN32)
     struct SPTD_SD

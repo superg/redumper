@@ -190,7 +190,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "PLEXTOR" , "CD-R PX-W1210S"   , ""    , ""                    ,  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W124TS"   , ""    , ""                    , +943, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W1610A"   , ""    , ""                    ,  +99, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
-    { "PLEXTOR" , "CD-R PX-W2410A"   , "1.03", "11/26/01 15:00"      ,  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  }, // CHECKED
+    { "PLEXTOR" , "CD-R PX-W2410A"   , "1.04", "04/25/02 19:00"      ,  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  }, // CHECKED
     { "PLEXTOR" , "CD-R PX-W4220T"   , ""    , ""                    , +355, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W8220T"   , ""    , ""                    , +355, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W8432T"   , ""    , ""                    , +355, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },

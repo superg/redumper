@@ -309,7 +309,7 @@ export int redumper_debug(Context &ctx, Options &options)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 
-        auto drive_type = Type::MTK8C;
+        auto drive_type = Type::MTK2B;
         mediatek_cache_print_subq(cache, drive_type);
 
         // auto asd = mediatek_cache_unroll(cache);

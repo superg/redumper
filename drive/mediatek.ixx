@@ -38,6 +38,7 @@ constexpr uint32_t MEDIATEK_CACHE_ENTRY_SIZE = 0xB00;
 
 static const std::map<Type, MediatekConfig> MEDIATEK_CACHE_CONFIG = {
     { Type::MTK2,  { 2, 586 }  },
+    { Type::MTK2B, { 2, 1000 } },
     { Type::MTK3,  { 3, 1070 } },
     { Type::MTK8A, { 8, 2806 } },
     { Type::MTK8B, { 8, 1079 } },

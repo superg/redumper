@@ -63,7 +63,8 @@ export enum class Type
     MTK8B,
     MTK8C,
     MTK3,
-    MTK2
+    MTK2,
+    MTK2B
 };
 
 export struct DriveConfig
@@ -97,7 +98,8 @@ static const std::map<Type, std::string> TYPE_STRING = {
     { Type::MTK8B,   "MTK8B"   },
     { Type::MTK8C,   "MTK8C"   },
     { Type::MTK3,    "MTK3"    },
-    { Type::MTK2,    "MTK2"    }
+    { Type::MTK2,    "MTK2"    },
+    { Type::MTK2B,   "MTK2B"   }
 };
 
 
@@ -170,6 +172,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "HL-DT-ST", "BD-RE BH16NS40"   , "1.03", "N0A03A0K9JF41A3139"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8C }, // breversa
     { "BUFFALO" , "Optical Drive"    , "1.00", "N003103MO6LAL95700"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8B }, // Low_Plankton_3329
     { "HL-DT-ST", "BD-RE WH16NS48"   , "1.D3", "N000700K98D49I4725"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK8C }, // scsi-wuzzy
+    { "HL-DT-ST", "BD-RE BP55EB40"   , "1.00", "N000700KYFH1QC1241"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK2B }, // AngelDevIndie
     // PATCHED
     { "ASUS"    , "BW-16D1HT"        , "3.10", "WM01601KLZL4TG5625"  ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // 3.10MK or RibShark FW definition
     { "TSSTcorp", "DVD-ROM TS-H353C" , "ZZ00", ""                    ,   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM

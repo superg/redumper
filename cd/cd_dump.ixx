@@ -325,8 +325,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     {
         auto status_update = [dump_mode, lba, lba_start, lba_overread, errors](std::string_view status_message)
         {
-            LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSI{}: {}, C2{}: {}, Q: {} }}{}", spinner_animation(), std::min(100 * (lba - lba_start) / (lba_overread - lba_start), 100), lba, lba_overread,
-                dump_mode == DumpMode::DUMP ? "" : "s", errors.scsi, dump_mode == DumpMode::DUMP ? "" : "s", errors.c2, errors.q, status_message);
+            LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSIs: {}, C2s: {}, Q: {} }}{}", spinner_animation(), std::min(100 * (lba - lba_start) / (lba_overread - lba_start), 100), lba, lba_overread,
+                errors.scsi, errors.c2, errors.q, status_message);
         };
 
         if(signal.interrupt())
@@ -424,7 +424,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 if(session_gap_range == nullptr && lba < lba_end)
                 {
                     if(dump_mode != DumpMode::REFINE)
-                        ++errors.scsi;
+                        errors.scsi += CD_DATA_SIZE_SAMPLES;
 
                     if(options.verbose)
                         LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
@@ -465,11 +465,12 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 {
                     std::span<const uint8_t> sector_protection(unscrambled ? sector_protection_d : sector_protection_a);
 
-                    uint32_t c2_bits = c2_bits_count(sector_c2);
-                    if(c2_bits)
+                    auto sector_state = c2_to_state(sector_c2.data(), State::SUCCESS);
+                    auto c2_samples = std::count(sector_state.begin(), sector_state.end(), State::ERROR_C2);
+                    if(c2_samples)
                     {
                         if(dump_mode != DumpMode::REFINE)
-                            ++errors.c2;
+                            errors.c2 += c2_samples;
 
                         if(options.verbose)
                         {
@@ -482,7 +483,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
                             sector_c2_backup.assign(sector_c2.begin(), sector_c2.end());
 
-                            LOG_R("[LBA: {:6}] C2 error (bits: {:4}{})", lba, c2_bits, difference_message);
+                            LOG_R("[LBA: {:6}] C2 error (bits: {:4}{})", lba, c2_bits_count(sector_c2), difference_message);
                         }
                     }
 
@@ -492,9 +493,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                     uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
                     uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
 
-                    bool allow_update = dump_mode != DumpMode::REFINE || !options.refine_sector_mode || !c2_bits;
+                    bool allow_update = dump_mode != DumpMode::REFINE || !options.refine_sector_mode || !c2_samples;
 
-                    bool data_updated = allow_update && sector_data_state_update(sector_state_file, sector_data_file, c2_to_state(sector_c2.data(), State::SUCCESS), sector_data, sector_protection);
+                    bool data_updated = allow_update && sector_data_state_update(sector_state_file, sector_data_file, sector_state, sector_data, sector_protection);
                     if(data_updated)
                     {
                         int32_t offset = unscrambled ? data_drive_offset : ctx.drive_config.read_offset;
@@ -565,8 +566,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         ctx.dump_errors = errors;
 
         LOG("media errors: ");
-        LOG("  SCSI: {}", errors.scsi);
-        LOG("  C2: {}", errors.c2);
+        LOG("  SCSI: {} samples", errors.scsi);
+        LOG("  C2: {} samples", errors.c2);
         LOG("  Q: {}", errors.q);
     }
     else if(dump_mode == DumpMode::REFINE)

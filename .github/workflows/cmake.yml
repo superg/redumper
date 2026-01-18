@@ -2,7 +2,7 @@ name: CMake
 
 on:
   push:
-    branches: [ main ]
+    branches: [ omnidrive ]
   pull_request:
 
 concurrency:

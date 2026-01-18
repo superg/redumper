@@ -25,6 +25,7 @@ export enum class CDB_OperationCode : uint8_t
     SET_CD_SPEED = 0xBB,
     READ_CD_MSF = 0xB9,
     READ_CD = 0xBE,
+    READ_OMNIDRIVE = 0xC0,
     READ_CD_MSF_D5 = 0xD5,
     READ_CDDA = 0xD8,
     PLEXTOR_RESET = 0xEE,
@@ -257,6 +258,22 @@ export enum class KREON_LockState : uint8_t
     XTREME,
     WXRIPPER,
     LEGACY
+};
+
+
+export enum class OmniDrive_DiscType : uint8_t
+{
+    CD,
+    DVD,
+    BD
+};
+
+
+export enum class OmniDrive_Subchannels : uint8_t
+{
+    NONE,
+    ENABLED,
+    AUDIO_SUBQ
 };
 
 
@@ -858,6 +875,23 @@ export struct CDB10_WriteBuffer
     uint8_t buffer_id;
     uint8_t buffer_offset[3];
     uint8_t parameter_list_length[3];
+    uint8_t control;
+};
+
+
+export struct CDB12_ReadOmniDrive
+{
+    uint8_t operation_code;
+    uint8_t disc_type      :2;
+    uint8_t raw_addressing :1;
+    uint8_t fua            :1;
+    uint8_t descramble     :1;
+    uint8_t reserved1      :3;
+    uint8_t address[4];
+    uint8_t transfer_blocks[4];
+    uint8_t subchannels :2;
+    uint8_t c2          :1;
+    uint8_t reserved2   :6;
     uint8_t control;
 };
 

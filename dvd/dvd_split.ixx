@@ -150,7 +150,9 @@ void descramble(Context &ctx, Options &options)
         main_data_offset = offsetof(DataFrame, cpr_mai);
         raw_fs.read((char *)sector.data(), sector.size());
         bytesRead = raw_fs.gcount();
-        bool success = scrambler.descramble(sector.data(), psn, key);
+        if(bytesRead != sector.size())
+            return;
+        success = scrambler.descramble(sector.data(), psn, key);
         if(!success)
             LOG("warning: descramble failed (LBA: {})", psn + DVD_LBA_START);
         iso_fs.write((char *)(sector.data() + main_data_offset), FORM1_DATA_SIZE);
@@ -162,6 +164,9 @@ void descramble(Context &ctx, Options &options)
     while(true)
     {
         raw_fs.read((char *)sector.data(), sector.size());
+        bytesRead = raw_fs.gcount();
+        if(bytesRead == sector.size())
+            return;
         psn += 1;
         // first ECC block has key (psn >> 4 & 0xF)
         // pressed discs have no key set during lead-in/lead-out
@@ -171,11 +176,7 @@ void descramble(Context &ctx, Options &options)
             success = scrambler.descramble(sector.data(), psn, key);
         if(!success)
             LOG("warning: descramble failed (LBA: {})", psn + DVD_LBA_START);
-        bytesRead = raw_fs.gcount();
-        if(bytesRead == sector.size())
-            iso_fs.write((char *)(sector.data() + main_data_offset), FORM1_DATA_SIZE);
-        else
-            return;
+        iso_fs.write((char *)(sector.data() + main_data_offset), FORM1_DATA_SIZE);
     }
 }
 

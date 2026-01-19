@@ -779,6 +779,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
+    // TODO: only allow raw_dvd flag if compatible drive is detected
     bool raw = options.raw_dvd || (ctx.nintendo && *ctx.nintendo);
 
     uint32_t sector_size = raw ? DATA_FRAME_SIZE : FORM1_DATA_SIZE;
@@ -881,10 +882,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         bool read = true;
         bool store = false;
 
+        int32_t lba_index = raw ? lba - DVD_LBA_START : lba;
+
         if(dump_mode == DumpMode::REFINE || dump_mode == DumpMode::VERIFY)
         {
-            read_entry(fs_iso, file_data.data(), sector_size, lba + (raw ? DVD_LBA_START : 0), sectors_to_read, 0, 0);
-            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba + (raw ? DVD_LBA_START : 0), sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+            read_entry(fs_iso, file_data.data(), sector_size, lba_index, sectors_to_read, 0, 0);
+            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
 
             if(dump_mode == DumpMode::REFINE)
                 read = std::any_of(file_state.begin(), file_state.end(), [](State s) { return s == State::ERROR_SKIP; });
@@ -941,9 +944,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 {
                     file_data.swap(drive_data);
 
-                    write_entry(fs_iso, file_data.data(), sector_size, lba + (raw ? DVD_LBA_START : 0), sectors_to_read, 0);
+                    write_entry(fs_iso, file_data.data(), sector_size, lba_index, sectors_to_read, 0);
                     std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
-                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba + (raw ? DVD_LBA_START : 0), sectors_to_read, 0);
+                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
                 }
                 else if(dump_mode == DumpMode::REFINE)
                 {
@@ -963,8 +966,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                     refine_counter = 0;
 
-                    write_entry(fs_iso, file_data.data(), sector_size, lba + (raw ? DVD_LBA_START : 0), sectors_to_read, 0);
-                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba + (raw ? DVD_LBA_START : 0), sectors_to_read, 0);
+                    write_entry(fs_iso, file_data.data(), sector_size, lba_index, sectors_to_read, 0);
+                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
                 }
                 else if(dump_mode == DumpMode::VERIFY)
                 {
@@ -988,7 +991,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     }
 
                     if(update)
-                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba + (raw ? DVD_LBA_START : 0), sectors_to_read, 0);
+                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
                 }
             }
         }

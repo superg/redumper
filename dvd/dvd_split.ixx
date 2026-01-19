@@ -168,7 +168,7 @@ void descramble(Context &ctx, Options &options)
             LOG("warning: descramble failed (LBA: {})", psn + DVD_LBA_START);
         iso_fs.write((char *)(sector.data() + main_data_offset), FORM1_DATA_SIZE);
         auto sum = std::accumulate(sector.begin() + 6, sector.begin() + 14, 0);
-        key = ((sum >> 4) ^ sum) & 0xF;
+        key = ((sum >> 4) + sum) & 0xF;
     }
 
     // TODO: detect lead-out sectors, write to separate file

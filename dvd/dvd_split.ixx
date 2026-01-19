@@ -145,6 +145,22 @@ void descramble(Context &ctx, Options &options)
     uint32_t main_data_offset = offsetof(DataFrame, main_data);
 
     bool nintendo = ctx.nintendo && *ctx.nintendo;
+    if(!nintendo)
+    {
+        std::filesystem::path physical_path(image_prefix + ".physical");
+        if(std::filesystem::exists(physical_path))
+        {
+            auto physical = read_vector(physical_path);
+            if(!physical.empty() && physical.size() == FORM1_DATA_SIZE + 4)
+            {
+                if(physical[sizeof(CMD_ParameterListHeader)] == 0xFF)
+                    nintendo = true;
+            }
+        }
+    }
+
+    raw_fs.seekg(-DVD_LBA_START * DATA_FRAME_SIZE);
+
     if(nintendo)
     {
         main_data_offset = offsetof(DataFrame, cpr_mai);
@@ -152,7 +168,7 @@ void descramble(Context &ctx, Options &options)
         bytesRead = raw_fs.gcount();
         if(bytesRead != sector.size())
             return;
-        success = scrambler.descramble(sector.data(), psn, key);
+        success = scrambler.descramble(sector.data(), psn, 0);
         if(!success)
             LOG("warning: descramble failed (LBA: {})", psn + DVD_LBA_START);
         iso_fs.write((char *)(sector.data() + main_data_offset), FORM1_DATA_SIZE);
@@ -165,12 +181,12 @@ void descramble(Context &ctx, Options &options)
     {
         raw_fs.read((char *)sector.data(), sector.size());
         bytesRead = raw_fs.gcount();
-        if(bytesRead == sector.size())
+        if(bytesRead != sector.size())
             return;
         psn += 1;
         // first ECC block has key (psn >> 4 & 0xF)
         // pressed discs have no key set during lead-in/lead-out
-        if(nintendo && psn - DVD_LBA_START < ECC_FRAMES)
+        if(nintendo && psn + DVD_LBA_START < ECC_FRAMES)
             success = scrambler.descramble(sector.data(), psn, psn >> 4 & 0xF);
         else
             success = scrambler.descramble(sector.data(), psn, key);
@@ -191,8 +207,7 @@ export void redumper_split_dvd(Context &ctx, Options &options)
         throw_line("{} scsi errors detected, unable to continue", ctx.dump_errors->scsi);
 
     // descramble and extract user data from raw nintendo dumps
-    if(options.raw_dvd || (ctx.nintendo && *ctx.nintendo))
-        descramble(ctx, options);
+    descramble(ctx, options);
 }
 
 }

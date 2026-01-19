@@ -134,35 +134,30 @@ void descramble(Context &ctx, Options &options)
     std::ifstream raw_fs(raw_path, std::ofstream::binary);
     std::ofstream iso_fs(iso_path, std::ofstream::binary);
 
-    // TODO: descramble lead-in sectors, save to separate file
-    int32_t psn = -DVD_LBA_START;
+    bool nintendo = ctx.nintendo && *ctx.nintendo;
     std::optional<std::uint8_t> key = std::nullopt;
+    std::filesystem::path physical_path(image_prefix + ".physical");
+    if(!nintendo && std::filesystem::exists(physical_path))
+    {
+        auto physical = read_vector(physical_path);
+        if(!physical.empty() && physical.size() == FORM1_DATA_SIZE + 4 && physical[sizeof(CMD_ParameterListHeader)] == 0xFF)
+            nintendo = true;
+    }
+
     DVD_Scrambler scrambler;
-    std::vector<uint8_t> sector(DATA_FRAME_SIZE);
-    // TODO: quit early if descramble fails, unless --force-split flag?
     bool success;
     std::streamsize bytesRead;
     uint32_t main_data_offset = offsetof(DataFrame, main_data);
+    std::vector<uint8_t> sector(DATA_FRAME_SIZE);
 
-    bool nintendo = ctx.nintendo && *ctx.nintendo;
-    if(!nintendo)
-    {
-        std::filesystem::path physical_path(image_prefix + ".physical");
-        if(std::filesystem::exists(physical_path))
-        {
-            auto physical = read_vector(physical_path);
-            if(!physical.empty() && physical.size() == FORM1_DATA_SIZE + 4)
-            {
-                if(physical[sizeof(CMD_ParameterListHeader)] == 0xFF)
-                    nintendo = true;
-            }
-        }
-    }
-
+    // TODO: read/descramble lead-in sectors, write to separate file
+    // pressed nintendo discs have no key set during lead-in/lead-out
     raw_fs.seekg(-DVD_LBA_START * DATA_FRAME_SIZE);
+    int32_t psn = -DVD_LBA_START;
 
     if(nintendo)
     {
+        // nintendo discs have user data at CPR_MAI position
         main_data_offset = offsetof(DataFrame, cpr_mai);
         raw_fs.read((char *)sector.data(), sector.size());
         bytesRead = raw_fs.gcount();
@@ -176,7 +171,7 @@ void descramble(Context &ctx, Options &options)
         key = ((sum >> 4) ^ sum) & 0xF;
     }
 
-    // TODO: detect lead-out sectors, save to separate file
+    // TODO: detect lead-out sectors, write to separate file
     while(true)
     {
         raw_fs.read((char *)sector.data(), sector.size());
@@ -184,12 +179,12 @@ void descramble(Context &ctx, Options &options)
         if(bytesRead != sector.size())
             return;
         psn += 1;
-        // first ECC block has key (psn >> 4 & 0xF)
-        // pressed discs have no key set during lead-in/lead-out
+        // nintendo discs first ECC block has key (psn >> 4 & 0xF)
         if(nintendo && psn + DVD_LBA_START < ECC_FRAMES)
             success = scrambler.descramble(sector.data(), psn, psn >> 4 & 0xF);
         else
             success = scrambler.descramble(sector.data(), psn, key);
+        // TODO: quit early if descramble fails, unless --force-split flag?
         if(!success)
             LOG("warning: descramble failed (LBA: {})", psn + DVD_LBA_START);
         iso_fs.write((char *)(sector.data() + main_data_offset), FORM1_DATA_SIZE);
@@ -206,7 +201,7 @@ export void redumper_split_dvd(Context &ctx, Options &options)
     if(ctx.dump_errors && ctx.dump_errors->scsi && !options.force_split)
         throw_line("{} scsi errors detected, unable to continue", ctx.dump_errors->scsi);
 
-    // descramble and extract user data from raw nintendo dumps
+    // descramble and extract user data from raw DVD dumps
     descramble(ctx, options);
 }
 

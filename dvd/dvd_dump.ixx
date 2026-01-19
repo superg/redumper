@@ -17,6 +17,7 @@ export module dvd.dump;
 import cd.cdrom;
 import common;
 import drive;
+import dvd;
 import dvd.css;
 import dvd.raw;
 import dvd.scrambler;
@@ -519,10 +520,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
     bool kreon_locked = false;
 
-    // TODO: gate only omnidrive drives and detect nintendo disc
-    ctx.nintendo = true;
-    bool nintendo = ctx.nintendo && *ctx.nintendo;
-
     // unlock Kreon drive early, otherwise get capacity will return different value and check for xbox disc will fail
     if(kreon_firmware)
     {
@@ -586,6 +583,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     // calculate physical sectors count based on all layers of physical structures
                     auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
                     sectors_count_physical = sectors_count_physical.value_or(0) + get_dvd_layer_length(layer_descriptor);
+
+                    // nintendo discs have first byte 0xFF
+                    if(structure[sizeof(CMD_ParameterListHeader)] == 0xFF)
+                        ctx.nintendo = true;
                 }
 
                 // kreon physical sector count is only for L1 video portion when XGD present
@@ -781,7 +782,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
-    uint32_t sector_size = nintendo ? DATA_FRAME_SIZE : FORM1_DATA_SIZE;
+    // TODO: allow raw DVD dumping via option flag
+    bool raw = ctx.nintendo && *ctx.nintendo;
+
+    uint32_t sector_size = raw ? DATA_FRAME_SIZE : FORM1_DATA_SIZE;
 
     std::vector<uint8_t> file_data(sectors_at_once * sector_size);
     std::vector<State> file_state(sectors_at_once);
@@ -890,8 +894,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             else
             {
                 SPTD::Status status;
-                if(nintendo)
-                    status = cmd_read_omnidrive(*ctx.sptd, drive_data.data(), DATA_FRAME_SIZE, lba + lba_shift, sectors_to_read, OmniDrive_DiscType::DVD);
+                if(raw)
+                    status = read_raw(ctx, drive_data.data(), DATA_FRAME_SIZE, lba + lba_shift, sectors_to_read, false, dump_mode == DumpMode::REFINE && refine_counter);
                 else
                     status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
 

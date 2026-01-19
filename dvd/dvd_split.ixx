@@ -12,8 +12,8 @@ export module dvd.split;
 
 import cd.cdrom;
 import common;
+import dvd;
 import dvd.xbox;
-import dvd.raw;
 import dvd.scrambler;
 import options;
 import range;
@@ -136,8 +136,8 @@ void descramble_nintendo(Context &ctx, Options &options)
     std::vector<uint8_t> sector(DATA_FRAME_SIZE);
     ifs.read((char *)sector.data(), sector.size());
     // pressed discs have no key set during lead-in/lead-out
-    int psn = -DVD_LBA_START;
-    scrambler.descramble(sector.data(), psn, DATA_FRAME_SIZE, 0);
+    int32_t psn = -DVD_LBA_START;
+    bool success = scrambler.descramble(sector.data(), psn, 0);
     auto bytesRead = ifs.gcount();
     auto sum = std::accumulate(sector.begin() + 6, sector.begin() + 14, 0);
     uint8_t key = ((sum >> 4) ^ sum) & 0xF;
@@ -147,12 +147,14 @@ void descramble_nintendo(Context &ctx, Options &options)
         ifs.read((char *)sector.data(), sector.size());
         psn += 1;
         // first ECC block has key (psn >> 4 & 0xF)
-        if(psn < ECC_FRAMES)
-            scrambler.descramble(sector.data(), psn, DATA_FRAME_SIZE, psn >> 4 & 0xF);
+        if(psn - DVD_LBA_START < ECC_FRAMES)
+            success &= scrambler.descramble(sector.data(), psn, psn >> 4 & 0xF);
         else
-            scrambler.descramble(sector.data(), psn, DATA_FRAME_SIZE, key);
+            success &= scrambler.descramble(sector.data(), psn, key);
         bytesRead = ifs.gcount();
     }
+    if(!success)
+        LOG("warning: some/all sectors failed to descrambled");
 }
 
 

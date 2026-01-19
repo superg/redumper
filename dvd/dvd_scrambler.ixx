@@ -11,8 +11,8 @@ module;
 export module dvd.scrambler;
 
 import cd.cdrom;
+import dvd;
 import dvd.edc;
-import dvd.raw;
 import utils.endian;
 import utils.hex_bin;
 import utils.misc;
@@ -25,7 +25,7 @@ namespace gpsxre
 export class DVD_Scrambler
 {
 public:
-    bool descramble(uint8_t *sector, uint32_t psn, uint32_t size = DATA_FRAME_SIZE, std::optional<std::uint8_t> key = std::nullopt) const
+    bool descramble(uint8_t *sector, uint32_t psn, std::optional<std::uint8_t> key, uint32_t size = DATA_FRAME_SIZE) const
     {
         bool unscrambled = false;
 
@@ -36,7 +36,7 @@ public:
         auto frame = (DataFrame *)sector;
 
         // validate sector header
-        if(frame->id.psn() != psn || !validate_id(sector))
+        if(id_to_psn(frame->id) != psn || !validate_id(sector))
             return unscrambled;
 
         // determine XOR table offset

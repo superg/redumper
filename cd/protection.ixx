@@ -286,7 +286,7 @@ export int redumper_protection(Context &ctx, Options &options)
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
 
-    if(std::filesystem::exists(image_prefix + ".iso"))
+    if(std::filesystem::exists(image_prefix + ".iso") || std::filesystem::exists(image_prefix + ".raw"))
         return exit_code;
 
     std::vector<uint8_t> toc_buffer = read_vector(image_prefix + ".toc");

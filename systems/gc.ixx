@@ -1,0 +1,74 @@
+module;
+#include <format>
+#include <sstream>
+#include <string>
+#include <vector>
+#include "system.hh"
+
+export module systems.gc;
+
+import cd.cdrom;
+import readers.data_reader;
+import utils.strings;
+
+
+
+namespace gpsxre
+{
+
+export class SystemGC : public System
+{
+public:
+    std::string getName() override
+    {
+        return "GC";
+    }
+
+    Type getType() override
+    {
+        return Type::ISO;
+    }
+
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path, bool) const override
+    {
+        std::vector<uint8_t> header_data(FORM1_DATA_SIZE);
+        data_reader->read((uint8_t *)header_data.data(), 0, 1);
+        auto header = (Header *)header_data.data();
+        if(header->magic != _GC_MAGIC)
+            return;
+
+        os << std::format("  version: {}", header->disc_version) << std::endl;
+
+        std::string serial = normalize_string(std::string(&header->disc_id, 6));
+        os << std::format("  serial: {}", serial) << std::endl;
+
+        std::string title = normalize_string(erase_all(std::string(header->title, sizeof(Header::title)), '\0'));
+        os << std::format("  title: {}", title) << std::endl;
+
+        if(header->disc_number)
+            os << std::format("  disc number: {}", header->disc_number) << std::endl;
+    }
+
+private:
+    static constexpr uint32_t _GC_MAGIC = 0x3D9F33C2;
+
+    struct Header
+    {
+        char disc_id;
+        char game_code[2];
+        char region_code;
+        char maker_code[2];
+        uint8_t disc_number;
+        uint8_t disc_version;
+        uint8_t audio_streaming;
+        uint8_t streaming_buffer_size;
+        uint8_t unknown[18];
+        uint32_t magic;
+        char title[64];
+        uint8_t disable_hash_verification;
+        uint8_t disable_disc_encryption;
+        uint8_t padding[380];
+    };
+};
+
+}

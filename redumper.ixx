@@ -453,6 +453,8 @@ export int redumper(Options &options)
 
             ctx.disc_type = options.disc_type ? string_to_enum(*options.disc_type, DISC_TYPE_STRING) : profile_to_disc_type(current_profile);
 
+            if(ctx.drive_config.omnidrive)
+                LOG("custom firmware: OmniDrive v{}.{}.{}", *ctx.drive_config.omnidrive & 0xF00, *ctx.drive_config.omnidrive & 0xF0, *ctx.drive_config.omnidrive & 0xF);
             if(!drive_is_recommended(ctx.drive_config.vendor_id, ctx.drive_config.product_id, ctx.drive_config.product_revision_level, ctx.drive_config.vendor_specific)
                 && ctx.disc_type == DiscType::CD)
                 LOG("warning: using generic drive");

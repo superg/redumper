@@ -779,8 +779,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
-    // TODO: only allow raw_dvd flag if compatible drive is detected
-    bool raw = options.raw_dvd || (ctx.nintendo && *ctx.nintendo);
+    bool raw = false;
+    if(ctx.drive_config.omnidrive)
+        raw = options.raw_dvd || (ctx.nintendo && *ctx.nintendo);
+    else if(options.raw_dvd)
+        LOG("warning: drive not compatible with raw DVD dumping");
 
     uint32_t sector_size = raw ? DATA_FRAME_SIZE : FORM1_DATA_SIZE;
 

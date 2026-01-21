@@ -153,7 +153,7 @@ void descramble(Context &ctx, Options &options)
     // TODO: read/descramble lead-in sectors, write to separate file
     // pressed nintendo discs have no key set during lead-in/lead-out
     raw_fs.seekg(-DVD_LBA_START * DATA_FRAME_SIZE);
-    int32_t psn = -DVD_LBA_START;
+    uint32_t psn = -DVD_LBA_START;
 
     if(nintendo)
     {
@@ -178,7 +178,7 @@ void descramble(Context &ctx, Options &options)
         bytesRead = raw_fs.gcount();
         if(bytesRead != sector.size())
             return;
-        psn += 1;
+        psn = ((uint32_t)sector[1] << 16) | ((uint32_t)sector[2] << 8) | ((uint32_t)sector[3]);
         // nintendo discs first ECC block has key (psn >> 4 & 0xF)
         if(nintendo && psn + DVD_LBA_START < ECC_FRAMES)
             success = scrambler.descramble(sector.data(), psn, psn >> 4 & 0xF);

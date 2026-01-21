@@ -331,7 +331,7 @@ export int redumper_dump_extra(Context &ctx, Options &options)
     }
     else if(drive_is_mediatek(ctx.drive_config))
     {
-        if(!options.mediatek_skip_leadout)
+        if(!options.mediatek_skip_leadout && !ctx.drive_config.omnidrive)
             mediatek_process_leadout(ctx, toc, fs_scram, fs_state, fs_subcode, options);
     }
 

@@ -839,7 +839,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     {
         if(!raw && *options.lba_end < 0)
             throw_line("lba_end must be non-negative for non-raw DVD dumps");
-        else if(*options.lba_start < DVD_LBA_START)
+        else if(*options.lba_end < DVD_LBA_START)
             throw_line("lba_end must be at least {}", DVD_LBA_START);
         lba_end = *options.lba_end;
 

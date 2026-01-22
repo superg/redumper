@@ -268,10 +268,7 @@ export DriveQuery cmd_drive_query(SPTD &sptd)
     drive_query.product_id = normalize_string(std::string((char *)inquiry_data.product_id, sizeof(inquiry_data.product_id)));
     drive_query.product_revision_level = normalize_string(std::string((char *)inquiry_data.product_revision_level, sizeof(inquiry_data.product_revision_level)));
     drive_query.vendor_specific = normalize_string(std::string((char *)inquiry_data.vendor_specific, sizeof(inquiry_data.vendor_specific)));
-
-    std::string reserved5 = std::string((char *)inquiry_data.reserved5, sizeof(inquiry_data.reserved5));
-    if(!std::all_of(reserved5.begin(), reserved5.end(), [](char c) { return c == '\0'; }))
-        drive_query.reserved5 = reserved5;
+    drive_query.reserved5 = std::string((char *)inquiry_data.reserved5, sizeof(inquiry_data.reserved5));
 
     return drive_query;
 }
@@ -314,6 +311,8 @@ export DriveConfig drive_get_config(const DriveQuery &drive_query)
     drive_config.product_id = drive_query.product_id;
     drive_config.product_revision_level = drive_query.product_revision_level;
     drive_config.vendor_specific = drive_query.vendor_specific;
+    if(!std::all_of(drive_query.reserved5.begin(), drive_query.reserved5.end(), [](char c) { return c == '\0'; }))
+        drive_config.reserved5 = drive_query.reserved5;
 
     return drive_config;
 }

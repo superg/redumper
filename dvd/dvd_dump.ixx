@@ -491,8 +491,8 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
 void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors)
 {
     char animation = lba == lba_end ? '*' : spinner_animation();
-    LOGC_RF("{} [{:3}%] LBA: {}/{}, errors: {{ SCSI: {} }}", animation, (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start), extend_left(std::to_string(lba), ' ', digits_count(lba_end)),
-        lba_end, errors);
+    auto percent_dumped = (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start);
+    LOGC_RF("{} [{:3}%] LBA: {}/{}, errors: {{ SCSI: {} }}", animation, percent_dumped, extend_left(std::to_string(lba), ' ', digits_count(lba_end)), lba_end, errors);
 }
 
 

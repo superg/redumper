@@ -17,8 +17,6 @@ namespace gpsxre
 
 
 export constexpr int32_t DVD_LBA_START = -0x30000;
-export constexpr uint32_t DATA_FRAME_SIZE = 2064;
-export constexpr uint32_t RECORDING_FRAME_SIZE = 2366;
 export constexpr uint32_t ECC_FRAMES = 0x10;
 
 
@@ -51,13 +49,11 @@ export struct DataFrame
 
 export struct RecordingFrame
 {
-    struct Row
+    struct
     {
         uint8_t main_data[172];
         uint8_t parity_inner[10];
-    };
-
-    Row row[12];
+    } row[12];
     uint8_t parity_outer[182];
 };
 

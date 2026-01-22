@@ -126,7 +126,7 @@ void descramble(Context &ctx, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
-    std::filesystem::path raw_path(image_prefix + ".raw");
+    std::filesystem::path raw_path(image_prefix + ".sdram");
     std::filesystem::path iso_path(image_prefix + ".iso");
     if(!std::filesystem::exists(raw_path))
         return;
@@ -148,11 +148,11 @@ void descramble(Context &ctx, Options &options)
     bool success;
     std::streamsize bytesRead;
     uint32_t main_data_offset = offsetof(DataFrame, main_data);
-    std::vector<uint8_t> sector(DATA_FRAME_SIZE);
+    std::vector<uint8_t> sector(sizeof(DataFrame));
 
     // TODO: read/descramble lead-in sectors, write to separate file
     // pressed nintendo discs have no key set during lead-in/lead-out
-    raw_fs.seekg(-DVD_LBA_START * DATA_FRAME_SIZE);
+    raw_fs.seekg(-DVD_LBA_START * sizeof(DataFrame));
     uint32_t psn = -DVD_LBA_START;
 
     if(nintendo)

@@ -39,7 +39,7 @@ export struct DriveQuery
     std::string product_id;
     std::string product_revision_level;
     std::string vendor_specific;
-    std::optional<uint32_t> omnidrive;
+    std::string reserved5;
 };
 
 export enum class ReadMethod
@@ -81,7 +81,7 @@ export struct DriveConfig
     ReadMethod read_method;
     SectorOrder sector_order;
     Type type;
-    std::optional<uint32_t> omnidrive;
+    std::optional<std::string> reserved5;
 };
 
 export struct SectorLayout
@@ -269,9 +269,9 @@ export DriveQuery cmd_drive_query(SPTD &sptd)
     drive_query.product_revision_level = normalize_string(std::string((char *)inquiry_data.product_revision_level, sizeof(inquiry_data.product_revision_level)));
     drive_query.vendor_specific = normalize_string(std::string((char *)inquiry_data.vendor_specific, sizeof(inquiry_data.vendor_specific)));
 
-    std::string reserved5 = normalize_string(std::string((char *)inquiry_data.reserved5, sizeof(inquiry_data.reserved5)));
-    if(reserved5.compare(0, 9, "OmniDrive") == 0)
-        drive_query.omnidrive = ((uint32_t)inquiry_data.reserved5[9] << 16) | ((uint32_t)inquiry_data.reserved5[10] << 8) | ((uint32_t)inquiry_data.reserved5[11]);
+    std::string reserved5 = std::string((char *)inquiry_data.reserved5, sizeof(inquiry_data.reserved5));
+    if(!std::all_of(reserved5.begin(), reserved5.end(), [](char c) { return c == '\0'; }))
+        drive_query.reserved5 = reserved5;
 
     return drive_query;
 }
@@ -422,6 +422,20 @@ export bool is_kreon_firmware(const DriveConfig &drive_config)
 export bool is_custom_kreon_firmware(const DriveConfig &drive_config)
 {
     return drive_config.product_revision_level == "DC02" || drive_config.product_revision_level == "ZZ01";
+}
+
+
+export bool is_omnidrive_firmware(const DriveConfig &drive_config)
+{
+    return drive_config.reserved5 && drive_config.reserved5->compare(0, 9, "OmniDrive") == 0;
+}
+
+export std::string omnidrive_version(const DriveConfig &drive_config)
+{
+    if(!is_omnidrive_firmware(drive_config))
+        return "";
+
+    return std::format("{}.{}.{}", (*drive_config.reserved5)[9], (*drive_config.reserved5)[10], (*drive_config.reserved5)[11]);
 }
 
 }

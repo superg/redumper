@@ -510,8 +510,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     else
         image_check_exists(options);
 
-    std::vector<Range<uint32_t>> protection;
-    for(auto const &p : string_to_ranges<uint32_t>(options.skip))
+    std::vector<Range<int32_t>> protection;
+    for(auto const &p : string_to_ranges<int32_t>(options.skip))
         insert_range(protection, { p.first, p.second });
 
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
@@ -590,7 +590,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
                     kreon_firmware && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
                 {
-                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, is_custom_kreon_firmware(ctx.drive_config));
+                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, (int32_t)sectors_count_capacity, options.kreon_partial_ss, is_custom_kreon_firmware(ctx.drive_config));
 
                     if(xbox)
                     {
@@ -780,12 +780,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
     bool raw = false;
-    if(ctx.drive_config.omnidrive)
-        raw = options.raw_dvd || (ctx.nintendo && *ctx.nintendo);
-    else if(options.raw_dvd)
+    if(is_omnidrive_firmware(ctx.drive_config))
+        raw = options.dvd_raw || (ctx.nintendo && *ctx.nintendo);
+    else if(options.dvd_raw)
         LOG("warning: drive not compatible with raw DVD dumping");
 
-    uint32_t sector_size = raw ? DATA_FRAME_SIZE : FORM1_DATA_SIZE;
+    uint32_t sector_size = raw ? sizeof(DataFrame) : FORM1_DATA_SIZE;
 
     std::vector<uint8_t> file_data(sectors_at_once * sector_size);
     std::vector<State> file_state(sectors_at_once);
@@ -794,7 +794,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(dump_mode == DumpMode::DUMP)
         file_mode |= std::fstream::trunc;
 
-    std::filesystem::path iso_path(image_prefix + (raw ? ".raw" : ".iso"));
+    std::filesystem::path iso_path(image_prefix + (raw ? ".sdram" : ".iso"));
     std::filesystem::path state_path(image_prefix + ".state");
 
     std::fstream fs_iso(iso_path, file_mode);
@@ -808,7 +808,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(dump_mode != DumpMode::DUMP)
     {
         std::vector<State> state_buffer(sectors_count);
-        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? DVD_LBA_START : 0, sectors_count, 0, (uint8_t)State::ERROR_SKIP);
+        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? -DVD_LBA_START : 0, sectors_count, 0, (uint8_t)State::ERROR_SKIP);
         errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
     }
 
@@ -822,27 +822,31 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     SignalINT signal;
 
-    uint32_t lba_start = 0;
+    int32_t lba_start = 0;
     if(options.lba_start)
     {
         if(!raw && *options.lba_start < 0)
             throw_line("lba_start must be non-negative for non-raw DVD dumps");
+        else if(*options.lba_start < DVD_LBA_START)
+            throw_line("lba_start must be at least {}", DVD_LBA_START);
         lba_start = *options.lba_start;
 
         rom_update = false;
     }
 
-    uint32_t lba_end = sectors_count;
+    int32_t lba_end = sectors_count;
     if(options.lba_end)
     {
-        if(*options.lba_end < 0)
-            throw_line("lba_end must be non-negative");
+        if(!raw && *options.lba_end < 0)
+            throw_line("lba_end must be non-negative for non-raw DVD dumps");
+        else if(*options.lba_start < DVD_LBA_START)
+            throw_line("lba_end must be at least {}", DVD_LBA_START);
         lba_end = *options.lba_end;
 
         rom_update = false;
     }
 
-    for(uint32_t lba = lba_start; lba < lba_end;)
+    for(int32_t lba = lba_start; lba < lba_end;)
     {
         progress_output(lba, lba_end, errors.scsi);
 
@@ -851,9 +855,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         int32_t lba_shift = 0;
 
         // ensure all sectors in the read belong to the same range (skip or non-skip)
-        uint32_t sectors_to_read = std::min(sectors_at_once, lba_end - lba);
+        uint32_t sectors_to_read = std::min(sectors_at_once, (uint32_t)(lba_end - lba));
         auto base_range = find_range(protection, lba);
-        for(uint32_t i = 0; i < sectors_to_read; ++i)
+        for(int32_t i = 0; i < sectors_to_read; ++i)
         {
             if(base_range != find_range(protection, lba + i))
             {
@@ -885,7 +889,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         bool read = true;
         bool store = false;
 
-        int32_t lba_index = raw ? lba - DVD_LBA_START : lba;
+        uint32_t lba_index = raw ? lba - DVD_LBA_START : lba;
 
         if(dump_mode == DumpMode::REFINE || dump_mode == DumpMode::VERIFY)
         {
@@ -905,7 +909,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             {
                 SPTD::Status status;
                 if(raw)
-                    status = read_raw_dvd(ctx, drive_data.data(), DATA_FRAME_SIZE, lba + lba_shift, sectors_to_read, false, dump_mode == DumpMode::REFINE && refine_counter);
+                    status = read_dvd_raw(ctx, drive_data.data(), sizeof(DataFrame), lba + lba_shift, sectors_to_read, false, dump_mode == DumpMode::REFINE && refine_counter);
                 else
                     status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
 

@@ -488,11 +488,11 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
 }
 
 
-void progress_output(uint32_t lba, uint32_t lba_end, uint32_t errors)
+void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors)
 {
     char animation = lba == lba_end ? '*' : spinner_animation();
 
-    LOGC_RF("{} [{:3}%] LBA: {}/{}, errors: {{ SCSI: {} }}", animation, (uint64_t)lba * 100 / lba_end, extend_left(std::to_string(lba), ' ', digits_count(lba_end)), lba_end, errors);
+    LOGC_RF("{} [{:3}%] LBA: {}/{}, errors: {{ SCSI: {} }}", animation, (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start), extend_left(std::to_string(lba), ' ', digits_count(lba_end)), lba_end, errors);
 }
 
 
@@ -803,15 +803,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     uint32_t refine_counter = 0;
     uint32_t refine_retries = options.retries ? options.retries : 1;
 
-    Errors errors = {};
-    // FIXME: verify memory usage for largest bluray and chunk it if needed
-    if(dump_mode != DumpMode::DUMP)
-    {
-        std::vector<State> state_buffer(sectors_count);
-        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? -DVD_LBA_START : 0, sectors_count, 0, (uint8_t)State::ERROR_SKIP);
-        errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
-    }
-
     ROMEntry rom_entry(iso_path.filename().string());
     bool rom_update = true;
     if(raw)
@@ -846,9 +837,18 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         rom_update = false;
     }
 
+    Errors errors = {};
+    // FIXME: verify memory usage for largest bluray and chunk it if needed
+    if(dump_mode != DumpMode::DUMP)
+    {
+        std::vector<State> state_buffer(sectors_count);
+        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? (lba_start - DVD_LBA_START) : 0, raw ? (lba_end - lba_start) : sectors_count, 0, (uint8_t)State::ERROR_SKIP);
+        errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
+    }
+
     for(int32_t lba = lba_start; lba < lba_end;)
     {
-        progress_output(lba, lba_end, errors.scsi);
+        progress_output(lba, lba_start, lba_end, errors.scsi);
 
         bool increment = true;
 
@@ -1045,7 +1045,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     if(!signal.interrupt())
     {
-        progress_output(lba_end, lba_end, errors.scsi);
+        progress_output(lba_end, lba_start, lba_end, errors.scsi);
         LOG("");
     }
     LOG("");

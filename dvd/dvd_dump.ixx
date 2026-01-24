@@ -841,8 +841,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     // FIXME: verify memory usage for largest bluray and chunk it if needed
     if(dump_mode != DumpMode::DUMP)
     {
-        std::vector<State> state_buffer(sectors_count);
-        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? (lba_start - DVD_LBA_START) : 0, raw ? (lba_end - lba_start) : sectors_count, 0, (uint8_t)State::ERROR_SKIP);
+        uint64_t dumpable_sectors = std::max(lba_end, sectors_count) - std::min(lba_start, 0);
+        std::vector<State> state_buffer(dumpable_sectors);
+        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? (lba_start - DVD_LBA_START) : 0, dumpable_sectors, 0, (uint8_t)State::ERROR_SKIP);
         errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
     }
 

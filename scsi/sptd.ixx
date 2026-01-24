@@ -170,7 +170,7 @@ public:
         DWORD bytes_returned;
         BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
         if(success != TRUE)
-            throw_line("SYSTEM ({})", getLastError());
+            throw_line("SYSTEM #1 ({})", getLastError());
 
         if(sptd_sd.sptd.ScsiStatus != SCSISTAT_GOOD)
         {
@@ -232,7 +232,7 @@ public:
 
         int result = ioctl(_handle, SG_IO, &hdr);
         if(result < 0)
-            throw_line("SYSTEM ({})", getLastError());
+            throw_line("SYSTEM #2 ({})", getLastError());
 
         if(hdr.status)
         {
@@ -254,7 +254,7 @@ public:
 #if defined(_WIN32)
         DWORD drive_mask = GetLogicalDrives();
         if(!drive_mask)
-            throw_line("SYSTEM ({})", getLastError());
+            throw_line("SYSTEM #3 ({})", getLastError());
 
         for(uint32_t i = 0, n = sizeof(drive_mask) * CHAR_BIT; i < n; ++i)
         {

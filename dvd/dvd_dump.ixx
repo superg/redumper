@@ -514,6 +514,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     for(auto const &p : string_to_ranges<int32_t>(options.skip))
         insert_range(protection, { p.first, p.second });
 
+    bool omnidrive_firmware = is_omnidrive_firmware(ctx.drive_config);
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
     bool kreon_locked = false;
 
@@ -586,11 +587,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         ctx.nintendo = true;
                 }
 
-                // kreon physical sector count is only for L1 video portion when XGD present
+                // XGD physical sector count is only for video partition
                 if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
-                    kreon_firmware && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
+                    (kreon_firmware || omnidrive_firmware) && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
                 {
-                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, (int32_t)sectors_count_capacity, options.kreon_partial_ss, is_custom_kreon_firmware(ctx.drive_config));
+                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, (int32_t)sectors_count_capacity, options.kreon_partial_ss, ctx.drive_config);
 
                     if(xbox)
                     {
@@ -620,7 +621,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     }
                     else
                     {
-                        LOG("kreon: malformed XGD detected, continuing in normal dump mode");
+                        if(kreon_firmware)
+                            LOG("kreon: malformed XGD detected, continuing in normal dump mode");
+                        else if(omnidrive_firmware)
+                            LOG("omnidrive: malformed XGD detected, continuing in normal dump mode");
                         LOG("");
                     }
                 }
@@ -780,7 +784,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
     bool raw = false;
-    if(is_omnidrive_firmware(ctx.drive_config))
+    if(omnidrive_firmware)
         raw = options.dvd_raw || (ctx.nintendo && *ctx.nintendo);
     else if(options.dvd_raw)
         LOG("warning: drive not compatible with raw DVD dumping");
@@ -841,7 +845,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     // FIXME: verify memory usage for largest bluray and chunk it if needed
     if(dump_mode != DumpMode::DUMP)
     {
-        uint64_t dumpable_sectors = std::max(lba_end, sectors_count) - std::min(lba_start, 0);
+        uint64_t dumpable_sectors = std::max((int64_t)lba_end, (int64_t)sectors_count) - std::min(lba_start, 0);
         std::vector<State> state_buffer(dumpable_sectors);
         read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? (lba_start - DVD_LBA_START) : 0, dumpable_sectors, 0, (uint8_t)State::ERROR_SKIP);
         errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
@@ -867,7 +871,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             }
         }
 
-        if(xbox)
+        if(kreon_firmware && xbox)
         {
             if(lba < xbox->lock_lba_start)
                 sectors_to_read = std::min(sectors_to_read, xbox->lock_lba_start - lba);

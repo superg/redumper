@@ -18,6 +18,7 @@ import dvd.scrambler;
 import options;
 import range;
 import rom_entry;
+import scsi.cmd;
 import scsi.mmc;
 import utils.file_io;
 import utils.logger;
@@ -49,9 +50,9 @@ void generate_extra_xbox(Context &ctx, Options &options)
         else
         {
             auto manufacturer = read_vector(manufacturer_path);
-            if(!manufacturer.empty() && manufacturer.size() == FORM1_DATA_SIZE + 4)
+            if(!manufacturer.empty() && manufacturer.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader))
             {
-                manufacturer.erase(manufacturer.begin(), manufacturer.begin() + 4);
+                strip_response_header(manufacturer);
                 write_vector(dmi_path, manufacturer);
 
                 ROMEntry dmi_rom_entry(dmi_path.filename().string());
@@ -78,9 +79,9 @@ void generate_extra_xbox(Context &ctx, Options &options)
         else
         {
             auto physical = read_vector(physical_path);
-            if(!physical.empty() && physical.size() == FORM1_DATA_SIZE + 4)
+            if(!physical.empty() && physical.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader))
             {
-                physical.erase(physical.begin(), physical.begin() + 4);
+                strip_response_header(physical);
                 write_vector(pfi_path, physical);
 
                 ROMEntry pfi_rom_entry(pfi_path.filename().string());
@@ -126,12 +127,12 @@ void descramble(Context &ctx, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
-    std::filesystem::path raw_path(image_prefix + ".sdram");
+    std::filesystem::path sdram_path(image_prefix + ".sdram");
     std::filesystem::path iso_path(image_prefix + ".iso");
-    if(!std::filesystem::exists(raw_path))
+    if(!std::filesystem::exists(sdram_path))
         return;
 
-    std::ifstream raw_fs(raw_path, std::ofstream::binary);
+    std::ifstream sdram_fs(sdram_path, std::ofstream::binary);
     std::ofstream iso_fs(iso_path, std::ofstream::binary);
 
     bool nintendo = ctx.nintendo && *ctx.nintendo;
@@ -152,15 +153,15 @@ void descramble(Context &ctx, Options &options)
 
     // TODO: read/descramble lead-in sectors, write to separate file
     // pressed nintendo discs have no key set during lead-in/lead-out
-    raw_fs.seekg(-DVD_LBA_START * sizeof(DataFrame));
+    sdram_fs.seekg(-DVD_LBA_START * sizeof(DataFrame));
     uint32_t psn = -DVD_LBA_START;
 
     if(nintendo)
     {
         // nintendo discs have user data at CPR_MAI position
         main_data_offset = offsetof(DataFrame, cpr_mai);
-        raw_fs.read((char *)sector.data(), sector.size());
-        bytesRead = raw_fs.gcount();
+        sdram_fs.read((char *)sector.data(), sector.size());
+        bytesRead = sdram_fs.gcount();
         if(bytesRead != sector.size())
             return;
         success = scrambler.descramble(sector.data(), psn, 0);
@@ -174,8 +175,8 @@ void descramble(Context &ctx, Options &options)
     // TODO: detect lead-out sectors, write to separate file
     while(true)
     {
-        raw_fs.read((char *)sector.data(), sector.size());
-        bytesRead = raw_fs.gcount();
+        sdram_fs.read((char *)sector.data(), sector.size());
+        bytesRead = sdram_fs.gcount();
         if(bytesRead != sector.size())
             return;
         psn = ((uint32_t)sector[1] << 16) | ((uint32_t)sector[2] << 8) | ((uint32_t)sector[3]);

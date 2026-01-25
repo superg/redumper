@@ -18,13 +18,6 @@ namespace gpsxre
 {
 
 
-struct OmniDriveRawBDFrame
-{
-    DataFrameBD data_frame;
-    uint8_t unknown[20];
-};
-
-
 struct MediatekCacheFrame
 {
     RecordingFrame recording_frame;

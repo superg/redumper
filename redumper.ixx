@@ -112,7 +112,7 @@ int redumper_split(Context &ctx, Options &options)
     int exit_code = 0;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    if(std::filesystem::exists(image_prefix + ".iso") || std::filesystem::exists(image_prefix + ".sdram") || std::filesystem::exists(image_prefix + ".sbram"))
+    if(std::filesystem::exists(image_prefix + ".iso") || std::filesystem::exists(image_prefix + ".sdram"))
         redumper_split_dvd(ctx, options);
     else
         redumper_split_cd(ctx, options);

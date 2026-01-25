@@ -538,7 +538,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         sectors_count_capacity = lba_last + 1;
     }
 
-    auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
+    bool bluray = ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R;
+    uint32_t disc_lba_start = bluray ? BD_LBA_START : DVD_LBA_START;
+
+    auto readable_formats = get_readable_formats(*ctx.sptd, bluray);
 
     bool trim_to_filesystem_size = options.filesystem_trim;
     FilesystemContext fs_ctx;
@@ -551,7 +554,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     {
         // function call changes rom flag if discrepancy is detected
         bool rom = ctx.disc_type == DiscType::BLURAY;
-        auto physical_structures = read_physical_structures(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R, rom);
+        auto physical_structures = read_physical_structures(*ctx.sptd, bluray, rom);
         if(ctx.disc_type == DiscType::BLURAY && !rom)
         {
             trim_to_filesystem_size = true;
@@ -561,7 +564,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(!physical_structures.empty())
         {
             // Blu-ray
-            if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
+            if(bluray)
             {
                 auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
                 if(!layer_lengths.empty())
@@ -652,7 +655,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : ""), physical_structures[i]);
 
             // print physical structures information (Blu-ray)
-            if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
+            if(bluray)
             {
                 uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
 
@@ -787,9 +790,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(omnidrive_firmware)
         raw = options.dvd_raw || (ctx.nintendo && *ctx.nintendo);
     else if(options.dvd_raw)
-        LOG("warning: drive not compatible with raw DVD dumping");
+        LOG("warning: drive not compatible with raw DVD/BD dumping");
 
-    uint32_t sector_size = raw ? sizeof(DataFrame) : FORM1_DATA_SIZE;
+    uint32_t sector_size = raw ? (bluray ? sizeof(DataFrameBD) : sizeof(DataFrame)) : FORM1_DATA_SIZE;
 
     std::vector<uint8_t> file_data(sectors_at_once * sector_size);
     std::vector<State> file_state(sectors_at_once);
@@ -798,7 +801,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(dump_mode == DumpMode::DUMP)
         file_mode |= std::fstream::trunc;
 
-    std::filesystem::path iso_path(image_prefix + (raw ? ".sdram" : ".iso"));
+    std::filesystem::path iso_path(image_prefix + (raw ? (bluray ? ".sbram" : ".sdram") : ".iso"));
     std::filesystem::path state_path(image_prefix + ".state");
 
     std::fstream fs_iso(iso_path, file_mode);
@@ -821,9 +824,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(options.lba_start)
     {
         if(!raw && *options.lba_start < 0)
-            throw_line("lba_start must be non-negative for non-raw DVD dumps");
-        else if(*options.lba_start < DVD_LBA_START)
-            throw_line("lba_start must be at least {}", DVD_LBA_START);
+            throw_line("lba_start must be non-negative for non-raw DVD/BD dumps");
+        else if(*options.lba_start < disc_lba_start)
+            throw_line("lba_start must be at least {}", disc_lba_start);
         lba_start = *options.lba_start;
 
         rom_update = false;
@@ -833,9 +836,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(options.lba_end)
     {
         if(!raw && *options.lba_end < 0)
-            throw_line("lba_end must be non-negative for non-raw DVD dumps");
-        else if(*options.lba_end < DVD_LBA_START)
-            throw_line("lba_end must be at least {}", DVD_LBA_START);
+            throw_line("lba_end must be non-negative for non-raw DVD/BD dumps");
+        else if(*options.lba_end < disc_lba_start)
+            throw_line("lba_end must be at least {}", disc_lba_start);
         lba_end = *options.lba_end;
 
         rom_update = false;
@@ -847,7 +850,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     {
         uint64_t dumpable_sectors = std::max((int64_t)lba_end, (int64_t)sectors_count) - std::min(lba_start, 0);
         std::vector<State> state_buffer(dumpable_sectors);
-        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? (lba_start - DVD_LBA_START) : 0, dumpable_sectors, 0, (uint8_t)State::ERROR_SKIP);
+        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? (lba_start - disc_lba_start) : 0, dumpable_sectors, 0, (uint8_t)State::ERROR_SKIP);
         errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
     }
 
@@ -894,7 +897,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         bool read = true;
         bool store = false;
 
-        uint32_t lba_index = raw ? lba - DVD_LBA_START : lba;
+        uint32_t lba_index = raw ? lba - disc_lba_start : lba;
 
         if(dump_mode == DumpMode::REFINE || dump_mode == DumpMode::VERIFY)
         {
@@ -913,7 +916,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             else
             {
                 SPTD::Status status;
-                if(raw)
+                if(raw && bluray)
+                    status = read_bd_raw(ctx, drive_data.data(), sizeof(DataFrameBD), lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+                else if(raw)
                     status = read_dvd_raw(ctx, drive_data.data(), sizeof(DataFrame), lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
                 else
                     status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);

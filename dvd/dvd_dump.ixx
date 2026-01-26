@@ -591,7 +591,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
                     (kreon_firmware || omnidrive_firmware) && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
                 {
-                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, (int32_t)sectors_count_capacity, options.kreon_partial_ss, ctx.drive_config);
+                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, ctx.drive_config);
 
                     if(xbox)
                     {
@@ -621,10 +621,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     }
                     else
                     {
-                        if(kreon_firmware)
-                            LOG("kreon: malformed XGD detected, continuing in normal dump mode");
-                        else if(omnidrive_firmware)
-                            LOG("omnidrive: malformed XGD detected, continuing in normal dump mode");
+                        LOG("{}: malformed XGD detected, continuing in normal dump mode", kreon_firmware ? "kreon" : "omnidrive");
                         LOG("");
                     }
                 }
@@ -823,7 +820,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(!raw && *options.lba_start < 0)
             throw_line("lba_start must be non-negative for non-raw DVD dumps");
         else if(*options.lba_start < DVD_LBA_START)
-            throw_line("lba_start must be at least {}", DVD_LBA_START);
+            throw_line("lba_start must be greater than {}", DVD_LBA_START - 1);
         lba_start = *options.lba_start;
 
         rom_update = false;
@@ -835,7 +832,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(!raw && *options.lba_end < 0)
             throw_line("lba_end must be non-negative for non-raw DVD dumps");
         else if(*options.lba_end < DVD_LBA_START)
-            throw_line("lba_end must be at least {}", DVD_LBA_START);
+            throw_line("lba_end must be greater than {}", DVD_LBA_START - 1);
         lba_end = *options.lba_end;
 
         rom_update = false;

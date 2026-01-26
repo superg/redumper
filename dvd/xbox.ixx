@@ -330,7 +330,7 @@ export READ_DVD_STRUCTURE_LayerDescriptor get_final_layer_descriptor(const READ_
 }
 
 
-export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protection, SPTD &sptd, const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, int32_t sectors_count_capacity, bool partial_ss,
+export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protection, SPTD &sptd, const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, uint32_t sectors_count_capacity, bool partial_ss,
     DriveConfig drive_config)
 {
     bool kreon = is_kreon_firmware(drive_config);
@@ -396,7 +396,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
     int32_t layer0_last = sign_extend<24>(endian_swap(layer0_ld.layer0_end_sector));
     int32_t ss_psn_first = sign_extend<24>(endian_swap(sld.ld.data_start_sector));
 
-    int32_t l1_padding_length = ss_psn_first - layer0_last - 1;
+    uint32_t l1_padding_length = ss_psn_first - layer0_last - 1;
     if(xgd_version(ss_layer0_last) == 3)
         l1_padding_length += 4096;
 
@@ -406,7 +406,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
 
     // append L1 padding to skip ranges
     if(kreon)
-        insert_range(protection, { sectors_count_capacity, sectors_count_capacity + l1_padding_length });
+        insert_range(protection, { (int32_t)sectors_count_capacity, (int32_t)sectors_count_capacity + (int32_t)l1_padding_length });
 
     auto xbox = std::make_shared<Context>();
     xbox->security_sector.swap(security_sector);

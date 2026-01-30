@@ -1,10 +1,8 @@
 module;
 #include <algorithm>
-#include <array>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <optional>
 #include <vector>
 
@@ -14,7 +12,6 @@ import cd.cdrom;
 import dvd;
 import dvd.edc;
 import utils.endian;
-import utils.hex_bin;
 import utils.misc;
 
 
@@ -25,6 +22,28 @@ namespace gpsxre
 export class DVD_Scrambler
 {
 public:
+    DVD_Scrambler()
+        : _table(FORM1_DATA_SIZE * ECC_FRAMES)
+    {
+        // ECMA-267
+
+        uint16_t shift_register = 0x0001;
+
+        for(uint16_t i = 0; i < _table.size(); ++i)
+        {
+            _table[i] = (uint8_t)shift_register;
+
+            for(uint8_t b = 0; b < CHAR_BIT; ++b)
+            {
+                // new LSB = b14 XOR b10
+                auto lsb = (shift_register >> 14 & 1) ^ (shift_register >> 10 & 1);
+                // 15-bit register requires masking MSB
+                shift_register = ((shift_register << 1) & 0x7FFF) | lsb;
+            }
+        }
+    }
+
+
     bool descramble(uint8_t *sector, uint32_t psn, std::optional<uint8_t> key, uint32_t size = sizeof(DataFrame)) const
     {
         bool unscrambled = false;
@@ -44,7 +63,7 @@ public:
 
         // custom XOR table offset for nintendo
         if(key)
-            offset = ((*key ^ (psn >> 4 & 0xF)) + 7.5) * FORM1_DATA_SIZE;
+            offset = (*key ^ (psn >> 4 & 0xF)) * FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
 
         // unscramble sector
         process(sector, sector, offset, size);
@@ -60,45 +79,21 @@ public:
     }
 
 
-    static void process(uint8_t *output, const uint8_t *data, uint32_t offset, uint32_t size)
+    void process(uint8_t *output, const uint8_t *data, uint32_t offset, uint32_t size) const
     {
         uint32_t main_data_offset = offsetof(DataFrame, main_data);
-        uint32_t end_byte = size < offsetof(DataFrame, edc) ? size : offsetof(DataFrame, edc);
-        for(uint32_t i = main_data_offset; i < end_byte; ++i)
+        for(uint32_t i = main_data_offset; i < std::min(size, (uint32_t)offsetof(DataFrame, edc)); ++i)
         {
             uint32_t index = offset + i - main_data_offset;
-            // wrap table
-            if(index >= _TABLE_LENGTH)
-                index -= (_TABLE_LENGTH - 1);
-            output[i] = data[i] ^ _TABLE[index];
+            // wrap table (restart at index 1, not 0)
+            if(index >= _table.size())
+                index -= (_table.size() - 1);
+            output[i] = data[i] ^ _table[index];
         }
     }
 
 private:
-    static constexpr uint32_t _TABLE_LENGTH = FORM1_DATA_SIZE * ECC_FRAMES;
-    static constexpr auto _TABLE = []()
-    {
-        std::array<uint8_t, _TABLE_LENGTH> table{};
-
-        // ECMA-267
-
-        uint16_t shift_register = 0x0001;
-
-        for(uint16_t i = 0; i < _TABLE_LENGTH; ++i)
-        {
-            table[i] = (uint8_t)shift_register;
-
-            for(uint8_t b = 0; b < CHAR_BIT; ++b)
-            {
-                // new LSB = b14 XOR b10
-                auto lsb = (shift_register >> 14 & 1) ^ (shift_register >> 10 & 1);
-                // 15-bit register requires masking MSB
-                shift_register = ((shift_register << 1) & 0x7FFF) | lsb;
-            }
-        }
-
-        return table;
-    }();
+    std::vector<uint8_t> _table;
 };
 
 }

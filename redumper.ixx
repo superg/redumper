@@ -439,7 +439,7 @@ export int redumper(Options &options)
         LOG("");
         LOG("drive path: {}", options.drive);
         LOG("drive: {}", drive_info_string(ctx.drive_config));
-        LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
+        LOG("configuration: {}", drive_config_string(ctx.drive_config));
 
         if(aggregate.drive_ready)
         {

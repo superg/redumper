@@ -112,7 +112,7 @@ int redumper_split(Context &ctx, Options &options)
     int exit_code = 0;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    if(std::filesystem::exists(image_prefix + ".iso"))
+    if(std::filesystem::exists(image_prefix + ".iso") || std::filesystem::exists(image_prefix + ".sdram"))
         redumper_split_dvd(ctx, options);
     else
         redumper_split_cd(ctx, options);
@@ -453,6 +453,8 @@ export int redumper(Options &options)
 
             ctx.disc_type = options.disc_type ? string_to_enum(*options.disc_type, DISC_TYPE_STRING) : profile_to_disc_type(current_profile);
 
+            if(is_omnidrive_firmware(ctx.drive_config))
+                LOG("custom firmware: OmniDrive v{}", omnidrive_version(ctx.drive_config));
             if(!drive_is_recommended(ctx.drive_config.vendor_id, ctx.drive_config.product_id, ctx.drive_config.product_revision_level, ctx.drive_config.vendor_specific)
                 && ctx.disc_type == DiscType::CD)
                 LOG("warning: using generic drive");

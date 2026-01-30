@@ -17,7 +17,10 @@ export module dvd.dump;
 import cd.cdrom;
 import common;
 import drive;
+import dvd;
 import dvd.css;
+import dvd.raw;
+import dvd.scrambler;
 import dvd.xbox;
 import filesystem.iso9660;
 import filesystem.udf;
@@ -485,20 +488,17 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
 }
 
 
-void progress_output(uint32_t lba, uint32_t lba_end, uint32_t errors)
+void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors)
 {
     char animation = lba == lba_end ? '*' : spinner_animation();
-
-    LOGC_RF("{} [{:3}%] LBA: {}/{}, errors: {{ SCSI: {} }}", animation, (uint64_t)lba * 100 / lba_end, extend_left(std::to_string(lba), ' ', digits_count(lba_end)), lba_end, errors);
+    auto percent_dumped = (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start);
+    LOGC_RF("{} [{:3}%] LBA: {}/{}, errors: {{ SCSI: {} }}", animation, percent_dumped, extend_left(std::to_string(lba), ' ', digits_count(lba_end)), lba_end, errors);
 }
 
 
 export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-
-    std::filesystem::path iso_path(image_prefix + ".iso");
-    std::filesystem::path state_path(image_prefix + ".state");
 
     if(dump_mode == DumpMode::DUMP)
     {
@@ -510,10 +510,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     else
         image_check_exists(options);
 
-    std::vector<Range<uint32_t>> protection;
-    for(auto const &p : string_to_ranges<uint32_t>(options.skip))
+    std::vector<Range<int32_t>> protection;
+    for(auto const &p : string_to_ranges<int32_t>(options.skip))
         insert_range(protection, { p.first, p.second });
 
+    bool omnidrive_firmware = is_omnidrive_firmware(ctx.drive_config);
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
     bool kreon_locked = false;
 
@@ -580,13 +581,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     // calculate physical sectors count based on all layers of physical structures
                     auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
                     sectors_count_physical = sectors_count_physical.value_or(0) + get_dvd_layer_length(layer_descriptor);
+
+                    // nintendo discs have first byte 0xFF
+                    if(structure[sizeof(CMD_ParameterListHeader)] == 0xFF)
+                        ctx.nintendo = true;
                 }
 
-                // kreon physical sector count is only for L1 video portion when XGD present
+                // XGD physical sector count is only for video partition
                 if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
-                    kreon_firmware && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
+                    (kreon_firmware || omnidrive_firmware) && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
                 {
-                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, is_custom_kreon_firmware(ctx.drive_config));
+                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, ctx.drive_config);
 
                     if(xbox)
                     {
@@ -616,7 +621,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     }
                     else
                     {
-                        LOG("kreon: malformed XGD detected, continuing in normal dump mode");
+                        LOG("{}: malformed XGD detected, continuing in normal dump mode", kreon_firmware ? "kreon" : "omnidrive");
                         LOG("");
                     }
                 }
@@ -775,12 +780,23 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
-    std::vector<uint8_t> file_data(sectors_at_once * FORM1_DATA_SIZE);
+    bool raw = false;
+    if(omnidrive_firmware)
+        raw = options.dvd_raw || (ctx.nintendo && *ctx.nintendo);
+    else if(options.dvd_raw)
+        LOG("warning: drive not compatible with raw DVD dumping");
+
+    uint32_t sector_size = raw ? sizeof(DataFrame) : FORM1_DATA_SIZE;
+
+    std::vector<uint8_t> file_data(sectors_at_once * sector_size);
     std::vector<State> file_state(sectors_at_once);
 
     auto file_mode = std::fstream::out | std::fstream::in | std::fstream::binary;
     if(dump_mode == DumpMode::DUMP)
         file_mode |= std::fstream::trunc;
+
+    std::filesystem::path iso_path(image_prefix + (raw ? ".sdram" : ".iso"));
+    std::filesystem::path state_path(image_prefix + ".state");
 
     std::fstream fs_iso(iso_path, file_mode);
     std::fstream fs_state(state_path, file_mode);
@@ -788,61 +804,71 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     uint32_t refine_counter = 0;
     uint32_t refine_retries = options.retries ? options.retries : 1;
 
-    Errors errors = {};
-    // FIXME: verify memory usage for largest bluray and chunk it if needed
-    if(dump_mode != DumpMode::DUMP)
-    {
-        std::vector<State> state_buffer(sectors_count);
-        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), 0, sectors_count, 0, (uint8_t)State::ERROR_SKIP);
-        errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
-    }
-
     ROMEntry rom_entry(iso_path.filename().string());
     bool rom_update = true;
+    if(raw)
+    {
+        rom_update = false;
+        fs_ctx.search = false;
+    }
 
     SignalINT signal;
 
-    uint32_t lba_start = 0;
+    int32_t lba_start = 0;
     if(options.lba_start)
     {
-        if(*options.lba_start < 0)
-            throw_line("lba_start must be non-negative");
+        if(!raw && *options.lba_start < 0)
+            throw_line("lba_start must be non-negative for non-raw DVD dumps");
+        else if(*options.lba_start < DVD_LBA_START)
+            throw_line("lba_start must be greater than {}", DVD_LBA_START - 1);
         lba_start = *options.lba_start;
 
         rom_update = false;
     }
 
-    uint32_t lba_end = sectors_count;
+    int32_t lba_end = sectors_count;
     if(options.lba_end)
     {
-        if(*options.lba_end < 0)
-            throw_line("lba_end must be non-negative");
+        if(!raw && *options.lba_end < 0)
+            throw_line("lba_end must be non-negative for non-raw DVD dumps");
+        else if(*options.lba_end < DVD_LBA_START)
+            throw_line("lba_end must be greater than {}", DVD_LBA_START - 1);
         lba_end = *options.lba_end;
 
         rom_update = false;
     }
 
-    for(uint32_t lba = lba_start; lba < lba_end;)
+    Errors errors = {};
+    // FIXME: verify memory usage for largest bluray and chunk it if needed
+    if(dump_mode != DumpMode::DUMP)
     {
-        progress_output(lba, lba_end, errors.scsi);
+        uint64_t dumpable_sectors = std::max((int64_t)lba_end, (int64_t)sectors_count) - std::min(lba_start, 0);
+        std::vector<State> state_buffer(dumpable_sectors);
+        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), raw ? (lba_start - DVD_LBA_START) : 0, dumpable_sectors, 0, (uint8_t)State::ERROR_SKIP);
+        errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
+    }
+
+    for(int32_t lba = lba_start; lba < lba_end;)
+    {
+        progress_output(lba, lba_start, lba_end, errors.scsi);
 
         bool increment = true;
 
         int32_t lba_shift = 0;
 
         // ensure all sectors in the read belong to the same range (skip or non-skip)
-        uint32_t sectors_to_read = std::min(sectors_at_once, lba_end - lba);
+        uint32_t sectors_to_read = std::min(sectors_at_once, (uint32_t)(lba_end - lba));
         auto base_range = find_range(protection, lba);
         for(uint32_t i = 0; i < sectors_to_read; ++i)
         {
-            if(base_range != find_range(protection, lba + i))
+            if(base_range != find_range(protection, lba + (int32_t)i))
             {
                 sectors_to_read = i;
                 break;
             }
         }
 
-        if(xbox)
+        if(kreon_firmware && xbox)
         {
             if(lba < xbox->lock_lba_start)
                 sectors_to_read = std::min(sectors_to_read, xbox->lock_lba_start - lba);
@@ -865,10 +891,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         bool read = true;
         bool store = false;
 
+        uint32_t lba_index = raw ? lba - DVD_LBA_START : lba;
+
         if(dump_mode == DumpMode::REFINE || dump_mode == DumpMode::VERIFY)
         {
-            read_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, lba, sectors_to_read, 0, 0);
-            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+            read_entry(fs_iso, file_data.data(), sector_size, lba_index, sectors_to_read, 0, 0);
+            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
 
             if(dump_mode == DumpMode::REFINE)
                 read = std::any_of(file_state.begin(), file_state.end(), [](State s) { return s == State::ERROR_SKIP; });
@@ -881,7 +909,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 store = true;
             else
             {
-                auto status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+                SPTD::Status status;
+                if(raw)
+                    status = read_dvd_raw(ctx, drive_data.data(), sizeof(DataFrame), lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+                else
+                    status = cmd_read(*ctx.sptd, drive_data.data(), FORM1_DATA_SIZE, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter);
+
                 if(status.status_code)
                 {
                     if(options.verbose)
@@ -920,9 +953,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 {
                     file_data.swap(drive_data);
 
-                    write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, lba, sectors_to_read, 0);
+                    write_entry(fs_iso, file_data.data(), sector_size, lba_index, sectors_to_read, 0);
                     std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
-                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0);
+                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
                 }
                 else if(dump_mode == DumpMode::REFINE)
                 {
@@ -934,7 +967,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         if(options.verbose)
                             LOG_R("[LBA: {}] correction success", lba + i);
 
-                        std::copy(drive_data.begin() + i * FORM1_DATA_SIZE, drive_data.begin() + (i + 1) * FORM1_DATA_SIZE, file_data.begin() + i * FORM1_DATA_SIZE);
+                        std::copy(drive_data.begin() + i * sector_size, drive_data.begin() + (i + 1) * sector_size, file_data.begin() + i * sector_size);
                         file_state[i] = State::SUCCESS;
 
                         --errors.scsi;
@@ -942,8 +975,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                     refine_counter = 0;
 
-                    write_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, lba, sectors_to_read, 0);
-                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0);
+                    write_entry(fs_iso, file_data.data(), sector_size, lba_index, sectors_to_read, 0);
+                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
                 }
                 else if(dump_mode == DumpMode::VERIFY)
                 {
@@ -954,7 +987,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         if(file_state[i] != State::SUCCESS)
                             continue;
 
-                        if(!std::equal(file_data.begin() + i * FORM1_DATA_SIZE, file_data.begin() + (i + 1) * FORM1_DATA_SIZE, drive_data.begin() + i * FORM1_DATA_SIZE))
+                        if(!std::equal(file_data.begin() + i * sector_size, file_data.begin() + (i + 1) * sector_size, drive_data.begin() + i * sector_size))
                         {
                             if(options.verbose)
                                 LOG_R("[LBA: {}] data mismatch, sector state updated", lba + i);
@@ -967,7 +1000,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     }
 
                     if(update)
-                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba, sectors_to_read, 0);
+                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
                 }
             }
         }
@@ -975,11 +1008,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(!read || store)
         {
             if(rom_update)
-                rom_entry.update(file_data.data(), sectors_to_read * FORM1_DATA_SIZE);
+                rom_entry.update(file_data.data(), sectors_to_read * sector_size);
 
             for(uint32_t i = 0; i < sectors_to_read; ++i)
             {
-                if(auto ss = filesystem_search_size(fs_ctx, fs_iso, fs_state, std::span(&file_data[i * FORM1_DATA_SIZE], FORM1_DATA_SIZE), lba + i); ss)
+                if(auto ss = filesystem_search_size(fs_ctx, fs_iso, fs_state, std::span(&file_data[i * sector_size], sector_size), lba + i); ss)
                 {
                     LOG_R("sectors count ({}): {}", ss->second ? "UDF" : "ISO9660", ss->first);
 
@@ -1014,7 +1047,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     if(!signal.interrupt())
     {
-        progress_output(lba_end, lba_end, errors.scsi);
+        progress_output(lba_end, lba_start, lba_end, errors.scsi);
         LOG("");
     }
     LOG("");

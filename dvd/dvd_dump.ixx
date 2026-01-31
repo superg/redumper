@@ -492,7 +492,7 @@ void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t e
 {
     char animation = lba == lba_end ? '*' : spinner_animation();
     auto percent_dumped = (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start);
-    LOGC_RF("{} [{:3}%] LBA: {}/{}, errors: {{ SCSI: {} }}", animation, percent_dumped, extend_left(std::to_string(lba), ' ', digits_count(lba_end)), lba_end, errors);
+    LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {} }}", animation, percent_dumped, lba, lba_end, errors);
 }
 
 
@@ -581,17 +581,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     // calculate physical sectors count based on all layers of physical structures
                     auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
                     sectors_count_physical = sectors_count_physical.value_or(0) + get_dvd_layer_length(layer_descriptor);
-
-                    // nintendo discs have first byte 0xFF
-                    if(structure[sizeof(CMD_ParameterListHeader)] == 0xFF)
-                        ctx.nintendo = true;
                 }
 
                 // XGD physical sector count is only for video partition
                 if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
                     (kreon_firmware || omnidrive_firmware) && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
                 {
-                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, ctx.drive_config);
+                    xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, is_custom_kreon_firmware(ctx.drive_config));
 
                     if(xbox)
                     {
@@ -782,7 +778,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     bool raw = false;
     if(omnidrive_firmware)
-        raw = options.dvd_raw || (ctx.nintendo && *ctx.nintendo);
+        raw = options.dvd_raw;
     else if(options.dvd_raw)
         LOG("warning: drive not compatible with raw DVD dumping");
 

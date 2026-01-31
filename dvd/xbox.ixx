@@ -223,7 +223,7 @@ export uint32_t xgd_version(int32_t layer0_last)
 }
 
 
-uint32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
+int32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
 {
     psn -= 0x30000;
     if(psn < 0)
@@ -269,7 +269,7 @@ void merge_xgd3_security_layer_descriptor(SecurityLayerDescriptor &sld, const Se
 }
 
 
-export void get_security_layer_descriptor_ranges(std::vector<Range<uint32_t>> &protection, const std::vector<uint8_t> &security_sector)
+export void get_security_layer_descriptor_ranges(std::vector<Range<int32_t>> &protection, const std::vector<uint8_t> &security_sector)
 {
     auto const &sld = (SecurityLayerDescriptor &)security_sector[0];
 
@@ -327,7 +327,7 @@ export READ_DVD_STRUCTURE_LayerDescriptor get_final_layer_descriptor(const READ_
 }
 
 
-export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protection, SPTD &sptd, const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, uint32_t sectors_count_capacity, bool partial_ss,
+export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protection, SPTD &sptd, const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, uint32_t sectors_count_capacity, bool partial_ss,
     bool kreon_custom_firmware)
 {
     std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
@@ -376,7 +376,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protect
     get_security_layer_descriptor_ranges(protection, security_sector);
 
     // append L1 padding to skip ranges
-    insert_range(protection, { sectors_count_capacity, sectors_count_capacity + l1_padding_length });
+    insert_range(protection, { (int32_t)sectors_count_capacity, (int32_t)(sectors_count_capacity + l1_padding_length) });
 
     auto xbox = std::make_shared<Context>();
     xbox->security_sector.swap(security_sector);

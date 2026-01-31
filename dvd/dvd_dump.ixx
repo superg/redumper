@@ -537,13 +537,11 @@ export SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sect
 
     return status;
 }
-
-
 void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors)
 {
     char animation = lba == lba_end ? '*' : spinner_animation();
-
-    LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {} }}", animation, (lba - lba_start) * 100 / (lba_end - lba_start), lba, lba_end, errors);
+    auto percent_dumped = lba_end != lba_start ? (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start) : 100;
+    LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {} }}", animation, percent_dumped, lba, lba_end, errors);
 }
 
 

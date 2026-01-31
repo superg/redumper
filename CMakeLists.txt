@@ -117,7 +117,6 @@ target_sources(redumper
     "dvd/dvd_dump.ixx"
     "dvd/dvd_edc.ixx"
     "dvd/dvd_key.ixx"
-    "dvd/dvd_raw.ixx"
     "dvd/dvd_scrambler.ixx"
     "dvd/dvd_split.ixx"
     "dvd/css/css.ixx"

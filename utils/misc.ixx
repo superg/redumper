@@ -270,7 +270,7 @@ T diff_bytes_count(const uint8_t *data1, const uint8_t *data2, T size)
 }
 
 
-export template<typename T>
+export template<typename T, class = typename std::enable_if_t<std::is_unsigned_v<T>>>
 T digits_count(T value)
 {
     return (value ? log10(value) : 0) + 1;

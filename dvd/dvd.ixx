@@ -1,4 +1,5 @@
 module;
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include "throw_line.hh"
@@ -15,13 +16,10 @@ import utils.galois;
 namespace gpsxre
 {
 
-
 export constexpr int32_t DVD_LBA_START = -0x30000;
-export constexpr uint32_t ECC_FRAMES = 0x10;
 
 
-
-export struct IdentificationData
+export struct DataFrame
 {
     struct
     {
@@ -32,14 +30,8 @@ export struct IdentificationData
         uint8_t reflectivity       :1;
         uint8_t tracking_method    :1;
         uint8_t sector_format_type :1;
-    } sector_info;
-
-    uint8_t sector_number[3];
-};
-
-export struct DataFrame
-{
-    IdentificationData id;
+        uint8_t sector_number[3];
+    } id;
     uint16_t ied;
     uint8_t cpr_mai[6];
     uint8_t main_data[FORM1_DATA_SIZE];
@@ -57,13 +49,38 @@ export struct RecordingFrame
     uint8_t parity_outer[182];
 };
 
-export int32_t id_to_psn(IdentificationData id)
+
+export RecordingFrame DataFrame_to_RecordingFrame(const DataFrame &data_frame)
 {
-    return endian_swap_from_array<int32_t>(id.sector_number);
+    RecordingFrame recording_frame = {};
+
+    auto src = reinterpret_cast<const uint8_t *>(&data_frame);
+
+    for(uint32_t i = 0; i < std::size(recording_frame.row); ++i)
+        std::copy_n(src + i * std::size(recording_frame.row[i].main_data), std::size(recording_frame.row[i].main_data), recording_frame.row[i].main_data);
+
+    // parities are left zeroed
+
+    return recording_frame;
 }
 
 
-export bool validate_id(const uint8_t id[6])
+export DataFrame RecordingFrame_to_DataFrame(const RecordingFrame &recording_frame)
+{
+    DataFrame data_frame = {};
+
+    auto dst = reinterpret_cast<uint8_t *>(&data_frame);
+
+    for(uint32_t i = 0; i < std::size(recording_frame.row); ++i)
+        std::copy_n(recording_frame.row[i].main_data, std::size(recording_frame.row[i].main_data), dst + i * std::size(recording_frame.row[i].main_data));
+
+    // parities are unverified
+
+    return data_frame;
+}
+
+
+export bool validate_id(const uint8_t *id)
 {
     // primitive polynomial x^8 + x^4 + x^3 + x^2 + 1
     static GF256 gf(0x11D); // 100011101

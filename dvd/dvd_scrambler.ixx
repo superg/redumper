@@ -23,7 +23,7 @@ export class DVD_Scrambler
 {
 public:
     DVD_Scrambler()
-        : _table(FORM1_DATA_SIZE * ECC_FRAMES)
+        : _table(FORM1_DATA_SIZE * 0x10)
     {
         // ECMA-267
 
@@ -55,7 +55,7 @@ public:
         auto frame = (DataFrame *)sector;
 
         // validate sector header
-        if(id_to_psn(frame->id) != psn || !validate_id(sector))
+        if(endian_swap_from_array<int32_t>(frame->id.sector_number) != psn || !validate_id(sector))
             return unscrambled;
 
         // determine XOR table offset

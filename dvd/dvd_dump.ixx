@@ -514,7 +514,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     for(auto const &p : string_to_ranges<int32_t>(options.skip))
         insert_range(protection, { p.first, p.second });
 
-    bool omnidrive_firmware = is_omnidrive_firmware(ctx.drive_config);
+    bool omnidrive_firmware = is_omnidrive_firmware(ctx.drive_config) != std::nullopt;
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
     bool kreon_locked = false;
 

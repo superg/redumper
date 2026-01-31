@@ -423,9 +423,17 @@ export bool is_custom_kreon_firmware(const DriveConfig &drive_config)
 }
 
 
-export bool is_omnidrive_firmware(const DriveConfig &drive_config)
+export std::optional<std::string> is_omnidrive_firmware(const DriveConfig &drive_config)
 {
-    return drive_config.reserved5.starts_with("OmniDrive\x01\x00\x00");
+    std::optional<std::string> version;
+
+    static constexpr std::string_view omnidrive = "OmniDrive";
+    auto v = omnidrive.length();
+
+    if(drive_config.reserved5.starts_with(omnidrive) && drive_config.reserved5.length() >= v + 3)
+        version = std::format("v{}.{}.{}", (uint32_t)drive_config.reserved5[v + 0], (uint32_t)drive_config.reserved5[v + 1], (uint32_t)drive_config.reserved5[v + 2]);
+
+    return version;
 }
 
 }

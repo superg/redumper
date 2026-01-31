@@ -2,6 +2,7 @@ module;
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include "throw_line.hh"
 
 export module dvd;
@@ -17,6 +18,10 @@ namespace gpsxre
 {
 
 export constexpr int32_t DVD_LBA_START = -0x30000;
+export constexpr uint32_t ECC_FRAMES = 0x10;
+
+// DVD uses primitive polynomial x^8 + x^4 + x^3 + x^2 + 1
+GF256 gf(0x11D);
 
 
 export struct DataFrame
@@ -50,16 +55,50 @@ export struct RecordingFrame
 };
 
 
+void compute_parity_inner(std::span<uint8_t> parity_inner, std::span<const uint8_t> main_data)
+{
+    // PI: RS(n,k,d) where n=data_size+parity_size, k=data_size, d=parity_size
+    // generator polynomial roots: alpha^0, alpha^1, ..., alpha^(parity_size-1)
+    uint8_t parity[ECC_FRAMES] = {};
+    for(uint32_t col = 0; col < main_data.size(); ++col)
+    {
+        uint8_t feedback = gf.add(main_data[col], parity[0]);
+        for(uint32_t j = 0; j < parity_inner.size() - 1; ++j)
+            parity[j] = gf.add(parity[j + 1], gf.mul(feedback, gf.exp[parity_inner.size() - 1 - j]));
+        parity[parity_inner.size() - 1] = gf.mul(feedback, gf.exp[0]);
+    }
+    for(uint32_t j = 0; j < parity_inner.size(); ++j)
+        parity_inner[j] = parity[parity_inner.size() - 1 - j];
+}
+
+
+void compute_parity_outer(std::span<uint8_t> parity_outer, std::span<const uint8_t> main_data, uint32_t stride)
+{
+    // PO: simplified single-frame encoding
+    // treat each column as data_size bytes and compute 1 parity byte
+    for(uint32_t col = 0; col < parity_outer.size(); ++col)
+    {
+        uint8_t parity = 0;
+        for(uint32_t row = 0; row < main_data.size() / stride; ++row)
+            parity = gf.add(parity, main_data[row * stride + col]);
+        parity_outer[col] = parity;
+    }
+}
+
+
 export RecordingFrame DataFrame_to_RecordingFrame(const DataFrame &data_frame)
 {
     RecordingFrame recording_frame = {};
 
-    auto src = reinterpret_cast<const uint8_t *>(&data_frame);
+    auto src = (const uint8_t *)&data_frame;
 
     for(uint32_t i = 0; i < std::size(recording_frame.row); ++i)
         std::copy_n(src + i * std::size(recording_frame.row[i].main_data), std::size(recording_frame.row[i].main_data), recording_frame.row[i].main_data);
 
-    // parities are left zeroed
+    for(uint32_t i = 0; i < std::size(recording_frame.row); ++i)
+        compute_parity_inner(recording_frame.row[i].parity_inner, recording_frame.row[i].main_data);
+
+    compute_parity_outer(recording_frame.parity_outer, std::span((uint8_t *)recording_frame.row, sizeof(recording_frame.row)), sizeof(recording_frame.row[0]));
 
     return recording_frame;
 }
@@ -69,12 +108,10 @@ export DataFrame RecordingFrame_to_DataFrame(const RecordingFrame &recording_fra
 {
     DataFrame data_frame = {};
 
-    auto dst = reinterpret_cast<uint8_t *>(&data_frame);
+    auto dst = (uint8_t *)&data_frame;
 
     for(uint32_t i = 0; i < std::size(recording_frame.row); ++i)
         std::copy_n(recording_frame.row[i].main_data, std::size(recording_frame.row[i].main_data), dst + i * std::size(recording_frame.row[i].main_data));
-
-    // parities are unverified
 
     return data_frame;
 }
@@ -82,9 +119,6 @@ export DataFrame RecordingFrame_to_DataFrame(const RecordingFrame &recording_fra
 
 export bool validate_id(const uint8_t *id)
 {
-    // primitive polynomial x^8 + x^4 + x^3 + x^2 + 1
-    static GF256 gf(0x11D); // 100011101
-
     // generator G(x) = x^2 + g1*x + g2
     uint8_t g1 = gf.add(1, gf.exp[1]); // alpha0 + alpha1
     uint8_t g2 = gf.exp[1];            // alpha0 * alpha1

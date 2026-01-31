@@ -19,7 +19,6 @@ import common;
 import drive;
 import dvd;
 import dvd.css;
-import dvd.scrambler;
 import dvd.xbox;
 import filesystem.iso9660;
 import filesystem.udf;

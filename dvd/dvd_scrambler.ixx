@@ -23,7 +23,7 @@ export class DVD_Scrambler
 {
 public:
     DVD_Scrambler()
-        : _table(FORM1_DATA_SIZE * 0x10)
+        : _table(FORM1_DATA_SIZE * ECC_FRAMES)
     {
         // ECMA-267
 

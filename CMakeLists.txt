@@ -159,8 +159,6 @@ target_sources(redumper
     "systems/ps5.ixx"
     "systems/sat.ixx"
     "systems/s_xbox.ixx"
-    "systems/gc.ixx"
-    "systems/wii.ixx"
     "systems/systems.ixx"
     "utils/animation.ixx"
     "utils/endian.ixx"

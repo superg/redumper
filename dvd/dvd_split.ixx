@@ -135,7 +135,7 @@ void descramble(Context &ctx, Options &options)
     std::ifstream sdram_fs(sdram_path, std::ofstream::binary);
     std::ofstream iso_fs(iso_path, std::ofstream::binary);
 
-    bool nintendo = ctx.nintendo && *ctx.nintendo;
+    bool nintendo = false;
     std::optional<std::uint8_t> key = std::nullopt;
     std::filesystem::path physical_path(image_prefix + ".physical");
     if(!nintendo && std::filesystem::exists(physical_path))

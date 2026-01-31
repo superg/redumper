@@ -10,8 +10,6 @@ module;
 export module dvd.xbox;
 
 import cd.cdrom;
-import drive;
-import dvd;
 import range;
 import scsi.cmd;
 import scsi.mmc;
@@ -216,7 +214,6 @@ const std::map<int32_t, uint32_t> XGD_VERSION_MAP = {
 };
 
 constexpr uint32_t XGD_SS_LEADOUT_SECTOR = 4267582;
-constexpr uint32_t XGD_SS_LEADOUT_SECTOR_PSN = 0x00FD021E;
 
 
 export uint32_t xgd_version(int32_t layer0_last)
@@ -226,7 +223,7 @@ export uint32_t xgd_version(int32_t layer0_last)
 }
 
 
-int32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
+uint32_t PSN_to_LBA(int32_t psn, int32_t layer0_last)
 {
     psn -= 0x30000;
     if(psn < 0)
@@ -272,7 +269,7 @@ void merge_xgd3_security_layer_descriptor(SecurityLayerDescriptor &sld, const Se
 }
 
 
-export void get_security_layer_descriptor_ranges(std::vector<Range<int32_t>> &protection, const std::vector<uint8_t> &security_sector)
+export void get_security_layer_descriptor_ranges(std::vector<Range<uint32_t>> &protection, const std::vector<uint8_t> &security_sector)
 {
     auto const &sld = (SecurityLayerDescriptor &)security_sector[0];
 
@@ -330,28 +327,12 @@ export READ_DVD_STRUCTURE_LayerDescriptor get_final_layer_descriptor(const READ_
 }
 
 
-export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protection, SPTD &sptd, const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, uint32_t sectors_count_capacity, bool partial_ss,
-    DriveConfig drive_config)
+export std::shared_ptr<Context> initialize(std::vector<Range<uint32_t>> &protection, SPTD &sptd, const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, uint32_t sectors_count_capacity, bool partial_ss,
+    bool kreon_custom_firmware)
 {
-    bool kreon = is_kreon_firmware(drive_config);
-    bool custom_kreon = kreon && is_custom_kreon_firmware(drive_config);
-    bool omnidrive = is_omnidrive_firmware(drive_config);
     std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
-
-    if(kreon)
-    {
-        if(bool complete_ss = read_security_layer_descriptor(sptd, security_sector, partial_ss); !complete_ss)
-            LOG("kreon: failed to get complete security sector");
-    }
-    else if(omnidrive)
-    {
-        std::vector<uint8_t> raw_sector(sizeof(DataFrame));
-        auto status = cmd_read_omnidrive(sptd, raw_sector.data(), sizeof(DataFrame), XGD_SS_LEADOUT_SECTOR_PSN, 1, OmniDrive_DiscType::DVD, true, false, true, OmniDrive_Subchannels::NONE, false);
-        if(status.status_code)
-            LOG("omnidrive: failed to read XGD3 security sector lead-out, SCSI ({})", SPTD::StatusMessage(status));
-        // TODO: If status code or invalid ID or EDC, read from XGD_SS_LEADOUT_SECTOR_PSN + 0x40 (up to 4 retries)
-        std::copy(raw_sector.begin() + offsetof(DataFrame, main_data), raw_sector.begin() + offsetof(DataFrame, main_data) + FORM1_DATA_SIZE, security_sector.begin());
-    }
+    if(bool complete_ss = read_security_layer_descriptor(sptd, security_sector, partial_ss); !complete_ss)
+        LOG("kreon: failed to get complete security sector");
 
     auto &sld = (SecurityLayerDescriptor &)security_sector[0];
     int32_t ss_layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
@@ -360,12 +341,12 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
         return nullptr;
 
     std::string ss_message = "valid";
-    if(kreon && xgd_version(ss_layer0_last) == 3)
+    if(xgd_version(ss_layer0_last) == 3)
     {
         ss_message = "invalid";
 
         // repair XGD3 security sector on supported drives (read leadout)
-        if(custom_kreon)
+        if(kreon_custom_firmware)
         {
             std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
             auto status = cmd_read(sptd, ss_leadout.data(), FORM1_DATA_SIZE, XGD_SS_LEADOUT_SECTOR, 1, false);
@@ -379,17 +360,8 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
             }
         }
     }
-    else if(omnidrive)
-    {
-        ss_message = "invalid";
 
-        // TODO: rebuild SS (requires cryptography)
-    }
-
-    if(kreon)
-        LOG("kreon: XGD detected (version: {}, security sector: {})", xgd_version(ss_layer0_last), ss_message);
-    else if(omnidrive)
-        LOG("omnidrive: XGD detected (version: {}, security sector: {})", xgd_version(ss_layer0_last), ss_message);
+    LOG("kreon: XGD detected (version: {}, security sector: {})", xgd_version(ss_layer0_last), ss_message);
     LOG("");
 
     int32_t psn_first = sign_extend<24>(endian_swap(layer0_ld.data_start_sector));
@@ -401,12 +373,10 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
         l1_padding_length += 4096;
 
     // extract security sector ranges from security sector
-    if(kreon) // TODO: Don't gate this when omnidrive SS is rebuilt properly
-        get_security_layer_descriptor_ranges(protection, security_sector);
+    get_security_layer_descriptor_ranges(protection, security_sector);
 
     // append L1 padding to skip ranges
-    if(kreon)
-        insert_range(protection, { (int32_t)sectors_count_capacity, (int32_t)sectors_count_capacity + (int32_t)l1_padding_length });
+    insert_range(protection, { sectors_count_capacity, sectors_count_capacity + l1_padding_length });
 
     auto xbox = std::make_shared<Context>();
     xbox->security_sector.swap(security_sector);

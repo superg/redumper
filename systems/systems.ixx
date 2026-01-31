@@ -19,8 +19,6 @@ import systems.ps5;
 import systems.securom;
 import systems.sat;
 import systems.xbox;
-import systems.gc;
-import systems.wii;
 
 
 
@@ -51,8 +49,6 @@ public:
         systems.push_back([]() { return std::make_unique<SystemPS5>(); });
         systems.push_back([]() { return std::make_unique<SystemSAT>(); });
         systems.push_back([]() { return std::make_unique<SystemXBOX>(); });
-        systems.push_back([]() { return std::make_unique<SystemGC>(); });
-        systems.push_back([]() { return std::make_unique<SystemWII>(); });
 
         return systems;
     }

@@ -876,7 +876,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     }
 
     Errors errors = {};
-    if(dump_mode != DumpMode::DUMP)
+    if(dump_mode != DumpMode::DUMP && lba_start < lba_end)
     {
         std::vector<State> state_buffer(CHUNK_1MB);
         uint32_t count = lba_end - lba_start;

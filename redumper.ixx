@@ -269,7 +269,9 @@ std::list<std::pair<std::string, Command>> redumper_disc_get_commands(Options &o
 {
     std::list<std::pair<std::string, Command>> commands;
 
-    std::list<std::string> cd_commands{ "rings", "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
+    std::list<std::string> cd_commands{ "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
+    if(options.rings)
+        cd_commands.insert(cd_commands.begin(), "rings");
     if(options.auto_eject)
     {
         if(auto it = std::find(cd_commands.begin(), cd_commands.end(), "split"); it != cd_commands.end())

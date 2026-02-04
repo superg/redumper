@@ -251,10 +251,6 @@ export void subcode_load_subpq(std::vector<ChannelP> &subp, std::vector<ChannelQ
 
     if(!desync_stats.empty() && !(desync_stats.size() == 1 && !desync_stats.begin()->first))
     {
-        LOG("subcode desync statistics: ");
-        for(auto const &e : desync_stats)
-            LOG("  shift: {:+}, count: {}", e.first, e.second);
-
         if(auto it = std::max_element(desync_stats.begin(), desync_stats.end(), [](auto a, auto b) { return a.second < b.second; }); it != desync_stats.end() && it->first)
         {
             uint32_t shift_value = std::abs(it->first);

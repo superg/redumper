@@ -241,10 +241,10 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
             if(status.status_code)
                 throw_line("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
 
-            uint32_t sectors_count = (uint32_t)mediatek_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type).size() / CD_RAW_DATA_SIZE;
+            uint32_t sectors_count = (uint32_t)mediatek_cache_extract(cache, lba, OVERREAD_COUNT, ctx.drive_config.type).size() / CD_RAW_DATA_SIZE;
 
             LOG_R("MEDIATEK: preloading cache (LBA: {:6}, sectors: {:3}, retry: {})", lba, sectors_count, i + 1);
-            if(sectors_count == LEADOUT_OVERREAD_COUNT)
+            if(sectors_count == OVERREAD_COUNT)
                 break;
         }
 
@@ -254,7 +254,7 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
             session_message = std::format(".{}", s.session_number);
         write_vector(std::format("{}{}.cache", image_prefix, session_message), cache);
 
-        auto leadout = mediatek_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type);
+        auto leadout = mediatek_cache_extract(cache, lba, OVERREAD_COUNT, ctx.drive_config.type);
 
         uint32_t sectors_count = (uint32_t)leadout.size() / CD_RAW_DATA_SIZE;
 

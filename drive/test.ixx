@@ -320,7 +320,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
     LOG("lead-in/pre-gap: {}", pregap_count ? std::format("{} sectors", pregap_count) : "no");
 
     uint32_t leadout_count = 0;
-    for(uint32_t i = 0; i < LEADOUT_OVERREAD_COUNT + 10; ++i)
+    for(uint32_t i = 0; i < OVERREAD_COUNT + 10; ++i)
     {
         int32_t lba = toc.sessions.back().tracks.back().lba_start + i;
 
@@ -340,9 +340,9 @@ export int redumper_drive_test(Context &ctx, Options &options)
             ++leadout_count;
         }
     }
-    bool leadout_more = leadout_count > LEADOUT_OVERREAD_COUNT;
+    bool leadout_more = leadout_count > OVERREAD_COUNT;
     if(leadout_more)
-        leadout_count = LEADOUT_OVERREAD_COUNT;
+        leadout_count = OVERREAD_COUNT;
     LOG("lead-out: {}", leadout_count ? std::format("{}{} sectors", leadout_count, leadout_more ? "+" : "") : "no");
 
     bool mt_cache_read = false;

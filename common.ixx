@@ -20,6 +20,9 @@ import scsi.sptd;
 namespace gpsxre
 {
 
+export constexpr uint32_t OVERREAD_COUNT = 100;
+
+
 export enum class State : uint8_t
 {
     ERROR_SKIP, // must be first to support random offset file writes

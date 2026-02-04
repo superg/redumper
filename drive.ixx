@@ -428,9 +428,8 @@ export std::optional<std::string> is_omnidrive_firmware(const DriveConfig &drive
     std::optional<std::string> version;
 
     static constexpr std::string_view omnidrive = "OmniDrive";
-    auto v = omnidrive.length();
 
-    if(drive_config.reserved5.starts_with(omnidrive) && drive_config.reserved5.length() >= v + 3)
+    if(auto v = omnidrive.length(); drive_config.reserved5.starts_with(omnidrive) && drive_config.reserved5.length() >= v + 3)
         version = std::format("v{}.{}.{}", (uint32_t)drive_config.reserved5[v + 0], (uint32_t)drive_config.reserved5[v + 1], (uint32_t)drive_config.reserved5[v + 2]);
 
     return version;

@@ -18,6 +18,7 @@ namespace gpsxre
 {
 
 export constexpr int32_t DVD_LBA_START = -0x30000;
+export constexpr int32_t DVD_LBA_RCZ = -0x1000;
 export constexpr uint32_t ECC_FRAMES = 0x10;
 
 // DVD uses primitive polynomial x^8 + x^4 + x^3 + x^2 + 1

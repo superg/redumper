@@ -490,17 +490,19 @@ struct DumpConfig
 {
     std::string image_extension;
     uint32_t sector_size;
-    int32_t sector_start;
+    int32_t lba_zero;
+    int32_t lba_start;
+    uint32_t overread_count;
 };
 
 
 DumpConfig dump_get_config(DiscType disc_type, bool raw)
 {
-    DumpConfig config{ ".iso", FORM1_DATA_SIZE, 0 };
+    DumpConfig config{ ".iso", FORM1_DATA_SIZE, 0, 0, 0 };
 
     if(disc_type == DiscType::DVD && raw)
     {
-        config = DumpConfig{ ".sdram", sizeof(RecordingFrame), DVD_LBA_START };
+        config = DumpConfig{ ".sdram", sizeof(RecordingFrame), DVD_LBA_START, DVD_LBA_RCZ - (int32_t)OVERREAD_COUNT, 0 };
     }
 
     return config;
@@ -513,17 +515,8 @@ export SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sect
 
     if(disc_type == DiscType::DVD && raw)
     {
-        bool raw_addressing = false;
-        int32_t address = lba;
-        if(address < 0)
-        {
-            raw_addressing = true;
-            address += -DVD_LBA_START;
-        }
-
         std::vector<DataFrame> data_frames(sectors_count);
-        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sector_size, address, sectors_count, OmniDrive_DiscType::DVD, raw_addressing, force_unit_access, false,
-            OmniDrive_Subchannels::NONE, false);
+        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sector_size, lba, sectors_count, OmniDrive_DiscType::DVD, false, force_unit_access, false, OmniDrive_Subchannels::NONE, false);
 
         for(uint32_t i = 0; i < sectors_count; ++i)
         {
@@ -858,32 +851,35 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     SignalINT signal;
 
-    int32_t lba_start = 0;
+    int32_t lba_start = cfg.lba_start;
     if(options.lba_start)
     {
-        if(*options.lba_start < cfg.sector_start)
-            throw_line("lba_start minimum value: {}", cfg.sector_start);
+        if(*options.lba_start < cfg.lba_zero)
+            throw_line("lba_start minimum value: {}", cfg.lba_zero);
         lba_start = *options.lba_start;
 
         rom_update = false;
     }
 
-    int32_t lba_end = sectors_count;
+    int32_t lba_end = sectors_count + cfg.overread_count;
     if(options.lba_end)
     {
-        if(*options.lba_end < cfg.sector_start)
-            throw_line("lba_end minimum value: {}", cfg.sector_start);
+        if(*options.lba_end < cfg.lba_zero)
+            throw_line("lba_end minimum value: {}", cfg.lba_zero);
         lba_end = *options.lba_end;
 
         rom_update = false;
     }
+
+    if(lba_start >= lba_end)
+        throw_line("lba_start must be less than lba_end");
 
     Errors errors = {};
     // FIXME: verify memory usage for largest bluray and chunk it if needed
     if(dump_mode != DumpMode::DUMP)
     {
         std::vector<State> state_buffer(lba_end - lba_start);
-        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), lba_start - cfg.sector_start, state_buffer.size(), 0, (uint8_t)State::ERROR_SKIP);
+        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), lba_start - cfg.lba_zero, state_buffer.size(), 0, (uint8_t)State::ERROR_SKIP);
         errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
     }
 
@@ -930,7 +926,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         bool read = true;
         bool store = false;
 
-        uint32_t lba_index = lba - cfg.sector_start;
+        uint32_t lba_index = lba - cfg.lba_zero;
 
         if(dump_mode == DumpMode::REFINE || dump_mode == DumpMode::VERIFY)
         {

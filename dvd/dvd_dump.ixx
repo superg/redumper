@@ -875,9 +875,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         rom_update = false;
     }
 
-    if(lba_start >= lba_end)
-        throw_line("lba_start must be less than lba_end");
-
     Errors errors = {};
     if(dump_mode != DumpMode::DUMP)
     {

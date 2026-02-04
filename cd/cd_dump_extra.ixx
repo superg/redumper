@@ -237,7 +237,7 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
             if(status.status_code && options.verbose)
                 LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 
-            status = mediatek_cache_read(*ctx.sptd, cache, 1024 * 1024 * mediatek_get_config(ctx.drive_config.type).size_mb);
+            status = mediatek_cache_read(*ctx.sptd, cache, mediatek_get_config(ctx.drive_config.type).size_mb * CHUNK_1MB);
             if(status.status_code)
                 throw_line("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
 

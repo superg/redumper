@@ -349,7 +349,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
     if(!options.drive_test_skip_cache_read)
     {
         std::vector<uint8_t> cache;
-        status = mediatek_cache_read(*ctx.sptd, cache, 1024 * 1024 * 32);
+        status = mediatek_cache_read(*ctx.sptd, cache, 32 * CHUNK_1MB);
         if(status.status_code)
         {
             if(options.verbose)

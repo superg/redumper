@@ -502,7 +502,7 @@ DumpConfig dump_get_config(DiscType disc_type, bool raw)
 
     if(disc_type == DiscType::DVD && raw)
     {
-        config = DumpConfig{ ".sdram", sizeof(RecordingFrame), DVD_LBA_START, DVD_LBA_RCZ - (int32_t)OVERREAD_COUNT, 0 };
+        config = DumpConfig{ ".sdram", sizeof(RecordingFrame), DVD_LBA_START, DVD_LBA_RCZ - (int32_t)OVERREAD_COUNT, OVERREAD_COUNT };
     }
 
     return config;
@@ -515,8 +515,12 @@ export SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sect
 
     if(disc_type == DiscType::DVD && raw)
     {
+        if(sector_size != sizeof(RecordingFrame))
+            throw_line("invalid sector size for raw DVD read (expected: {}, actual: {})", sizeof(RecordingFrame), sector_size);
+
         std::vector<DataFrame> data_frames(sectors_count);
-        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sector_size, lba, sectors_count, OmniDrive_DiscType::DVD, false, force_unit_access, false, OmniDrive_Subchannels::NONE, false);
+        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(DataFrame), lba, sectors_count, OmniDrive_DiscType::DVD, false, force_unit_access, false, OmniDrive_Subchannels::NONE,
+            false);
 
         for(uint32_t i = 0; i < sectors_count; ++i)
         {
@@ -532,7 +536,7 @@ export SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sect
 void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors)
 {
     char animation = lba == lba_end ? '*' : spinner_animation();
-    auto percent_dumped = lba_end != lba_start ? (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start) : 100;
+    auto percent_dumped = lba_start < lba_end ? (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start) : 100;
     LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {} }}", animation, percent_dumped, lba, lba_end, errors);
 }
 
@@ -875,12 +879,16 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         throw_line("lba_start must be less than lba_end");
 
     Errors errors = {};
-    // FIXME: verify memory usage for largest bluray and chunk it if needed
     if(dump_mode != DumpMode::DUMP)
     {
-        std::vector<State> state_buffer(lba_end - lba_start);
-        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), lba_start - cfg.lba_zero, state_buffer.size(), 0, (uint8_t)State::ERROR_SKIP);
-        errors.scsi = std::count(state_buffer.begin(), state_buffer.end(), State::ERROR_SKIP);
+        std::vector<State> state_buffer(CHUNK_1MB);
+        uint32_t count = lba_end - lba_start;
+        for(uint32_t offset = 0; offset < count; offset += state_buffer.size())
+        {
+            uint32_t sectors_to_read = std::min((uint32_t)state_buffer.size(), count - offset);
+            read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), lba_start - cfg.lba_zero + offset, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+            errors.scsi += std::count(state_buffer.begin(), state_buffer.begin() + sectors_to_read, State::ERROR_SKIP);
+        }
     }
 
     for(int32_t lba = lba_start; lba < lba_end;)

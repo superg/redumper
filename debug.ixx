@@ -299,7 +299,7 @@ export int redumper_debug(Context &ctx, Options &options)
     {
         SPTD sptd(options.drive, options.scsi_timeout);
         std::vector<uint8_t> cache;
-        SPTD::Status status = mediatek_cache_read(sptd, cache, 1024 * 1024 * mediatek_get_config(Type::MTK3).size_mb);
+        SPTD::Status status = mediatek_cache_read(sptd, cache, mediatek_get_config(Type::MTK3).size_mb * CHUNK_1MB);
 
         LOG("");
     }

@@ -824,7 +824,7 @@ std::string calculate_universal_hash(std::fstream &scm_fs, std::pair<int32_t, in
 {
     SHA1 bh_sha1;
 
-    std::vector<uint32_t> samples(10 * 1024 * 1024); // 10Mb chunk
+    std::vector<uint32_t> samples(10 * CHUNK_1MB); // 10Mb chunk
     batch_process_range<int32_t>(nonzero_data_range, samples.size(),
         [&scm_fs, &samples, &bh_sha1](int32_t offset, int32_t size) -> bool
         {

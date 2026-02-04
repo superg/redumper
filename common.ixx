@@ -21,6 +21,7 @@ namespace gpsxre
 {
 
 export constexpr uint32_t OVERREAD_COUNT = 100;
+export constexpr uint32_t CHUNK_1MB = 1024 * 1024;
 
 
 export enum class State : uint8_t

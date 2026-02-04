@@ -76,7 +76,7 @@ export int redumper_hash(Context &ctx, Options &options)
 
                 ROMEntry rom_entry(f.filename().string());
 
-                std::vector<uint8_t> data(1024 * 1024); // 1Mb chunk
+                std::vector<uint8_t> data(CHUNK_1MB); // 1Mb chunk
                 batch_process_range<uint64_t>(std::pair(0, std::filesystem::file_size(f)), data.size(),
                     [&](uint64_t offset, uint64_t size) -> bool
                     {

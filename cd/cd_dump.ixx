@@ -132,12 +132,12 @@ bool check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const ui
 
                 if(options.verbose)
                     LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
-
-                if(subcode_shift && options.skip_subcode_desync)
-                    skip = true;
             }
         }
     }
+
+    if(subcode_shift && options.skip_subcode_desync)
+        skip = true;
 
     return skip;
 }

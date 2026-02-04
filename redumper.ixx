@@ -112,7 +112,7 @@ int redumper_split(Context &ctx, Options &options)
     int exit_code = 0;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    if(std::filesystem::exists(image_prefix + ".iso"))
+    if(std::filesystem::exists(image_prefix + ".iso") || std::filesystem::exists(image_prefix + ".sdram"))
         redumper_split_dvd(ctx, options);
     else
         redumper_split_cd(ctx, options);
@@ -419,14 +419,6 @@ export int redumper(Options &options)
     if(options.arguments.empty())
         LOGC("[print usage: {}]", Options::helpKeys());
 
-    if(aggregate.drive_required)
-    {
-        // query/override drive configuration
-        ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
-        drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(),
-            options.drive_read_method.get(), options.drive_sector_order.get());
-    }
-
     if(!options.arguments.empty())
     {
         LOG("");
@@ -436,60 +428,74 @@ export int redumper(Options &options)
     ctx.disc_type = DiscType::CD;
     if(aggregate.drive_required)
     {
-        LOG("");
-        LOG("drive path: {}", options.drive);
-        LOG("drive: {}", drive_info_string(ctx.drive_config));
-        LOG("drive configuration: {}", drive_config_string(ctx.drive_config));
+        // query/override drive configuration
+        ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
+        drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(),
+            options.drive_read_method.get(), options.drive_sector_order.get());
 
+        std::optional<GET_CONFIGURATION_FeatureCode_ProfileList> current_profile;
         if(aggregate.drive_ready)
         {
-            GET_CONFIGURATION_FeatureCode_ProfileList current_profile = GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED;
-            auto status = cmd_get_configuration_current_profile(*ctx.sptd, current_profile);
-            if(status.status_code)
-            {
-                // some drives don't have this command implemented, fallback to CD
+            // get current profile
+            GET_CONFIGURATION_FeatureCode_ProfileList cp;
+            if(auto status = cmd_get_configuration_current_profile(*ctx.sptd, cp); status.status_code)
                 LOG("warning: failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
-            }
+            else
+                current_profile = cp;
+        }
 
-            ctx.disc_type = options.disc_type ? string_to_enum(*options.disc_type, DISC_TYPE_STRING) : profile_to_disc_type(current_profile);
+        // set disc type
+        if(options.disc_type)
+            ctx.disc_type = string_to_enum(*options.disc_type, DISC_TYPE_STRING);
+        else if(current_profile)
+            ctx.disc_type = profile_to_disc_type(*current_profile);
 
-            if(!drive_is_recommended(ctx.drive_config.vendor_id, ctx.drive_config.product_id, ctx.drive_config.product_revision_level, ctx.drive_config.vendor_specific)
-                && ctx.disc_type == DiscType::CD)
-                LOG("warning: using generic drive");
-
-            // set drive speed
-            uint16_t speed = 0xFFFF;
-            std::string speed_str("<optimal>");
+        // set speed (depends on a disc type)
+        std::optional<uint16_t> speed;
+        if(aggregate.drive_ready)
+        {
+            uint16_t s = 0xFFFF;
             if(options.speed)
             {
                 float speed_modifier = 176.4;
                 if(ctx.disc_type == DiscType::DVD)
                     speed_modifier = 1385.0;
-                else if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
-                    speed_modifier = 4500.0;
-                else if(ctx.disc_type == DiscType::HDDVD)
+                else if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R || ctx.disc_type == DiscType::HDDVD)
                     speed_modifier = 4500.0;
 
-                speed = speed_modifier * *options.speed;
-                speed_str = std::format("{} KB", speed);
+                s = speed_modifier * *options.speed;
             }
 
-            status = cmd_set_cd_speed(*ctx.sptd, speed);
-            if(status.status_code)
-                speed_str = std::format("<setting failed, SCSI ({})>", SPTD::StatusMessage(status));
+            if(auto status = cmd_set_cd_speed(*ctx.sptd, s); status.status_code)
+                LOG("warning: failed to set drive read speed, SCSI ({})", SPTD::StatusMessage(status));
+            else
+                speed = s;
+        }
 
-            LOG("drive read speed: {}", speed_str);
+        // drive features check
+        if(ctx.disc_type == DiscType::CD)
+        {
+            if(!drive_is_recommended(ctx.drive_config.vendor_id, ctx.drive_config.product_id, ctx.drive_config.product_revision_level, ctx.drive_config.vendor_specific))
+                LOG("warning: using generic drive");
 
             auto layout = sector_order_layout(ctx.drive_config.sector_order);
             if(layout.subcode_offset == CD_RAW_DATA_SIZE)
                 LOG("warning: drive doesn't support reading of subchannel data");
             if(layout.c2_offset == CD_RAW_DATA_SIZE)
                 LOG("warning: drive doesn't support C2 error pointers");
-
-            LOG("");
-            LOG("current profile: {}", enum_to_string(current_profile, PROFILE_STRING));
-            LOG("disc type: {}", enum_to_string(ctx.disc_type, DISC_TYPE_STRING));
         }
+
+        LOG("");
+        LOG("drive information");
+        LOG("  path: {}", options.drive);
+        LOG("  inquiry: {}", drive_info_string(ctx.drive_config));
+        LOG("  configuration: {}", drive_config_string(ctx.drive_config));
+        if(current_profile)
+            LOG("  profile: {}", enum_to_string(*current_profile, PROFILE_STRING));
+        if(speed)
+            LOG("  read speed: {}", *speed == 0xFFFF ? "<optimal>" : std::format("{} KB", *speed));
+        if(auto version = is_omnidrive_firmware(ctx.drive_config))
+            LOG("  firmware: OmniDrive {}", *version);
     }
 
     if(!options.image_name.empty())

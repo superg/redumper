@@ -83,7 +83,7 @@ public:
 
         try
         {
-            std::vector<Range<uint32_t>> protection;
+            std::vector<Range<int32_t>> protection;
             xbox::get_security_layer_descriptor_ranges(protection, security_sector);
             os << "  security sector ranges:" << std::endl;
             for(const auto &r : protection)

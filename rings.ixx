@@ -198,7 +198,7 @@ export int redumper_rings(Context &ctx, Options &options)
                         int32_t sample2_start = find_sample_offset(*ctx.sptd, ctx.drive_config, lba2_start);
 
                         // make sure not to read past the end of the disc
-                        int32_t sample2_end = lba_to_sample(volume_end_it->lba + LEADOUT_OVERREAD_COUNT, 0);
+                        int32_t sample2_end = lba_to_sample(volume_end_it->lba + OVERREAD_COUNT, 0);
 
                         LOG("protection: PS2/CodeBreaker Ring, range: {}-{}:{}-{}", lba1_start, lba1_end, lba2_start, volume_end_it->lba);
                         ctx.protection.emplace_back(sample1_start, sample1_end);

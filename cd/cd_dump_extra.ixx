@@ -237,14 +237,14 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
             if(status.status_code && options.verbose)
                 LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 
-            status = mediatek_cache_read(*ctx.sptd, cache, 1024 * 1024 * mediatek_get_config(ctx.drive_config.type).size_mb);
+            status = mediatek_cache_read(*ctx.sptd, cache, mediatek_get_config(ctx.drive_config.type).size_mb * CHUNK_1MB);
             if(status.status_code)
                 throw_line("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
 
-            uint32_t sectors_count = (uint32_t)mediatek_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type).size() / CD_RAW_DATA_SIZE;
+            uint32_t sectors_count = (uint32_t)mediatek_cache_extract(cache, lba, OVERREAD_COUNT, ctx.drive_config.type).size() / CD_RAW_DATA_SIZE;
 
             LOG_R("MEDIATEK: preloading cache (LBA: {:6}, sectors: {:3}, retry: {})", lba, sectors_count, i + 1);
-            if(sectors_count == LEADOUT_OVERREAD_COUNT)
+            if(sectors_count == OVERREAD_COUNT)
                 break;
         }
 
@@ -254,7 +254,7 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
             session_message = std::format(".{}", s.session_number);
         write_vector(std::format("{}{}.cache", image_prefix, session_message), cache);
 
-        auto leadout = mediatek_cache_extract(cache, lba, LEADOUT_OVERREAD_COUNT, ctx.drive_config.type);
+        auto leadout = mediatek_cache_extract(cache, lba, OVERREAD_COUNT, ctx.drive_config.type);
 
         uint32_t sectors_count = (uint32_t)leadout.size() / CD_RAW_DATA_SIZE;
 
@@ -331,7 +331,7 @@ export int redumper_dump_extra(Context &ctx, Options &options)
     }
     else if(drive_is_mediatek(ctx.drive_config))
     {
-        if(!options.mediatek_skip_leadout)
+        if(!options.mediatek_skip_leadout && !is_omnidrive_firmware(ctx.drive_config))
             mediatek_process_leadout(ctx, toc, fs_scram, fs_state, fs_subcode, options);
     }
 

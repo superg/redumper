@@ -288,7 +288,7 @@ export bool get_security_layer_descriptor_ranges(std::vector<Range<int32_t>> &pr
         auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_end));
 
         if(psn_start > psn_end)
-            continue;
+            return false;
 
         insert_range(protection, { PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) + 1 });
     }

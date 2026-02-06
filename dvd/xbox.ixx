@@ -13,6 +13,7 @@ export module dvd.xbox;
 import cd.cdrom;
 import drive;
 import dvd;
+import dvd.edc;
 import range;
 import scsi.cmd;
 import scsi.mmc;
@@ -337,7 +338,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
     bool custom_kreon = kreon && is_custom_kreon_firmware(drive_config);
     bool omnidrive = is_omnidrive_firmware(drive_config) != std::nullopt;
     std::vector<uint8_t> security_sector(FORM1_DATA_SIZE);
-    uint32_t cpr_mai_key;
+    uint32_t cpr_mai_key = 0;
     std::string ss_message = "valid";
 
     if(kreon)
@@ -351,7 +352,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
     else if(omnidrive)
     {
         std::vector<uint8_t> raw_sector(sizeof(DataFrame));
-        auto df = (DataFrame *)raw_sector[0];
+        auto df = (DataFrame *)raw_sector.data();
         bool success = false;
         for(uint8_t ss_retries = 0; !success; ++ss_retries)
         {
@@ -365,7 +366,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
                     return nullptr;
                 }
             }
-            else if(!validate_id(raw_sector.data()) || endian_swap(df->edc) != DVD_EDC().update(raw_sector, offsetof(DataFrame, edc)).final())
+            else if(!validate_id(raw_sector.data()) || endian_swap(df->edc) != DVD_EDC().update(raw_sector.data(), offsetof(DataFrame, edc)).final())
             {
                 if(ss_retries > 2)
                 {
@@ -377,7 +378,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
                 success = true;
         }
         std::copy(df->main_data, df->main_data + FORM1_DATA_SIZE, security_sector.begin());
-        cpr_mai_key = (uint32_t &)df.cpr_mai[1];
+        cpr_mai_key = (uint32_t &)df->cpr_mai[1];
     }
 
     auto &sld = (SecurityLayerDescriptor &)security_sector[0];
@@ -394,7 +395,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
         if(custom_kreon)
         {
             std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
-            uint32_t ss_address = 4267582; // do math such that XGD_SS_LEADOUT_SECTOR -> LBA 4267582
+            uint32_t ss_address = 4267582; // TODO: do math such that XGD_SS_LEADOUT_SECTOR -> LBA 4267582
             auto status = cmd_read(sptd, ss_leadout.data(), FORM1_DATA_SIZE, ss_address, 1, false);
             if(status.status_code)
                 LOG("kreon: failed to read XGD3 security sector lead-out, SCSI ({})", SPTD::StatusMessage(status));

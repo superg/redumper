@@ -352,33 +352,33 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
     else if(omnidrive)
     {
         std::vector<uint8_t> raw_sector(sizeof(DataFrame));
-        auto df = (DataFrame *)raw_sector.data();
-        bool success = false;
-        for(uint8_t ss_retries = 0; !success; ++ss_retries)
+        auto &df = (DataFrame &)raw_sector[0];
+        bool ss_found = false;
+        for(uint8_t ss_retries = 0; ss_retries < 4; ++ss_retries)
         {
             uint32_t ss_address = XGD_SS_LEADOUT_SECTOR + ss_retries * 0x40;
             auto status = cmd_read_omnidrive(sptd, raw_sector.data(), sizeof(DataFrame), ss_address, 1, OmniDrive_DiscType::DVD, true, false, true, OmniDrive_Subchannels::NONE, false);
             if(status.status_code)
-            {
-                if(ss_retries > 2)
-                {
-                    LOG("omnidrive: failed to read security sector, SCSI ({})", SPTD::StatusMessage(status));
-                    return nullptr;
-                }
-            }
-            else if(!validate_id(raw_sector.data()) || endian_swap(df->edc) != DVD_EDC().update(raw_sector.data(), offsetof(DataFrame, edc)).final())
-            {
-                if(ss_retries > 2)
-                {
-                    LOG("omnidrive: failed to read valid security sector");
-                    return nullptr;
-                }
-            }
+                LOG("[PSN: {:X}] omnidrive: SCSI error ({})", ss_address, SPTD::StatusMessage(status));
             else
-                success = true;
+            {
+                if(validate_id(raw_sector.data()) && endian_swap(df.edc) == DVD_EDC().update(raw_sector.data(), offsetof(DataFrame, edc)).final())
+                {
+                    ss_found = true;
+                    break;
+                }
+                else
+                    LOG("[PSN: {:X}] omnidrive: invalid security sector, discarded", ss_address);
+            }
         }
-        std::copy(df->main_data, df->main_data + FORM1_DATA_SIZE, security_sector.begin());
-        cpr_mai_key = (uint32_t &)df->cpr_mai[1];
+
+        if(!ss_found)
+        {
+            LOG("omnidrive: failed to get valid security sector");
+            return nullptr;
+        }
+        std::copy(df.main_data, df.main_data + FORM1_DATA_SIZE, security_sector.begin());
+        cpr_mai_key = (uint32_t &)df.cpr_mai[1];
     }
 
     auto &sld = (SecurityLayerDescriptor &)security_sector[0];
@@ -388,23 +388,26 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
     if(!xgd_version(ss_layer0_last))
         return nullptr;
 
-    if(kreon && xgd_version(ss_layer0_last) == 3)
+    if(kreon)
     {
-        ss_message = "invalid";
-
-        // repair XGD3 security sector on supported drives (read leadout)
-        if(custom_kreon)
+        if(xgd_version(ss_layer0_last) == 3)
         {
-            std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
-            uint32_t ss_address = sign_extend<24>(XGD_SS_LEADOUT_SECTOR) + 2 * (ss_layer0_last + 1) - psn_first;
-            auto status = cmd_read(sptd, ss_leadout.data(), FORM1_DATA_SIZE, ss_address, 1, false);
-            if(status.status_code)
-                LOG("kreon: failed to read XGD3 security sector lead-out, SCSI ({})", SPTD::StatusMessage(status));
-            else
+            ss_message = "invalid";
+
+            // repair XGD3 security sector on supported drives (read leadout)
+            if(custom_kreon)
             {
-                merge_xgd3_security_layer_descriptor((SecurityLayerDescriptor &)ss_leadout[0], sld);
-                security_sector = ss_leadout;
-                ss_message = "repaired";
+                std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
+                uint32_t ss_address = sign_extend<24>(XGD_SS_LEADOUT_SECTOR) + 2 * (ss_layer0_last + 1) - psn_first;
+                auto status = cmd_read(sptd, ss_leadout.data(), FORM1_DATA_SIZE, ss_address, 1, false);
+                if(status.status_code)
+                    LOG("kreon: failed to read XGD3 security sector lead-out, SCSI ({})", SPTD::StatusMessage(status));
+                else
+                {
+                    merge_xgd3_security_layer_descriptor((SecurityLayerDescriptor &)ss_leadout[0], sld);
+                    security_sector = ss_leadout;
+                    ss_message = "repaired";
+                }
             }
         }
     }

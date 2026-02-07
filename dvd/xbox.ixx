@@ -382,6 +382,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
     }
 
     auto &sld = (SecurityLayerDescriptor &)security_sector[0];
+    int32_t psn_first = sign_extend<24>(endian_swap(layer0_ld.data_start_sector));
     int32_t ss_layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
 
     if(!xgd_version(ss_layer0_last))
@@ -395,7 +396,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
         if(custom_kreon)
         {
             std::vector<uint8_t> ss_leadout(FORM1_DATA_SIZE);
-            uint32_t ss_address = 4267582; // TODO: do math such that XGD_SS_LEADOUT_SECTOR -> LBA 4267582
+            uint32_t ss_address = sign_extend<24>(XGD_SS_LEADOUT_SECTOR) + 2 * (ss_layer0_last + 1) - psn_first;
             auto status = cmd_read(sptd, ss_leadout.data(), FORM1_DATA_SIZE, ss_address, 1, false);
             if(status.status_code)
                 LOG("kreon: failed to read XGD3 security sector lead-out, SCSI ({})", SPTD::StatusMessage(status));
@@ -418,12 +419,12 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
             sld.xgd23.xgd3.cpr_mai = cpr_mai_key;
 
         // descramble ranges
-        std::vector<uint8_t> indices((uint8_t *)&sld.ranges_copy, (uint8_t *)&sld.ranges_copy + 207);
+        std::vector<uint8_t> indices((uint8_t *)&sld.ranges_copy, (uint8_t *)&sld.ranges_copy + sizeof(sld.ranges));
         for(uint8_t i = 0; i < indices.size(); ++i)
             indices[i] ^= ((uint8_t *)&cpr_mai_key)[i % 4];
 
-        std::vector<uint8_t> ss_range(207, 0);
-        std::vector<uint8_t> ss_range_scrambled((uint8_t *)&sld.ranges, (uint8_t *)&sld.ranges + 207);
+        std::vector<uint8_t> ss_range(sizeof(sld.ranges), 0);
+        std::vector<uint8_t> ss_range_scrambled((uint8_t *)&sld.ranges, (uint8_t *)&sld.ranges + sizeof(sld.ranges));
         for(uint8_t i = 0; i + 1 < indices.size(); ++i)
             ss_range[i] = ss_range_scrambled[indices[i]];
 
@@ -437,7 +438,6 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
     LOG("{}: XGD detected (version: {}, security sector: {})", kreon ? "kreon" : "omnidrive", xgd_version(ss_layer0_last), ss_message);
     LOG("");
 
-    int32_t psn_first = sign_extend<24>(endian_swap(layer0_ld.data_start_sector));
     int32_t layer0_last = sign_extend<24>(endian_swap(layer0_ld.layer0_end_sector));
     int32_t ss_psn_first = sign_extend<24>(endian_swap(sld.ld.data_start_sector));
 

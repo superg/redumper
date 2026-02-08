@@ -428,7 +428,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
 
         std::vector<uint8_t> ss_range(sizeof(sld.ranges), 0);
         std::vector<uint8_t> ss_range_scrambled((uint8_t *)&sld.ranges, (uint8_t *)&sld.ranges + sizeof(sld.ranges));
-        for(uint8_t i = 0; i + 1 < indices.size(); ++i)
+        for(uint8_t i = 0; i < indices.size(); ++i)
             ss_range[i] = ss_range_scrambled[indices[i]];
 
         // copy ranges into ss

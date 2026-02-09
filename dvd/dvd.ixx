@@ -25,13 +25,22 @@ export constexpr uint32_t ECC_FRAMES = 0x10;
 GF256 gf(0x11D);
 
 
+export enum class ZoneType : uint8_t
+{
+    DATA_ZONE,
+    LEADIN_ZONE,
+    LEADOUT_ZONE,
+    MIDDLE_ZONE
+};
+
+
 export struct DataFrame
 {
     struct
     {
         uint8_t layer_number       :1;
         uint8_t data_type          :1;
-        uint8_t zone_type          :2;
+        ZoneType zone_type         :2;
         uint8_t reserved           :1;
         uint8_t reflectivity       :1;
         uint8_t tracking_method    :1;

@@ -136,7 +136,7 @@ void descramble(Context &ctx, Options &options)
     if(!sdram_fs.is_open())
         throw_line("unable to open file ({})", sdram_path.filename().string());
 
-    if(std::filesystem::exists(iso_path))
+    if(std::filesystem::exists(iso_path) && !options.overwrite)
     {
         LOG("warning: file already exists ({}.iso)", options.image_name);
         return;
@@ -160,14 +160,13 @@ void descramble(Context &ctx, Options &options)
         bytes_read = sdram_fs.gcount();
         if(bytes_read != rf.size())
             return;
-        auto df = RecordingFrame_to_DataFrame((RecordingFrame &)rf);
+        auto df = RecordingFrame_to_DataFrame(*(RecordingFrame *)rf.data());
         if(df.id.zone_type != ZoneType::DATA_ZONE)
             return;
         success = scrambler.descramble((uint8_t *)&df, psn, key);
         if(!success)
             LOG("warning: descramble failed (LBA: {})", psn + DVD_LBA_START);
         iso_fs.write((char *)((uint8_t *)&df + main_data_offset), FORM1_DATA_SIZE);
-        psn += 1;
     }
 }
 

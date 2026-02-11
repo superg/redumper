@@ -45,12 +45,12 @@ void generate_extra_xbox(Context &ctx, Options &options)
     {
         if(std::filesystem::exists(dmi_path) && !options.overwrite)
         {
-            LOG("warning: file already exists ({}.dmi)", options.image_name);
+            LOG("warning: file already exists ({})", dmi_path.filename().string());
         }
         else
         {
             auto manufacturer = read_vector(manufacturer_path);
-            if(!manufacturer.empty() && manufacturer.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader))
+            if(manufacturer.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader))
             {
                 strip_response_header(manufacturer);
                 write_vector(dmi_path, manufacturer);
@@ -79,7 +79,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
         else
         {
             auto physical = read_vector(physical_path);
-            if(!physical.empty() && physical.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader))
+            if(physical.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader))
             {
                 strip_response_header(physical);
                 write_vector(pfi_path, physical);
@@ -123,50 +123,60 @@ void generate_extra_xbox(Context &ctx, Options &options)
 }
 
 
-void descramble(Context &ctx, Options &options)
+void extract_iso(Context &ctx, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
     std::filesystem::path sdram_path(image_prefix + ".sdram");
+    std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path iso_path(image_prefix + ".iso");
-
     if(!std::filesystem::exists(sdram_path))
         return;
-    std::fstream sdram_fs(sdram_path, std::fstream::in | std::fstream::binary);
-    if(!sdram_fs.is_open())
-        throw_line("unable to open file ({})", sdram_path.filename().string());
-
     if(std::filesystem::exists(iso_path) && !options.overwrite)
     {
         LOG("warning: file already exists ({}.iso)", options.image_name);
         return;
     }
-    std::ofstream iso_fs(iso_path, std::ofstream::binary);
+
+    std::fstream sdram_fs(sdram_path, std::fstream::in | std::fstream::binary);
+    if(!sdram_fs.is_open())
+        throw_line("unable to open file ({})", sdram_path.filename().string());
+    uint64_t sdram_size = std::filesystem::file_size(sdram_path);
+    if(sdram_size % sizeof(RecordingFrame) != 0)
+        throw_line("unexpected file size ({})", sdram_path.filename().string());
+
+    std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
+    if(!state_fs.is_open())
+        throw_line("unable to open file ({})", state_path.filename().string());
+
+    std::fstream iso_fs(iso_path, std::fstream::out | std::fstream::binary);
+    if(!iso_fs.is_open())
+        throw_line("unable to open file ({})", iso_path.filename().string());
 
     DVD_Scrambler scrambler;
-    bool success;
     std::streamsize bytes_read;
     std::vector<uint8_t> rf(sizeof(RecordingFrame));
-    uint32_t main_data_offset = offsetof(DataFrame, main_data);
+    State state = State::ERROR_SKIP;
     std::optional<std::uint8_t> key = std::nullopt;
 
-    // start descrambling from LBA 0
-    sdram_fs.seekg(-DVD_LBA_START * sizeof(RecordingFrame));
+    // start extracting ISO from LBA 0
+    uint32_t psn = -DVD_LBA_START;
+    sdram_fs.seekg(psn * sizeof(RecordingFrame));
+    if(sdram_fs.fail())
+        throw_line("seek failed");
 
-    // TODO: stop loop at last State::SUCCESS sector?
-    for(uint32_t psn = -DVD_LBA_START;; ++psn)
+    for(uint32_t sector_count = sdram_size / sizeof(RecordingFrame); psn < sector_count; ++psn)
     {
-        sdram_fs.read((char *)rf.data(), rf.size());
-        bytes_read = sdram_fs.gcount();
-        if(bytes_read != rf.size())
-            return;
-        auto df = RecordingFrame_to_DataFrame(*(RecordingFrame *)rf.data());
+        read_entry(sdram_fs, rf.data(), rf.size(), psn, 1, 0, 0);
+        read_entry(state_fs, (uint8_t *)&state, sizeof(State), psn, 1, 0, (uint8_t)State::ERROR_SKIP);
+        if(state == State::ERROR_SKIP && !options.force_split)
+            throw_line("read errors detected, unable to continue");
+        auto df = RecordingFrame_to_DataFrame((RecordingFrame &)rf[0]);
         if(df.id.zone_type != ZoneType::DATA_ZONE)
-            return;
-        success = scrambler.descramble((uint8_t *)&df, psn, key);
-        if(!success)
+            break;
+        if(!scrambler.descramble((uint8_t *)&df, psn, key))
             LOG("warning: descramble failed (LBA: {})", psn + DVD_LBA_START);
-        iso_fs.write((char *)((uint8_t *)&df + main_data_offset), FORM1_DATA_SIZE);
+        iso_fs.write((char *)((uint8_t *)&df + offsetof(DataFrame, main_data)), FORM1_DATA_SIZE);
     }
 }
 
@@ -181,7 +191,7 @@ export void redumper_split_dvd(Context &ctx, Options &options)
         throw_line("{} scsi errors detected, unable to continue", ctx.dump_errors->scsi);
 
     // descramble and extract user data from raw DVD dumps
-    descramble(ctx, options);
+    extract_iso(ctx, options);
 }
 
 }

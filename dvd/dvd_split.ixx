@@ -3,7 +3,6 @@ module;
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <numeric>
 #include <string>
 #include <vector>
 #include "throw_line.hh"
@@ -74,7 +73,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
     {
         if(std::filesystem::exists(pfi_path) && !options.overwrite)
         {
-            LOG("warning: file already exists ({}.pfi)", options.image_name);
+            LOG("warning: file already exists ({})", pfi_path.filename().string());
         }
         else
         {
@@ -100,7 +99,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
     std::filesystem::path ss_path(image_prefix + ".ss");
     if(std::filesystem::exists(ss_path) && !options.overwrite)
     {
-        LOG("warning: file already exists ({}.ss)", options.image_name);
+        LOG("warning: file already exists ({})", ss_path.filename().string());
     }
     else
     {
@@ -158,6 +157,7 @@ void extract_iso(Context &ctx, Options &options)
     std::vector<uint8_t> rf(sizeof(RecordingFrame));
     State state = State::ERROR_SKIP;
     std::optional<std::uint8_t> key = std::nullopt;
+    std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
     // start extracting ISO from LBA 0
     uint32_t psn = -DVD_LBA_START;
@@ -175,8 +175,21 @@ void extract_iso(Context &ctx, Options &options)
         if(df.id.zone_type != ZoneType::DATA_ZONE)
             break;
         if(!scrambler.descramble((uint8_t *)&df, psn, key))
-            LOG("warning: descramble failed (LBA: {})", psn + DVD_LBA_START);
+        {
+            if(descramble_errors.empty() || descramble_errors.back().second + 1 != psn + DVD_LBA_START)
+                descramble_errors.emplace_back(psn + DVD_LBA_START, psn + DVD_LBA_START);
+            else
+                descramble_errors.back().second = psn + DVD_LBA_START;
+        }
         iso_fs.write((char *)((uint8_t *)&df + offsetof(DataFrame, main_data)), FORM1_DATA_SIZE);
+    }
+
+    for(auto const &d : descramble_errors)
+    {
+        if(d.first == d.second)
+            LOG("warning: descramble failed (LBA: {})", d.first);
+        else
+            LOG("warning: descramble failed (LBA: [{} .. {}])", d.first, d.second);
     }
 }
 

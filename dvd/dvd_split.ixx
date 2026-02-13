@@ -104,7 +104,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
     else
     {
         auto security = read_vector(security_path);
-        if(!security.empty() && security.size() == FORM1_DATA_SIZE)
+        if(security.size() == FORM1_DATA_SIZE)
         {
             xbox::clean_security_sector(security);
             write_vector(ss_path, security);
@@ -181,6 +181,8 @@ void extract_iso(Context &ctx, Options &options)
                 descramble_errors.back().second = psn + DVD_LBA_START;
         }
         iso_fs.write((char *)((uint8_t *)&df + offsetof(DataFrame, main_data)), FORM1_DATA_SIZE);
+        if(iso_fs.fail())
+            throw_line("write failed ({})", iso_path.filename().string());
     }
 
     for(auto const &d : descramble_errors)

@@ -133,7 +133,7 @@ void extract_iso(Context &ctx, Options &options)
         return;
     if(std::filesystem::exists(iso_path) && !options.overwrite)
     {
-        LOG("warning: file already exists ({}.iso)", options.image_name);
+        LOG("warning: file already exists ({})", iso_path.filename().string());
         return;
     }
 
@@ -153,7 +153,6 @@ void extract_iso(Context &ctx, Options &options)
         throw_line("unable to open file ({})", iso_path.filename().string());
 
     DVD_Scrambler scrambler;
-    std::streamsize bytes_read;
     std::vector<uint8_t> rf(sizeof(RecordingFrame));
     State state = State::ERROR_SKIP;
     std::optional<std::uint8_t> key = std::nullopt;

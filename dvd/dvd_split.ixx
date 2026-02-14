@@ -137,12 +137,12 @@ void extract_iso(Context &ctx, Options &options)
         return;
     }
 
-    std::fstream sdram_fs(sdram_path, std::fstream::in | std::fstream::binary);
-    if(!sdram_fs.is_open())
-        throw_line("unable to open file ({})", sdram_path.filename().string());
     uint64_t sdram_size = std::filesystem::file_size(sdram_path);
     if(sdram_size % sizeof(RecordingFrame) != 0)
         throw_line("unexpected file size ({})", sdram_path.filename().string());
+    std::fstream sdram_fs(sdram_path, std::fstream::in | std::fstream::binary);
+    if(!sdram_fs.is_open())
+        throw_line("unable to open file ({})", sdram_path.filename().string());
 
     std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
     if(!state_fs.is_open())
@@ -154,8 +154,7 @@ void extract_iso(Context &ctx, Options &options)
 
     DVD_Scrambler scrambler;
     std::vector<uint8_t> rf(sizeof(RecordingFrame));
-    State state = State::ERROR_SKIP;
-    std::optional<std::uint8_t> key = std::nullopt;
+    std::optional<std::uint8_t> key;
     std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
     // start extracting ISO from LBA 0
@@ -167,6 +166,7 @@ void extract_iso(Context &ctx, Options &options)
     for(uint32_t sector_count = sdram_size / sizeof(RecordingFrame); psn < sector_count; ++psn)
     {
         read_entry(sdram_fs, rf.data(), rf.size(), psn, 1, 0, 0);
+        State state;
         read_entry(state_fs, (uint8_t *)&state, sizeof(State), psn, 1, 0, (uint8_t)State::ERROR_SKIP);
         if(state == State::ERROR_SKIP && !options.force_split)
             throw_line("read errors detected, unable to continue");
@@ -180,7 +180,7 @@ void extract_iso(Context &ctx, Options &options)
             else
                 descramble_errors.back().second = psn + DVD_LBA_START;
         }
-        iso_fs.write((char *)((uint8_t *)&df + offsetof(DataFrame, main_data)), FORM1_DATA_SIZE);
+        iso_fs.write((char *)&df + offsetof(DataFrame, main_data), FORM1_DATA_SIZE);
         if(iso_fs.fail())
             throw_line("write failed ({})", iso_path.filename().string());
     }

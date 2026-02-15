@@ -158,27 +158,27 @@ void extract_iso(Context &ctx, Options &options)
     std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
     // start extracting ISO from LBA 0
-    uint32_t psn = -DVD_LBA_START;
-    sdram_fs.seekg(psn * sizeof(RecordingFrame));
+    sdram_fs.seekg(-DVD_LBA_START * sizeof(RecordingFrame));
     if(sdram_fs.fail())
         throw_line("seek failed");
 
-    for(uint32_t sector_count = sdram_size / sizeof(RecordingFrame); psn < sector_count; ++psn)
+    uint32_t sector_count = sdram_size / sizeof(RecordingFrame) + DVD_LBA_START;
+    for(uint32_t lba = 0; lba < sector_count; ++lba)
     {
-        read_entry(sdram_fs, rf.data(), rf.size(), psn, 1, 0, 0);
+        read_entry(sdram_fs, rf.data(), rf.size(), lba - DVD_LBA_START, 1, 0, 0);
         State state;
-        read_entry(state_fs, (uint8_t *)&state, sizeof(State), psn, 1, 0, (uint8_t)State::ERROR_SKIP);
+        read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - DVD_LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
         if(state == State::ERROR_SKIP && !options.force_split)
             throw_line("read errors detected, unable to continue");
         auto df = RecordingFrame_to_DataFrame((RecordingFrame &)rf[0]);
         if(df.id.zone_type != ZoneType::DATA_ZONE)
             break;
-        if(!scrambler.descramble((uint8_t *)&df, psn, key))
+        if(!scrambler.descramble((uint8_t *)&df, key))
         {
-            if(descramble_errors.empty() || descramble_errors.back().second + 1 != psn + DVD_LBA_START)
-                descramble_errors.emplace_back(psn + DVD_LBA_START, psn + DVD_LBA_START);
+            if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
+                descramble_errors.emplace_back(lba, lba);
             else
-                descramble_errors.back().second = psn + DVD_LBA_START;
+                descramble_errors.back().second = lba;
         }
         iso_fs.write((char *)&df + offsetof(DataFrame, main_data), FORM1_DATA_SIZE);
         if(iso_fs.fail())

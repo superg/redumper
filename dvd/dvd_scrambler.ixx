@@ -44,7 +44,7 @@ public:
     }
 
 
-    bool descramble(uint8_t *sector, uint32_t psn, std::optional<uint8_t> key, uint32_t size = sizeof(DataFrame)) const
+    bool descramble(uint8_t *sector, std::optional<uint8_t> key, uint32_t size = sizeof(DataFrame)) const
     {
         bool unscrambled = false;
 
@@ -55,10 +55,11 @@ public:
         auto frame = (DataFrame *)sector;
 
         // validate sector header
-        if(endian_swap_from_array<int32_t>(frame->id.sector_number) != psn || !validate_id(sector))
+        if(!validate_id(sector))
             return unscrambled;
 
         // determine XOR table offset
+        uint32_t psn = endian_swap_from_array<int32_t>(frame->id.sector_number);
         uint32_t offset = (psn >> 4 & 0xF) * FORM1_DATA_SIZE;
 
         // custom XOR table offset for nintendo

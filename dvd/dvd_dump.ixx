@@ -819,7 +819,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
+    uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
 
     bool raw = options.dvd_raw && omnidrive_firmware;
     if(options.dvd_raw && !omnidrive_firmware)
@@ -851,6 +851,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     {
         rom_update = false;
         fs_ctx.search = false;
+
+        if(is_omnidrive_slim(ctx.drive_config) && sectors_at_once >= 32)
+        {
+            LOG("warning: setting dump read size to 16 for raw dumping");
+            sectors_at_once = 16;
+        }
     }
 
     SignalINT signal;
@@ -927,6 +933,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             if(kreon_locked)
                 lba_shift = xbox->layer1_video_lba_start - xbox->lock_lba_start;
         }
+
+        // ensure requested sectors don't cross lead-out boundary
+        if(lba < sectors_count && lba + sectors_to_read > sectors_count)
+            sectors_to_read = sectors_count - lba;
 
         bool read = true;
         bool store = false;

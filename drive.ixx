@@ -435,4 +435,10 @@ export std::optional<std::string> is_omnidrive_firmware(const DriveConfig &drive
     return version;
 }
 
+
+export bool is_omnidrive_slim(const DriveConfig &drive_config)
+{
+    return drive_config.product_id == "BD-RE BU40N" && is_omnidrive_firmware(drive_config);
+}
+
 }

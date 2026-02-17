@@ -588,6 +588,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     bool trim_to_filesystem_size = options.filesystem_trim;
     FilesystemContext fs_ctx;
 
+    bool nintendo = false;
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
 
@@ -629,7 +630,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                     // nintendo discs have first byte 0xFF
                     if(structure[sizeof(CMD_ParameterListHeader)] == 0xFF)
-                        ctx.nintendo = true;
+                        nintendo = true;
                 }
 
                 // XGD physical sector count is only for video partition
@@ -823,7 +824,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    bool raw = (options.dvd_raw || ctx.nintendo) && omnidrive_firmware;
+    bool raw = (options.dvd_raw || nintendo) && omnidrive_firmware;
     if(options.dvd_raw && !omnidrive_firmware)
         LOG("warning: drive not compatible with raw DVD dumping");
 

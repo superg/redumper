@@ -165,9 +165,9 @@ void extract_iso(Context &ctx, Options &options)
     if(sdram_fs.fail())
         throw_line("seek failed");
 
-    bool nintendo = ctx.nintendo && *ctx.nintendo;
-    std::uint8_t nintendo_key;
-    if(!nintendo && std::filesystem::exists(physical_path))
+    bool nintendo = false;
+    uint8_t nintendo_key;
+    if(std::filesystem::exists(physical_path))
     {
         auto physical = read_vector(physical_path);
         if(physical.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader) && physical[sizeof(CMD_ParameterListHeader)] == 0xFF)

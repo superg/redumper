@@ -189,7 +189,7 @@ void extract_iso(Context &ctx, Options &options)
         if(state == State::ERROR_SKIP && !options.force_split)
             throw_line("read errors detected, unable to continue");
         auto df = RecordingFrame_to_DataFrame((RecordingFrame &)rf[0]);
-        if(df.id.zone_type != ZoneType::DATA_ZONE)
+        if(df.id.zone_type == ZoneType::LEADOUT_ZONE)
             break;
         if(!scrambler.descramble((uint8_t *)&df, key))
         {

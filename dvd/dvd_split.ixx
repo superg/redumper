@@ -3,6 +3,7 @@ module;
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <numeric>
 #include <string>
 #include <vector>
 #include "throw_line.hh"
@@ -129,6 +130,7 @@ void extract_iso(Context &ctx, Options &options)
     std::filesystem::path sdram_path(image_prefix + ".sdram");
     std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path iso_path(image_prefix + ".iso");
+    std::filesystem::path physical_path(image_prefix + ".physical");
     if(!std::filesystem::exists(sdram_path))
         return;
     if(std::filesystem::exists(iso_path) && !options.overwrite)
@@ -156,11 +158,27 @@ void extract_iso(Context &ctx, Options &options)
     std::vector<uint8_t> rf(sizeof(RecordingFrame));
     std::optional<std::uint8_t> key;
     std::vector<std::pair<int32_t, int32_t>> descramble_errors;
+    uint32_t main_data_offset = offsetof(DataFrame, main_data);
 
     // start extracting ISO from LBA 0
     sdram_fs.seekg(-DVD_LBA_START * sizeof(RecordingFrame));
     if(sdram_fs.fail())
         throw_line("seek failed");
+
+    bool nintendo = ctx.nintendo && *ctx.nintendo;
+    std::uint8_t nintendo_key;
+    if(!nintendo && std::filesystem::exists(physical_path))
+    {
+        auto physical = read_vector(physical_path);
+        if(physical.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader) && physical[sizeof(CMD_ParameterListHeader)] == 0xFF)
+            nintendo = true;
+    }
+
+    if(nintendo)
+    {
+        key = 0;
+        main_data_offset = offsetof(DataFrame, cpr_mai);
+    }
 
     uint32_t sector_count = sdram_size / sizeof(RecordingFrame) + DVD_LBA_START;
     for(uint32_t lba = 0; lba < sector_count; ++lba)
@@ -180,9 +198,20 @@ void extract_iso(Context &ctx, Options &options)
             else
                 descramble_errors.back().second = lba;
         }
-        iso_fs.write((char *)&df + offsetof(DataFrame, main_data), FORM1_DATA_SIZE);
+        iso_fs.write((char *)&df + main_data_offset, FORM1_DATA_SIZE);
         if(iso_fs.fail())
             throw_line("write failed ({})", iso_path.filename().string());
+
+        if(nintendo)
+        {
+            if(lba == 0)
+            {
+                auto sum = std::accumulate(df.cpr_mai, df.cpr_mai + 8, 0);
+                nintendo_key = ((sum >> 4) + sum) & 0xF;
+            }
+            else if(lba == ECC_FRAMES - 1)
+                key = nintendo_key;
+        }
     }
 
     for(auto const &d : descramble_errors)

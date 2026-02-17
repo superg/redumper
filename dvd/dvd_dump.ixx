@@ -626,6 +626,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                     // calculate physical sectors count based on all layers of physical structures
                     auto &layer_descriptor = (READ_DVD_STRUCTURE_LayerDescriptor &)structure[sizeof(CMD_ParameterListHeader)];
                     sectors_count_physical = sectors_count_physical.value_or(0) + get_dvd_layer_length(layer_descriptor);
+
+                    // nintendo discs have first byte 0xFF
+                    if(structure[sizeof(CMD_ParameterListHeader)] == 0xFF)
+                        ctx.nintendo = true;
                 }
 
                 // XGD physical sector count is only for video partition
@@ -819,7 +823,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    bool raw = options.dvd_raw && omnidrive_firmware;
+    bool raw = (options.dvd_raw || ctx.nintendo) && omnidrive_firmware;
     if(options.dvd_raw && !omnidrive_firmware)
         LOG("warning: drive not compatible with raw DVD dumping");
 

@@ -831,7 +831,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     auto cfg = dump_get_config(ctx.disc_type, raw);
 
     uint32_t dump_read_size;
-    if (options.dump_read_size)
+    if(options.dump_read_size)
         dump_read_size = *options.dump_read_size;
     else if(raw && omnidrive_firmware)
         dump_read_size = 31; // default total transfer length less than 65536 bytes

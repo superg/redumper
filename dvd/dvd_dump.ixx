@@ -832,9 +832,17 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     uint32_t dump_read_size;
     if(options.dump_read_size)
+    {
+        if(*options.dump_read_size <= 0)
+            throw_line("dump read size must be positive (value: {})", *options.dump_read_size);
         dump_read_size = *options.dump_read_size;
+    }
     else if(raw && omnidrive_firmware)
-        dump_read_size = 31; // default total transfer length less than 65536 bytes
+    {
+        // ensure default total transfer length is less than 65536 bytes (31 * 2064)
+        LOG("warning: setting dump read size to 31 for raw dumping");
+        dump_read_size = 31;
+    }
     else
         dump_read_size = DVD_READ_SIZE;
 

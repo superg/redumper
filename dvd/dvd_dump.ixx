@@ -830,13 +830,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     auto cfg = dump_get_config(ctx.disc_type, raw);
 
-    uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
-    if(raw && omnidrive_firmware && sectors_at_once == 32)
-    {
-        // ensure default total transfer length is less than 65536 bytes (31 * 2064)
-        LOG("warning: setting dump read size to 31 for raw dumping");
-        sectors_at_once = 31;
-    }
+    uint32_t dump_read_size;
+    if (options.dump_read_size)
+        dump_read_size = *options.dump_read_size;
+    else if(raw && omnidrive_firmware)
+        dump_read_size = 31; // default total transfer length less than 65536 bytes
+    else
+        dump_read_size = DVD_READ_SIZE;
+
+    const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : dump_read_size);
 
     std::vector<uint8_t> file_data(sectors_at_once * cfg.sector_size);
     std::vector<State> file_state(sectors_at_once);

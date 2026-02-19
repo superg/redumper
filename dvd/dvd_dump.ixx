@@ -833,6 +833,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : options.dump_read_size);
     if(raw && omnidrive_firmware && sectors_at_once == 32)
     {
+        // ensure default total transfer length is less than 65536 bytes (31 * 2064)
         LOG("warning: setting dump read size to 31 for raw dumping");
         sectors_at_once = 31;
     }

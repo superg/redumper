@@ -233,7 +233,7 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
             // dummy read to cache lead-out
             std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
             bool all_types = false;
-            SPTD::Status status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba);
+            SPTD::Status status = read_sector(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba, false);
             if(status.status_code && options.verbose)
                 LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 

@@ -44,7 +44,7 @@ int32_t read_scrambled(SPTD &sptd, const DriveConfig &drive_config, uint8_t *sec
     {
         int32_t lba_current = lba + i;
         bool unscrambled = false;
-        SPTD::Status status = read_sector_new(sptd, sector_buffer.data(), unscrambled, drive_config, lba_current);
+        SPTD::Status status = read_sector(sptd, sector_buffer.data(), unscrambled, drive_config, lba_current, false);
         if(status.status_code)
             throw_line("SCSI error (LBA: {}, status: {})", lba_current, SPTD::StatusMessage(status));
         if(unscrambled)

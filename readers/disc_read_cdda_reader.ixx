@@ -144,7 +144,7 @@ private:
         {
             int32_t lba_current = lba + i;
             bool unscrambled = false;
-            SPTD::Status status = read_sector_new(_sptd, sector_buffer.data(), unscrambled, _driveConfig, lba_current);
+            SPTD::Status status = read_sector(_sptd, sector_buffer.data(), unscrambled, _driveConfig, lba_current, false);
             if(status.status_code)
                 throw_line("SCSI error (LBA: {}, status: {})", lba_current, SPTD::StatusMessage(status));
             if(unscrambled)

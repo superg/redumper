@@ -441,7 +441,7 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 }
 
 
-export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba)
+export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba, bool flush_cache)
 {
     SPTD::Status status;
 
@@ -454,49 +454,60 @@ export SPTD::Status read_sector_new(SPTD &sptd, uint8_t *sector, bool &unscrambl
     // cmd_read_cdda / cmd_read_cd functions internally "knows" this buffer size
     std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * sectors_count);
 
-    // D8
-    if(drive_config.read_method == ReadMethod::D8)
+    if(is_omnidrive_firmware(drive_config))
     {
-        auto sub_code = drive_config.sector_order == SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
-        status = cmd_read_cdda(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, sub_code);
+        status = cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, OmniDrive_DiscType::CD, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true);
     }
     else
     {
-        auto error_field = layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2;
-        auto sub_channel = layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
+        // flush cache
+        if(flush_cache)
+            cmd_read(sptd, nullptr, 0, lba, 0, true);
 
-        bool read_all_types = false;
-        if(unscrambled)
+        // D8
+        if(drive_config.read_method == ReadMethod::D8)
         {
-            read_all_types = true;
+            auto sub_code = drive_config.sector_order == SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
+            status = cmd_read_cdda(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, sub_code);
         }
-        // read as audio (according to MMC-3 standard, the CD-DA sector type support is optional)
         else
         {
-            status = cmd_read_cd(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
-            if(status.status_code)
+            auto error_field = layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2;
+            auto sub_channel = layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
+
+            bool read_all_types = false;
+            if(unscrambled)
             {
                 read_all_types = true;
             }
-        }
-
-        // read failed, either data sector is encountered (likely) or CD-DA sector type call is unsupported (unlikely)
-        if(read_all_types)
-        {
-            // read without filter
-            status = cmd_read_cd(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
-
-            // read success
-            if(!status.status_code && layout.data_offset != CD_RAW_DATA_SIZE)
+            // read as audio (according to MMC-3 standard, the CD-DA sector type support is optional)
+            else
             {
-                auto data = sector_buffer.data() + layout.data_offset;
-
-                // rule out audio sector if CD-DA sector type call is unsupported
-                if(std::equal(data, data + sizeof(CD_DATA_SYNC), CD_DATA_SYNC))
+                status = cmd_read_cd(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
+                if(status.status_code)
                 {
-                    // scramble data back
-                    Scrambler::process(data, data, 0, CD_DATA_SIZE);
-                    unscrambled = true;
+                    read_all_types = true;
+                }
+            }
+
+            // read failed, either data sector is encountered (likely) or CD-DA sector type call is unsupported (unlikely)
+            if(read_all_types)
+            {
+                // read without filter
+                status = cmd_read_cd(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
+
+                // read success
+                if(!status.status_code && layout.data_offset != CD_RAW_DATA_SIZE)
+                {
+                    auto data = sector_buffer.data() + layout.data_offset;
+
+                    // rule out audio sector if CD-DA sector type call is unsupported
+                    if(std::equal(data, data + sizeof(CD_DATA_SYNC), CD_DATA_SYNC))
+                    {
+                        // scramble data back
+                        Scrambler::process(data, data, 0, CD_DATA_SIZE);
+                        unscrambled = true;
+                    }
                 }
             }
         }
@@ -635,7 +646,7 @@ export std::optional<int32_t> track_offset_by_sync(Context &ctx, uint32_t lba, u
         for(uint32_t j = 0; j < sectors_to_check; ++j)
         {
             bool all_types = false;
-            auto status = read_sector_new(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba + i + j);
+            auto status = read_sector(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba + i + j, false);
             if(status.status_code)
                 throw_line("failed to read sector");
 

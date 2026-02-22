@@ -141,7 +141,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "PLEXTOR" , "DVDR PX-704A"     , "1.11", "07/07/05 10:00"      , "",  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "DVDR PX-708A"     , "1.12", "03/13/06 21:00"      , "",  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
     { "PLEXTOR" , "DVDR PX-708A2"    , "1.09", "03/31/06 10:00"      , "",  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
-    { "TDK"     , "DVDRW840G"        , "1.03", "10/14/03 18:00"      , "",  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // donutbruit, PX-708 rebadge
+    { "TDK"     , "DVDRW840G"        , "1.12", "03/13/06 21:00"      , "",  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // donutbruit, PX-708 rebadge
     { "PLEXTOR" , "DVDR PX-712A"     , "1.09", "03/31/06 10:00"      , "",  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED
     { "PLEXTOR" , "DVDR PX-714A"     , "1.09", "10/05/05 08:00"      , "",  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "DVDR PX-716A"     , "1.11", "03/23/07 15:10"      , "",  +30, 295,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  }, // CHECKED

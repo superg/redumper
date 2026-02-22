@@ -383,7 +383,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
             // read sector
             auto read_time_start = std::chrono::high_resolution_clock::now();
             bool unscrambled = options.force_unscrambled;
-            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, r);
+            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, r != 0);
             auto read_time_stop = std::chrono::high_resolution_clock::now();
 
             if(!data_unscrambled_message && unscrambled)

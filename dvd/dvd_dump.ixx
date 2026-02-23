@@ -525,31 +525,34 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
         status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(DataFrame), lba_base, sectors_count, OmniDrive_DiscType::DVD, false, force_unit_access, false,
             OmniDrive_Subchannels::NONE, false);
 
-        bool valid = true;
-        for(uint32_t i = 0; i < sectors_count; ++i)
+        if(!status.status_code)
         {
-            DataFrame df = data_frames[i];
-            int32_t lba = lba_base + (int32_t)i;
-
-            std::optional<uint8_t> key;
-            if(nintendo_key && lba >= 0)
-                key = lba < (int32_t)ECC_FRAMES ? 0 : *nintendo_key;
-
-            if(scrambler.descramble(df, key))
+            bool valid = true;
+            for(uint32_t i = 0; i < sectors_count; ++i)
             {
-                if(nintendo_key && lba == 0)
-                    *nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
+                DataFrame df = data_frames[i];
+                int32_t lba = lba_base + (int32_t)i;
+
+                std::optional<uint8_t> key;
+                if(nintendo_key && lba >= 0)
+                    key = lba < (int32_t)ECC_FRAMES ? 0 : *nintendo_key;
+
+                if(scrambler.descramble(df, key))
+                {
+                    if(nintendo_key && lba == 0)
+                        *nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
+                }
+                else
+                    valid = false;
+
+                auto &recording_frame = (RecordingFrame &)sectors[i * sizeof(RecordingFrame)];
+                recording_frame = DataFrame_to_RecordingFrame(data_frames[i]);
             }
-            else
-                valid = false;
 
-            auto &recording_frame = (RecordingFrame &)sectors[i * sizeof(RecordingFrame)];
-            recording_frame = DataFrame_to_RecordingFrame(data_frames[i]);
+            // assume read error if descrambling fails
+            if(!valid)
+                status = SPTD::Status{ 0x02, 0x04, 0x10 };
         }
-
-        // assume read error if descrambling fails
-        if(!valid)
-            status = SPTD::Status{ 0x02, 0x04, 0x10 };
     }
     else
         status = cmd_read(sptd, sectors, sector_size, lba_base, sectors_count, force_unit_access);

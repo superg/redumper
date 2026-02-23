@@ -14,6 +14,7 @@ export enum class CDB_OperationCode : uint8_t
     INQUIRY = 0x12,
     START_STOP_UNIT = 0x1B,
     READ_CAPACITY = 0x25,
+    SEEK = 0x2B,
     SYNCHRONIZE_CACHE = 0x35,
     WRITE_BUFFER = 0x3B,
     READ_TOC = 0x43,
@@ -734,6 +735,20 @@ export struct CDB12_ReportKey
     uint8_t key_format :6;
     uint8_t agid       :2;
     uint8_t control;
+};
+
+
+export struct CDB12_Seek
+{
+    uint8_t operation_code;
+    uint8_t reserved1;
+    uint8_t lba[4];
+    uint8_t reserved2;
+    uint8_t reserved3;
+    uint8_t reserved4;
+    uint8_t reserved5;
+    uint8_t reserved6;
+    uint8_t reserved7;
 };
 
 

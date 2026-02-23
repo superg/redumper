@@ -36,18 +36,22 @@ export enum class ZoneType : uint8_t
 
 export struct DataFrame
 {
-    struct
+    struct ID
     {
-        uint8_t layer_number       :1;
-        uint8_t data_type          :1;
-        ZoneType zone_type         :2;
-        uint8_t reserved           :1;
-        uint8_t reflectivity       :1;
-        uint8_t tracking_method    :1;
-        uint8_t sector_format_type :1;
-        uint8_t sector_number[3];
+        struct
+        {
+            uint8_t layer_number       :1;
+            uint8_t data_type          :1;
+            ZoneType zone_type         :2;
+            uint8_t reserved           :1;
+            uint8_t reflectivity       :1;
+            uint8_t tracking_method    :1;
+            uint8_t sector_format_type :1;
+            uint8_t sector_number[3];
+        } id;
+        uint16_t ied;
     } id;
-    uint16_t ied;
+
     uint8_t cpr_mai[6];
     uint8_t main_data[FORM1_DATA_SIZE];
     uint32_t edc;
@@ -127,22 +131,20 @@ export DataFrame RecordingFrame_to_DataFrame(const RecordingFrame &recording_fra
 }
 
 
-export bool validate_id(const uint8_t *id)
+export bool validate_id(const DataFrame::ID &id)
 {
     // generator G(x) = x^2 + g1*x + g2
     uint8_t g1 = gf.add(1, gf.exp[1]); // alpha0 + alpha1
     uint8_t g2 = gf.exp[1];            // alpha0 * alpha1
 
     // initialize coefficients
-    uint8_t poly[6] = { 0 };
-    for(uint8_t i = 0; i < 4; ++i)
-        poly[i] = id[i];
+    DataFrame::ID p{ id.id, 0 };
+    uint8_t *poly = (uint8_t *)&p;
 
     // polynomial long division
-    for(uint8_t i = 0; i <= 3; ++i)
+    for(uint8_t i = 0; i < sizeof(p.id); ++i)
     {
-        uint8_t coef = poly[i];
-        if(coef != 0)
+        if(uint8_t coef = poly[i]; coef)
         {
             poly[i + 0] = 0;
             poly[i + 1] = gf.add(poly[i + 1], gf.mul(coef, g1));
@@ -150,7 +152,7 @@ export bool validate_id(const uint8_t *id)
         }
     }
 
-    return (poly[4] == id[4]) && (poly[5] == id[5]);
+    return p.ied == id.ied;
 }
 
 }

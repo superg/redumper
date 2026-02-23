@@ -193,6 +193,16 @@ export SPTD::Status cmd_report_key(SPTD &sptd, std::vector<uint8_t> &response, u
 }
 
 
+export SPTD::Status cmd_seek(SPTD &sptd, int32_t lba)
+{
+    CDB12_Seek cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::SEEK;
+    *(int32_t *)cdb.lba = endian_swap(lba);
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+}
+
+
 export SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, bool force_unit_access)
 {
     CDB12_Read cdb = {};

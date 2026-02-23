@@ -14,6 +14,7 @@ import cd.cdrom;
 import drive;
 import dvd;
 import dvd.edc;
+import dvd.scrambler;
 import range;
 import scsi.cmd;
 import scsi.mmc;
@@ -351,18 +352,17 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
     }
     else if(omnidrive)
     {
-        std::vector<uint8_t> raw_sector(sizeof(DataFrame));
-        auto &df = (DataFrame &)raw_sector[0];
+        DataFrame df;
         bool ss_found = false;
         for(uint8_t ss_retries = 0; ss_retries < 4; ++ss_retries)
         {
             uint32_t ss_address = XGD_SS_LEADOUT_SECTOR + ss_retries * 0x40;
-            auto status = cmd_read_omnidrive(sptd, raw_sector.data(), sizeof(DataFrame), ss_address, 1, OmniDrive_DiscType::DVD, true, false, true, OmniDrive_Subchannels::NONE, false);
+            auto status = cmd_read_omnidrive(sptd, (uint8_t *)&df, sizeof(DataFrame), ss_address, 1, OmniDrive_DiscType::DVD, true, false, false, OmniDrive_Subchannels::NONE, false);
             if(status.status_code)
                 LOG("[PSN: {:X}] omnidrive: SCSI error ({})", ss_address, SPTD::StatusMessage(status));
             else
             {
-                if(validate_id(raw_sector.data()) && endian_swap(df.edc) == DVD_EDC().update(raw_sector.data(), offsetof(DataFrame, edc)).final())
+                if(dvd::Scrambler().descramble(df, std::nullopt))
                 {
                     ss_found = true;
                     break;

@@ -19,6 +19,7 @@ import common;
 import drive;
 import dvd;
 import dvd.css;
+import dvd.scrambler;
 import dvd.xbox;
 import filesystem.iso9660;
 import filesystem.udf;
@@ -509,7 +510,8 @@ DumpConfig dump_get_config(DiscType disc_type, bool raw)
 }
 
 
-export SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size, int32_t lba, uint32_t sectors_count, bool force_unit_access, DiscType disc_type, bool raw)
+SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size, int32_t lba_base, uint32_t sectors_count, bool force_unit_access, DiscType disc_type, bool raw,
+    std::optional<uint8_t> &nintendo_key)
 {
     SPTD::Status status;
 
@@ -519,20 +521,45 @@ export SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sect
             throw_line("invalid sector size for raw DVD read (expected: {}, actual: {})", sizeof(RecordingFrame), sector_size);
 
         std::vector<DataFrame> data_frames(sectors_count);
-        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(DataFrame), lba, sectors_count, OmniDrive_DiscType::DVD, false, force_unit_access, false, OmniDrive_Subchannels::NONE,
-            false);
+        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(DataFrame), lba_base, sectors_count, OmniDrive_DiscType::DVD, false, force_unit_access, false,
+            OmniDrive_Subchannels::NONE, false);
 
+        bool valid = true;
         for(uint32_t i = 0; i < sectors_count; ++i)
         {
+            DataFrame df = data_frames[i];
+            int32_t lba = lba_base + (int32_t)i;
+
+            std::optional<uint8_t> key;
+            if(nintendo_key && lba >= 0)
+                key = lba < (int32_t)ECC_FRAMES ? 0 : *nintendo_key;
+
+            if(dvd::Scrambler().descramble(df, key))
+            {
+                if(nintendo_key && lba == 0)
+                {
+                    auto sum = std::accumulate(df.cpr_mai, df.cpr_mai + 8, 0);
+                    *nintendo_key = ((sum >> 4) + sum) & 0xF;
+                }
+            }
+            else
+                valid = false;
+
             auto &recording_frame = (RecordingFrame &)sectors[i * sizeof(RecordingFrame)];
             recording_frame = DataFrame_to_RecordingFrame(data_frames[i]);
         }
+
+        // assume read error if descrambling fails
+        if(!valid)
+            status = SPTD::Status{ 0x02, 0x04, 0x10 };
     }
     else
-        status = cmd_read(sptd, sectors, sector_size, lba, sectors_count, force_unit_access);
+        status = cmd_read(sptd, sectors, sector_size, lba_base, sectors_count, force_unit_access);
 
     return status;
 }
+
+
 void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors)
 {
     char animation = lba == lba_end ? '*' : spinner_animation();
@@ -588,7 +615,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     bool trim_to_filesystem_size = options.filesystem_trim;
     FilesystemContext fs_ctx;
 
-    bool nintendo = false;
+    std::optional<uint8_t> nintendo_key;
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
 
@@ -630,7 +657,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                     // nintendo discs have first byte 0xFF
                     if(structure[sizeof(CMD_ParameterListHeader)] == 0xFF)
-                        nintendo = true;
+                        nintendo_key = 0;
                 }
 
                 // XGD physical sector count is only for video partition
@@ -824,7 +851,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    bool raw = (options.dvd_raw || nintendo) && omnidrive_firmware;
+    bool raw = (options.dvd_raw || nintendo_key) && omnidrive_firmware;
     if(options.dvd_raw && !omnidrive_firmware)
         LOG("warning: drive not compatible with raw DVD dumping");
 
@@ -909,6 +936,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
+    // FIXME: remove after OmniDrive firmware fix
+    if(omnidrive_firmware)
+    {
+        auto status = cmd_seek(*ctx.sptd, 0);
+        if(status.status_code)
+            throw_line("omnidrive: failed to seek, SCSI ({})", SPTD::StatusMessage(status));
+    }
+
     for(int32_t lba = lba_start; lba < lba_end;)
     {
         progress_output(lba, lba_start, lba_end, errors.scsi);
@@ -974,7 +1009,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 store = true;
             else
             {
-                if(auto status = read_dvd_sectors(*ctx.sptd, drive_data.data(), cfg.sector_size, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter, ctx.disc_type, raw);
+                if(auto status = read_dvd_sectors(*ctx.sptd, drive_data.data(), cfg.sector_size, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter, ctx.disc_type, raw,
+                       nintendo_key);
                     status.status_code)
                 {
                     if(options.verbose)
@@ -982,8 +1018,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         std::string status_retries;
                         if(dump_mode == DumpMode::REFINE)
                             status_retries = std::format(", retry: {}", refine_counter + 1);
-                        for(uint32_t i = 0; i < sectors_to_read; ++i)
-                            LOG_R("[LBA: {}] SCSI error ({}){}", lba + i, SPTD::StatusMessage(status), status_retries);
+                        LOG_R("[LBA: {} .. {}] SCSI error ({}){}", lba, lba + (int32_t)sectors_to_read - 1, SPTD::StatusMessage(status), status_retries);
                     }
 
                     if(dump_mode == DumpMode::DUMP)
@@ -996,8 +1031,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                         else
                         {
                             if(options.verbose)
-                                for(uint32_t i = 0; i < sectors_to_read; ++i)
-                                    LOG_R("[LBA: {}] correction failure", lba + i);
+                                LOG_R("[LBA: {} .. {}] correction failure", lba, lba + (int32_t)sectors_to_read);
 
                             refine_counter = 0;
                         }

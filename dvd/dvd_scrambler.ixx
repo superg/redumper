@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 export module dvd.scrambler;
@@ -16,22 +17,22 @@ import utils.misc;
 
 
 
-namespace gpsxre
+namespace gpsxre::dvd
 {
 
-export class DVD_Scrambler
+export class Scrambler
 {
 public:
-    DVD_Scrambler()
+    Scrambler()
         : _table(FORM1_DATA_SIZE * ECC_FRAMES)
     {
         // ECMA-267
 
         uint16_t shift_register = 0x0001;
 
-        for(uint16_t i = 0; i < _table.size(); ++i)
+        for(auto &t : _table)
         {
-            _table[i] = (uint8_t)shift_register;
+            t = (uint8_t)shift_register;
 
             for(uint8_t b = 0; b < CHAR_BIT; ++b)
             {
@@ -44,57 +45,52 @@ public:
     }
 
 
-    bool descramble(uint8_t *sector, std::optional<uint8_t> key, uint32_t size = sizeof(DataFrame)) const
+    bool descramble(DataFrame &df, std::optional<uint8_t> nintendo_key) const
     {
-        bool unscrambled = false;
-
-        // zeroed or not enough data to analyze
-        if(is_zeroed(sector, size) || size < sizeof(DataFrame::id) + sizeof(DataFrame::ied))
-            return unscrambled;
-
-        auto frame = (DataFrame *)sector;
+        bool descrambled = false;
 
         // validate sector header
-        if(!validate_id(sector))
-            return unscrambled;
+        if(!validate_id(df.id))
+            return descrambled;
 
         // determine XOR table offset
-        uint32_t psn = endian_swap_from_array<int32_t>(frame->id.sector_number);
+        uint32_t psn = endian_swap_from_array<int32_t>(df.id.id.sector_number);
         uint32_t offset = (psn >> 4 & 0xF) * FORM1_DATA_SIZE;
 
         // custom XOR table offset for nintendo
-        if(key)
-            offset = (*key ^ (psn >> 4 & 0xF)) * FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
+        if(nintendo_key)
+            offset = (*nintendo_key ^ (psn >> 4 & 0xF)) * FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
+
+        std::span data(df.main_data, FORM1_DATA_SIZE);
 
         // unscramble sector
-        process(sector, sector, offset, size);
+        process(data, offset);
 
-        if(endian_swap(frame->edc) == DVD_EDC().update(sector, offsetof(DataFrame, edc)).final())
-            unscrambled = true;
+        if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(DataFrame, edc)).final())
+            descrambled = true;
 
         // if EDC does not match, scramble sector back
-        if(!unscrambled)
-            process(sector, sector, offset, size);
+        if(!descrambled)
+            process(data, offset);
 
-        return unscrambled;
-    }
-
-
-    void process(uint8_t *output, const uint8_t *data, uint32_t offset, uint32_t size) const
-    {
-        uint32_t main_data_offset = offsetof(DataFrame, main_data);
-        for(uint32_t i = main_data_offset; i < std::min(size, (uint32_t)offsetof(DataFrame, edc)); ++i)
-        {
-            uint32_t index = offset + i - main_data_offset;
-            // wrap table (restart at index 1, not 0)
-            if(index >= _table.size())
-                index -= (_table.size() - 1);
-            output[i] = data[i] ^ _table[index];
-        }
+        return descrambled;
     }
 
 private:
     std::vector<uint8_t> _table;
+
+    void process(std::span<uint8_t> data, uint32_t table_offset) const
+    {
+        for(uint32_t i = 0; i < data.size(); ++i)
+        {
+            // wrap table (restart at index 1, not 0)
+            uint32_t index = table_offset + i;
+            if(index >= _table.size())
+                index -= _table.size() - 1;
+
+            data[i] ^= _table[index];
+        }
+    }
 };
 
 }

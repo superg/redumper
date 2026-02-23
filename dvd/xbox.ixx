@@ -333,7 +333,7 @@ export READ_DVD_STRUCTURE_LayerDescriptor get_final_layer_descriptor(const READ_
 
 
 export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protection, SPTD &sptd, const READ_DVD_STRUCTURE_LayerDescriptor &layer0_ld, uint32_t sectors_count_capacity, bool partial_ss,
-    const DriveConfig &drive_config)
+    const DriveConfig &drive_config, const dvd::Scrambler &scrambler)
 {
     bool kreon = is_kreon_firmware(drive_config);
     bool custom_kreon = kreon && is_custom_kreon_firmware(drive_config);
@@ -362,7 +362,7 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
                 LOG("[PSN: {:X}] omnidrive: SCSI error ({})", ss_address, SPTD::StatusMessage(status));
             else
             {
-                if(dvd::Scrambler().descramble(df, std::nullopt))
+                if(scrambler.descramble(df, std::nullopt))
                 {
                     ss_found = true;
                     break;

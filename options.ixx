@@ -271,6 +271,8 @@ export struct Options
                         kreon_partial_ss = true;
                     else if(key == "--dvd-raw")
                         dvd_raw = true;
+                    else if(key == "--bd-raw")
+                        dvd_raw = true;
                     else if(key == "--disable-cdtext")
                         disable_cdtext = true;
                     else if(key == "--correct-offset-shift")
@@ -416,6 +418,7 @@ export struct Options
         LOG("\t--plextor-leadin-force-store    \tstore unverified lead-in");
         LOG("\t--kreon-partial-ss              \tget minimal security sector (fixes bad firmware)");
         LOG("\t--dvd-raw                       \tdump raw DVD sectors (OmniDrive)");
+        LOG("\t--bd-raw                        \tdump raw BD sectors (OmniDrive)");
 
         LOG("\t--mediatek-skip-leadout         \tskip extracting lead-out from drive cache");
         LOG("\t--mediatek-leadout-retries      \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", mediatek_leadout_retries);

@@ -19,7 +19,7 @@ namespace gpsxre
 
 export constexpr int32_t DVD_LBA_START = -0x30000;
 export constexpr int32_t DVD_LBA_RCZ = -0x1000;
-export constexpr uint32_t ECC_FRAMES = 0x10;
+export constexpr uint32_t DVD_ECC_FRAMES = 0x10;
 
 // DVD uses primitive polynomial x^8 + x^4 + x^3 + x^2 + 1
 GF256 gf(0x11D);
@@ -73,7 +73,7 @@ void compute_parity_inner(std::span<uint8_t> parity_inner, std::span<const uint8
 {
     // PI: RS(n,k,d) where n=data_size+parity_size, k=data_size, d=parity_size
     // generator polynomial roots: alpha^0, alpha^1, ..., alpha^(parity_size-1)
-    uint8_t parity[ECC_FRAMES] = {};
+    uint8_t parity[DVD_ECC_FRAMES] = {};
     for(uint32_t col = 0; col < main_data.size(); ++col)
     {
         uint8_t feedback = gf.add(main_data[col], parity[0]);

@@ -8,6 +8,8 @@ module;
 
 export module dvd.split;
 
+import bd;
+import bd.scrambler;
 import cd.cdrom;
 import common;
 import dvd;
@@ -122,7 +124,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
 }
 
 
-void extract_iso(Context &ctx, Options &options)
+void dvd_extract_iso(Context &ctx, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -190,6 +192,7 @@ void extract_iso(Context &ctx, Options &options)
         auto df = RecordingFrame_to_DataFrame((RecordingFrame &)rf[0]);
         if(df.id.id.zone_type == ZoneType::LEADOUT_ZONE)
             break;
+
         if(!scrambler.descramble(df, key))
         {
             if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
@@ -197,6 +200,7 @@ void extract_iso(Context &ctx, Options &options)
             else
                 descramble_errors.back().second = lba;
         }
+
         iso_fs.write((char *)&df + main_data_offset, FORM1_DATA_SIZE);
         if(iso_fs.fail())
             throw_line("write failed ({})", iso_path.filename().string());
@@ -205,9 +209,81 @@ void extract_iso(Context &ctx, Options &options)
         {
             if(lba == 0)
                 nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
-            else if(lba == ECC_FRAMES - 1)
+            else if(lba == DVD_ECC_FRAMES - 1)
                 key = nintendo_key;
         }
+    }
+
+    for(auto const &d : descramble_errors)
+    {
+        if(d.first == d.second)
+            LOG("warning: descramble failed (LBA: {})", d.first);
+        else
+            LOG("warning: descramble failed (LBA: [{} .. {}])", d.first, d.second);
+    }
+}
+
+
+void bd_extract_iso(Context &ctx, Options &options)
+{
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+
+    std::filesystem::path sbram_path(image_prefix + ".sbram");
+    std::filesystem::path state_path(image_prefix + ".state");
+    std::filesystem::path iso_path(image_prefix + ".iso");
+    std::filesystem::path physical_path(image_prefix + ".physical");
+    if(!std::filesystem::exists(sbram_path))
+        return;
+    if(std::filesystem::exists(iso_path) && !options.overwrite)
+    {
+        LOG("warning: file already exists ({})", iso_path.filename().string());
+        return;
+    }
+
+    uint64_t sbram_size = std::filesystem::file_size(sbram_path);
+    if(sbram_size % sizeof(BlurayDataFrame) != 0)
+        throw_line("unexpected file size ({})", sbram_path.filename().string());
+    std::fstream sbram_fs(sbram_path, std::fstream::in | std::fstream::binary);
+    if(!sbram_fs.is_open())
+        throw_line("unable to open file ({})", sbram_path.filename().string());
+
+    std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
+    if(!state_fs.is_open())
+        throw_line("unable to open file ({})", state_path.filename().string());
+
+    std::fstream iso_fs(iso_path, std::fstream::out | std::fstream::binary);
+    if(!iso_fs.is_open())
+        throw_line("unable to open file ({})", iso_path.filename().string());
+
+    std::vector<uint8_t> sector(sizeof(BlurayDataFrame));
+    std::vector<std::pair<int32_t, int32_t>> descramble_errors;
+
+    // start extracting ISO from LBA 0
+    sbram_fs.seekg(-BD_LBA_START * sizeof(BlurayDataFrame));
+    if(sbram_fs.fail())
+        throw_line("seek failed");
+
+    uint32_t sector_count = sbram_size / sizeof(BlurayDataFrame) + BD_LBA_START;
+    for(uint32_t lba = 0; lba < sector_count; ++lba)
+    {
+        read_entry(sbram_fs, sector.data(), sector.size(), lba - BD_LBA_START, 1, 0, 0);
+        State state;
+        read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - BD_LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
+        if(state == State::ERROR_SKIP && !options.force_split)
+            throw_line("read errors detected, unable to continue");
+        auto bdf = (BlurayDataFrame &)sector[0];
+
+        if(!bd::descramble(bdf, lba - BD_LBA_START))
+        {
+            if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
+                descramble_errors.emplace_back(lba, lba);
+            else
+                descramble_errors.back().second = lba;
+        }
+
+        iso_fs.write((char *)&bdf, FORM1_DATA_SIZE);
+        if(iso_fs.fail())
+            throw_line("write failed ({})", iso_path.filename().string());
     }
 
     for(auto const &d : descramble_errors)
@@ -225,12 +301,13 @@ export void redumper_split_dvd(Context &ctx, Options &options)
     // generate .dmi, .pfi, .ss if xbox disc
     generate_extra_xbox(ctx, options);
 
-    // prevent hash generation for ISO with scsi errors
+    // prevent hash generation for dumps with scsi errors
     if(ctx.dump_errors && ctx.dump_errors->scsi && !options.force_split)
         throw_line("{} scsi errors detected, unable to continue", ctx.dump_errors->scsi);
 
-    // descramble and extract user data from raw DVD dumps
-    extract_iso(ctx, options);
+    // descramble and extract user data from raw BD/DVD dumps
+    bd_extract_iso(ctx, options);
+    dvd_extract_iso(ctx, options);
 }
 
 }

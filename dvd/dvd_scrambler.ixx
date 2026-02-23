@@ -24,7 +24,7 @@ export class Scrambler
 {
 public:
     Scrambler()
-        : _table(FORM1_DATA_SIZE * ECC_FRAMES)
+        : _table(FORM1_DATA_SIZE * DVD_ECC_FRAMES)
     {
         // ECMA-267
 

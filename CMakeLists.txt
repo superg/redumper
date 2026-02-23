@@ -113,6 +113,8 @@ target_sources(redumper
     "drive/plextor.ixx"
     "drive/mediatek.ixx"
     "drive/test.ixx"
+    "dvd/bd.ixx"
+    "dvd/bd_scrambler.ixx"
     "dvd/css/css.ixx"
     "dvd/dvd.ixx"
     "dvd/dvd_dump.ixx"

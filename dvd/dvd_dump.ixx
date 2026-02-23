@@ -14,6 +14,8 @@ module;
 
 export module dvd.dump;
 
+import bd;
+import bd.scrambler;
 import cd.cdrom;
 import common;
 import drive;
@@ -506,6 +508,10 @@ DumpConfig dump_get_config(DiscType disc_type, bool raw)
     {
         config = DumpConfig{ ".sdram", sizeof(RecordingFrame), DVD_LBA_START, DVD_LBA_RCZ - (int32_t)OVERREAD_COUNT, 0 };
     }
+    else if((disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R) && raw)
+    {
+        config = DumpConfig{ ".sbram", sizeof(BlurayDataFrame), BD_LBA_START, BD_LBA_IZ - (int32_t)OVERREAD_COUNT, 0 };
+    }
 
     return config;
 }
@@ -535,7 +541,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 
                 std::optional<uint8_t> key;
                 if(nintendo_key && lba >= 0)
-                    key = lba < (int32_t)ECC_FRAMES ? 0 : *nintendo_key;
+                    key = lba < (int32_t)DVD_ECC_FRAMES ? 0 : *nintendo_key;
 
                 if(scrambler.descramble(df, key))
                 {
@@ -547,6 +553,36 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 
                 auto &recording_frame = (RecordingFrame &)sectors[i * sizeof(RecordingFrame)];
                 recording_frame = DataFrame_to_RecordingFrame(data_frames[i]);
+            }
+
+            // assume read error if descrambling fails
+            if(!valid)
+                status = SPTD::Status{ 0x02, 0x04, 0x10 };
+        }
+    }
+    else if((disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R) && raw)
+    {
+        if(sector_size != sizeof(BlurayDataFrame))
+            throw_line("invalid sector size for raw BD read (expected: {}, actual: {})", sizeof(BlurayDataFrame), sector_size);
+
+        std::vector<OmniDriveBlurayDataFrame> data_frames(sectors_count);
+        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(OmniDriveBlurayDataFrame), lba_base, sectors_count, OmniDrive_DiscType::BD, false, force_unit_access, false,
+            OmniDrive_Subchannels::NONE, false);
+
+        if(!status.status_code)
+        {
+            bool valid = true;
+            for(uint32_t i = 0; i < sectors_count; ++i)
+            {
+                BlurayDataFrame bdf;
+                std::memcpy(&bdf, &data_frames[i], sizeof(BlurayDataFrame));
+                int32_t lba = lba_base + (int32_t)i;
+
+                if(!bd::descramble(bdf, lba - BD_LBA_START))
+                    valid = false;
+
+                auto &bluray_data_frame = (BlurayDataFrame &)sectors[i * sizeof(BlurayDataFrame)];
+                std::copy_n((uint8_t *)&data_frames[i], sizeof(BlurayDataFrame), (uint8_t *)&bluray_data_frame);
             }
 
             // assume read error if descrambling fails

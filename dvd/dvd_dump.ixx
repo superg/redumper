@@ -538,7 +538,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             if(scrambler.descramble(df, key))
             {
                 if(nintendo_key && lba == 0)
-                    *nintendo_key = *nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
+                    *nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
             }
             else
                 valid = false;

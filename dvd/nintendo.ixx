@@ -5,8 +5,6 @@ module;
 
 export module dvd.nintendo;
 
-import dvd;
-
 
 
 namespace gpsxre::nintendo

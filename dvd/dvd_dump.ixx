@@ -896,6 +896,27 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     ROMEntry rom_entry(iso_path.filename().string());
     bool rom_update = true;
 
+    // read key from the image file if nintendo and refining (LBA 0 might not need refining and thus will be skipped)
+    if(nintendo_key && dump_mode == DumpMode::REFINE)
+    {
+        RecordingFrame rf;
+        State state;
+
+        uint32_t lba_index = 0 - cfg.lba_zero;
+
+        read_entry(fs_iso, (uint8_t *)&rf, cfg.sector_size, lba_index, 1, 0, 0);
+        read_entry(fs_state, (uint8_t *)&state, sizeof(State), lba_index, 1, 0, (uint8_t)State::ERROR_SKIP);
+
+        if(state != State::ERROR_SKIP)
+        {
+            if(DataFrame df = RecordingFrame_to_DataFrame(rf); scrambler.descramble(df, *nintendo_key))
+            {
+                auto sum = std::accumulate(df.cpr_mai, df.cpr_mai + 8, 0);
+                *nintendo_key = ((sum >> 4) + sum) & 0xF;
+            }
+        }
+    }
+
     // TODO: can be implemented later
     if(raw)
     {

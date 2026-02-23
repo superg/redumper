@@ -19,6 +19,7 @@ import common;
 import drive;
 import dvd;
 import dvd.css;
+import dvd.nintendo;
 import dvd.scrambler;
 import dvd.xbox;
 import filesystem.iso9660;
@@ -537,10 +538,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             if(scrambler.descramble(df, key))
             {
                 if(nintendo_key && lba == 0)
-                {
-                    auto sum = std::accumulate(df.cpr_mai, df.cpr_mai + 8, 0);
-                    *nintendo_key = ((sum >> 4) + sum) & 0xF;
-                }
+                    *nintendo_key = *nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
             }
             else
                 valid = false;
@@ -897,7 +895,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     bool rom_update = true;
 
     // read key from the image file if nintendo and refining (LBA 0 might not need refining and thus will be skipped)
-    if(nintendo_key && dump_mode == DumpMode::REFINE)
+    if(nintendo_key && raw && dump_mode == DumpMode::REFINE)
     {
         RecordingFrame rf;
         State state;
@@ -910,10 +908,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(state != State::ERROR_SKIP)
         {
             if(DataFrame df = RecordingFrame_to_DataFrame(rf); scrambler.descramble(df, *nintendo_key))
-            {
-                auto sum = std::accumulate(df.cpr_mai, df.cpr_mai + 8, 0);
-                *nintendo_key = ((sum >> 4) + sum) & 0xF;
-            }
+                *nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
         }
     }
 

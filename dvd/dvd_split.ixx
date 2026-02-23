@@ -1,9 +1,7 @@
 module;
 #include <cstdint>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <numeric>
 #include <string>
 #include <vector>
 #include "throw_line.hh"
@@ -13,8 +11,9 @@ export module dvd.split;
 import cd.cdrom;
 import common;
 import dvd;
-import dvd.xbox;
+import dvd.nintendo;
 import dvd.scrambler;
+import dvd.xbox;
 import options;
 import range;
 import rom_entry;
@@ -205,10 +204,7 @@ void extract_iso(Context &ctx, Options &options)
         if(nintendo)
         {
             if(lba == 0)
-            {
-                auto sum = std::accumulate(df.cpr_mai, df.cpr_mai + 8, 0);
-                nintendo_key = ((sum >> 4) + sum) & 0xF;
-            }
+                nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
             else if(lba == ECC_FRAMES - 1)
                 key = nintendo_key;
         }

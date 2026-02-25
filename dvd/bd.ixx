@@ -27,7 +27,7 @@ export struct DataFrame
 
 export struct OmniDriveDataFrame
 {
-    BlurayDataFrame data_frame;
+    DataFrame data_frame;
     uint8_t unknown[20];
 };
 

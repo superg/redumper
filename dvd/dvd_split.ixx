@@ -124,7 +124,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
 }
 
 
-void dvd_extract_iso(Context &ctx, std::string sdram_path, Options &options)
+void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -221,7 +221,7 @@ void dvd_extract_iso(Context &ctx, std::string sdram_path, Options &options)
 }
 
 
-void bd_extract_iso(Context &ctx, std::string sbram_path, Options &options)
+void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
@@ -235,7 +235,7 @@ void bd_extract_iso(Context &ctx, std::string sbram_path, Options &options)
     }
 
     uint64_t sbram_size = std::filesystem::file_size(sbram_path);
-    if(sbram_size % sizeof(BlurayDataFrame) != 0)
+    if(sbram_size % sizeof(DataFrame) != 0)
         throw_line("unexpected file size ({})", sbram_path.filename().string());
     std::fstream sbram_fs(sbram_path, std::fstream::in | std::fstream::binary);
     if(!sbram_fs.is_open())
@@ -250,15 +250,15 @@ void bd_extract_iso(Context &ctx, std::string sbram_path, Options &options)
         throw_line("unable to open file ({})", iso_path.filename().string());
 
     dvd::Scrambler scrambler;
-    std::vector<uint8_t> sector(sizeof(BlurayDataFrame));
+    std::vector<uint8_t> sector(sizeof(DataFrame));
     std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
     // start extracting ISO from LBA 0
-    sbram_fs.seekg(-bd::LBA_START * sizeof(BlurayDataFrame));
+    sbram_fs.seekg(-bd::LBA_START * sizeof(DataFrame));
     if(sbram_fs.fail())
         throw_line("seek failed");
 
-    uint32_t sector_count = sbram_size / sizeof(BlurayDataFrame) + bd::LBA_START;
+    uint32_t sector_count = sbram_size / sizeof(DataFrame) + bd::LBA_START;
     for(uint32_t lba = 0; lba < sector_count; ++lba)
     {
         read_entry(sbram_fs, sector.data(), sector.size(), lba - bd::LBA_START, 1, 0, 0);
@@ -266,7 +266,7 @@ void bd_extract_iso(Context &ctx, std::string sbram_path, Options &options)
         read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - bd::LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
         if(state == State::ERROR_SKIP && !options.force_split)
             throw_line("read errors detected, unable to continue");
-        auto bdf = (BlurayDataFrame &)sector[0];
+        auto bdf = (DataFrame &)sector[0];
 
         if(!scrambler.descramble(bdf, lba - bd::LBA_START))
         {
@@ -305,9 +305,9 @@ export void redumper_split_dvd(Context &ctx, Options &options)
     std::filesystem::path sdram_path(image_prefix + ".sdram");
     std::filesystem::path sbram_path(image_prefix + ".sbram");
 
-    if(std::filesystem::exists(sdram_path)
+    if(std::filesystem::exists(sdram_path))
         dvd_extract_iso(ctx, sdram_path, options);
-    else if(std::filesystem::exists(sbram_path)
+    else if(std::filesystem::exists(sbram_path))
         bd_extract_iso(ctx, sbram_path, options);
 }
 

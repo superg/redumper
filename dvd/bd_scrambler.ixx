@@ -24,7 +24,7 @@ namespace gpsxre::bd
 export class Scrambler
 {
 public:
-    export bool descramble(bd::DataFrame &df, uint32_t psn)
+    bool descramble(bd::DataFrame &df, uint32_t psn)
     {
         bool descrambled = false;
 

@@ -266,9 +266,9 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
         read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - bd::LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
         if(state == State::ERROR_SKIP && !options.force_split)
             throw_line("read errors detected, unable to continue");
-        auto bdf = (bd::DataFrame &)sector[0];
+        auto df = (bd::DataFrame &)sector[0];
 
-        if(!scrambler.descramble(bdf, lba - bd::LBA_START))
+        if(!scrambler.descramble(df, lba - bd::LBA_START))
         {
             if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
                 descramble_errors.emplace_back(lba, lba);
@@ -276,7 +276,7 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
                 descramble_errors.back().second = lba;
         }
 
-        iso_fs.write((char *)&bdf, FORM1_DATA_SIZE);
+        iso_fs.write((char *)&df, FORM1_DATA_SIZE);
         if(iso_fs.fail())
             throw_line("write failed ({})", iso_path.filename().string());
     }

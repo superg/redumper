@@ -28,7 +28,7 @@ export struct DataFrame
 export struct OmniDriveDataFrame
 {
     DataFrame data_frame;
-    uint8_t unknown[20];
+    uint8_t unknown[18];
 };
 
 }

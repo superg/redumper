@@ -578,11 +578,10 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             bd::Scrambler bd_scrambler;
             for(uint32_t i = 0; i < sectors_count; ++i)
             {
-                bd::DataFrame bdf;
-                std::memcpy(&bdf, &data_frames[i], sizeof(bd::DataFrame));
+                bd::DataFrame df = data_frames[i].data_frame;
                 int32_t lba = lba_base + (int32_t)i;
 
-                if(!bd_scrambler.descramble(bdf, lba - bd::LBA_START))
+                if(!bd_scrambler.descramble(df, lba - bd::LBA_START))
                     valid = false;
 
                 auto &bluray_data_frame = (bd::DataFrame &)sectors[i * sizeof(bd::DataFrame)];

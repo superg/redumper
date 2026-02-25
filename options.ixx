@@ -64,6 +64,7 @@ export struct Options
     int mediatek_leadout_retries;
     bool kreon_partial_ss;
     bool dvd_raw;
+    bool bd_raw;
     bool disable_cdtext;
     bool correct_offset_shift;
     bool offset_shift_relocate;
@@ -111,6 +112,7 @@ export struct Options
         , mediatek_leadout_retries(32)
         , kreon_partial_ss(false)
         , dvd_raw(false)
+        , bd_raw(false)
         , disable_cdtext(false)
         , correct_offset_shift(false)
         , offset_shift_relocate(false)
@@ -272,7 +274,7 @@ export struct Options
                     else if(key == "--dvd-raw")
                         dvd_raw = true;
                     else if(key == "--bd-raw")
-                        dvd_raw = true;
+                        bd_raw = true;
                     else if(key == "--disable-cdtext")
                         disable_cdtext = true;
                     else if(key == "--correct-offset-shift")

@@ -504,13 +504,12 @@ DumpConfig dump_get_config(DiscType disc_type, bool raw)
 {
     DumpConfig config{ ".iso", FORM1_DATA_SIZE, 0, 0, 0 };
 
-    if(disc_type == DiscType::DVD && raw)
+    if(raw)
     {
-        config = DumpConfig{ ".sdram", sizeof(RecordingFrame), DVD_LBA_START, DVD_LBA_RCZ - (int32_t)OVERREAD_COUNT, 0 };
-    }
-    else if((disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R) && raw)
-    {
-        config = DumpConfig{ ".sbram", sizeof(BlurayDataFrame), BD_LBA_START, BD_LBA_IZ - (int32_t)OVERREAD_COUNT, 0 };
+        if(disc_type == DiscType::DVD)
+            config = DumpConfig{ ".sdram", sizeof(RecordingFrame), DVD_LBA_START, DVD_LBA_RCZ - (int32_t)OVERREAD_COUNT, 0 };
+        else if((disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R))
+            config = DumpConfig{ ".sbram", sizeof(bd::DataFrame), bd::LBA_START, bd::LBA_IZ - (int32_t)OVERREAD_COUNT, 0 };
     }
 
     return config;
@@ -522,7 +521,11 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 {
     SPTD::Status status;
 
-    if(disc_type == DiscType::DVD && raw)
+    if(!raw)
+    {
+        status = cmd_read(sptd, sectors, sector_size, lba_base, sectors_count, force_unit_access);
+    }
+    else if(disc_type == DiscType::DVD)
     {
         if(sector_size != sizeof(RecordingFrame))
             throw_line("invalid sector size for raw DVD read (expected: {}, actual: {})", sizeof(RecordingFrame), sector_size);
@@ -541,7 +544,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 
                 std::optional<uint8_t> key;
                 if(nintendo_key && lba >= 0)
-                    key = lba < (int32_t)DVD_ECC_FRAMES ? 0 : *nintendo_key;
+                    key = lba < (int32_t)ECC_FRAMES ? 0 : *nintendo_key;
 
                 if(scrambler.descramble(df, key))
                 {
@@ -560,29 +563,30 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
                 status = SPTD::Status{ 0x02, 0x04, 0x10 };
         }
     }
-    else if((disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R) && raw)
+    else if(disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R)
     {
-        if(sector_size != sizeof(BlurayDataFrame))
-            throw_line("invalid sector size for raw BD read (expected: {}, actual: {})", sizeof(BlurayDataFrame), sector_size);
+        if(sector_size != sizeof(bd::DataFrame))
+            throw_line("invalid sector size for raw BD read (expected: {}, actual: {})", sizeof(bd::DataFrame), sector_size);
 
-        std::vector<OmniDriveBlurayDataFrame> data_frames(sectors_count);
-        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(OmniDriveBlurayDataFrame), lba_base, sectors_count, OmniDrive_DiscType::BD, false, force_unit_access, false,
+        std::vector<bd::OmniDriveDataFrame> data_frames(sectors_count);
+        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(bd::OmniDriveDataFrame), lba_base, sectors_count, OmniDrive_DiscType::BD, false, force_unit_access, false,
             OmniDrive_Subchannels::NONE, false);
 
         if(!status.status_code)
         {
             bool valid = true;
+            bd::Scrambler bd_scrambler;
             for(uint32_t i = 0; i < sectors_count; ++i)
             {
-                BlurayDataFrame bdf;
-                std::memcpy(&bdf, &data_frames[i], sizeof(BlurayDataFrame));
+                bd::DataFrame bdf;
+                std::memcpy(&bdf, &data_frames[i], sizeof(bd::DataFrame));
                 int32_t lba = lba_base + (int32_t)i;
 
-                if(!bd::descramble(bdf, lba - BD_LBA_START))
+                if(!bd_scrambler.descramble(bdf, lba - bd::LBA_START))
                     valid = false;
 
-                auto &bluray_data_frame = (BlurayDataFrame &)sectors[i * sizeof(BlurayDataFrame)];
-                std::copy_n((uint8_t *)&data_frames[i], sizeof(BlurayDataFrame), (uint8_t *)&bluray_data_frame);
+                auto &bluray_data_frame = (bd::DataFrame &)sectors[i * sizeof(bd::DataFrame)];
+                std::copy_n((uint8_t *)&data_frames[i], sizeof(bd::DataFrame), (uint8_t *)&bluray_data_frame);
             }
 
             // assume read error if descrambling fails
@@ -590,8 +594,6 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
                 status = SPTD::Status{ 0x02, 0x04, 0x10 };
         }
     }
-    else
-        status = cmd_read(sptd, sectors, sector_size, lba_base, sectors_count, force_unit_access);
 
     return status;
 }
@@ -890,9 +892,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    bool raw = (options.dvd_raw || nintendo_key) && omnidrive_firmware;
+    bool raw = (options.dvd_raw || options.bd_raw || nintendo_key) && omnidrive_firmware;
     if(options.dvd_raw && !omnidrive_firmware)
         LOG("warning: drive not compatible with raw DVD dumping");
+    if(options.bd_raw && !omnidrive_firmware)
+        LOG("warning: drive not compatible with raw BD dumping");
 
     auto cfg = dump_get_config(ctx.disc_type, raw);
 
@@ -905,9 +909,18 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     }
     else if(raw && omnidrive_firmware)
     {
-        // ensure default total transfer length is less than 65536 bytes (31 * 2064)
-        LOG("warning: setting dump read size to 31 for raw dumping");
-        dump_read_size = 31;
+        if(ctx.disc_type == DiscType::DVD)
+        {
+            // dvd: ensure default total transfer length is less than 65536 bytes (31 * 2064)
+            LOG("warning: setting dump read size to 31 for raw DVD dumping");
+            dump_read_size = 31;
+        }
+        else
+        {
+            // bd: ensure default total transfer length is less than 16384 (7 * 2072)
+            LOG("warning: setting dump read size to 7 for raw BD dumping");
+            dump_read_size = 7;
+        }
     }
     else
         dump_read_size = DVD_READ_SIZE;

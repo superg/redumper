@@ -235,7 +235,7 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
     }
 
     uint64_t sbram_size = std::filesystem::file_size(sbram_path);
-    if(sbram_size % sizeof(DataFrame) != 0)
+    if(sbram_size % sizeof(bd::DataFrame) != 0)
         throw_line("unexpected file size ({})", sbram_path.filename().string());
     std::fstream sbram_fs(sbram_path, std::fstream::in | std::fstream::binary);
     if(!sbram_fs.is_open())
@@ -249,16 +249,16 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
     if(!iso_fs.is_open())
         throw_line("unable to open file ({})", iso_path.filename().string());
 
-    dvd::Scrambler scrambler;
-    std::vector<uint8_t> sector(sizeof(DataFrame));
+    bd::Scrambler scrambler;
+    std::vector<uint8_t> sector(sizeof(bd::DataFrame));
     std::vector<std::pair<int32_t, int32_t>> descramble_errors;
 
     // start extracting ISO from LBA 0
-    sbram_fs.seekg(-bd::LBA_START * sizeof(DataFrame));
+    sbram_fs.seekg(-bd::LBA_START * sizeof(bd::DataFrame));
     if(sbram_fs.fail())
         throw_line("seek failed");
 
-    uint32_t sector_count = sbram_size / sizeof(DataFrame) + bd::LBA_START;
+    uint32_t sector_count = sbram_size / sizeof(bd::DataFrame) + bd::LBA_START;
     for(uint32_t lba = 0; lba < sector_count; ++lba)
     {
         read_entry(sbram_fs, sector.data(), sector.size(), lba - bd::LBA_START, 1, 0, 0);
@@ -266,7 +266,7 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
         read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - bd::LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
         if(state == State::ERROR_SKIP && !options.force_split)
             throw_line("read errors detected, unable to continue");
-        auto bdf = (DataFrame &)sector[0];
+        auto bdf = (bd::DataFrame &)sector[0];
 
         if(!scrambler.descramble(bdf, lba - bd::LBA_START))
         {

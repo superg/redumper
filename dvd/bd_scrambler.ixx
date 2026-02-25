@@ -33,7 +33,7 @@ public:
         // unscramble sector
         process(data, psn);
 
-        if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(DataFrame, edc)).final())
+        if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(bd::DataFrame, edc)).final())
             descrambled = true;
 
         // if EDC does not match, scramble sector back

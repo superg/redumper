@@ -497,7 +497,12 @@ export int redumper(Options &options)
         if(speed)
             LOG("  read speed: {}", *speed == 0xFFFF ? "<optimal>" : std::format("{} KB", *speed));
         if(auto version = is_omnidrive_firmware(ctx.drive_config))
-            LOG("  firmware: OmniDrive {}", *version);
+        {
+            if(*version < omnidrive_minimum_version())
+                throw_line("outdated OmniDrive drive firmware (current: {}, supported: {})", omnidrive_version_string(*version), omnidrive_version_string(omnidrive_minimum_version()));
+
+            LOG("  firmware: OmniDrive {}", omnidrive_version_string(*version));
+        }
     }
 
     if(!options.image_name.empty())

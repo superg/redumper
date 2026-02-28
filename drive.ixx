@@ -7,6 +7,7 @@ module;
 #include <fstream>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -435,16 +436,33 @@ export bool is_custom_kreon_firmware(const DriveConfig &drive_config)
 }
 
 
-export std::optional<std::string> is_omnidrive_firmware(const DriveConfig &drive_config)
+export std::optional<uint32_t> is_omnidrive_firmware(const DriveConfig &drive_config)
 {
-    std::optional<std::string> version;
+    std::optional<uint32_t> version;
 
     static constexpr std::string_view omnidrive = "OmniDrive";
 
     if(auto v = omnidrive.length(); drive_config.reserved5.starts_with(omnidrive) && drive_config.reserved5.length() >= v + 3)
-        version = std::format("v{}.{}.{}", (uint32_t)drive_config.reserved5[v + 0], (uint32_t)drive_config.reserved5[v + 1], (uint32_t)drive_config.reserved5[v + 2]);
+    {
+        char vvv[] = { drive_config.reserved5[v + 0], drive_config.reserved5[v + 1], drive_config.reserved5[v + 2] };
+        version = endian_swap_from_array<uint32_t>(vvv);
+    }
 
     return version;
 }
+
+
+export std::string omnidrive_version_string(uint32_t version)
+{
+    auto v = (uint8_t *)&version;
+    return std::format("v{}.{}.{}", v[2], v[1], v[0]);
+}
+
+
+export uint32_t omnidrive_minimum_version()
+{
+    return 0x00010002;
+}
+
 
 }

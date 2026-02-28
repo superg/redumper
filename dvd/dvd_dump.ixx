@@ -503,7 +503,7 @@ DumpConfig dump_get_config(DiscType disc_type, bool raw)
 
     if(disc_type == DiscType::DVD && raw)
     {
-        config = DumpConfig{ ".sdram", sizeof(dvd::RecordingFrame), dvd::LBA_START, dvd::LBA_RCZ - (int32_t)OVERREAD_COUNT, 0 };
+        config = DumpConfig{ ".sdram", sizeof(dvd::RecordingFrame), dvd::LBA_START, 0, 0 };
     }
 
     return config;

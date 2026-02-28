@@ -182,41 +182,4 @@ export DataFrame RecordingFrame_to_DataFrame(const RecordingFrame &recording_fra
     return data_frame;
 }
 
-
-/*
-
-    bool descramble(DataFrame &df, std::optional<uint8_t> nintendo_key) const
-    {
-        bool descrambled = false;
-
-        // validate sector header
-        if(!validate_id(df.id))
-            return descrambled;
-
-        // determine XOR table offset
-        uint32_t psn = endian_swap_from_array<int32_t>(df.id.id.sector_number);
-        uint32_t offset = (psn >> 4 & 0xF) * FORM1_DATA_SIZE;
-
-        // custom XOR table offset for nintendo
-        if(nintendo_key)
-            offset = (*nintendo_key ^ (psn >> 4 & 0xF)) * FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
-
-        std::span data(df.main_data, FORM1_DATA_SIZE);
-
-        // unscramble sector
-        process(data, offset);
-
-        if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(DataFrame, edc)).final())
-            descrambled = true;
-
-        // if EDC does not match, scramble sector back
-        if(!descrambled)
-            process(data, offset);
-
-        return descrambled;
-    }
-
-
-*/
-
 }

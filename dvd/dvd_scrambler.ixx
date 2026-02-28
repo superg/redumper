@@ -23,25 +23,10 @@ namespace gpsxre::dvd
 export class Scrambler
 {
 public:
-    Scrambler()
-        : _table(FORM1_DATA_SIZE * ECC_FRAMES)
+    static const Scrambler &get()
     {
-        // ECMA-267
-
-        uint16_t shift_register = 0x0001;
-
-        for(auto &t : _table)
-        {
-            t = (uint8_t)shift_register;
-
-            for(uint8_t b = 0; b < CHAR_BIT; ++b)
-            {
-                // new LSB = b14 XOR b10
-                auto lsb = (shift_register >> 14 & 1) ^ (shift_register >> 10 & 1);
-                // 15-bit register requires masking MSB
-                shift_register = ((shift_register << 1) & 0x7FFF) | lsb;
-            }
-        }
+        static const Scrambler instance;
+        return instance;
     }
 
 
@@ -79,6 +64,29 @@ public:
 private:
     std::vector<uint8_t> _table;
 
+
+    Scrambler()
+        : _table(FORM1_DATA_SIZE * ECC_FRAMES)
+    {
+        // ECMA-267
+
+        uint16_t shift_register = 0x0001;
+
+        for(auto &t : _table)
+        {
+            t = (uint8_t)shift_register;
+
+            for(uint8_t b = 0; b < CHAR_BIT; ++b)
+            {
+                // new LSB = b14 XOR b10
+                auto lsb = (shift_register >> 14 & 1) ^ (shift_register >> 10 & 1);
+                // 15-bit register requires masking MSB
+                shift_register = ((shift_register << 1) & 0x7FFF) | lsb;
+            }
+        }
+    }
+
+
     void process(std::span<uint8_t> data, uint32_t table_offset) const
     {
         for(uint32_t i = 0; i < data.size(); ++i)
@@ -92,5 +100,7 @@ private:
         }
     }
 };
+
+
 
 }

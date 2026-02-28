@@ -153,7 +153,6 @@ void extract_iso(Context &ctx, Options &options)
     if(!iso_fs.is_open())
         throw_line("unable to open file ({})", iso_path.filename().string());
 
-    dvd::Scrambler scrambler;
     std::vector<uint8_t> rf(sizeof(RecordingFrame));
     std::optional<std::uint8_t> key;
     std::vector<std::pair<int32_t, int32_t>> descramble_errors;
@@ -190,7 +189,7 @@ void extract_iso(Context &ctx, Options &options)
         auto df = RecordingFrame_to_DataFrame((RecordingFrame &)rf[0]);
         if(df.id.id.zone_type == ZoneType::LEADOUT_ZONE)
             break;
-        if(!scrambler.descramble(df, key))
+        if(!dvd::Scrambler::get().descramble(df, key))
         {
             if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
                 descramble_errors.emplace_back(lba, lba);

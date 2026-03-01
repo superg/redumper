@@ -71,7 +71,7 @@ static const std::string BOOK_TYPE[] =
     "RESERVED4",
     "DVD+RW DL",
     "DVD+R DL",
-    "RESERVED5"
+    "NINTENDO"
 };
 
 

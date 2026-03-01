@@ -106,4 +106,31 @@ export std::string hexdump(const uint8_t *data, uint32_t offset, uint32_t size)
     return dump;
 }
 
+export std::string rawhexdump(const uint8_t *data, uint32_t size, uint32_t group_size = 2, uint32_t groups_per_line = 8)
+{
+    std::stringstream ss;
+    ss << std::hex << std::uppercase << std::setfill('0');
+
+    for(uint32_t i = 0; i < size; i++)
+    {
+        if(i > 0 && group_size > 0 && i % group_size == 0)
+        {
+            if(groups_per_line > 0 && i / group_size % groups_per_line == 0)
+            {
+                ss << std::endl;
+            }
+            else
+            {
+                ss << ' ';
+            }
+        }
+        ss << std::setw(2) << (uint32_t)data[i];
+    }
+
+    if(size > 0)
+        ss << std::endl;
+
+    return ss.str();
+}
+
 }

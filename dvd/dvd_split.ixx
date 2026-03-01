@@ -2,6 +2,7 @@ module;
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <string>
 #include <vector>
 #include "throw_line.hh"
@@ -14,7 +15,6 @@ import cd.cdrom;
 import common;
 import dvd;
 import dvd.nintendo;
-import dvd.scrambler;
 import dvd.xbox;
 import options;
 import range;
@@ -138,7 +138,7 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
     }
 
     uint64_t sdram_size = std::filesystem::file_size(sdram_path);
-    if(sdram_size % sizeof(RecordingFrame) != 0)
+    if(sdram_size % sizeof(dvd::RecordingFrame) != 0)
         throw_line("unexpected file size ({})", sdram_path.filename().string());
     std::fstream sdram_fs(sdram_path, std::fstream::in | std::fstream::binary);
     if(!sdram_fs.is_open())
@@ -152,71 +152,67 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
     if(!iso_fs.is_open())
         throw_line("unable to open file ({})", iso_path.filename().string());
 
-    dvd::Scrambler scrambler;
-    std::vector<uint8_t> rf(sizeof(RecordingFrame));
-    std::optional<std::uint8_t> key;
-    std::vector<std::pair<int32_t, int32_t>> descramble_errors;
-    uint32_t main_data_offset = offsetof(DataFrame, main_data);
+    std::optional<uint8_t> nintendo_key;
+    std::vector<std::pair<int32_t, int32_t>> invalid_data_frames;
+    uint32_t main_data_offset = offsetof(dvd::DataFrame, main_data);
 
     // start extracting ISO from LBA 0
-    sdram_fs.seekg(-DVD_LBA_START * sizeof(RecordingFrame));
+    sdram_fs.seekg(-dvd::LBA_START * sizeof(dvd::RecordingFrame));
     if(sdram_fs.fail())
         throw_line("seek failed");
 
-    bool nintendo = false;
-    uint8_t nintendo_key;
     if(std::filesystem::exists(physical_path))
     {
         auto physical = read_vector(physical_path);
-        if(physical.size() == FORM1_DATA_SIZE + sizeof(CMD_ParameterListHeader) && physical[sizeof(CMD_ParameterListHeader)] == 0xFF)
-            nintendo = true;
+        if(physical.size() > sizeof(CMD_ParameterListHeader) && physical[sizeof(CMD_ParameterListHeader)] == 0xFF)
+            nintendo_key = 0;
     }
 
-    if(nintendo)
-    {
-        key = 0;
-        main_data_offset = offsetof(DataFrame, cpr_mai);
-    }
+    if(nintendo_key)
+        main_data_offset = offsetof(dvd::DataFrame, cpr_mai);
 
-    uint32_t sector_count = sdram_size / sizeof(RecordingFrame) + DVD_LBA_START;
+    uint32_t sector_count = sdram_size / sizeof(dvd::RecordingFrame) + dvd::LBA_START;
     for(uint32_t lba = 0; lba < sector_count; ++lba)
     {
-        read_entry(sdram_fs, rf.data(), rf.size(), lba - DVD_LBA_START, 1, 0, 0);
         State state;
-        read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - DVD_LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
+        read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - dvd::LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
         if(state == State::ERROR_SKIP && !options.force_split)
             throw_line("read errors detected, unable to continue");
-        auto df = RecordingFrame_to_DataFrame((RecordingFrame &)rf[0]);
-        if(df.id.id.zone_type == ZoneType::LEADOUT_ZONE)
+
+        dvd::RecordingFrame rf;
+        read_entry(sdram_fs, (uint8_t *)&rf, sizeof(rf), lba - dvd::LBA_START, 1, 0, 0);
+        auto df = RecordingFrame_to_DataFrame(rf);
+        if(df.id.id.zone_type == dvd::ZoneType::LEADOUT_ZONE)
             break;
 
-        if(!scrambler.descramble(df, key))
+        std::span<uint8_t> data((uint8_t *)&df + main_data_offset, FORM1_DATA_SIZE);
+
+        auto key = nintendo::get_key(nintendo_key, lba, df);
+        bool valid = df.valid(key);
+        df.descramble(key);
+
+        if(!valid)
         {
-            if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
-                descramble_errors.emplace_back(lba, lba);
+            if(!options.leave_unchanged)
+                std::fill(data.begin(), data.end(), 0);
+
+            if(invalid_data_frames.empty() || invalid_data_frames.back().second + 1 != lba)
+                invalid_data_frames.emplace_back(lba, lba);
             else
-                descramble_errors.back().second = lba;
+                invalid_data_frames.back().second = lba;
         }
 
-        iso_fs.write((char *)&df + main_data_offset, FORM1_DATA_SIZE);
+        iso_fs.write((char *)&data[0], data.size());
         if(iso_fs.fail())
             throw_line("write failed ({})", iso_path.filename().string());
-
-        if(nintendo)
-        {
-            if(lba == 0)
-                nintendo_key = nintendo::derive_key(std::span(df.cpr_mai, df.cpr_mai + 8));
-            else if(lba == ECC_FRAMES - 1)
-                key = nintendo_key;
-        }
     }
 
-    for(auto const &d : descramble_errors)
+    for(auto const &d : invalid_data_frames)
     {
         if(d.first == d.second)
-            LOG("warning: descramble failed (LBA: {})", d.first);
+            LOG("warning: invalid data frame (LBA: {})", d.first);
         else
-            LOG("warning: descramble failed (LBA: [{} .. {}])", d.first, d.second);
+            LOG("warning: invalid data frame (LBA: [{} .. {}])", d.first, d.second);
     }
 }
 

@@ -1,7 +1,5 @@
 module;
-#include <algorithm>
 #include <climits>
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -10,8 +8,6 @@ module;
 export module dvd.scrambler;
 
 import cd.cdrom;
-import dvd;
-import dvd.edc;
 import utils.endian;
 import utils.misc;
 
@@ -20,9 +16,35 @@ import utils.misc;
 namespace gpsxre::dvd
 {
 
+export constexpr uint32_t ECC_FRAMES = 0x10;
+
+
 export class Scrambler
 {
 public:
+    static const Scrambler &get()
+    {
+        static const Scrambler instance;
+        return instance;
+    }
+
+
+    void descramble(std::span<uint8_t> data, uint32_t psn, std::optional<uint8_t> nintendo_key) const
+    {
+        // determine XOR table offset
+        uint32_t offset = (psn >> 4 & 0xF) * FORM1_DATA_SIZE;
+
+        // custom XOR table offset for nintendo
+        if(nintendo_key)
+            offset = (*nintendo_key ^ (psn >> 4 & 0xF)) * FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
+
+        process(data, offset);
+    }
+
+private:
+    std::vector<uint8_t> _table;
+
+
     Scrambler()
         : _table(FORM1_DATA_SIZE * ECC_FRAMES)
     {
@@ -44,40 +66,6 @@ public:
         }
     }
 
-
-    bool descramble(DataFrame &df, std::optional<uint8_t> nintendo_key) const
-    {
-        bool descrambled = false;
-
-        // validate sector header
-        if(!validate_id(df.id))
-            return descrambled;
-
-        // determine XOR table offset
-        uint32_t psn = endian_swap_from_array<int32_t>(df.id.id.sector_number);
-        uint32_t offset = (psn >> 4 & 0xF) * FORM1_DATA_SIZE;
-
-        // custom XOR table offset for nintendo
-        if(nintendo_key)
-            offset = (*nintendo_key ^ (psn >> 4 & 0xF)) * FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
-
-        std::span data(df.main_data, FORM1_DATA_SIZE);
-
-        // unscramble sector
-        process(data, offset);
-
-        if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(DataFrame, edc)).final())
-            descrambled = true;
-
-        // if EDC does not match, scramble sector back
-        if(!descrambled)
-            process(data, offset);
-
-        return descrambled;
-    }
-
-private:
-    std::vector<uint8_t> _table;
 
     void process(std::span<uint8_t> data, uint32_t table_offset) const
     {

@@ -8,8 +8,11 @@ module;
 export module systems.wii;
 
 import cd.cdrom;
+import cd.common;
 import readers.data_reader;
 import utils.strings;
+import utils.file_io;
+import utils.hex_bin;
 
 
 
@@ -47,10 +50,24 @@ public:
 
         if(header->disc_number)
             os << std::format("  disc number: {}", header->disc_number) << std::endl;
+
+        std::filesystem::path bca_path = track_extract_basename(track_path.string()) + ".bca";
+        if(!std::filesystem::exists(bca_path))
+            return;
+
+        auto bca = read_vector(bca_path);
+        if(bca.size() != _WII_BCA_STRUCTURE_SIZE)
+            return;
+
+        os << "  BCA:" << std::endl;
+        os << std::format("{}", rawhexdump(&bca[_WII_REPORTED_BCA_OFFSET], _WII_REPORTED_BCA_SIZE));
     }
 
 private:
     static constexpr uint32_t _WII_MAGIC = 0xA39E1C5D;
+    static constexpr uint32_t _WII_BCA_STRUCTURE_SIZE = 192;
+    static constexpr uint32_t _WII_REPORTED_BCA_OFFSET = 0x80;
+    static constexpr uint32_t _WII_REPORTED_BCA_SIZE = 0x40;
 
     struct Header
     {

@@ -1055,7 +1055,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                                 int32_t l = lba + lba_shift + (int32_t)i;
 
-                                if(!df.valid(nintendo::get_key(nintendo_key, l, df)) && options.verbose)
+                                if(!df.valid(nintendo::get_key(nintendo_key, l, df)))
                                     LOG_R("[LBA: {}] invalid data frame", l);
                             }
                         }

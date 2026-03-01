@@ -520,9 +520,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
     SPTD::Status status;
 
     if(!raw)
-    {
-        status = cmd_read(sptd, sectors, sector_size, lba_base, sectors_count, force_unit_access);
-    }
+        status = cmd_read(sptd, sectors, sector_size, lba, sectors_count, force_unit_access);
     else if(disc_type == DiscType::DVD)
     {
         if(sector_size != sizeof(dvd::RecordingFrame))
@@ -547,7 +545,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             throw_line("invalid sector size for raw BD read (expected: {}, actual: {})", sizeof(bd::DataFrame), sector_size);
 
         std::vector<bd::OmniDriveDataFrame> data_frames(sectors_count);
-        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(bd::OmniDriveDataFrame), lba_base, sectors_count, OmniDrive_DiscType::BD, false, force_unit_access, false,
+        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(bd::OmniDriveDataFrame), lba, sectors_count, OmniDrive_DiscType::BD, false, force_unit_access, false,
             OmniDrive_Subchannels::NONE, false);
 
         if(!status.status_code)
@@ -557,9 +555,9 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             for(uint32_t i = 0; i < sectors_count; ++i)
             {
                 bd::DataFrame df = data_frames[i].data_frame;
-                int32_t lba = lba_base + (int32_t)i;
+                int32_t lll = lba + (int32_t)i;
 
-                if(!bd_scrambler.descramble(df, lba - bd::LBA_START))
+                if(!bd_scrambler.descramble(df, lll - bd::LBA_START))
                     valid = false;
 
                 auto &bluray_data_frame = (bd::DataFrame &)sectors[i * sizeof(bd::DataFrame)];
@@ -571,8 +569,6 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
                 status = SPTD::Status{ 0x02, 0x04, 0x10 };
         }
     }
-    else
-        status = cmd_read(sptd, sectors, sector_size, lba, sectors_count, force_unit_access);
 
     return status;
 }

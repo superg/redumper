@@ -1044,17 +1044,20 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 }
                 else
                 {
-                    if(ctx.disc_type == DiscType::DVD && raw)
+                    if(options.verbose)
                     {
-                        for(uint32_t i = 0; i < sectors_to_read; ++i)
+                        if(ctx.disc_type == DiscType::DVD && raw)
                         {
-                            auto &rf = (dvd::RecordingFrame &)drive_data[i * sizeof(dvd::RecordingFrame)];
-                            dvd::DataFrame df = RecordingFrame_to_DataFrame(rf);
+                            for(uint32_t i = 0; i < sectors_to_read; ++i)
+                            {
+                                auto &rf = (dvd::RecordingFrame &)drive_data[i * sizeof(dvd::RecordingFrame)];
+                                dvd::DataFrame df = RecordingFrame_to_DataFrame(rf);
 
-                            int32_t l = lba + lba_shift + (int32_t)i;
+                                int32_t l = lba + lba_shift + (int32_t)i;
 
-                            if(!df.valid(nintendo::get_key(nintendo_key, l, df)) && options.verbose)
-                                LOG_R("[LBA: {}] invalid data frame", l);
+                                if(!df.valid(nintendo::get_key(nintendo_key, l, df)) && options.verbose)
+                                    LOG_R("[LBA: {}] invalid data frame", l);
+                            }
                         }
                     }
 

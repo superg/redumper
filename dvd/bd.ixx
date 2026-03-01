@@ -25,10 +25,12 @@ export struct DataFrame
 };
 
 
+#pragma pack(push, 1)
 export struct OmniDriveDataFrame
 {
     DataFrame data_frame;
     uint8_t unknown[18];
 };
+#pragma pack(pop)
 
 }

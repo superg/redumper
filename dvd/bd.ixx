@@ -1,12 +1,14 @@
 module;
+#include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include "throw_line.hh"
 
 export module bd;
 
 import cd.cdrom;
+import bd.scrambler;
 import common;
+import dvd.edc;
+import utils.endian;
 
 
 
@@ -22,6 +24,26 @@ export struct DataFrame
 {
     uint8_t main_data[FORM1_DATA_SIZE];
     uint32_t edc;
+
+
+    bool valid(int32_t lba) const
+    {
+        bool valid = false;
+
+        auto df = *this;
+        df.descramble(lba);
+
+        if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(DataFrame, edc)).final())
+            valid = true;
+
+        return valid;
+    }
+
+
+    void descramble(int32_t lba)
+    {
+        Scrambler::get().descramble(std::span((uint8_t *)this, sizeof(DataFrame)), lba - LBA_START);
+    }
 };
 
 

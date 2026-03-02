@@ -15,7 +15,6 @@ module;
 export module dvd.dump;
 
 import bd;
-import bd.scrambler;
 import cd.cdrom;
 import common;
 import drive;
@@ -550,23 +549,11 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 
         if(!status.status_code)
         {
-            bool valid = true;
-            bd::Scrambler bd_scrambler;
             for(uint32_t i = 0; i < sectors_count; ++i)
             {
-                bd::DataFrame df = data_frames[i].data_frame;
-                int32_t lll = lba + (int32_t)i;
-
-                if(!bd_scrambler.descramble(df, lll - bd::LBA_START))
-                    valid = false;
-
-                auto &bluray_data_frame = (bd::DataFrame &)sectors[i * sizeof(bd::DataFrame)];
-                std::copy_n((uint8_t *)&data_frames[i], sizeof(bd::DataFrame), (uint8_t *)&bluray_data_frame);
+                auto &df = (bd::DataFrame &)sectors[i * sizeof(bd::DataFrame)];
+                df = data_frames[i].data_frame;
             }
-
-            // assume read error if descrambling fails
-            if(!valid)
-                status = SPTD::Status{ 0x02, 0x04, 0x10 };
         }
     }
 
@@ -1090,9 +1077,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                 }
                 else
                 {
-                    if(options.verbose)
+                    if(options.verbose && raw)
                     {
-                        if(ctx.disc_type == DiscType::DVD && raw)
+                        if(ctx.disc_type == DiscType::DVD)
                         {
                             for(uint32_t i = 0; i < sectors_to_read; ++i)
                             {
@@ -1102,6 +1089,18 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
                                 int32_t l = lba + lba_shift + (int32_t)i;
 
                                 if(!df.valid(nintendo::get_key(nintendo_key, l, df)))
+                                    LOG_R("[LBA: {}] invalid data frame", l);
+                            }
+                        }
+                        else if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
+                        {
+                            for(uint32_t i = 0; i < sectors_to_read; ++i)
+                            {
+                                auto &df = (bd::DataFrame &)drive_data[i * sizeof(bd::DataFrame)];
+
+                                int32_t l = lba + lba_shift + (int32_t)i;
+
+                                if(!df.valid(l))
                                     LOG_R("[LBA: {}] invalid data frame", l);
                             }
                         }

@@ -9,7 +9,6 @@ module;
 
 export module bd.scrambler;
 
-import bd;
 import cd.cdrom;
 import dvd;
 import dvd.edc;
@@ -24,27 +23,23 @@ namespace gpsxre::bd
 export class Scrambler
 {
 public:
-    bool descramble(bd::DataFrame &df, uint32_t psn)
+    static const Scrambler &get()
     {
-        bool descrambled = false;
+        static const Scrambler instance;
+        return instance;
+    }
 
-        std::span data((uint8_t *)&df, sizeof(bd::DataFrame));
 
-        // unscramble sector
+    void descramble(std::span<uint8_t> data, uint32_t psn) const
+    {
         process(data, psn);
-
-        if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(bd::DataFrame, edc)).final())
-            descrambled = true;
-
-        // if EDC does not match, scramble sector back
-        if(!descrambled)
-            process(data, psn);
-
-        return descrambled;
     }
 
 private:
-    void process(std::span<uint8_t> data, uint32_t psn)
+    Scrambler() = default;
+
+
+    void process(std::span<uint8_t> data, uint32_t psn) const
     {
         // ISO/IEC 30190
 

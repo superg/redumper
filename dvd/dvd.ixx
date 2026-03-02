@@ -105,7 +105,7 @@ export struct DataFrame
     void descramble(std::optional<uint8_t> nintendo_key = std::nullopt)
     {
         uint32_t psn = endian_swap_from_array<int32_t>(id.id.sector_number);
-        dvd::Scrambler::get().descramble(std::span(main_data, FORM1_DATA_SIZE), psn, nintendo_key);
+        Scrambler::get().descramble(std::span(main_data, FORM1_DATA_SIZE), psn, nintendo_key);
     }
 };
 

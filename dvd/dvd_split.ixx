@@ -10,7 +10,6 @@ module;
 export module dvd.split;
 
 import bd;
-import bd.scrambler;
 import cd.cdrom;
 import common;
 import dvd;
@@ -21,6 +20,7 @@ import range;
 import rom_entry;
 import scsi.cmd;
 import scsi.mmc;
+import utils.animation;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
@@ -124,6 +124,14 @@ void generate_extra_xbox(Context &ctx, Options &options)
 }
 
 
+void progress_output(uint64_t sector, uint64_t sectors_count)
+{
+    char animation = sector == sectors_count ? '*' : spinner_animation();
+
+    LOGC_RF("{} [{:3}%] splitting", animation, sector * 100 / sectors_count);
+}
+
+
 void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -171,9 +179,11 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
     if(nintendo_key)
         main_data_offset = offsetof(dvd::DataFrame, cpr_mai);
 
-    uint32_t sector_count = sdram_size / sizeof(dvd::RecordingFrame) + dvd::LBA_START;
-    for(uint32_t lba = 0; lba < sector_count; ++lba)
+    uint32_t sectors_count = sdram_size / sizeof(dvd::RecordingFrame) + dvd::LBA_START;
+    for(uint32_t lba = 0; lba < sectors_count; ++lba)
     {
+        progress_output(lba, sectors_count);
+
         State state;
         read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - dvd::LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
         if(state == State::ERROR_SKIP && !options.force_split)
@@ -206,6 +216,10 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
         if(iso_fs.fail())
             throw_line("write failed ({})", iso_path.filename().string());
     }
+
+    progress_output(sectors_count, sectors_count);
+    LOG("");
+    LOG("");
 
     for(auto const &d : invalid_data_frames)
     {
@@ -245,39 +259,52 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
     if(!iso_fs.is_open())
         throw_line("unable to open file ({})", iso_path.filename().string());
 
-    bd::Scrambler scrambler;
-    std::vector<uint8_t> sector(sizeof(bd::DataFrame));
-    std::vector<std::pair<int32_t, int32_t>> descramble_errors;
+    std::vector<std::pair<int32_t, int32_t>> invalid_data_frames;
 
     // start extracting ISO from LBA 0
     sbram_fs.seekg(-bd::LBA_START * sizeof(bd::DataFrame));
     if(sbram_fs.fail())
         throw_line("seek failed");
 
-    uint32_t sector_count = sbram_size / sizeof(bd::DataFrame) + bd::LBA_START;
-    for(uint32_t lba = 0; lba < sector_count; ++lba)
+    uint32_t sectors_count = sbram_size / sizeof(bd::DataFrame) + bd::LBA_START;
+    for(uint32_t lba = 0; lba < sectors_count; ++lba)
     {
-        read_entry(sbram_fs, sector.data(), sector.size(), lba - bd::LBA_START, 1, 0, 0);
+        progress_output(lba, sectors_count);
+
         State state;
         read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - bd::LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
         if(state == State::ERROR_SKIP && !options.force_split)
             throw_line("read errors detected, unable to continue");
-        auto df = (bd::DataFrame &)sector[0];
 
-        if(!scrambler.descramble(df, lba - bd::LBA_START))
+        bd::DataFrame df;
+        read_entry(sbram_fs, (uint8_t *)&df, sizeof(df), lba - bd::LBA_START, 1, 0, 0);
+
+        std::span<uint8_t> data(df.main_data, FORM1_DATA_SIZE);
+
+        bool valid = df.valid(lba);
+        df.descramble(lba);
+
+        if(!valid)
         {
-            if(descramble_errors.empty() || descramble_errors.back().second + 1 != lba)
-                descramble_errors.emplace_back(lba, lba);
+            if(!options.leave_unchanged)
+                std::fill(data.begin(), data.end(), 0);
+
+            if(invalid_data_frames.empty() || invalid_data_frames.back().second + 1 != lba)
+                invalid_data_frames.emplace_back(lba, lba);
             else
-                descramble_errors.back().second = lba;
+                invalid_data_frames.back().second = lba;
         }
 
-        iso_fs.write((char *)&df, FORM1_DATA_SIZE);
+        iso_fs.write((char *)&data[0], data.size());
         if(iso_fs.fail())
             throw_line("write failed ({})", iso_path.filename().string());
     }
 
-    for(auto const &d : descramble_errors)
+    progress_output(sectors_count, sectors_count);
+    LOG("");
+    LOG("");
+
+    for(auto const &d : invalid_data_frames)
     {
         if(d.first == d.second)
             LOG("warning: descramble failed (LBA: {})", d.first);
@@ -296,14 +323,11 @@ export void redumper_split_dvd(Context &ctx, Options &options)
     if(ctx.dump_errors && ctx.dump_errors->scsi && !options.force_split)
         throw_line("{} scsi errors detected, unable to continue", ctx.dump_errors->scsi);
 
-    // descramble and extract user data from raw BD/DVD dumps
+    // descramble and extract user data from raw DVD/BD dumps
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    std::filesystem::path sdram_path(image_prefix + ".sdram");
-    std::filesystem::path sbram_path(image_prefix + ".sbram");
-
-    if(std::filesystem::exists(sdram_path))
+    if(std::filesystem::path sdram_path(image_prefix + ".sdram"); std::filesystem::exists(sdram_path))
         dvd_extract_iso(ctx, sdram_path, options);
-    else if(std::filesystem::exists(sbram_path))
+    else if(std::filesystem::path sbram_path(image_prefix + ".sbram"); std::filesystem::exists(sbram_path))
         bd_extract_iso(ctx, sbram_path, options);
 }
 

@@ -124,7 +124,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
 }
 
 
-void progress_output(uint64_t sector, uint64_t sectors_count)
+void progress(uint64_t sector, uint64_t sectors_count)
 {
     char animation = sector == sectors_count ? '*' : spinner_animation();
 
@@ -182,7 +182,7 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
     uint32_t sectors_count = sdram_size / sizeof(dvd::RecordingFrame) + dvd::LBA_START;
     for(uint32_t lba = 0; lba < sectors_count; ++lba)
     {
-        progress_output(lba, sectors_count);
+        progress(lba, sectors_count);
 
         State state;
         read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - dvd::LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
@@ -217,7 +217,7 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
             throw_line("write failed ({})", iso_path.filename().string());
     }
 
-    progress_output(sectors_count, sectors_count);
+    progress(sectors_count, sectors_count);
     LOG("");
     LOG("");
 
@@ -269,7 +269,7 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
     uint32_t sectors_count = sbram_size / sizeof(bd::DataFrame) + bd::LBA_START;
     for(uint32_t lba = 0; lba < sectors_count; ++lba)
     {
-        progress_output(lba, sectors_count);
+        progress(lba, sectors_count);
 
         State state;
         read_entry(state_fs, (uint8_t *)&state, sizeof(State), lba - bd::LBA_START, 1, 0, (uint8_t)State::ERROR_SKIP);
@@ -300,7 +300,7 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
             throw_line("write failed ({})", iso_path.filename().string());
     }
 
-    progress_output(sectors_count, sectors_count);
+    progress(sectors_count, sectors_count);
     LOG("");
     LOG("");
 

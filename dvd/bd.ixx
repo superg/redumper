@@ -1,6 +1,7 @@
 module;
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 export module bd;
 

@@ -861,11 +861,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    bool raw = (options.dvd_raw || options.bd_raw || nintendo_key) && omnidrive_firmware;
-    if(options.dvd_raw && !omnidrive_firmware)
+    bool dvd_raw = options.dvd_raw && ctx.disc_type == DiscType::DVD;
+    bool bd_raw = options.bd_raw && (ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
+    if(dvd_raw && !omnidrive_firmware)
         LOG("warning: drive not compatible with raw DVD dumping");
-    if(options.bd_raw && !omnidrive_firmware)
+    if(bd_raw && !omnidrive_firmware)
         LOG("warning: drive not compatible with raw BD dumping");
+
+    bool raw = (dvd_raw || bd_raw || nintendo_key) && omnidrive_firmware;
 
     auto cfg = dump_get_config(ctx.disc_type, raw);
 
@@ -880,13 +883,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     {
         if(ctx.disc_type == DiscType::DVD)
         {
-            // dvd: ensure default total transfer length is less than 65536 bytes (31 * 2064)
+            // ensure default total transfer length is less than 65536 bytes (31 * 2064)
             LOG("warning: setting dump read size to 31 for raw DVD dumping");
             dump_read_size = 31;
         }
-        else
+        else if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
         {
-            // bd: ensure default total transfer length is less than 16384 (7 * 2072)
+            // ensure default total transfer length is less than 16384 (7 * 2072)
             LOG("warning: setting dump read size to 7 for raw BD dumping");
             dump_read_size = 7;
         }

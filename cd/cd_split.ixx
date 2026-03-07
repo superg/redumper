@@ -1075,7 +1075,8 @@ export void redumper_split_cd(Context &ctx, Options &options)
     {
         std::vector<uint8_t> cdtext_buffer = read_vector(cdtext_path);
 
-        toc.updateCDTEXT(cdtext_buffer);
+        if(!toc.updateCDTEXT(cdtext_buffer))
+            LOG("warning: failed to parse CD-TEXT data");
     }
 
     std::list<std::shared_ptr<Analyzer>> analyzers;

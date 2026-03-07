@@ -49,6 +49,14 @@ const uint32_t SLOW_SECTOR_TIMEOUT = 4;
 const uint32_t SUBCODE_BYTE_DESYNC_COUNT = 5;
 
 
+struct Errors
+{
+    uint32_t scsi;
+    uint32_t c2;
+    uint32_t q;
+};
+
+
 void protection_fill(std::vector<uint8_t> &sector_protection, const std::vector<Range<int32_t>> &ranges, int32_t sample_base)
 {
     for(int32_t i = 0; i < sector_protection.size(); ++i)
@@ -559,8 +567,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
     if(dump_mode == DumpMode::DUMP)
     {
-        ctx.dump_errors = errors;
-
         LOG("media errors: ");
         LOG("  SCSI: {} samples", errors.scsi);
         LOG("  C2: {} samples", errors.c2);

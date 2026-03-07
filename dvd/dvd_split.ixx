@@ -319,10 +319,6 @@ export void redumper_split_dvd(Context &ctx, Options &options)
     // generate .dmi, .pfi, .ss if xbox disc
     generate_extra_xbox(ctx, options);
 
-    // prevent hash generation for dumps with scsi errors
-    if(ctx.dump_errors && ctx.dump_errors->scsi && !options.force_split)
-        throw_line("{} scsi errors detected, unable to continue", ctx.dump_errors->scsi);
-
     // descramble and extract user data from raw DVD/BD dumps
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
     if(std::filesystem::path sdram_path(image_prefix + ".sdram"); std::filesystem::exists(sdram_path))

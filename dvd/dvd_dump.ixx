@@ -168,6 +168,13 @@ static const std::string BLURAY_CHANNEL_LENGTH[] =
 // clang-format on
 
 
+struct Errors
+{
+    uint32_t scsi;
+    uint32_t edc;
+};
+
+
 uint32_t get_dvd_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor)
 {
     int32_t psn_first = sign_extend<24>(endian_swap(layer_descriptor.data_start_sector));
@@ -805,7 +812,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         }
     }
 
-    // get and store the bca
+    // get and store BCA
     if(dump_mode == DumpMode::DUMP && readable_formats.find(READ_DISC_STRUCTURE_Format::BCA) != readable_formats.end())
     {
         std::vector<uint8_t> bca;
@@ -863,10 +870,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     bool dvd_raw = options.dvd_raw && ctx.disc_type == DiscType::DVD;
     bool bd_raw = options.bd_raw && (ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
-    if(dvd_raw && !omnidrive_firmware)
-        LOG("warning: drive not compatible with raw DVD dumping");
-    if(bd_raw && !omnidrive_firmware)
-        LOG("warning: drive not compatible with raw BD dumping");
+    if((dvd_raw || bd_raw) && !omnidrive_firmware)
+        LOG("warning: drive not compatible with raw dumping");
 
     bool raw = (dvd_raw || bd_raw || nintendo_key) && omnidrive_firmware;
 
@@ -1220,7 +1225,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     LOG("media errors: ");
     LOG("  SCSI: {}", errors.scsi);
-    ctx.dump_errors = errors;
 
     if(signal.interrupt())
         signal.raiseDefault();

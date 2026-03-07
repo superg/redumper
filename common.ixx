@@ -53,14 +53,6 @@ export enum class DiscType
 };
 
 
-export struct Errors
-{
-    uint32_t scsi;
-    uint32_t c2;
-    uint32_t q;
-};
-
-
 export struct Context
 {
     DiscType disc_type;
@@ -68,7 +60,6 @@ export struct Context
     DriveConfig drive_config;
 
     std::optional<bool> dreamcast;
-    std::optional<Errors> dump_errors;
     std::vector<std::pair<int32_t, int32_t>> protection;
     std::optional<bool> protection_trim;
     std::optional<bool> refine;

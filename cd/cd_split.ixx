@@ -1459,14 +1459,6 @@ export void redumper_split_cd(Context &ctx, Options &options)
     }
     else
         cue_process(std::format("{}.cue", options.image_name), toc, 0, dreamcast, options);
-
-    if(ctx.dump_errors)
-    {
-        LOG("initial dump media errors: ");
-        LOG("  SCSI: {}", ctx.dump_errors->scsi);
-        LOG("  C2: {}", ctx.dump_errors->c2);
-        LOG("  Q: {}", ctx.dump_errors->q);
-    }
 }
 
 }

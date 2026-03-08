@@ -21,7 +21,8 @@ namespace gpsxre
 {
 
 export constexpr uint32_t OVERREAD_COUNT = 100;
-export constexpr uint32_t CHUNK_1MB = 1024 * 1024;
+export constexpr uint32_t CHUNK_1KB = 1024;
+export constexpr uint32_t CHUNK_1MB = CHUNK_1KB * CHUNK_1KB;
 export constexpr uint32_t DVD_READ_SIZE = 32;
 
 
@@ -32,14 +33,6 @@ export enum class State : uint8_t
     SUCCESS_C2_OFF,
     SUCCESS_SCSI_OFF,
     SUCCESS
-};
-
-
-export enum class DumpMode
-{
-    DUMP,
-    VERIFY,
-    REFINE
 };
 
 

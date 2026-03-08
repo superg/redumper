@@ -411,7 +411,7 @@ struct FilesystemContext
 };
 
 
-std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContext &ctx, std::fstream &fs_iso, std::fstream &fs_state, std::span<uint8_t> data, uint32_t lba)
+std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContext &ctx, std::fstream &fs_image, std::fstream &fs_state, std::span<uint8_t> data, uint32_t lba)
 {
     std::optional<std::pair<uint32_t, bool>> ss;
 
@@ -456,23 +456,23 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
 
         if(!ctx.udf_vds.empty() && ctx.udf_vds.back().first + ctx.udf_vds.back().second <= lba)
         {
-            std::vector<uint8_t> file_data(ctx.udf_vds.back().second * FORM1_DATA_SIZE);
-            std::vector<State> file_state(ctx.udf_vds.back().second);
+            std::vector<uint8_t> sector_data_file(ctx.udf_vds.back().second * FORM1_DATA_SIZE);
+            std::vector<State> sector_state_file(ctx.udf_vds.back().second);
 
-            read_entry(fs_iso, file_data.data(), FORM1_DATA_SIZE, ctx.udf_vds.back().first, ctx.udf_vds.back().second, 0, 0);
-            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), ctx.udf_vds.back().first, ctx.udf_vds.back().second, 0, (uint8_t)State::ERROR_SKIP);
+            read_entry(fs_image, sector_data_file.data(), FORM1_DATA_SIZE, ctx.udf_vds.back().first, ctx.udf_vds.back().second, 0, 0);
+            read_entry(fs_state, (uint8_t *)sector_state_file.data(), sizeof(State), ctx.udf_vds.back().first, ctx.udf_vds.back().second, 0, (uint8_t)State::ERROR_SKIP);
 
-            if(std::all_of(file_state.begin(), file_state.end(), [](State s) { return s == State::SUCCESS; }))
+            if(std::all_of(sector_state_file.begin(), sector_state_file.end(), [](State s) { return s == State::SUCCESS; }))
             {
                 uint32_t sectors_count = 0;
 
                 for(uint32_t i = 0; i < ctx.udf_vds.back().second; ++i)
                 {
-                    auto const &tag = (udf::DescriptorTag &)file_data[i * FORM1_DATA_SIZE];
+                    auto const &tag = (udf::DescriptorTag &)sector_data_file[i * FORM1_DATA_SIZE];
 
                     if(tag.tag_identifier == udf::TagIdentifier::PARTITION)
                     {
-                        auto const &partition = (udf::PartitionDescriptor &)file_data[i * FORM1_DATA_SIZE];
+                        auto const &partition = (udf::PartitionDescriptor &)sector_data_file[i * FORM1_DATA_SIZE];
 
                         sectors_count = std::max(sectors_count, partition.partition_starting_location + partition.partition_length);
                     }
@@ -568,19 +568,142 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 }
 
 
-void progress_output(int32_t lba, int32_t lba_start, int32_t lba_end, uint32_t errors)
+void refine_init_errors(Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg, std::optional<uint8_t> &nintendo_key,
+    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
 {
-    char animation = lba == lba_end ? '*' : spinner_animation();
-    auto percent_dumped = lba_start < lba_end ? (int64_t)(lba - lba_start) * 100 / (lba_end - lba_start) : 100;
-    LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {} }}", animation, percent_dumped, lba, lba_end, errors);
+    std::vector<State> state_buffer(CHUNK_1KB);
+    std::vector<uint8_t> image_buffer(state_buffer.size() * cfg.sector_size);
+
+    uint32_t count = lba_end - lba_start;
+    for(uint32_t offset = 0; offset < count; offset += state_buffer.size())
+    {
+        int32_t lba_base = lba_start + offset;
+
+        uint32_t sectors_to_read = std::min((uint32_t)state_buffer.size(), count - offset);
+        read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), lba_base - cfg.lba_zero, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+        read_entry(fs_image, image_buffer.data(), cfg.sector_size, lba_base - cfg.lba_zero, sectors_to_read, 0, 0);
+
+        for(uint32_t i = 0; i < sectors_to_read; ++i)
+        {
+            if(state_buffer[i] == State::ERROR_SKIP)
+                ++errors.scsi;
+            else if(!edc_match(std::span<uint8_t>(&image_buffer[i * cfg.sector_size], cfg.sector_size), lba_base + i, nintendo_key))
+                ++errors.edc;
+        }
+    }
 }
 
 
-export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dump_mode)
+auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)
+{
+    if(raw && disc_type == DiscType::DVD)
+    {
+        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
+        {
+            dvd::DataFrame df = RecordingFrame_to_DataFrame((dvd::RecordingFrame &)data[0]);
+
+            return df.valid(nintendo::get_key(nintendo_key, lba, df));
+        };
+    }
+    else if(raw && disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R)
+    {
+        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
+        {
+            auto &df = (bd::DataFrame &)data[0];
+
+            return df.valid(lba);
+        };
+    }
+    else
+        return [](std::span<const uint8_t>, int32_t, std::optional<uint8_t> &) { return true; };
+}
+
+
+bool sectors_data_state_update(std::span<State> sectors_state, std::span<uint8_t> sectors_data, std::span<const State> sectors_state_in, std::span<const uint8_t> sectors_data_in, uint32_t sector_size,
+    int32_t lba, std::optional<uint8_t> &nintendo_key, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &), const Options &options)
+{
+    bool updated = false;
+
+    for(uint32_t i = 0; i < sectors_state.size(); ++i)
+    {
+        if(sectors_state_in[i] != State::SUCCESS)
+            continue;
+
+        std::span<uint8_t> sector_data(&sectors_data[i * sector_size], sector_size);
+        std::span<const uint8_t> sector_data_in(&sectors_data_in[i * sector_size], sector_size);
+
+        if(sectors_state[i] == State::SUCCESS)
+        {
+            bool edc = edc_match(sector_data, lba + i, nintendo_key);
+            bool edc_in = edc_match(sector_data_in, lba + i, nintendo_key);
+
+            if(!edc && edc_in)
+            {
+                std::copy(sector_data_in.begin(), sector_data_in.end(), sector_data.begin());
+
+                updated = true;
+
+                if(options.verbose)
+                    LOG_R("[LBA: {}] correction success", lba + i);
+            }
+        }
+        else
+        {
+            sectors_state[i] = sectors_state_in[i];
+            std::copy(sector_data_in.begin(), sector_data_in.end(), sector_data.begin());
+
+            updated = true;
+
+            if(options.verbose)
+                LOG_R("[LBA: {}] correction success", lba + i);
+        }
+    }
+
+    return updated;
+}
+
+
+uint32_t sectors_data_state_edc_errors(std::span<const State> sectors_state, std::span<const uint8_t> sectors_data, uint32_t sector_size, int32_t lba, std::optional<uint8_t> &nintendo_key,
+    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+{
+    uint32_t errors = 0;
+
+    for(uint32_t i = 0; i < sectors_state.size(); ++i)
+    {
+        if(sectors_state[i] != State::SUCCESS)
+            continue;
+
+        std::span<const uint8_t> sector_data(&sectors_data[i * sector_size], sector_size);
+        if(!edc_match(sector_data, lba + i, nintendo_key))
+            ++errors;
+    }
+
+    return errors;
+}
+
+
+bool sectors_data_complete(std::span<const State> sectors_state, std::span<const uint8_t> sectors_data, uint32_t sector_size, int32_t lba, std::optional<uint8_t> &nintendo_key,
+    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+{
+    return std::all_of(sectors_state.begin(), sectors_state.end(), [](State s) { return s == State::SUCCESS; })
+        && !sectors_data_state_edc_errors(sectors_state, sectors_data, sector_size, lba, nintendo_key, edc_match);
+}
+
+
+void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const Errors &errors)
+{
+    uint32_t percentage = 100;
+    if(lba_start < lba_end)
+        percentage = percentage * (lba - lba_start) / (lba_end - lba_start);
+    LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {}, EDC: {} }}", spinner_animation(), percentage, lba, lba_end, errors.scsi, errors.edc);
+}
+
+
+export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
 
-    if(dump_mode == DumpMode::DUMP)
+    if(dump)
     {
         image_check_overwrite(options);
 
@@ -680,9 +803,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
                         // store security sector
                         auto security_sector_fn = image_prefix + ".security";
-                        if(dump_mode == DumpMode::DUMP)
+                        if(dump)
                             write_vector(security_sector_fn, xbox->security_sector);
-                        else if(dump_mode == DumpMode::REFINE && !options.force_refine)
+                        else if(!options.force_refine)
                         {
                             auto ss(xbox->security_sector);
                             xbox::clean_security_sector(ss);
@@ -709,7 +832,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             }
         }
 
-        if(dump_mode == DumpMode::DUMP)
+        if(dump)
         {
             // read and store manufacturer structure files
             if(readable_formats.find(READ_DISC_STRUCTURE_Format::MANUFACTURER) != readable_formats.end())
@@ -813,7 +936,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     }
 
     // get and store BCA
-    if(dump_mode == DumpMode::DUMP && readable_formats.find(READ_DISC_STRUCTURE_Format::BCA) != readable_formats.end())
+    if(dump && readable_formats.find(READ_DISC_STRUCTURE_Format::BCA) != readable_formats.end())
     {
         std::vector<uint8_t> bca;
         auto status = cmd_read_disc_structure(*ctx.sptd, bca, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R, 0, 0, READ_DISC_STRUCTURE_Format::BCA, 0);
@@ -822,7 +945,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     }
 
     // authenticate CSS
-    if(dump_mode == DumpMode::DUMP && readable_formats.find(READ_DISC_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
+    if(dump && readable_formats.find(READ_DISC_STRUCTURE_Format::COPYRIGHT) != readable_formats.end())
     {
         std::vector<uint8_t> copyright;
         auto status = cmd_read_disc_structure(*ctx.sptd, copyright, 0, 0, 0, READ_DISC_STRUCTURE_Format::COPYRIGHT, 0);
@@ -871,11 +994,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     bool dvd_raw = options.dvd_raw && ctx.disc_type == DiscType::DVD;
     bool bd_raw = options.bd_raw && (ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
     if((dvd_raw || bd_raw) && !omnidrive_firmware)
-        LOG("warning: drive not compatible with raw dumping");
+        LOG("warning: drive is not compatible with raw dumping");
 
     bool raw = (dvd_raw || bd_raw || nintendo_key) && omnidrive_firmware;
 
     auto cfg = dump_get_config(ctx.disc_type, raw);
+    auto edc_match = edc_match_func(ctx.disc_type, raw);
 
     uint32_t dump_read_size;
     if(options.dump_read_size)
@@ -902,19 +1026,19 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     else
         dump_read_size = DVD_READ_SIZE;
 
-    const uint32_t sectors_at_once = (dump_mode == DumpMode::REFINE ? 1 : dump_read_size);
+    const uint32_t sectors_at_once = dump ? dump_read_size : 1;
 
-    std::vector<uint8_t> file_data(sectors_at_once * cfg.sector_size);
-    std::vector<State> file_state(sectors_at_once);
+    std::vector<uint8_t> sector_data_file(sectors_at_once * cfg.sector_size);
+    std::vector<State> sector_state_file(sectors_at_once);
 
     auto file_mode = std::fstream::out | std::fstream::in | std::fstream::binary;
-    if(dump_mode == DumpMode::DUMP)
+    if(dump)
         file_mode |= std::fstream::trunc;
 
     std::filesystem::path iso_path(image_prefix + cfg.image_extension);
     std::filesystem::path state_path(image_prefix + ".state");
 
-    std::fstream fs_iso(iso_path, file_mode);
+    std::fstream fs_image(iso_path, file_mode);
     std::fstream fs_state(state_path, file_mode);
 
     uint32_t refine_counter = 0;
@@ -922,24 +1046,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     ROMEntry rom_entry(iso_path.filename().string());
     bool rom_update = true;
-
-    // read key from the image file if nintendo and refining (LBA 0 might not need refining and thus will be skipped)
-    if(nintendo_key && raw && dump_mode == DumpMode::REFINE)
-    {
-        dvd::RecordingFrame rf;
-        State state;
-
-        uint32_t lba_index = 0 - cfg.lba_zero;
-
-        read_entry(fs_iso, (uint8_t *)&rf, cfg.sector_size, lba_index, 1, 0, 0);
-        read_entry(fs_state, (uint8_t *)&state, sizeof(State), lba_index, 1, 0, (uint8_t)State::ERROR_SKIP);
-
-        if(state != State::ERROR_SKIP)
-        {
-            dvd::DataFrame df = RecordingFrame_to_DataFrame(rf);
-            nintendo::get_key(nintendo_key, 0, df);
-        }
-    }
 
     // TODO: can be implemented later
     if(raw)
@@ -970,34 +1076,23 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         rom_update = false;
     }
 
-    Errors errors = {};
-    if(dump_mode != DumpMode::DUMP && lba_start < lba_end)
-    {
-        std::vector<State> state_buffer(CHUNK_1MB);
-        uint32_t count = lba_end - lba_start;
-        for(uint32_t offset = 0; offset < count; offset += state_buffer.size())
-        {
-            uint32_t sectors_to_read = std::min((uint32_t)state_buffer.size(), count - offset);
-            read_entry(fs_state, (uint8_t *)state_buffer.data(), sizeof(State), lba_start - cfg.lba_zero + offset, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
-            errors.scsi += std::count(state_buffer.begin(), state_buffer.begin() + sectors_to_read, State::ERROR_SKIP);
-        }
-    }
-
-    // FIXME: remove after OmniDrive firmware fix
-    if(omnidrive_firmware)
-    {
-        auto status = cmd_seek(*ctx.sptd, 0);
-        if(status.status_code)
-            throw_line("omnidrive: failed to seek, SCSI ({})", SPTD::StatusMessage(status));
-    }
+    Errors errors_initial = {};
+    if(!dump)
+        refine_init_errors(errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, edc_match);
+    Errors errors = errors_initial;
 
     for(int32_t lba = lba_start; lba < lba_end;)
     {
-        progress_output(lba, lba_start, lba_end, errors.scsi);
+        if(signal.interrupt())
+        {
+            LOG_R("[LBA: {}] forced stop ", lba);
+            LOG("");
+            break;
+        }
+
+        status_update(lba, lba_start, lba_end, errors);
 
         bool increment = true;
-
-        int32_t lba_shift = 0;
 
         // ensure all sectors in the read belong to the same range (skip or non-skip)
         uint32_t sectors_to_read = std::min(sectors_at_once, (uint32_t)(lba_end - lba));
@@ -1011,6 +1106,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
             }
         }
 
+        int32_t lba_shift = 0;
         if(kreon_firmware && xbox)
         {
             if(lba < xbox->lock_lba_start)
@@ -1035,177 +1131,126 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
         if(lba < sectors_count && lba + sectors_to_read > sectors_count)
             sectors_to_read = sectors_count - lba;
 
-        bool read = true;
-        bool store = false;
-
         uint32_t lba_index = lba - cfg.lba_zero;
 
-        if(dump_mode == DumpMode::REFINE || dump_mode == DumpMode::VERIFY)
-        {
-            read_entry(fs_iso, file_data.data(), cfg.sector_size, lba_index, sectors_to_read, 0, 0);
-            read_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+        read_entry(fs_image, sector_data_file.data(), cfg.sector_size, lba_index, sectors_to_read, 0, 0);
+        read_entry(fs_state, (uint8_t *)sector_state_file.data(), sizeof(State), lba_index, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
 
-            if(dump_mode == DumpMode::REFINE)
-                read = std::any_of(file_state.begin(), file_state.end(), [](State s) { return s == State::ERROR_SKIP; });
+        bool read = false;
+        if(std::any_of(sector_state_file.begin(), sector_state_file.end(), [](State s) { return s == State::ERROR_SKIP; }))
+            read = true;
+        else
+        {
+            for(uint32_t i = 0; i < sectors_to_read; ++i)
+            {
+                if(!edc_match(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key))
+                {
+                    read = true;
+                    break;
+                }
+            }
         }
 
         if(read)
         {
-            std::vector<uint8_t> drive_data(file_data.size());
-            if(auto range = find_range(protection, lba); range != nullptr)
-                store = true;
-            else
+            std::vector<uint8_t> sector_data(sector_data_file.size());
+            std::vector<State> sector_state(sector_state_file.size(), State::SUCCESS);
+
+            if(auto range = find_range(protection, lba); range == nullptr)
             {
-                auto status = read_dvd_sectors(*ctx.sptd, drive_data.data(), cfg.sector_size, lba + lba_shift, sectors_to_read, dump_mode == DumpMode::REFINE && refine_counter, ctx.disc_type, raw);
+                std::string status_retries;
+                if(!dump)
+                    status_retries = std::format(", retry: {}", refine_counter + 1);
+
+                auto status = read_dvd_sectors(*ctx.sptd, sector_data.data(), cfg.sector_size, lba + lba_shift, sectors_to_read, !dump && refine_counter, ctx.disc_type, raw);
                 if(status.status_code)
                 {
-                    if(options.verbose)
-                    {
-                        std::string status_retries;
-                        if(dump_mode == DumpMode::REFINE)
-                            status_retries = std::format(", retry: {}", refine_counter + 1);
-                        LOG_R("[LBA: {} .. {}] SCSI error ({}){}", lba, lba + (int32_t)sectors_to_read - 1, SPTD::StatusMessage(status), status_retries);
-                    }
+                    std::fill(sector_state.begin(), sector_state.end(), State::ERROR_SKIP);
 
-                    if(dump_mode == DumpMode::DUMP)
-                        errors.scsi += sectors_to_read;
-                    else if(dump_mode == DumpMode::REFINE)
+                    for(uint32_t i = 0; i < sectors_to_read; ++i)
                     {
-                        ++refine_counter;
-                        if(refine_counter < refine_retries)
-                            increment = false;
-                        else
-                        {
-                            if(options.verbose)
-                                LOG_R("[LBA: {} .. {}] correction failure", lba, lba + (int32_t)sectors_to_read - 1);
+                        if(dump)
+                            ++errors.scsi;
 
-                            refine_counter = 0;
-                        }
+                        if(options.verbose)
+                            LOG_R("[LBA: {}] SCSI error ({}){}", lba + i, SPTD::StatusMessage(status), status_retries);
                     }
                 }
                 else
                 {
-                    if(options.verbose && raw)
-                    {
-                        if(ctx.disc_type == DiscType::DVD)
-                        {
-                            for(uint32_t i = 0; i < sectors_to_read; ++i)
-                            {
-                                auto &rf = (dvd::RecordingFrame &)drive_data[i * sizeof(dvd::RecordingFrame)];
-                                dvd::DataFrame df = RecordingFrame_to_DataFrame(rf);
-
-                                int32_t l = lba + lba_shift + (int32_t)i;
-
-                                if(!df.valid(nintendo::get_key(nintendo_key, l, df)))
-                                    LOG_R("[LBA: {}] invalid data frame", l);
-                            }
-                        }
-                        else if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
-                        {
-                            for(uint32_t i = 0; i < sectors_to_read; ++i)
-                            {
-                                auto &df = (bd::DataFrame &)drive_data[i * sizeof(bd::DataFrame)];
-
-                                int32_t l = lba + lba_shift + (int32_t)i;
-
-                                if(!df.valid(l))
-                                    LOG_R("[LBA: {}] invalid data frame", l);
-                            }
-                        }
-                    }
-
-                    store = true;
-                }
-            }
-
-            if(store)
-            {
-                if(dump_mode == DumpMode::DUMP)
-                {
-                    file_data.swap(drive_data);
-
-                    write_entry(fs_iso, file_data.data(), cfg.sector_size, lba_index, sectors_to_read, 0);
-                    std::fill(file_state.begin(), file_state.end(), State::SUCCESS);
-                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
-                }
-                else if(dump_mode == DumpMode::REFINE)
-                {
                     for(uint32_t i = 0; i < sectors_to_read; ++i)
                     {
-                        if(file_state[i] == State::SUCCESS)
-                            continue;
-
-                        if(options.verbose)
-                            LOG_R("[LBA: {}] correction success", lba + i);
-
-                        std::copy(drive_data.begin() + i * cfg.sector_size, drive_data.begin() + (i + 1) * cfg.sector_size, file_data.begin() + i * cfg.sector_size);
-                        file_state[i] = State::SUCCESS;
-
-                        --errors.scsi;
-                    }
-
-                    refine_counter = 0;
-
-                    write_entry(fs_iso, file_data.data(), cfg.sector_size, lba_index, sectors_to_read, 0);
-                    write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
-                }
-                else if(dump_mode == DumpMode::VERIFY)
-                {
-                    bool update = false;
-
-                    for(uint32_t i = 0; i < sectors_to_read; ++i)
-                    {
-                        if(file_state[i] != State::SUCCESS)
-                            continue;
-
-                        if(!std::equal(file_data.begin() + i * cfg.sector_size, file_data.begin() + (i + 1) * cfg.sector_size, drive_data.begin() + i * cfg.sector_size))
+                        if(!edc_match(std::span<uint8_t>(&sector_data[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key))
                         {
+                            if(dump)
+                                ++errors.edc;
+
                             if(options.verbose)
-                                LOG_R("[LBA: {}] data mismatch, sector state updated", lba + i);
-
-                            file_state[i] = State::ERROR_SKIP;
-                            update = true;
-
-                            ++errors.scsi;
+                                LOG_R("[LBA: {}] EDC error{}", lba + i, status_retries);
                         }
                     }
-
-                    if(update)
-                        write_entry(fs_state, (uint8_t *)file_state.data(), sizeof(State), lba_index, sectors_to_read, 0);
                 }
             }
-        }
 
-        if(!read || store)
-        {
-            if(rom_update)
-                rom_entry.update(file_data.data(), sectors_to_read * cfg.sector_size);
+            uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
+            uint32_t edc_before = sectors_data_state_edc_errors(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match);
 
-            for(uint32_t i = 0; i < sectors_to_read; ++i)
+            bool data_updated = sectors_data_state_update(sector_state_file, sector_data_file, sector_state, sector_data, cfg.sector_size, lba, nintendo_key, edc_match, options);
+            if(dump || data_updated)
             {
-                if(auto ss = filesystem_search_size(fs_ctx, fs_iso, fs_state, std::span(&file_data[i * cfg.sector_size], cfg.sector_size), lba + i); ss)
-                {
-                    LOG_R("sectors count ({}): {}", ss->second ? "UDF" : "ISO9660", ss->first);
+                write_entry(fs_image, sector_data_file.data(), cfg.sector_size, lba_index, sectors_to_read, 0);
+                write_entry(fs_state, (uint8_t *)sector_state_file.data(), sizeof(State), lba_index, sectors_to_read, 0);
 
-                    if(trim_to_filesystem_size && !options.lba_end)
-                    {
-                        lba_end = ss->first;
-                        trim_to_filesystem_size = false;
-                    }
+                if(!dump)
+                {
+                    uint32_t scsi_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
+                    uint32_t edc_after = sectors_data_state_edc_errors(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match);
+
+                    errors.scsi -= scsi_before - scsi_after;
+                    errors.edc -= edc_before - edc_after;
                 }
             }
-        }
-        else
-            rom_update = false;
 
-        if(signal.interrupt())
-        {
-            LOG_R("[LBA: {}] forced stop ", lba);
-            break;
+            if(!dump && !sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match))
+            {
+                ++refine_counter;
+                if(refine_counter < refine_retries)
+                    increment = false;
+                else
+                {
+                    if(options.verbose)
+                        LOG_R("[LBA: {} .. {}] correction failure", lba, lba + (int32_t)sectors_to_read - 1);
+                }
+            }
         }
 
         if(increment)
+        {
+            if(sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match))
+            {
+                if(rom_update)
+                    rom_entry.update(sector_data_file.data(), sectors_to_read * cfg.sector_size);
+
+                for(uint32_t i = 0; i < sectors_to_read; ++i)
+                {
+                    if(auto ss = filesystem_search_size(fs_ctx, fs_image, fs_state, std::span(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i); ss)
+                    {
+                        LOG_R("sectors count ({}): {}", ss->second ? "UDF" : "ISO9660", ss->first);
+
+                        if(trim_to_filesystem_size && !options.lba_end)
+                        {
+                            lba_end = ss->first;
+                            trim_to_filesystem_size = false;
+                        }
+                    }
+                }
+            }
+            else
+                rom_update = false;
+
+            refine_counter = 0;
             lba += sectors_to_read;
+        }
     }
 
     // re-unlock drive before returning
@@ -1218,13 +1263,22 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
 
     if(!signal.interrupt())
     {
-        progress_output(lba_end, lba_start, lba_end, errors.scsi);
+        LOGC_RF("");
         LOG("");
     }
-    LOG("");
 
-    LOG("media errors: ");
-    LOG("  SCSI: {}", errors.scsi);
+    if(dump)
+    {
+        LOG("media errors: ");
+        LOG("  SCSI: {}", errors.scsi);
+        LOG("  EDC: {}", errors.edc);
+    }
+    else
+    {
+        LOG("correction statistics: ");
+        LOG("  SCSI: {}", errors_initial.scsi - errors.scsi);
+        LOG("  EDC: {}", errors_initial.edc - errors.edc);
+    }
 
     if(signal.interrupt())
         signal.raiseDefault();
@@ -1232,7 +1286,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, DumpMode dum
     if(rom_update)
         ctx.dat = std::vector<std::string>(1, rom_entry.xmlLine());
 
-    return errors.scsi;
+    return errors.scsi || errors.edc;
 }
 
 }

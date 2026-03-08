@@ -226,9 +226,19 @@ void refine_init_errors(Errors &errors, std::fstream &fs_state, std::fstream &fs
 }
 
 
-export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump_mode)
+void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const Errors &errors, std::string_view status_message)
 {
-    if(dump_mode == DumpMode::DUMP)
+    uint32_t percentage = 100;
+    if(lba_start < lba_end)
+        percentage = percentage * (lba - lba_start) / (lba_end - lba_start);
+
+    LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSIs: {}, C2s: {}, Q: {} }}{}", spinner_animation(), percentage, lba, lba_end, errors.scsi, errors.c2, errors.q, status_message);
+};
+
+
+export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
+{
+    if(dump)
     {
         image_check_overwrite(options);
 
@@ -238,8 +248,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     else
         image_check_exists(options);
 
-    auto toc = toc_process(ctx, options, dump_mode == DumpMode::DUMP);
-    if(dump_mode == DumpMode::DUMP)
+    auto toc = toc_process(ctx, options, dump);
+    if(dump)
     {
         LOG("disc TOC:");
         print_toc(toc);
@@ -269,7 +279,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
-    auto mode = std::fstream::out | std::fstream::binary | (dump_mode == DumpMode::DUMP ? std::fstream::trunc : std::fstream::in);
+    auto mode = std::fstream::out | std::fstream::binary | (dump ? std::fstream::trunc : std::fstream::in);
     std::fstream fs_scram(image_prefix + ".scram", mode);
     std::fstream fs_state(image_prefix + ".state", mode);
     std::fstream fs_subcode(image_prefix + ".subcode", mode);
@@ -293,7 +303,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     int32_t data_drive_offset = ctx.drive_config.read_offset;
     if(options.dump_write_offset)
         data_drive_offset = -*options.dump_write_offset;
-    else if(dump_mode != DumpMode::DUMP)
+    else if(!dump)
     {
         auto disc_offset = find_disc_offset(toc, fs_state, fs_scram);
         if(disc_offset)
@@ -319,7 +329,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     }
 
     Errors errors_initial = {};
-    if(dump_mode != DumpMode::DUMP)
+    if(!dump)
         refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, -ctx.drive_config.read_offset, -data_drive_offset);
     Errors errors = errors_initial;
 
@@ -331,12 +341,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
     int32_t lba_overread = lba_end;
     for(int32_t lba = lba_start; lba < lba_overread; ++lba)
     {
-        auto status_update = [dump_mode, lba, lba_start, lba_overread, errors](std::string_view status_message)
-        {
-            LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSIs: {}, C2s: {}, Q: {} }}{}", spinner_animation(), std::min(100 * (lba - lba_start) / (lba_overread - lba_start), 100), lba, lba_overread,
-                errors.scsi, errors.c2, errors.q, status_message);
-        };
-
         if(signal.interrupt())
         {
             LOG_R("[LBA: {:6}] forced stop ", lba);
@@ -357,12 +361,10 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
             && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
             continue;
 
-        status_update("");
-
         read_entry(fs_scram, sector_data_file_a.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE, 0);
         read_entry(fs_scram, sector_data_file_d.data(), CD_DATA_SIZE, lba_index, 1, data_drive_offset * CD_SAMPLE_SIZE, 0);
 
-        uint32_t retries = dump_mode == DumpMode::REFINE ? options.retries : 0;
+        uint32_t retries = dump ? 0 : options.retries;
 
         std::optional<bool> read_as_data;
         for(uint32_t r = 0; r <= retries; ++r)
@@ -386,7 +388,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 status_message = std::format(", retry: {}{}", r, data_message);
             }
 
-            status_update(status_message);
+            status_update(lba, lba_start, lba_overread, errors, status_message);
 
             // read sector
             auto read_time_start = std::chrono::high_resolution_clock::now();
@@ -427,7 +429,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
             {
                 if(session_gap_range == nullptr && lba < lba_end)
                 {
-                    if(dump_mode != DumpMode::REFINE)
+                    if(dump)
                         errors.scsi += CD_DATA_SIZE_SAMPLES;
 
                     if(options.verbose)
@@ -450,15 +452,15 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
                     bool subcode_valid = subcode_extract_q(sector_subcode_file.data()).isValid();
 
-                    if(dump_mode == DumpMode::REFINE)
-                    {
-                        if(subcode_valid && lba < lba_end)
-                            --errors.q;
-                    }
-                    else
+                    if(dump)
                     {
                         if(!subcode_valid)
                             ++errors.q;
+                    }
+                    else
+                    {
+                        if(subcode_valid && lba < lba_end)
+                            --errors.q;
                     }
                 }
 
@@ -473,7 +475,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                     auto c2_samples = std::count(sector_state.begin(), sector_state.end(), State::ERROR_C2);
                     if(c2_samples)
                     {
-                        if(dump_mode != DumpMode::REFINE)
+                        if(dump)
                             errors.c2 += c2_samples;
 
                         if(options.verbose)
@@ -497,7 +499,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                     uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
                     uint32_t c2_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
 
-                    bool allow_update = dump_mode != DumpMode::REFINE || !options.refine_sector_mode || !c2_samples;
+                    bool allow_update = dump || !options.refine_sector_mode || !c2_samples;
 
                     bool data_updated = allow_update && sector_data_state_update(sector_state_file, sector_data_file, sector_state, sector_data, sector_protection);
                     if(data_updated)
@@ -506,7 +508,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                         write_entry(fs_scram, sector_data_file.data(), CD_DATA_SIZE, lba_index, 1, offset * CD_SAMPLE_SIZE);
                         write_entry(fs_state, (uint8_t *)sector_state_file.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, offset);
 
-                        if(dump_mode == DumpMode::REFINE && lba < lba_end)
+                        if(!dump && lba < lba_end)
                         {
                             uint32_t scsi_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
                             uint32_t c2_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_C2);
@@ -518,7 +520,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
 
                     if(sector_data_complete(sector_state_file, sector_protection) && (!options.refine_subchannel || subcode_extract_q(sector_subcode_file.data()).isValid()))
                     {
-                        if(dump_mode == DumpMode::REFINE && lba < lba_end && (data_updated || subcode_updated))
+                        if(!dump && lba < lba_end && (data_updated || subcode_updated))
                         {
                             if(options.verbose)
                                 LOG_R("[LBA: {:6}] correction success", lba);
@@ -533,7 +535,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
                 }
             }
 
-            if(dump_mode == DumpMode::REFINE && r == options.retries && options.verbose && lba < lba_end)
+            if(!dump && r == options.retries && options.verbose && lba < lba_end)
             {
                 bool failure = false;
 
@@ -565,14 +567,14 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, DumpMode dump
         LOGC("");
     }
 
-    if(dump_mode == DumpMode::DUMP)
+    if(dump)
     {
         LOG("media errors: ");
         LOG("  SCSI: {} samples", errors.scsi);
         LOG("  C2: {} samples", errors.c2);
         LOG("  Q: {}", errors.q);
     }
-    else if(dump_mode == DumpMode::REFINE)
+    else
     {
         LOG("correction statistics: ");
         LOG("  SCSI: {} samples", errors_initial.scsi - errors.scsi);

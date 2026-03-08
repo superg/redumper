@@ -279,7 +279,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
     int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
-    auto mode = std::fstream::out | std::fstream::binary | (dump ? std::fstream::trunc : std::fstream::in);
+    auto mode = std::fstream::in | std::fstream::out | std::fstream::binary;
+    if(dump)
+        mode |= std::fstream::trunc;
     std::fstream fs_scram(image_prefix + ".scram", mode);
     std::fstream fs_state(image_prefix + ".state", mode);
     std::fstream fs_subcode(image_prefix + ".subcode", mode);

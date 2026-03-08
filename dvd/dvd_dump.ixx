@@ -463,7 +463,7 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
             std::vector<uint8_t> sector_data_file(ctx.udf_vds.back().second * FORM1_DATA_SIZE);
             std::vector<State> sector_state_file(ctx.udf_vds.back().second);
 
-            //FIXME: this doesn't support raw dumps
+            // FIXME: this doesn't support raw dumps
             read_entry(fs_image, sector_data_file.data(), FORM1_DATA_SIZE, ctx.udf_vds.back().first, ctx.udf_vds.back().second, 0, 0);
             read_entry(fs_state, (uint8_t *)sector_state_file.data(), sizeof(State), ctx.udf_vds.back().first, ctx.udf_vds.back().second, 0, (uint8_t)State::ERROR_SKIP);
 

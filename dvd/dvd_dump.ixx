@@ -167,12 +167,16 @@ static const std::string BLURAY_CHANNEL_LENGTH[] =
 };
 // clang-format on
 
+namespace dvd
+{
 
 struct Errors
 {
     uint32_t scsi;
     uint32_t edc;
 };
+
+}
 
 
 uint32_t get_dvd_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor)
@@ -568,9 +572,12 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 }
 
 
-void refine_init_errors(Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg, std::optional<uint8_t> &nintendo_key,
+void refine_init_errors(dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg, std::optional<uint8_t> &nintendo_key,
     bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
 {
+    if(lba_start > lba_end)
+        return;
+
     std::vector<State> state_buffer(CHUNK_1KB);
     std::vector<uint8_t> image_buffer(state_buffer.size() * cfg.sector_size);
 
@@ -605,7 +612,7 @@ auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const ui
             return df.valid(nintendo::get_key(nintendo_key, lba, df));
         };
     }
-    else if(raw && disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R)
+    else if(raw && (disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R))
     {
         return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
         {
@@ -690,7 +697,7 @@ bool sectors_data_complete(std::span<const State> sectors_state, std::span<const
 }
 
 
-void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const Errors &errors)
+void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const dvd::Errors &errors)
 {
     uint32_t percentage = 100;
     if(lba_start < lba_end)
@@ -1076,10 +1083,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         rom_update = false;
     }
 
-    Errors errors_initial = {};
+    dvd::Errors errors_initial = {};
     if(!dump)
         refine_init_errors(errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, edc_match);
-    Errors errors = errors_initial;
+    dvd::Errors errors = errors_initial;
 
     for(int32_t lba = lba_start; lba < lba_end;)
     {

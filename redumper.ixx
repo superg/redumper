@@ -58,9 +58,9 @@ int redumper_dump(Context &ctx, Options &options)
     int exit_code = 0;
 
     if(ctx.disc_type == DiscType::CD)
-        ctx.refine = redumper_dump_cd(ctx, options, DumpMode::DUMP);
+        ctx.refine = redumper_dump_cd(ctx, options, true);
     else
-        ctx.refine = redumper_dump_dvd(ctx, options, DumpMode::DUMP);
+        ctx.refine = redumper_dump_dvd(ctx, options, true);
 
     return exit_code;
 }
@@ -73,23 +73,10 @@ int redumper_refine(Context &ctx, Options &options)
     if(!ctx.refine || *ctx.refine && options.retries)
     {
         if(ctx.disc_type == DiscType::CD)
-            redumper_dump_cd(ctx, options, DumpMode::REFINE);
+            redumper_dump_cd(ctx, options, false);
         else
-            redumper_dump_dvd(ctx, options, DumpMode::REFINE);
+            redumper_dump_dvd(ctx, options, false);
     }
-
-    return exit_code;
-}
-
-
-int redumper_verify(Context &ctx, Options &options)
-{
-    int exit_code = 0;
-
-    if(ctx.disc_type == DiscType::CD)
-        LOG("warning: CD verify is unsupported");
-    else
-        redumper_dump_dvd(ctx, options, DumpMode::VERIFY);
 
     return exit_code;
 }
@@ -140,7 +127,6 @@ const std::map<std::string, Command> COMMANDS{
     { "dump",           { true, true, true, true, true, redumper_dump }              },
     { "dump::extra",    { true, true, true, true, false, redumper_dump_extra }       },
     { "refine",         { true, true, true, true, false, redumper_refine }           },
-    { "verify",         { true, true, true, true, false, redumper_verify }           },
     { "dvdkey",         { true, true, true, false, false, redumper_dvdkey }          },
     { "eject",          { true, false, false, false, false, redumper_eject }         },
     { "dvdisokey",      { false, false, false, true, false, redumper_dvdisokey }     },
@@ -518,7 +504,7 @@ export int redumper(Options &options)
     for(auto const &c : commands)
     {
         LOG("");
-        LOG("*** {}{}", str_uppercase(c.first), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+        LOG("*** {}{}", str_uppercase(c.first), std::format(" (time check: {}s)", time_check.count()));
         LOG("");
 
         auto time_start = std::chrono::high_resolution_clock::now();
@@ -530,7 +516,7 @@ export int redumper(Options &options)
             break;
     }
     LOG("");
-    LOG("*** END{}", time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+    LOG("*** END{}", std::format(" (time check: {}s)", time_check.count()));
 
     return exit_code;
 }

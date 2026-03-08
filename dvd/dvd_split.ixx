@@ -1,4 +1,5 @@
 module;
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -162,7 +163,6 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
 
     std::optional<uint8_t> nintendo_key;
     std::vector<std::pair<int32_t, int32_t>> invalid_data_frames;
-    uint32_t main_data_offset = offsetof(dvd::DataFrame, main_data);
 
     // start extracting ISO from LBA 0
     sdram_fs.seekg(-dvd::LBA_START * sizeof(dvd::RecordingFrame));
@@ -176,8 +176,7 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
             nintendo_key = 0;
     }
 
-    if(nintendo_key)
-        main_data_offset = offsetof(dvd::DataFrame, cpr_mai);
+    uint32_t main_data_offset = nintendo_key ? offsetof(dvd::DataFrame, cpr_mai) : offsetof(dvd::DataFrame, main_data);
 
     uint32_t sectors_count = sdram_size / sizeof(dvd::RecordingFrame) + dvd::LBA_START;
     for(uint32_t lba = 0; lba < sectors_count; ++lba)
@@ -319,16 +318,33 @@ export void redumper_split_dvd(Context &ctx, Options &options)
     // generate .dmi, .pfi, .ss if xbox disc
     generate_extra_xbox(ctx, options);
 
-    // prevent hash generation for dumps with scsi errors
-    if(ctx.dump_errors && ctx.dump_errors->scsi && !options.force_split)
-        throw_line("{} scsi errors detected, unable to continue", ctx.dump_errors->scsi);
-
     // descramble and extract user data from raw DVD/BD dumps
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
     if(std::filesystem::path sdram_path(image_prefix + ".sdram"); std::filesystem::exists(sdram_path))
         dvd_extract_iso(ctx, sdram_path, options);
     else if(std::filesystem::path sbram_path(image_prefix + ".sbram"); std::filesystem::exists(sbram_path))
         bd_extract_iso(ctx, sbram_path, options);
+    // prevent hash generation for iso dumps with SCSI errors
+    else if(std::filesystem::path iso_path(image_prefix + ".iso"); std::filesystem::exists(iso_path) && !options.force_split)
+    {
+        std::filesystem::path state_path(image_prefix + ".state");
+        std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
+        if(!state_fs.is_open())
+            throw_line("unable to open file ({})", state_path.filename().string());
+
+        uint64_t state_size = std::filesystem::file_size(state_path);
+        uint32_t sectors_count = (uint32_t)(state_size / sizeof(State));
+
+        std::vector<State> state_buffer(CHUNK_1KB);
+        for(uint32_t offset = 0; offset < sectors_count; offset += (uint32_t)state_buffer.size())
+        {
+            uint32_t sectors_to_read = std::min((uint32_t)state_buffer.size(), sectors_count - offset);
+            read_entry(state_fs, (uint8_t *)state_buffer.data(), sizeof(State), offset, sectors_to_read, 0, (uint8_t)State::ERROR_SKIP);
+
+            if(std::any_of(state_buffer.begin(), state_buffer.begin() + sectors_to_read, [](State s) { return s == State::ERROR_SKIP; }))
+                throw_line("SCSI errors detected, unable to continue");
+        }
+    }
 }
 
 }

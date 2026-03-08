@@ -375,7 +375,6 @@ export struct Options
         LOG("\tdump          \tdumps disc to primary dump files");
         LOG("\tdump::extra   \tdumps extended disc areas such as lead-in and lead-out using specific drives");
         LOG("\trefine        \trefines dump files by re-reading the disc");
-        LOG("\tverify        \tverifies dump files from the disc and marks any mismatch in state for the subsequent refine");
         LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
         LOG("\teject         \tejects drive tray");
         LOG("\tdvdisokey     \tcracks DVD CSS keys directly from iso dump, no drive required");

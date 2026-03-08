@@ -21,7 +21,8 @@ namespace gpsxre
 {
 
 export constexpr uint32_t OVERREAD_COUNT = 100;
-export constexpr uint32_t CHUNK_1MB = 1024 * 1024;
+export constexpr uint32_t CHUNK_1KB = 1024;
+export constexpr uint32_t CHUNK_1MB = CHUNK_1KB * CHUNK_1KB;
 export constexpr uint32_t DVD_READ_SIZE = 32;
 
 
@@ -35,14 +36,6 @@ export enum class State : uint8_t
 };
 
 
-export enum class DumpMode
-{
-    DUMP,
-    VERIFY,
-    REFINE
-};
-
-
 export enum class DiscType
 {
     CD,
@@ -53,14 +46,6 @@ export enum class DiscType
 };
 
 
-export struct Errors
-{
-    uint32_t scsi;
-    uint32_t c2;
-    uint32_t q;
-};
-
-
 export struct Context
 {
     DiscType disc_type;
@@ -68,7 +53,6 @@ export struct Context
     DriveConfig drive_config;
 
     std::optional<bool> dreamcast;
-    std::optional<Errors> dump_errors;
     std::vector<std::pair<int32_t, int32_t>> protection;
     std::optional<bool> protection_trim;
     std::optional<bool> refine;

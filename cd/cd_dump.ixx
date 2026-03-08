@@ -585,7 +585,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
     if(signal.interrupt())
         signal.raiseDefault();
 
-    return errors.scsi || errors.c2;
+    return errors.scsi || errors.c2 || (options.refine_subchannel && errors.q);
 }
 
 }

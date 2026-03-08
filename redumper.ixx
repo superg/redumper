@@ -504,7 +504,7 @@ export int redumper(Options &options)
     for(auto const &c : commands)
     {
         LOG("");
-        LOG("*** {}{}", str_uppercase(c.first), time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+        LOG("*** {}{}", str_uppercase(c.first), std::format(" (time check: {}s)", time_check.count()));
         LOG("");
 
         auto time_start = std::chrono::high_resolution_clock::now();
@@ -516,7 +516,7 @@ export int redumper(Options &options)
             break;
     }
     LOG("");
-    LOG("*** END{}", time_check == std::chrono::seconds::zero() ? "" : std::format(" (time check: {}s)", time_check.count()));
+    LOG("*** END{}", std::format(" (time check: {}s)", time_check.count()));
 
     return exit_code;
 }

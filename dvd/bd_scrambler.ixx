@@ -20,20 +20,46 @@ public:
     }
 
 
-    void descramble(std::span<uint8_t> data, uint32_t psn) const
+    void descramble(std::span<uint8_t> data, int32_t lba, bool nintendo) const
     {
-        process(data, psn);
+        process(data, nintendo ? seedNintendo(lba) : seedBluray(lba));
     }
 
 private:
     Scrambler() = default;
 
 
-    void process(std::span<uint8_t> data, uint32_t psn) const
+    uint16_t seedBluray(int32_t lba) const
+    {
+        uint32_t psn = lba + 0x100000;
+        return psn >> 5;
+    }
+
+
+    uint32_t seedNintendo(int32_t lba) const
+    {
+        uint32_t m = lba & 0xFFFE0;
+        uint32_t local = m & 0xFFFF;
+        uint32_t k = local >> 8;
+
+        uint32_t slope = (local & 0xFF) << 7;
+        uint32_t layer = (m >> 16) & 0xF;
+
+        uint32_t jump4k = ((local >> 12) & 0x3) << 9;
+        uint32_t jump32k = (local >> 15) << 12;
+
+        uint32_t toggle = (k & 1) << 5;
+        uint32_t decay = k << 4;
+
+        return slope + 1248 + layer + toggle + jump4k + jump32k - decay;
+    }
+
+
+    void process(std::span<uint8_t> data, uint16_t seed) const
     {
         // ISO/IEC 30190
 
-        uint16_t shift_register = (1 << 15) | ((psn >> 5) & 0x7FFF);
+        uint16_t shift_register = (1 << 15) | (seed & 0x7FFF);
 
         for(auto &byte : data)
         {

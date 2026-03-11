@@ -265,6 +265,15 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
     if(sbram_fs.fail())
         throw_line("seek failed");
 
+    bool nintendo = false;
+    if(std::filesystem::exists(physical_path))
+    {
+        auto physical = read_vector(physical_path);
+        strip_response_header(physical);
+        if(std::all_of(physical.begin(), physical.end(), [](uint8_t b) { return b == 0x00; }))
+            nintendo = true;
+    }
+
     uint32_t sectors_count = sbram_size / sizeof(bd::DataFrame) + bd::LBA_START;
     for(uint32_t lba = 0; lba < sectors_count; ++lba)
     {
@@ -280,8 +289,8 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
 
         std::span<uint8_t> data(df.main_data, FORM1_DATA_SIZE);
 
-        bool valid = df.valid(lba);
-        df.descramble(lba);
+        bool valid = df.valid(lba, nintendo);
+        df.descramble(lba, nintendo);
 
         if(!valid)
         {

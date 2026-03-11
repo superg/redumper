@@ -27,12 +27,12 @@ export struct DataFrame
     uint32_t edc;
 
 
-    bool valid(int32_t lba) const
+    bool valid(int32_t lba, bool nintendo) const
     {
         bool valid = false;
 
         auto df = *this;
-        df.descramble(lba);
+        df.descramble(lba, nintendo);
 
         if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(DataFrame, edc)).final())
             valid = true;
@@ -41,9 +41,9 @@ export struct DataFrame
     }
 
 
-    void descramble(int32_t lba)
+    void descramble(int32_t lba, bool nintendo)
     {
-        Scrambler::get().descramble(std::span((uint8_t *)this, sizeof(DataFrame)), lba - LBA_START);
+        Scrambler::get().descramble(std::span((uint8_t *)this, sizeof(DataFrame)), lba, nintendo);
     }
 };
 

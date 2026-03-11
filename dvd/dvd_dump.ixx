@@ -619,7 +619,7 @@ auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const ui
         {
             auto &df = (bd::DataFrame &)data[0];
 
-            return df.valid(lba);
+            return df.valid(lba, nintendo_key.has_value());
         };
     }
     else
@@ -646,7 +646,7 @@ auto extract_data_func(DiscType disc_type, bool raw) -> std::vector<uint8_t> (*)
         return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
         {
             auto &df = (bd::DataFrame &)data[0];
-            df.descramble(lba);
+            df.descramble(lba, nintendo_key.has_value());
 
             return std::vector(df.main_data, df.main_data + sizeof(df.main_data));
         };
@@ -804,6 +804,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
             // Blu-ray
             if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
             {
+                if(physical_structures.size() == 1)
+                {
+                    auto structure = physical_structures.front();
+                    strip_response_header(structure);
+                    if(std::all_of(structure.begin(), structure.end(), [](uint8_t b) { return b == 0x00; }))
+                        nintendo_key = 0;
+                }
+
                 auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
                 if(!layer_lengths.empty())
                     sectors_count_physical = std::accumulate(layer_lengths.begin(), layer_lengths.end(), (uint32_t)0);
@@ -892,26 +900,29 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
             // print physical structures information (Blu-ray)
             if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
             {
-                uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
-
-                LOG("disc structure:");
-                for(auto const &s : physical_structures)
-                    print_di_units_structure(&s[sizeof(CMD_ParameterListHeader)], rom);
-                LOG("");
-
-                // layer break
-                if(!physical_structures.empty())
+                if(!nintendo_key)
                 {
-                    auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
+                    uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
 
-                    uint32_t layer_break = 0;
-                    for(uint32_t i = 0; i + 1 < layer_lengths.size(); ++i)
-                    {
-                        layer_break += layer_lengths[i];
-                        LOG("layer break{}: {}", layer_lengths.size() > 1 ? std::format(" (layer: {})", i) : "", layer_break);
-                    }
-
+                    LOG("disc structure:");
+                    for(auto const &s : physical_structures)
+                        print_di_units_structure(&s[sizeof(CMD_ParameterListHeader)], rom);
                     LOG("");
+
+                    // layer break
+                    if(!physical_structures.empty())
+                    {
+                        auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
+
+                        uint32_t layer_break = 0;
+                        for(uint32_t i = 0; i + 1 < layer_lengths.size(); ++i)
+                        {
+                            layer_break += layer_lengths[i];
+                            LOG("layer break{}: {}", layer_lengths.size() > 1 ? std::format(" (layer: {})", i) : "", layer_break);
+                        }
+
+                        LOG("");
+                    }
                 }
             }
             // print physical structures information (DVD)

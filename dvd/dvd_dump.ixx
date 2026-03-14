@@ -736,6 +736,18 @@ void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const dvd::E
 }
 
 
+uint32_t get_sectors_count_capacity(SPTD &sptd)
+{
+    uint32_t lba_last, block_length;
+    auto status = cmd_read_capacity(sptd, lba_last, block_length, false, 0, false);
+    if(status.status_code)
+        throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
+    if(block_length != FORM1_DATA_SIZE)
+        throw_line("unsupported block size (block size: {})", block_length);
+    return lba_last + 1;
+}
+
+
 export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -767,26 +779,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     }
 
     // get capacity
-    uint32_t sectors_count_capacity;
-    {
-        uint32_t lba_last, block_length;
-        auto status = cmd_read_capacity(*ctx.sptd, lba_last, block_length, false, 0, false);
-        if(status.status_code)
-            throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
-        if(block_length != FORM1_DATA_SIZE)
-            throw_line("unsupported block size (block size: {})", block_length);
-        sectors_count_capacity = lba_last + 1;
-    }
+    uint32_t sectors_count_capacity = get_sectors_count_capacity(*ctx.sptd);
 
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
-
-    bool trim_to_filesystem_size = options.filesystem_trim;
-    FilesystemContext fs_ctx;
 
     std::optional<uint8_t> nintendo_key;
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
 
+    bool trim_to_filesystem_size = options.filesystem_trim;
     std::optional<uint32_t> sectors_count_physical;
     if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
     {
@@ -1093,6 +1094,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     uint32_t refine_counter = 0;
     uint32_t refine_retries = options.retries ? options.retries : 1;
 
+    FilesystemContext fs_ctx;
     ROMEntry rom_entry(image_prefix + dump_get_config(ctx.disc_type, false).image_extension);
     bool rom_update = true;
 
@@ -1270,29 +1272,32 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 
         if(increment)
         {
-            if(sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match))
+            if(dump)
             {
-                for(uint32_t i = 0; i < sectors_to_read; ++i)
+                if(sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match))
                 {
-                    auto data = extract_data(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key);
-
-                    if(rom_update)
-                        rom_entry.update(data.data(), data.size());
-
-                    if(auto ss = filesystem_search_size(fs_ctx, fs_image, fs_state, data, lba + i); ss)
+                    for(uint32_t i = 0; i < sectors_to_read; ++i)
                     {
-                        LOG_R("sectors count ({}): {}", ss->second ? "UDF" : "ISO9660", ss->first);
+                        auto data = extract_data(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key);
 
-                        if(trim_to_filesystem_size && !options.lba_end)
+                        if(rom_update)
+                            rom_entry.update(data.data(), data.size());
+
+                        if(auto ss = filesystem_search_size(fs_ctx, fs_image, fs_state, data, lba + i); ss)
                         {
-                            lba_end = ss->first;
-                            trim_to_filesystem_size = false;
+                            LOG_R("sectors count ({}): {}", ss->second ? "UDF" : "ISO9660", ss->first);
+
+                            if(trim_to_filesystem_size && !options.lba_end)
+                            {
+                                lba_end = ss->first;
+                                trim_to_filesystem_size = false;
+                            }
                         }
                     }
                 }
+                else
+                    rom_update = false;
             }
-            else
-                rom_update = false;
 
             refine_counter = 0;
             lba += sectors_to_read;

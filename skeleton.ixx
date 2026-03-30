@@ -178,7 +178,7 @@ void skeleton(const std::string &image_prefix, const std::string &image_path, bo
         if(image_fs.fail())
             throw_line("read failed ({})", image_path);
 
-        if(inside_contents(contents, s))
+        if(inside_contents(contents, s + area_map[0].lba))
             erase_sector(sector.data(), iso);
 
         skeleton_fs.write((char *)sector.data(), sector.size());

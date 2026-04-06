@@ -247,8 +247,8 @@ std::vector<DriveConfig> drive_find_in_database(std::string_view vendor_id, std:
     std::copy_if(DRIVE_DATABASE.begin(), DRIVE_DATABASE.end(), std::back_inserter(drives),
         [&](const auto &d)
         {
-            return d.vendor_id == vendor_id && d.product_id == product_id && (product_revision_level.empty() || d.product_revision_level == product_revision_level)
-                && (vendor_specific.empty() || d.vendor_specific == vendor_specific);
+            return d.vendor_id == vendor_id && d.product_id == product_id && (d.product_revision_level.empty() || d.product_revision_level == product_revision_level)
+                && (d.vendor_specific.empty() || d.vendor_specific == vendor_specific);
         });
 
     return drives;
@@ -261,8 +261,8 @@ export bool drive_is_recommended(std::string_view vendor_id, std::string_view pr
     auto it = std::find_if(DRIVE_DATABASE.begin(), end,
         [&](const auto &d)
         {
-            return d.vendor_id == vendor_id && d.product_id == product_id && (product_revision_level.empty() || d.product_revision_level == product_revision_level)
-                && (vendor_specific.empty() || d.vendor_specific == vendor_specific);
+            return d.vendor_id == vendor_id && d.product_id == product_id && (d.product_revision_level.empty() || d.product_revision_level == product_revision_level)
+                && (d.vendor_specific.empty() || d.vendor_specific == vendor_specific);
         });
 
     return it != end;

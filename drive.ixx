@@ -179,7 +179,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "HL-DT-ST", "BD-RE BP55EB40"   , "1.00", "", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::MTK2B }, // AngelDevIndie
     // PATCHED
     { "TSSTcorp", "DVD-ROM TS-H353C" , "ZZ00", ""                    , "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
-    { "hp"      , "DVD RW AD-7290H5" , "SE02", "Feb17'121210068L111" , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
+    { "hp"      , "DVD RW AD-7290H5" , "SE02", ""                    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "Optiarc" , "DVD RW AD-7173A"  , "1-04", "seri-v1    BT-LIGGY" , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "NEC"     , "DVD_RW ND-3520AW" , "3.07", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "Optiarc" , "DVD RW AD-7250H"  , "1.D3", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri

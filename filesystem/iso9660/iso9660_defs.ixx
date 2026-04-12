@@ -168,6 +168,49 @@ struct PrimaryVolumeDescriptor
     uint8_t application_use[512];
     uint8_t reserved2[653];
 };
+
+struct SupplementaryVolumeDescriptor
+{
+    enum class VolumeFlags : uint8_t
+    {
+        CONTAINS_UNREGISTERED_ESCAPE_SEQUENCE = 1 << 0,
+    };
+
+    VolumeDescriptorType type;
+    uint8_t standard_identifier[5];
+    uint8_t version;
+    VolumeFlags volume_flags;
+    char system_identifier[32];
+    char volume_identifier[32];
+    uint8_t unused1[8];
+    uint64_lsb_msb volume_space_size;
+    char escape_sequences[32];
+    uint32_lsb_msb volume_set_size;
+    uint32_lsb_msb volume_sequence_number;
+    uint32_lsb_msb logical_block_size;
+    uint64_lsb_msb path_table_size;
+    uint32_t path_table_l_offset;
+    uint32_t path_table_l_offset_opt;
+    uint32_t path_table_m_offset;
+    uint32_t path_table_m_offset_opt;
+    DirectoryRecord root_directory_record;
+    uint8_t root_directory_identifier;
+    char volume_set_identifier[128];
+    char publisher_identifier[128];
+    char data_preparer_identifier[128];
+    char application_identifier[128];
+    char copyright_file_identifier[37];
+    char abstract_file_identifier[37];
+    char bibliographic_file_identifier[37];
+    DateTime volume_creation_date_time;
+    DateTime volume_modification_date_time;
+    DateTime volume_expiration_date_time;
+    DateTime volume_effective_date_time;
+    uint8_t file_structure_version;
+    uint8_t reserved1;
+    uint8_t application_use[512];
+    uint8_t reserved2[653];
+};
 #pragma pack(pop)
 
 

@@ -33,7 +33,7 @@ public:
         iso9660::SupplementaryVolumeDescriptor svd;
         if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)svd, data_reader, iso9660::VolumeDescriptorType::SUPPLEMENTARY))
         {
-            if(std::ranges::find(joliet::ESCAPE_SEQUENCES, svd.escape_sequences) != joliet::ESCAPE_SEQUENCES.end())
+            if(joliet::ESCAPE_SEQUENCES.contains(svd.escape_sequences))
             {
                 auto volume_identifier = joliet::identifier_to_string((joliet::VolumeIdentifier &)svd.volume_identifier);
                 if(!volume_identifier.empty())

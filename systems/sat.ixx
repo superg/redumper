@@ -155,7 +155,7 @@ private:
             auto v = serialversion.substr(p + 1);
             erase_all_inplace(v, ' ');
 
-            if(std::all_of(v.begin(), v.end(), [](char c) { return std::isdigit(c) || c == '.'; }))
+            if(std::all_of(v.begin(), v.end(), [](unsigned char c) { return std::isdigit(c) || c == '.'; }))
                 version = v;
         }
 

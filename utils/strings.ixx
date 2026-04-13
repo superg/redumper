@@ -23,13 +23,13 @@ namespace gpsxre
 
 export void trim_left_inplace(std::string &s)
 {
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](char c) { return !std::isspace(c); }));
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isspace(c); }));
 }
 
 
 export void trim_right_inplace(std::string &s)
 {
-    s.erase(std::find_if(s.rbegin(), s.rend(), [](char c) { return !std::isspace(c); }).base(), s.end());
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); }).base(), s.end());
 }
 
 
@@ -90,7 +90,7 @@ export std::string replace_all(std::string s, const std::string &from, const std
 export std::string str_uppercase(const std::string &s)
 {
     std::string str_uc;
-    std::transform(s.begin(), s.end(), std::back_inserter(str_uc), [](char c) { return std::toupper(c); });
+    std::transform(s.begin(), s.end(), std::back_inserter(str_uc), [](unsigned char c) { return std::toupper(c); });
 
     return str_uc;
 }
@@ -158,7 +158,7 @@ export std::vector<std::string> tokenize(const std::string &str, const char *del
 
 export void replace_nonprint_inplace(std::string &s, char r)
 {
-    std::transform(s.begin(), s.end(), s.begin(), [r](char c) { return isprint(c) ? c : r; });
+    std::transform(s.begin(), s.end(), s.begin(), [r](unsigned char c) { return isprint(c) ? c : r; });
 }
 
 
@@ -191,7 +191,7 @@ export std::optional<uint64_t> str_to_uint64(std::string::const_iterator str_beg
     bool valid = false;
     for(auto it = str_begin; it != str_end; ++it)
     {
-        if(std::isdigit(*it))
+        if(std::isdigit((unsigned char)*it))
         {
             value = (value * 10) + (*it - '0');
             valid = true;

@@ -2,6 +2,7 @@ module;
 #include <filesystem>
 #include <format>
 #include <ostream>
+#include <set>
 #include "system.hh"
 
 export module systems.joliet;

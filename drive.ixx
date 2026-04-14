@@ -187,6 +187,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "Optiarc" , "DVD RW AD-5280S"  , "1.01", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "Optiarc" , "DVD RW AD-7590A"  , "1.V1", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "SONY"    , "DVD RW DRU-875S"  , "1.61", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
+    { "Optiarc" , "DVD RW AD-7203A"  , "1.09", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     // PATCHED KREON
     { "TSSTcorp", "DVD-ROM SH-D163B" , "ZZ01", "KREON V1.00.........", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
     { "TSSTcorp", "DVD-ROM SH-D162C" , "DC02", "KREON V1.00.........", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // MoriGM

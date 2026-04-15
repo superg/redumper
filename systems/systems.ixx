@@ -9,7 +9,6 @@ export module systems.systems;
 import systems.cdrom;
 import systems.high_sierra;
 import systems.iso;
-import systems.joliet;
 import systems.dc;
 import systems.mcd;
 import systems.psx;
@@ -43,7 +42,6 @@ public:
         systems.push_back([]() { return std::make_unique<SystemSecuROM>(); });
         systems.push_back([]() { return std::make_unique<SystemHighSierra>(); });
         systems.push_back([]() { return std::make_unique<SystemISO>(); });
-        systems.push_back([]() { return std::make_unique<SystemJoliet>(); });
         systems.push_back([]() { return std::make_unique<SystemDC>(); });
         systems.push_back([]() { return std::make_unique<SystemMCD>(); });
         systems.push_back([]() { return std::make_unique<SystemPSX>(); });

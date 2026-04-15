@@ -3,6 +3,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -355,6 +356,50 @@ std::string identifier_to_string(char (&identifier)[N])
 {
     // outer string cast limits identifier with the first encountered '\0'
     return std::string(trim(std::string(identifier, N)).c_str());
+}
+
+
+// Joliet extension
+
+
+const std::set<std::string_view> JOLIET_ESCAPE_SEQUENCES = {
+    "%/@", // UCS-2 Level 1
+    "%/C", // UCS-2 Level 2
+    "%/E"  // UCS-2 Level 3
+};
+
+
+using JolietVolumeIdentifier = uint16_t[sizeof(SupplementaryVolumeDescriptor::volume_identifier) / sizeof(uint16_t)];
+
+
+// Converts an UCS-2BE identifier to a trimmed UTF-8 string.
+template<std::size_t N>
+std::string identifier_to_string(const uint16_t (&identifier)[N])
+{
+    std::string result;
+
+    for(auto c : identifier)
+    {
+        uint16_t codepoint = endian_swap(c);
+
+        if(codepoint <= 0x7F)
+        {
+            result += (char)(codepoint);
+        }
+        else if(codepoint <= 0x7FF)
+        {
+            result += (char)(0xC0 | (codepoint >> 6));
+            result += (char)(0x80 | ((codepoint >> 0) & 0x3F));
+        }
+        else
+        {
+            result += (char)(0xE0 | (codepoint >> 12));
+            result += (char)(0x80 | ((codepoint >> 6) & 0x3F));
+            result += (char)(0x80 | ((codepoint >> 0) & 0x3F));
+        }
+    }
+
+    return trim(result).c_str();
 }
 
 }

@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <codecvt>
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
@@ -376,30 +377,14 @@ using JolietVolumeIdentifier = uint16_t[sizeof(SupplementaryVolumeDescriptor::vo
 template<std::size_t N>
 std::string identifier_to_string(const uint16_t (&identifier)[N])
 {
-    std::string result;
+    char16_t utf16_identifier[N];
+    for(size_t i = 0; i < N; i++)
+        utf16_identifier[i] = endian_swap(identifier[i]);
 
-    for(auto c : identifier)
-    {
-        uint16_t codepoint = endian_swap(c);
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert("", u"");
 
-        if(codepoint <= 0x7F)
-        {
-            result += (char)(codepoint);
-        }
-        else if(codepoint <= 0x7FF)
-        {
-            result += (char)(0xC0 | (codepoint >> 6));
-            result += (char)(0x80 | ((codepoint >> 0) & 0x3F));
-        }
-        else
-        {
-            result += (char)(0xE0 | (codepoint >> 12));
-            result += (char)(0x80 | ((codepoint >> 6) & 0x3F));
-            result += (char)(0x80 | ((codepoint >> 0) & 0x3F));
-        }
-    }
-
-    return trim(result).c_str();
+    std::string utf8_identifier = convert.to_bytes(utf16_identifier, &utf16_identifier[N - 1]);
+    return trim(utf8_identifier).c_str();
 }
 
 }

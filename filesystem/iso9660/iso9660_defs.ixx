@@ -1,8 +1,10 @@
 module;
 #include <algorithm>
+#include <codecvt>
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -142,6 +144,50 @@ struct PrimaryVolumeDescriptor
     uint8_t unused2[8];
     uint64_lsb_msb volume_space_size;
     uint8_t unused3[32];
+    uint32_lsb_msb volume_set_size;
+    uint32_lsb_msb volume_sequence_number;
+    uint32_lsb_msb logical_block_size;
+    uint64_lsb_msb path_table_size;
+    uint32_t path_table_l_offset;
+    uint32_t path_table_l_offset_opt;
+    uint32_t path_table_m_offset;
+    uint32_t path_table_m_offset_opt;
+    DirectoryRecord root_directory_record;
+    uint8_t root_directory_identifier;
+    char volume_set_identifier[128];
+    char publisher_identifier[128];
+    char data_preparer_identifier[128];
+    char application_identifier[128];
+    char copyright_file_identifier[37];
+    char abstract_file_identifier[37];
+    char bibliographic_file_identifier[37];
+    DateTime volume_creation_date_time;
+    DateTime volume_modification_date_time;
+    DateTime volume_expiration_date_time;
+    DateTime volume_effective_date_time;
+    uint8_t file_structure_version;
+    uint8_t reserved1;
+    uint8_t application_use[512];
+    uint8_t reserved2[653];
+};
+
+
+struct SupplementaryVolumeDescriptor
+{
+    enum class VolumeFlags : uint8_t
+    {
+        CONTAINS_UNREGISTERED_ESCAPE_SEQUENCE = 1 << 0,
+    };
+
+    VolumeDescriptorType type;
+    uint8_t standard_identifier[5];
+    uint8_t version;
+    VolumeFlags volume_flags;
+    char system_identifier[32];
+    char volume_identifier[32];
+    uint8_t unused1[8];
+    uint64_lsb_msb volume_space_size;
+    char escape_sequences[32];
     uint32_lsb_msb volume_set_size;
     uint32_lsb_msb volume_sequence_number;
     uint32_lsb_msb logical_block_size;
@@ -311,6 +357,43 @@ std::string identifier_to_string(char (&identifier)[N])
 {
     // outer string cast limits identifier with the first encountered '\0'
     return std::string(trim(std::string(identifier, N)).c_str());
+}
+
+
+// Joliet extension
+
+
+const std::set<std::string_view> JOLIET_ESCAPE_SEQUENCES = {
+    "%/@", // UCS-2 Level 1
+    "%/C", // UCS-2 Level 2
+    "%/E"  // UCS-2 Level 3
+};
+
+
+using JolietVolumeIdentifier = uint16_t[sizeof(SupplementaryVolumeDescriptor::volume_identifier) / sizeof(uint16_t)];
+
+
+// Converts an UCS-2BE identifier to a trimmed UTF-8 string.
+template<std::size_t N>
+std::string identifier_to_string(const uint16_t (&identifier)[N])
+{
+    char16_t utf16_identifier[N];
+    for(size_t i = 0; i < N; i++)
+        utf16_identifier[i] = endian_swap(identifier[i]);
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert("", u"");
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+    std::string utf8_identifier = convert.to_bytes(utf16_identifier, &utf16_identifier[N - 1]);
+    return trim(utf8_identifier).c_str();
 }
 
 }

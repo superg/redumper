@@ -5,6 +5,7 @@ module;
 #include <format>
 #include <fstream>
 #include <ostream>
+#include <set>
 #include "system.hh"
 
 export module systems.iso;
@@ -46,6 +47,17 @@ public:
 
             os << "  PVD:" << std::endl;
             os << std::format("{}", hexdump((uint8_t *)&pvd, offset, 96));
+        }
+
+        iso9660::SupplementaryVolumeDescriptor svd;
+        if(iso9660::Browser::findDescriptor((iso9660::VolumeDescriptor &)svd, data_reader, iso9660::VolumeDescriptorType::SUPPLEMENTARY))
+        {
+            if(iso9660::JOLIET_ESCAPE_SEQUENCES.contains(svd.escape_sequences))
+            {
+                auto volume_identifier = iso9660::identifier_to_string((iso9660::JolietVolumeIdentifier &)svd.volume_identifier);
+                if(!volume_identifier.empty())
+                    os << std::format("  joliet volume identifier: {}", volume_identifier) << std::endl;
+            }
         }
     }
 };

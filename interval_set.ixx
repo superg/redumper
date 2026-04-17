@@ -176,6 +176,33 @@ public:
         return _ranges.empty();
     }
 
+
+    T count() const
+    {
+        T c = 0;
+        for(auto &r : _ranges)
+            c += r.second - r.first;
+        return c;
+    }
+
+
+    std::optional<T> index(T value) const
+    {
+        T idx = 0;
+        for(auto &r : _ranges)
+        {
+            if(value < r.first)
+                break;
+
+            if(value < r.second)
+                return idx + (value - r.first);
+
+            idx += r.second - r.first;
+        }
+
+        return std::nullopt;
+    }
+
 private:
     std::vector<Interval> _ranges;
 };

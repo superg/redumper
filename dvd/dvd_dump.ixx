@@ -24,6 +24,7 @@ import dvd.nintendo;
 import dvd.xbox;
 import filesystem.iso9660;
 import filesystem.udf;
+import interval_set;
 import options;
 import range;
 import rom_entry;
@@ -573,7 +574,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 }
 
 
-void refine_init_errors(dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg, std::optional<uint8_t> &nintendo_key,
+void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg, std::optional<uint8_t> &nintendo_key,
     bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
 {
     if(lba_start > lba_end)
@@ -593,10 +594,21 @@ void refine_init_errors(dvd::Errors &errors, std::fstream &fs_state, std::fstrea
 
         for(uint32_t i = 0; i < sectors_to_read; ++i)
         {
+            bool error = false;
+
             if(state_buffer[i] == State::ERROR_SKIP)
+            {
+                error = true;
                 ++errors.scsi;
+            }
             else if(!edc_match(std::span<uint8_t>(&image_buffer[i * cfg.sector_size], cfg.sector_size), lba_base + i, nintendo_key))
+            {
+                error = true;
                 ++errors.edc;
+            }
+
+            if(error)
+                intervals.add(lba_base + i);
         }
     }
 }
@@ -763,8 +775,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         image_check_exists(options);
 
     std::vector<Range<int32_t>> protection;
-    for(auto const &p : string_to_ranges<int32_t>(options.skip))
-        insert_range(protection, { p.first, p.second });
 
     bool omnidrive_firmware = is_omnidrive_firmware(ctx.drive_config) != std::nullopt;
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
@@ -1120,10 +1130,16 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         rom_update = false;
     }
 
+    IntervalSet<int32_t> intervals;
     dvd::Errors errors_initial = {};
-    if(!dump)
-        refine_init_errors(errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, edc_match);
+    if(dump)
+        intervals.add(lba_start, lba_end);
+    else
+        refine_init(intervals, errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, edc_match);
     dvd::Errors errors = errors_initial;
+
+    for(auto const &p : string_to_ranges<int32_t>(options.skip))
+        intervals.remove(p.first, p.second);
 
     for(int32_t lba = lba_start; lba < lba_end;)
     {

@@ -696,6 +696,151 @@ TEST(IntervalSetCombined, RemoveFromMiddleNavigate)
     ASSERT_EQ(s.prev(0), std::nullopt);
 }
 
+// ============================================================
+// count
+// ============================================================
+
+TEST(IntervalSetCount, EmptySet)
+{
+    IS s;
+    ASSERT_EQ(s.count(), 0);
+}
+
+TEST(IntervalSetCount, SingleRange)
+{
+    IS s;
+    s.add(0, 10);
+    ASSERT_EQ(s.count(), 10);
+}
+
+TEST(IntervalSetCount, SingleValue)
+{
+    IS s;
+    s.add(5);
+    ASSERT_EQ(s.count(), 1);
+}
+
+TEST(IntervalSetCount, MultipleRanges)
+{
+    IS s;
+    s.add(0, 3);
+    s.add(5, 8);
+    s.add(10, 13);
+    ASSERT_EQ(s.count(), 9);
+}
+
+TEST(IntervalSetCount, AfterRemove)
+{
+    IS s;
+    s.add(0, 10);
+    s.remove(3, 7);
+    ASSERT_EQ(s.count(), 6);
+}
+
+TEST(IntervalSetCount, NegativeRange)
+{
+    IS s;
+    s.add(-5, 5);
+    ASSERT_EQ(s.count(), 10);
+}
+
+
+// ============================================================
+// index
+// ============================================================
+
+TEST(IntervalSetIndex, EmptySet)
+{
+    IS s;
+    ASSERT_EQ(s.index(0), std::nullopt);
+}
+
+TEST(IntervalSetIndex, SingleRange)
+{
+    IS s;
+    s.add(0, 5);
+    ASSERT_EQ(s.index(0), 0);
+    ASSERT_EQ(s.index(1), 1);
+    ASSERT_EQ(s.index(4), 4);
+}
+
+TEST(IntervalSetIndex, OutsideRange)
+{
+    IS s;
+    s.add(0, 5);
+    ASSERT_EQ(s.index(-1), std::nullopt);
+    ASSERT_EQ(s.index(5), std::nullopt);
+    ASSERT_EQ(s.index(100), std::nullopt);
+}
+
+TEST(IntervalSetIndex, MultipleRanges)
+{
+    IS s;
+    s.add(0, 3);
+    s.add(5, 8);
+    // values: 0,1,2, 5,6,7
+    ASSERT_EQ(s.index(0), 0);
+    ASSERT_EQ(s.index(2), 2);
+    ASSERT_EQ(s.index(5), 3);
+    ASSERT_EQ(s.index(7), 5);
+}
+
+TEST(IntervalSetIndex, InGap)
+{
+    IS s;
+    s.add(0, 3);
+    s.add(5, 8);
+    ASSERT_EQ(s.index(3), std::nullopt);
+    ASSERT_EQ(s.index(4), std::nullopt);
+}
+
+TEST(IntervalSetIndex, ThreeRanges)
+{
+    IS s;
+    s.add(0, 2);
+    s.add(5, 7);
+    s.add(10, 12);
+    // values: 0,1, 5,6, 10,11
+    ASSERT_EQ(s.index(0), 0);
+    ASSERT_EQ(s.index(1), 1);
+    ASSERT_EQ(s.index(5), 2);
+    ASSERT_EQ(s.index(6), 3);
+    ASSERT_EQ(s.index(10), 4);
+    ASSERT_EQ(s.index(11), 5);
+}
+
+TEST(IntervalSetIndex, SingleValue)
+{
+    IS s;
+    s.add(5);
+    ASSERT_EQ(s.index(5), 0);
+    ASSERT_EQ(s.index(4), std::nullopt);
+    ASSERT_EQ(s.index(6), std::nullopt);
+}
+
+TEST(IntervalSetIndex, NegativeValues)
+{
+    IS s;
+    s.add(-3, 0);
+    s.add(2, 5);
+    // values: -3,-2,-1, 2,3,4
+    ASSERT_EQ(s.index(-3), 0);
+    ASSERT_EQ(s.index(-1), 2);
+    ASSERT_EQ(s.index(2), 3);
+    ASSERT_EQ(s.index(4), 5);
+}
+
+TEST(IntervalSetIndex, ConsistentWithCount)
+{
+    IS s;
+    s.add(0, 3);
+    s.add(5, 8);
+    s.add(10, 12);
+    // last valid index should be count() - 1
+    ASSERT_EQ(s.index(11), s.count() - 1);
+}
+
+
 TEST(IntervalSetCombined, OverlappingAddsAndRemoves)
 {
     IS s;

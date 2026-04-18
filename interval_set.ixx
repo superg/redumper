@@ -147,6 +147,20 @@ public:
     }
 
 
+    std::optional<T> interval_end(T value) const
+    {
+        auto it = std::upper_bound(_ranges.begin(), _ranges.end(), value, [](T v, const Interval &r) { return v < r.first; });
+        if(it != _ranges.begin())
+        {
+            --it;
+            if(it->first <= value && value < it->second)
+                return it->second;
+        }
+
+        return std::nullopt;
+    }
+
+
     std::optional<T> first() const
     {
         if(_ranges.empty())

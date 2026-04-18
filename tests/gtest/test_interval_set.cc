@@ -615,6 +615,90 @@ TEST(IntervalSetLast, SingleValue)
 
 
 // ============================================================
+// interval_end
+// ============================================================
+
+TEST(IntervalSetIntervalEnd, InsideRange)
+{
+    IS s;
+    s.add(2, 8);
+    ASSERT_EQ(s.interval_end(2), 8);
+    ASSERT_EQ(s.interval_end(5), 8);
+    ASSERT_EQ(s.interval_end(7), 8);
+}
+
+TEST(IntervalSetIntervalEnd, AtEndIsOutside)
+{
+    IS s;
+    s.add(2, 8);
+    ASSERT_EQ(s.interval_end(8), std::nullopt);
+}
+
+TEST(IntervalSetIntervalEnd, InGap)
+{
+    IS s;
+    s.add(0, 3);
+    s.add(5, 8);
+    ASSERT_EQ(s.interval_end(3), std::nullopt);
+    ASSERT_EQ(s.interval_end(4), std::nullopt);
+}
+
+TEST(IntervalSetIntervalEnd, BeforeAll)
+{
+    IS s;
+    s.add(5, 10);
+    ASSERT_EQ(s.interval_end(0), std::nullopt);
+    ASSERT_EQ(s.interval_end(4), std::nullopt);
+}
+
+TEST(IntervalSetIntervalEnd, AfterAll)
+{
+    IS s;
+    s.add(5, 10);
+    ASSERT_EQ(s.interval_end(10), std::nullopt);
+    ASSERT_EQ(s.interval_end(100), std::nullopt);
+}
+
+TEST(IntervalSetIntervalEnd, EmptySet)
+{
+    IS s;
+    ASSERT_EQ(s.interval_end(0), std::nullopt);
+}
+
+TEST(IntervalSetIntervalEnd, MultipleIntervals)
+{
+    IS s;
+    s.add(0, 3);
+    s.add(5, 8);
+    s.add(10, 15);
+    ASSERT_EQ(s.interval_end(0), 3);
+    ASSERT_EQ(s.interval_end(2), 3);
+    ASSERT_EQ(s.interval_end(5), 8);
+    ASSERT_EQ(s.interval_end(7), 8);
+    ASSERT_EQ(s.interval_end(10), 15);
+    ASSERT_EQ(s.interval_end(14), 15);
+}
+
+TEST(IntervalSetIntervalEnd, SingleValue)
+{
+    IS s;
+    s.add(5);
+    ASSERT_EQ(s.interval_end(5), 6);
+    ASSERT_EQ(s.interval_end(4), std::nullopt);
+    ASSERT_EQ(s.interval_end(6), std::nullopt);
+}
+
+TEST(IntervalSetIntervalEnd, Negative)
+{
+    IS s;
+    s.add(-10, -5);
+    ASSERT_EQ(s.interval_end(-10), -5);
+    ASSERT_EQ(s.interval_end(-7), -5);
+    ASSERT_EQ(s.interval_end(-5), std::nullopt);
+}
+
+
+// ============================================================
 // empty
 // ============================================================
 

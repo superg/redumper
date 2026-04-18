@@ -3,6 +3,7 @@ module;
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -574,8 +575,8 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 }
 
 
-void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg, std::optional<uint8_t> &nintendo_key,
-    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg,
+    std::optional<uint8_t> &nintendo_key, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
 {
     if(lba_start > lba_end)
         return;
@@ -745,6 +746,36 @@ void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const dvd::E
     if(lba_start < lba_end)
         percentage = percentage * (lba - lba_start) / (lba_end - lba_start);
     LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {}, EDC: {} }}", spinner_animation(), percentage, lba, lba_end, errors.scsi, errors.edc);
+}
+
+
+uint32_t compute_sectors_to_read(int32_t lba, const IntervalSet<int32_t> &intervals, const std::vector<Range<int32_t>> &protection, const std::shared_ptr<xbox::Context> &xbox, bool kreon_firmware,
+    uint32_t dump_read_size)
+{
+    uint32_t sectors_to_read = dump_read_size;
+
+    // clamp to current contiguous interval end
+    if(auto end = intervals.interval_end(lba); end)
+        sectors_to_read = std::min(sectors_to_read, (uint32_t)(*end - lba));
+    else
+        sectors_to_read = 0;
+
+    // ensure all sectors in the read belong to the same protection range (or all not in any)
+    auto base_range = find_range(protection, lba);
+    for(uint32_t i = 0; i < sectors_to_read; ++i)
+    {
+        if(base_range != find_range(protection, lba + (int32_t)i))
+        {
+            sectors_to_read = i;
+            break;
+        }
+    }
+
+    // kreon: don't cross the lock boundary
+    if(kreon_firmware && xbox && lba < (int32_t)xbox->lock_lba_start)
+        sectors_to_read = std::min(sectors_to_read, (uint32_t)((int32_t)xbox->lock_lba_start - lba));
+
+    return sectors_to_read;
 }
 
 
@@ -1086,10 +1117,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     else
         dump_read_size = DVD_READ_SIZE;
 
-    const uint32_t sectors_at_once = dump ? dump_read_size : 1;
-
-    std::vector<uint8_t> sector_data_file_buffer(sectors_at_once * cfg.sector_size);
-    std::vector<State> sector_state_file_buffer(sectors_at_once);
+    std::vector<uint8_t> sector_data_file_buffer(dump_read_size * cfg.sector_size);
+    std::vector<State> sector_state_file_buffer(dump_read_size);
 
     auto file_mode = std::fstream::out | std::fstream::in | std::fstream::binary;
     if(dump)
@@ -1141,8 +1170,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     for(auto const &p : string_to_ranges<int32_t>(options.skip))
         intervals.remove(p.first, p.second);
 
-    for(int32_t lba = lba_start; lba < lba_end;)
+    while(auto lba_opt = intervals.first())
     {
+        int32_t lba = *lba_opt;
+
         if(signal.interrupt())
         {
             LOG_R("[LBA: {}] forced stop ", lba);
@@ -1154,26 +1185,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 
         bool increment = true;
 
-        // ensure all sectors in the read belong to the same range (skip or non-skip)
-        uint32_t sectors_to_read = std::min(sectors_at_once, (uint32_t)(lba_end - lba));
-        auto base_range = find_range(protection, lba);
-        for(uint32_t i = 0; i < sectors_to_read; ++i)
-        {
-            if(base_range != find_range(protection, lba + (int32_t)i))
-            {
-                sectors_to_read = i;
-                break;
-            }
-        }
+        uint32_t sectors_to_read = compute_sectors_to_read(lba, intervals, protection, xbox, kreon_firmware, dump_read_size);
 
         int32_t lba_shift = 0;
         if(kreon_firmware && xbox)
         {
-            if(lba < xbox->lock_lba_start)
-                sectors_to_read = std::min(sectors_to_read, xbox->lock_lba_start - lba);
-
             // lock kreon drive before L1 video reading
-            if(!kreon_locked && lba >= xbox->lock_lba_start)
+            if(!kreon_locked && lba >= (int32_t)xbox->lock_lba_start)
             {
                 auto status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
                 if(status.status_code)
@@ -1186,10 +1204,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
             if(kreon_locked)
                 lba_shift = xbox->layer1_video_lba_start - xbox->lock_lba_start;
         }
-
-        // ensure requested sectors don't cross lead-out boundary
-        if(lba < sectors_count && lba + sectors_to_read > sectors_count)
-            sectors_to_read = sectors_count - lba;
 
         std::span<uint8_t> sector_data_file(sector_data_file_buffer.data(), sectors_to_read * cfg.sector_size);
         std::span<State> sector_state_file(sector_state_file_buffer.data(), sectors_to_read);
@@ -1307,6 +1321,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                             {
                                 lba_end = ss->first;
                                 trim_to_filesystem_size = false;
+                                intervals.remove(lba_end, std::numeric_limits<int32_t>::max());
                             }
                         }
                     }
@@ -1316,7 +1331,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
             }
 
             refine_counter = 0;
-            lba += sectors_to_read;
+            intervals.remove(lba, lba + (int32_t)sectors_to_read);
         }
     }
 

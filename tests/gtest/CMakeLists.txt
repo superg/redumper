@@ -16,4 +16,4 @@ target_sources(gtest_interval_set
 target_link_libraries(gtest_interval_set GTest::gtest_main)
 
 include(GoogleTest)
-gtest_discover_tests(gtest_interval_set)
+gtest_discover_tests(gtest_interval_set DISCOVERY_MODE PRE_TEST)

@@ -1,5 +1,18 @@
-add_executable(tests)
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG        v1.15.2
+)
+if(MSVC)
+    set(gtest_force_shared_crt OFF CACHE BOOL "" FORCE)
+endif()
+FetchContent_MakeAvailable(googletest)
 
+add_subdirectory("gtest")
+
+# DEPRECATED: will migrate to googletest
+add_executable(tests)
 target_include_directories(tests PUBLIC ${CMAKE_SOURCE_DIR} "${CMAKE_SOURCE_DIR}/utils")
 target_sources(tests
     PUBLIC
@@ -23,5 +36,4 @@ target_sources(tests
         "${CMAKE_SOURCE_DIR}/utils/misc.ixx"
         "${CMAKE_SOURCE_DIR}/utils/strings.ixx"
 )
-
 add_test(NAME tests COMMAND tests WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")

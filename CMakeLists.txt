@@ -180,6 +180,7 @@ target_sources(redumper
     "drive.ixx"
     "hash.ixx"
     "info.ixx"
+    "interval_set.ixx"
     "offsets.ixx"
     "options.ixx"
     "range.ixx"

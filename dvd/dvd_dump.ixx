@@ -3,6 +3,7 @@ module;
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -24,6 +25,7 @@ import dvd.nintendo;
 import dvd.xbox;
 import filesystem.iso9660;
 import filesystem.udf;
+import interval_set;
 import options;
 import range;
 import rom_entry;
@@ -573,8 +575,8 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 }
 
 
-void refine_init_errors(dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg, std::optional<uint8_t> &nintendo_key,
-    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg,
+    std::optional<uint8_t> &nintendo_key, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
 {
     if(lba_start > lba_end)
         return;
@@ -593,10 +595,21 @@ void refine_init_errors(dvd::Errors &errors, std::fstream &fs_state, std::fstrea
 
         for(uint32_t i = 0; i < sectors_to_read; ++i)
         {
+            bool error = false;
+
             if(state_buffer[i] == State::ERROR_SKIP)
+            {
+                error = true;
                 ++errors.scsi;
+            }
             else if(!edc_match(std::span<uint8_t>(&image_buffer[i * cfg.sector_size], cfg.sector_size), lba_base + i, nintendo_key))
+            {
+                error = true;
                 ++errors.edc;
+            }
+
+            if(error)
+                intervals.add(lba_base + i);
         }
     }
 }
@@ -736,6 +749,48 @@ void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const dvd::E
 }
 
 
+uint32_t compute_sectors_to_read(int32_t lba, const IntervalSet<int32_t> &intervals, const std::vector<Range<int32_t>> &protection, const std::shared_ptr<xbox::Context> &xbox, bool kreon_firmware,
+    uint32_t dump_read_size)
+{
+    uint32_t sectors_to_read = dump_read_size;
+
+    // clamp to current contiguous interval end
+    if(auto end = intervals.interval_end(lba); end)
+        sectors_to_read = std::min(sectors_to_read, (uint32_t)(*end - lba));
+    else
+        sectors_to_read = 0;
+
+    // ensure all sectors in the read belong to the same protection range (or all not in any)
+    auto base_range = find_range(protection, lba);
+    for(uint32_t i = 0; i < sectors_to_read; ++i)
+    {
+        if(base_range != find_range(protection, lba + (int32_t)i))
+        {
+            sectors_to_read = i;
+            break;
+        }
+    }
+
+    // kreon: don't cross the lock boundary
+    if(kreon_firmware && xbox && lba < (int32_t)xbox->lock_lba_start)
+        sectors_to_read = std::min(sectors_to_read, (uint32_t)((int32_t)xbox->lock_lba_start - lba));
+
+    return sectors_to_read;
+}
+
+
+uint32_t get_sectors_count_capacity(SPTD &sptd)
+{
+    uint32_t lba_last, block_length;
+    auto status = cmd_read_capacity(sptd, lba_last, block_length, false, 0, false);
+    if(status.status_code)
+        throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
+    if(block_length != FORM1_DATA_SIZE)
+        throw_line("unsupported block size (block size: {})", block_length);
+    return lba_last + 1;
+}
+
+
 export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
@@ -751,8 +806,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         image_check_exists(options);
 
     std::vector<Range<int32_t>> protection;
-    for(auto const &p : string_to_ranges<int32_t>(options.skip))
-        insert_range(protection, { p.first, p.second });
 
     bool omnidrive_firmware = is_omnidrive_firmware(ctx.drive_config) != std::nullopt;
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
@@ -767,26 +820,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     }
 
     // get capacity
-    uint32_t sectors_count_capacity;
-    {
-        uint32_t lba_last, block_length;
-        auto status = cmd_read_capacity(*ctx.sptd, lba_last, block_length, false, 0, false);
-        if(status.status_code)
-            throw_line("failed to read capacity, SCSI ({})", SPTD::StatusMessage(status));
-        if(block_length != FORM1_DATA_SIZE)
-            throw_line("unsupported block size (block size: {})", block_length);
-        sectors_count_capacity = lba_last + 1;
-    }
+    uint32_t sectors_count_capacity = get_sectors_count_capacity(*ctx.sptd);
 
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
-
-    bool trim_to_filesystem_size = options.filesystem_trim;
-    FilesystemContext fs_ctx;
 
     std::optional<uint8_t> nintendo_key;
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
 
+    bool trim_to_filesystem_size = options.filesystem_trim;
     std::optional<uint32_t> sectors_count_physical;
     if(readable_formats.find(READ_DISC_STRUCTURE_Format::PHYSICAL) != readable_formats.end())
     {
@@ -1075,10 +1117,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     else
         dump_read_size = DVD_READ_SIZE;
 
-    const uint32_t sectors_at_once = dump ? dump_read_size : 1;
-
-    std::vector<uint8_t> sector_data_file_buffer(sectors_at_once * cfg.sector_size);
-    std::vector<State> sector_state_file_buffer(sectors_at_once);
+    std::vector<uint8_t> sector_data_file_buffer(dump_read_size * cfg.sector_size);
+    std::vector<State> sector_state_file_buffer(dump_read_size);
 
     auto file_mode = std::fstream::out | std::fstream::in | std::fstream::binary;
     if(dump)
@@ -1093,8 +1133,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     uint32_t refine_counter = 0;
     uint32_t refine_retries = options.retries ? options.retries : 1;
 
+    FilesystemContext fs_ctx;
     ROMEntry rom_entry(image_prefix + dump_get_config(ctx.disc_type, false).image_extension);
-    bool rom_update = true;
+    bool rom_update = dump;
 
     SignalINT signal;
 
@@ -1118,13 +1159,25 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         rom_update = false;
     }
 
+    IntervalSet<int32_t> intervals;
     dvd::Errors errors_initial = {};
-    if(!dump)
-        refine_init_errors(errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, edc_match);
+    if(dump)
+        intervals.add(lba_start, lba_end);
+    else
+    {
+        LOG_F("analyzing dump... ");
+        refine_init(intervals, errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, edc_match);
+        LOG("done");
+    }
     dvd::Errors errors = errors_initial;
 
-    for(int32_t lba = lba_start; lba < lba_end;)
+    for(auto const &p : string_to_ranges<int32_t>(options.skip))
+        intervals.remove(p.first, p.second);
+
+    while(auto lba_opt = intervals.first())
     {
+        int32_t lba = *lba_opt;
+
         if(signal.interrupt())
         {
             LOG_R("[LBA: {}] forced stop ", lba);
@@ -1136,26 +1189,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 
         bool increment = true;
 
-        // ensure all sectors in the read belong to the same range (skip or non-skip)
-        uint32_t sectors_to_read = std::min(sectors_at_once, (uint32_t)(lba_end - lba));
-        auto base_range = find_range(protection, lba);
-        for(uint32_t i = 0; i < sectors_to_read; ++i)
-        {
-            if(base_range != find_range(protection, lba + (int32_t)i))
-            {
-                sectors_to_read = i;
-                break;
-            }
-        }
+        uint32_t sectors_to_read = compute_sectors_to_read(lba, intervals, protection, xbox, kreon_firmware, dump_read_size);
 
         int32_t lba_shift = 0;
         if(kreon_firmware && xbox)
         {
-            if(lba < xbox->lock_lba_start)
-                sectors_to_read = std::min(sectors_to_read, xbox->lock_lba_start - lba);
-
             // lock kreon drive before L1 video reading
-            if(!kreon_locked && lba >= xbox->lock_lba_start)
+            if(!kreon_locked && lba >= (int32_t)xbox->lock_lba_start)
             {
                 auto status = cmd_kreon_set_lock_state(*ctx.sptd, KREON_LockState::LOCKED);
                 if(status.status_code)
@@ -1168,10 +1208,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
             if(kreon_locked)
                 lba_shift = xbox->layer1_video_lba_start - xbox->lock_lba_start;
         }
-
-        // ensure requested sectors don't cross lead-out boundary
-        if(lba < sectors_count && lba + sectors_to_read > sectors_count)
-            sectors_to_read = sectors_count - lba;
 
         std::span<uint8_t> sector_data_file(sector_data_file_buffer.data(), sectors_to_read * cfg.sector_size);
         std::span<State> sector_state_file(sector_state_file_buffer.data(), sectors_to_read);
@@ -1270,32 +1306,36 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 
         if(increment)
         {
-            if(sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match))
+            if(dump)
             {
-                for(uint32_t i = 0; i < sectors_to_read; ++i)
+                if(sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match))
                 {
-                    auto data = extract_data(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key);
-
-                    if(rom_update)
-                        rom_entry.update(data.data(), data.size());
-
-                    if(auto ss = filesystem_search_size(fs_ctx, fs_image, fs_state, data, lba + i); ss)
+                    for(uint32_t i = 0; i < sectors_to_read; ++i)
                     {
-                        LOG_R("sectors count ({}): {}", ss->second ? "UDF" : "ISO9660", ss->first);
+                        auto data = extract_data(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key);
 
-                        if(trim_to_filesystem_size && !options.lba_end)
+                        if(rom_update)
+                            rom_entry.update(data.data(), data.size());
+
+                        if(auto ss = filesystem_search_size(fs_ctx, fs_image, fs_state, data, lba + i); ss)
                         {
-                            lba_end = ss->first;
-                            trim_to_filesystem_size = false;
+                            LOG_R("sectors count ({}): {}", ss->second ? "UDF" : "ISO9660", ss->first);
+
+                            if(trim_to_filesystem_size && !options.lba_end)
+                            {
+                                lba_end = ss->first;
+                                trim_to_filesystem_size = false;
+                                intervals.remove(lba_end, std::numeric_limits<int32_t>::max());
+                            }
                         }
                     }
                 }
+                else
+                    rom_update = false;
             }
-            else
-                rom_update = false;
 
             refine_counter = 0;
-            lba += sectors_to_read;
+            intervals.remove(lba, lba + (int32_t)sectors_to_read);
         }
     }
 

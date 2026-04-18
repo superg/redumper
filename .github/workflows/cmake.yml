@@ -9,6 +9,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   check:
     runs-on: ubuntu-24.04
@@ -116,12 +119,14 @@ jobs:
     - name: Customize Software
       run: |
         brew install llvm@18
+        brew link --force --overwrite llvm@18
     - name: Customize Software
       if: ${{ matrix.arch == 'x64' }}
       run: |
         softwareupdate --install-rosetta --agree-to-license
         arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         arch -x86_64 /usr/local/bin/brew install llvm@18
+        arch -x86_64 /usr/local/bin/brew link --force --overwrite llvm@18
     - name: Checkout
       uses: actions/checkout@v4
     - name: CMake Configure

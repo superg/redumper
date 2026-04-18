@@ -302,8 +302,12 @@ std::string first_ready_drive(const Options &options)
         {
             SPTD sptd(d, options.scsi_timeout);
 
-            auto status = cmd_drive_ready(sptd);
-            if(!status.status_code)
+            // flush pending UNIT ATTENTION
+            cmd_drive_ready(sptd);
+
+            GET_CONFIGURATION_FeatureCode_ProfileList profile;
+            auto status = cmd_get_configuration_current_profile(sptd, profile);
+            if(!status.status_code && profile != GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED)
             {
                 drive = d;
                 break;
@@ -429,7 +433,12 @@ export int redumper(Options &options)
             if(auto status = cmd_get_configuration_current_profile(*ctx.sptd, cp); status.status_code)
                 LOG("warning: failed to query current profile, SCSI ({})", SPTD::StatusMessage(status));
             else
+            {
+                if(cp == GET_CONFIGURATION_FeatureCode_ProfileList::RESERVED)
+                    throw_line("drive has no mounted media");
+
                 current_profile = cp;
+            }
         }
 
         // set disc type

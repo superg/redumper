@@ -1135,7 +1135,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 
     FilesystemContext fs_ctx;
     ROMEntry rom_entry(image_prefix + dump_get_config(ctx.disc_type, false).image_extension);
-    bool rom_update = true;
+    bool rom_update = dump;
 
     SignalINT signal;
 
@@ -1164,7 +1164,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     if(dump)
         intervals.add(lba_start, lba_end);
     else
+    {
+        LOG_F("analyzing dump... ");
         refine_init(intervals, errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, edc_match);
+        LOG("done");
+    }
     dvd::Errors errors = errors_initial;
 
     for(auto const &p : string_to_ranges<int32_t>(options.skip))

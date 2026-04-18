@@ -31,26 +31,22 @@ public:
 
         auto it = std::lower_bound(_ranges.begin(), _ranges.end(), start, [](const Interval &r, T v) { return r.second < v; });
 
-        auto first = it;
-        while(first != _ranges.begin() && (first - 1)->second >= start)
-            --first;
-
-        auto last = first;
+        auto last = it;
         while(last != _ranges.end() && last->first <= end)
             ++last;
 
-        if(first != last)
+        if(it != last)
         {
-            start = std::min(start, first->first);
+            start = std::min(start, it->first);
             end = std::max(end, (last - 1)->second);
 
-            auto pos = first - _ranges.begin();
-            _ranges.erase(first, last);
+            auto pos = it - _ranges.begin();
+            _ranges.erase(it, last);
             _ranges.insert(_ranges.begin() + pos, Interval{ start, end });
         }
         else
         {
-            _ranges.insert(first, Interval{ start, end });
+            _ranges.insert(it, Interval{ start, end });
         }
     }
 

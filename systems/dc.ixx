@@ -159,7 +159,7 @@ private:
 
         for(uint32_t i = 0; i < version.length(); ++i)
         {
-            char ch = version[i];
+            unsigned char ch = version[i];
             if(!std::isdigit(ch) && ch != '.')
                 return "";
         }

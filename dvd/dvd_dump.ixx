@@ -1026,7 +1026,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     }
 
     // get and store BCA
-    if(dump && readable_formats.find(READ_DISC_STRUCTURE_Format::BCA) != readable_formats.end())
+    if(dump)
     {
         std::vector<uint8_t> bca;
         auto status = cmd_read_disc_structure(*ctx.sptd, bca, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R, 0, 0, READ_DISC_STRUCTURE_Format::BCA, 0);

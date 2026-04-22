@@ -854,9 +854,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                         nintendo_key = 0;
                 }
 
-                auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
-                if(!layer_lengths.empty())
-                    sectors_count_physical = std::accumulate(layer_lengths.begin(), layer_lengths.end(), (uint32_t)0);
+                // PIC layer lengths reflect data zone capacity, not recorded content; only BD-ROM is trustworthy here
+                if(rom)
+                {
+                    auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
+                    if(!layer_lengths.empty())
+                        sectors_count_physical = std::accumulate(layer_lengths.begin(), layer_lengths.end(), (uint32_t)0);
+                }
             }
             // DVD
             else

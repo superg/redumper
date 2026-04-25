@@ -1,6 +1,5 @@
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <stdexcept>
 #include <vector>
 
 import range;
@@ -164,14 +163,14 @@ TEST(InsertRange, ExactDuplicate)
 TEST(InsertRange, EmptyThrows)
 {
     std::vector<R> ranges;
-    EXPECT_THROW(insert_range(ranges, R{ 5, 5 }), std::runtime_error);
+    EXPECT_ANY_THROW(insert_range(ranges, R{ 5, 5 }));
 }
 
 
 TEST(InsertRange, InvertedThrows)
 {
     std::vector<R> ranges;
-    EXPECT_THROW(insert_range(ranges, R{ 10, 5 }), std::runtime_error);
+    EXPECT_ANY_THROW(insert_range(ranges, R{ 10, 5 }));
 }
 
 

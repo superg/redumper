@@ -39,8 +39,8 @@ TEST_P(LbaMsf, BcdMsfRoundTrip)
 {
     const auto &c = GetParam();
 
-    if(c.msf.m >= 160)
-        GTEST_SKIP() << "BCD encoding does not cover MSF.m >= 160";
+    if(c.msf.m >= MSF_MINUTES_WRAP)
+        GTEST_SKIP() << "BCD encoding does not cover MSF.m >= MSF_MINUTES_WRAP";
 
     auto bcdmsf = MSF_to_BCDMSF(c.msf);
     EXPECT_EQ(BCDMSF_to_LBA(bcdmsf), c.lba);

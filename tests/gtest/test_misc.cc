@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <iterator>
 #include <utility>
 #include <vector>
 
@@ -45,9 +46,9 @@ TEST(IsZeroed, LastByteNonZero)
 TEST(IsZeroed, Uint32Buffer)
 {
     uint32_t data[4] = { 0, 0, 0, 0 };
-    EXPECT_TRUE(is_zeroed(data, 4));
+    EXPECT_TRUE(is_zeroed(data, std::size(data)));
     data[2] = 1;
-    EXPECT_FALSE(is_zeroed(data, 4));
+    EXPECT_FALSE(is_zeroed(data, std::size(data)));
 }
 
 

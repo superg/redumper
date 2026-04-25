@@ -6,11 +6,11 @@ function(add_gtest target)
     cmake_parse_arguments(ARG "" "SOURCE;WORKING_DIRECTORY" "MODULES" ${ARGN})
 
     add_executable(${target})
-    target_include_directories(${target} PUBLIC ${CMAKE_SOURCE_DIR} "${CMAKE_SOURCE_DIR}/utils")
+    target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR} "${CMAKE_SOURCE_DIR}/utils")
     target_sources(${target}
-        PUBLIC
+        PRIVATE
             ${ARG_SOURCE}
-        PUBLIC
+        PRIVATE
         FILE_SET cxx_modules
         TYPE CXX_MODULES
         BASE_DIRS
@@ -18,7 +18,7 @@ function(add_gtest target)
         FILES
             ${ARG_MODULES}
     )
-    target_link_libraries(${target} GTest::gtest_main)
+    target_link_libraries(${target} PRIVATE GTest::gtest_main)
 
     if(ARG_WORKING_DIRECTORY)
         gtest_discover_tests(${target} WORKING_DIRECTORY "${ARG_WORKING_DIRECTORY}" DISCOVERY_MODE PRE_TEST)

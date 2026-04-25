@@ -17,8 +17,8 @@ using namespace gpsxre;
 TEST(Unscramble, AllSamples)
 {
     const std::filesystem::path data_dir = "unscramble";
-    if(!std::filesystem::exists(data_dir) || !std::filesystem::is_directory(data_dir))
-        GTEST_SKIP() << "unscramble/ data directory not present in working directory";
+    ASSERT_TRUE(std::filesystem::exists(data_dir) && std::filesystem::is_directory(data_dir))
+        << "unscramble/ data directory not found relative to working directory " << std::filesystem::current_path();
 
     Scrambler scrambler;
 
@@ -48,6 +48,8 @@ TEST(Unscramble, AllSamples)
 
         EXPECT_EQ(unscrambled, expected_unscrambled);
     }
+
+    EXPECT_GT(test_files.size(), 0u);
 }
 
 

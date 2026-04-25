@@ -1,0 +1,19 @@
+---
+# Soft-launch check set: high-signal, low-noise.
+# Add modernize-*/cppcoreguidelines-*/readability-* later once the baseline is clean.
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*,
+  portability-*,
+  misc-*,
+  -bugprone-easily-swappable-parameters,
+  -misc-non-private-member-variables-in-classes,
+  -misc-no-recursion,
+  -misc-use-anonymous-namespace
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(?!.*/(BUILD|build.*|_deps|tests/gtest/_deps)/).*\.(hh|ixx)$'
+FormatStyle: file
+...

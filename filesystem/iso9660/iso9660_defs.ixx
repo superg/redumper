@@ -381,17 +381,10 @@ std::string identifier_to_string(const uint16_t (&identifier)[N])
     for(size_t i = 0; i < N; i++)
         utf16_identifier[i] = endian_swap(identifier[i]);
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
+    // pragma suppression for std::wstring_convert deprecation lives at the call site (clang
+    // emits the warning during template instantiation using the importing TU's diagnostic state)
     std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert("", u"");
     std::string utf8_identifier = convert.to_bytes(utf16_identifier, &utf16_identifier[N - 1]);
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
 
     return trim(utf8_identifier).c_str();
 }

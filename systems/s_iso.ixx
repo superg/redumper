@@ -54,7 +54,16 @@ public:
         {
             if(iso9660::JOLIET_ESCAPE_SEQUENCES.contains(svd.escape_sequences))
             {
+                // pragma needed at instantiation site: clang emits std::wstring_convert deprecation
+                // warning when the template is instantiated, using diagnostic state from this TU
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
                 auto volume_identifier = iso9660::identifier_to_string((iso9660::JolietVolumeIdentifier &)svd.volume_identifier);
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
                 if(!volume_identifier.empty())
                     os << std::format("  joliet volume identifier: {}", volume_identifier) << std::endl;
             }

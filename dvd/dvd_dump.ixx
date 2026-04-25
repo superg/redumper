@@ -10,6 +10,7 @@ module;
 #include <set>
 #include <span>
 #include <utility>
+#include <variant>
 #include <vector>
 #include "throw_line.hh"
 
@@ -1164,9 +1165,16 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     }
 
     IntervalSet<int32_t> intervals;
+    IntervalSet<int32_t> error_intervals;
     dvd::Errors errors_initial = {};
     if(dump)
         intervals.add(lba_start, lba_end);
+    else if(auto *cache = std::get_if<DvdRefineCache>(&ctx.refine_cache))
+    {
+        intervals = std::move(cache->intervals);
+        errors_initial = { cache->scsi, cache->edc };
+        ctx.refine_cache = std::monostate{};
+    }
     else
     {
         LOG_F("analyzing dump... ");
@@ -1254,7 +1262,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                     for(uint32_t i = 0; i < sectors_to_read; ++i)
                     {
                         if(dump)
+                        {
                             ++errors.scsi;
+                            error_intervals.add(lba + i);
+                        }
 
                         if(options.verbose)
                             LOG_R("[LBA: {}] SCSI error ({}){}", lba + i, SPTD::StatusMessage(status), status_retries);
@@ -1267,7 +1278,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                         if(!edc_match(std::span<uint8_t>(&sector_data[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key))
                         {
                             if(dump)
+                            {
                                 ++errors.edc;
+                                error_intervals.add(lba + i);
+                            }
 
                             if(options.verbose)
                                 LOG_R("[LBA: {}] EDC error{}", lba + i, status_retries);
@@ -1359,6 +1373,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 
     if(dump)
     {
+        ctx.refine_cache = DvdRefineCache{ std::move(error_intervals), errors.scsi, errors.edc };
+
         LOG("media errors: ");
         LOG("  SCSI: {}", errors.scsi);
         LOG("  EDC: {}", errors.edc);

@@ -5,12 +5,14 @@ module;
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 #include "throw_line.hh"
 
 export module common;
 
 import drive;
+import interval_set;
 import options;
 import scsi.mmc;
 import scsi.sptd;
@@ -46,6 +48,17 @@ export enum class DiscType
 };
 
 
+export struct DvdRefineCache
+{
+    IntervalSet<int32_t> intervals;
+    uint32_t scsi;
+    uint32_t edc;
+};
+
+
+export using RefineCache = std::variant<std::monostate, DvdRefineCache>;
+
+
 export struct Context
 {
     DiscType disc_type;
@@ -55,6 +68,7 @@ export struct Context
     std::optional<bool> dreamcast;
     std::vector<std::pair<int32_t, int32_t>> protection;
     std::optional<bool> protection_trim;
+    RefineCache refine_cache;
     std::optional<bool> refine;
     std::optional<std::vector<std::string>> dat;
 };

@@ -76,6 +76,9 @@ else()
     message(WARNING "clang-format not found, source code formatting targets will not be available")
 endif()
 
+# enable compile_commands.json so clang-tidy can pick up per-TU flags (ignored by MSVC generator)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_executable(redumper)
 target_sources(redumper
     PUBLIC
@@ -217,6 +220,10 @@ endif()
 
 target_link_libraries(redumper ${libs})
 
+if(REDUMPER_TARGET_LINUX)
+    target_link_options(redumper PRIVATE "-static")
+endif()
+
 install(TARGETS redumper DESTINATION "bin")
 
 # bundle LLVM libc++ for C++20 support (system libc++ is too old, static linking not allowed on macOS)
@@ -254,3 +261,61 @@ endif()
 enable_testing()
 
 add_subdirectory("tests")
+
+# static analysis (clang-tidy)
+find_program(CLANG_TIDY NAMES clang-tidy clang-tidy-18)
+find_program(RUN_CLANG_TIDY NAMES run-clang-tidy run-clang-tidy-18 run-clang-tidy.py)
+
+if(CLANG_TIDY AND CMAKE_EXPORT_COMPILE_COMMANDS)
+    # only exclude vendored sources pulled in by FetchContent (googletest)
+    set(TIDY_FILE_FILTER "^(?!.*/(BUILD|build.*|_deps|tests/gtest/_deps)/).*\\.(cc|ixx)$")
+
+    # collect every project target so all module BMIs are built before clang-tidy runs;
+    # otherwise per-TU compile commands fail with "module file not found" / missing modmap files
+    get_property(_tidy_root_targets   DIRECTORY .                PROPERTY BUILDSYSTEM_TARGETS)
+    get_property(_tidy_gtest_targets  DIRECTORY tests/gtest      PROPERTY BUILDSYSTEM_TARGETS)
+    set(_tidy_deps redumper)
+    foreach(_t IN LISTS _tidy_root_targets _tidy_gtest_targets)
+        if(TARGET ${_t})
+            get_target_property(_type ${_t} TYPE)
+            if(_type STREQUAL "EXECUTABLE" OR _type STREQUAL "STATIC_LIBRARY" OR _type STREQUAL "SHARED_LIBRARY" OR _type STREQUAL "MODULE_LIBRARY" OR _type STREQUAL "OBJECT_LIBRARY")
+                list(APPEND _tidy_deps ${_t})
+            endif()
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES _tidy_deps)
+
+    if(RUN_CLANG_TIDY)
+        add_custom_target(tidy
+            COMMAND ${RUN_CLANG_TIDY} -p ${CMAKE_BINARY_DIR}
+                                      -clang-tidy-binary ${CLANG_TIDY}
+                                      -quiet
+                                      "${TIDY_FILE_FILTER}"
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+            COMMENT "Running clang-tidy (report only)"
+            VERBATIM)
+        add_custom_target(tidy-fix
+            COMMAND ${RUN_CLANG_TIDY} -p ${CMAKE_BINARY_DIR}
+                                      -clang-tidy-binary ${CLANG_TIDY}
+                                      -fix -format
+                                      "${TIDY_FILE_FILTER}"
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+            COMMENT "Running clang-tidy with --fix"
+            VERBATIM)
+    else()
+        message(STATUS "run-clang-tidy not found, falling back to single-process clang-tidy targets")
+        # fallback: invoke clang-tidy directly per-file via compile_commands.json
+        # (slower; install run-clang-tidy for parallelism)
+        add_custom_target(tidy
+            COMMAND ${CMAKE_COMMAND} -E echo "Run: clang-tidy -p ${CMAKE_BINARY_DIR} <file> for any source listed in compile_commands.json")
+    endif()
+
+    add_dependencies(tidy ${_tidy_deps})
+    if(TARGET tidy-fix)
+        add_dependencies(tidy-fix ${_tidy_deps})
+    endif()
+else()
+    if(NOT CLANG_TIDY)
+        message(STATUS "clang-tidy not found, static analysis targets will not be available")
+    endif()
+endif()

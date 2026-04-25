@@ -217,6 +217,10 @@ endif()
 
 target_link_libraries(redumper ${libs})
 
+if(REDUMPER_TARGET_LINUX)
+    target_link_options(redumper PRIVATE "-static")
+endif()
+
 install(TARGETS redumper DESTINATION "bin")
 
 # bundle LLVM libc++ for C++20 support (system libc++ is too old, static linking not allowed on macOS)

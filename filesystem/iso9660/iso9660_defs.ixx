@@ -381,15 +381,7 @@ std::string identifier_to_string(const uint16_t (&identifier)[N])
     for(size_t i = 0; i < N; i++)
         utf16_identifier[i] = endian_swap(identifier[i]);
 
-        // libc++ (macOS) deprecates codecvt/wstring_convert; keep suppression tightly scoped here.
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
     std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert("", u"");
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
     std::string utf8_identifier = convert.to_bytes(utf16_identifier, &utf16_identifier[N - 1]);
 
     return trim(utf8_identifier).c_str();

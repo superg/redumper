@@ -5,6 +5,7 @@ module;
 #include <fstream>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 #include "throw_line.hh"
@@ -17,6 +18,7 @@ import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import utils.file_io;
+import utils.hex_bin;
 import utils.logger;
 
 
@@ -93,6 +95,12 @@ export int redumper_flash_mt1959(Context &ctx, Options &options)
         throw_line("firmware data too small (size: {:#x}, required: {:#x})", firmware_data.size(), clear_size);
 
     auto drive_config = read_mt1959_config(*ctx.sptd, config_offset, config_size);
+    LOG("drive patch configuration (offset: 0x{:04X}, size: 0x{:X}): ", config_offset, config_size);
+    LOG("{}", hexdump(drive_config.data(), 0, (uint32_t)drive_config.size()));
+
+    if(!std::string_view((const char *)drive_config.data(), drive_config.size()).starts_with("MT1959 Boot JB8"))
+        throw_line("unexpected drive patch configuration signature");
+
     modify_firmware(firmware_data, clear_size, config_offset, drive_config);
 
     flash_mt1959(*ctx.sptd, firmware_data, block_size);

@@ -66,9 +66,9 @@ std::vector<uint8_t> read_mt1959_config(SPTD &sptd, uint32_t config_offset, uint
 }
 
 
-void modify_firmware(std::span<uint8_t> firmware_data, uint32_t config_offset, std::span<const uint8_t> drive_config)
+void modify_firmware(std::span<uint8_t> firmware_data, uint32_t clear_size, uint32_t config_offset, std::span<const uint8_t> drive_config)
 {
-    std::fill(firmware_data.begin(), firmware_data.begin() + 0x10000, (uint8_t)0xFF);
+    std::fill(firmware_data.begin(), firmware_data.begin() + clear_size, (uint8_t)0xFF);
     std::copy(drive_config.begin(), drive_config.end(), &firmware_data[config_offset]);
 }
 
@@ -84,12 +84,16 @@ export int redumper_flash_mt1959(Context &ctx, Options &options)
                == MT1959_SUPPORTED_DRIVES.end())
         throw_line("flashing of this drive is unsupported");
 
-    uint32_t config_offset = 0x3000;
-    uint32_t config_size = 0x20;
-    auto drive_config = read_mt1959_config(*ctx.sptd, config_offset, config_size);
+    constexpr uint32_t config_offset = 0x3000;
+    constexpr uint32_t config_size = 0x20;
+    constexpr uint32_t clear_size = 0x10000;
 
     auto firmware_data = read_vector(options.firmware);
-    modify_firmware(firmware_data, config_offset, drive_config);
+    if(firmware_data.size() < clear_size)
+        throw_line("firmware data too small (size: {:#x}, required: {:#x})", firmware_data.size(), clear_size);
+
+    auto drive_config = read_mt1959_config(*ctx.sptd, config_offset, config_size);
+    modify_firmware(firmware_data, clear_size, config_offset, drive_config);
 
     flash_mt1959(*ctx.sptd, firmware_data, block_size);
 

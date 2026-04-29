@@ -110,6 +110,7 @@ target_sources(redumper
     "crc/crc.ixx"
     "crc/crc16_gsm.ixx"
     "crc/crc32.ixx"
+    "drive/flash_mt1959.ixx"
     "drive/flash_plextor.ixx"
     "drive/flash_sd616.ixx"
     "drive/flash_tsst.ixx"

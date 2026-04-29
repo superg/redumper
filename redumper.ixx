@@ -26,6 +26,7 @@ import cd.toc;
 import common;
 import debug;
 import drive;
+import drive.flash.mt1959;
 import drive.flash.plextor;
 import drive.flash.tsst;
 import drive.flash.sd616;
@@ -138,6 +139,7 @@ const std::map<std::string, Command> COMMANDS{
     { "flash::mt1339",  { true, false, false, false, false, redumper_flash_tsst }    },
     { "flash::sd616",   { true, false, false, false, false, redumper_flash_sd616 }   },
     { "flash::plextor", { true, false, false, false, false, redumper_flash_plextor } },
+    { "flash::mt1959",  { true, false, false, false, false, redumper_flash_mt1959 }  },
     { "subchannel",     { false, false, false, true, false, redumper_subchannel }    },
     { "debug",          { false, false, false, false, false, redumper_debug }        },
     { "fixmsf",         { false, false, false, true, false, redumper_fix_msf }       },

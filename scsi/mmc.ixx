@@ -17,6 +17,7 @@ export enum class CDB_OperationCode : uint8_t
     SEEK = 0x2B,
     SYNCHRONIZE_CACHE = 0x35,
     WRITE_BUFFER = 0x3B,
+    READ_BUFFER = 0x3C,
     READ_TOC = 0x43,
     GET_CONFIGURATION = 0x46,
     SEND_KEY = 0xA3,
@@ -890,6 +891,34 @@ export struct CDB10_WriteBuffer
     uint8_t buffer_id;
     uint8_t buffer_offset[3];
     uint8_t parameter_list_length[3];
+    uint8_t control;
+};
+
+
+export enum class READ_BUFFER_Mode : uint8_t
+{
+    READ_HEADER_DATA,
+    VENDOR_SPECIFIC,
+    READ_DATA,
+    DESCRIPTOR,
+    DOWNLOAD_MICROCODE,
+    DOWNLOAD_MICROCODE_SAVE,
+    DOWNLOAD_MICROCODE_WITH_OFFSETS,
+    DOWNLOAD_MICROCODE_WITH_OFFSETS_SAVE,
+    ECHO_BUFFER = 0x0A,
+    ECHO_BUFFER_DESCRIPTOR,
+    RESERVED2
+};
+
+
+export struct CDB10_ReadBuffer
+{
+    uint8_t operation_code;
+    uint8_t mode     :4;
+    uint8_t reserved :4;
+    uint8_t buffer_id;
+    uint8_t buffer_offset[3];
+    uint8_t allocation_length[3];
     uint8_t control;
 };
 

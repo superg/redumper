@@ -60,11 +60,16 @@ void flash_mt1959(SPTD &sptd, std::span<const uint8_t> firmware_data, uint32_t b
     LOGC("");
 
     constexpr uint32_t wait_seconds = 15;
+    uint32_t ready_count = 0;
     for(uint32_t i = 0; i < wait_seconds; ++i)
     {
         LOGC_RF("waiting for drive to become ready... [{}/{}]", i + 1, wait_seconds);
         if(!cmd_drive_ready(sptd).status_code)
-            i = wait_seconds - 2;
+            ++ready_count;
+
+        if(ready_count >= 2)
+            break;
+
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 

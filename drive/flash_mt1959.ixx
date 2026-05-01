@@ -84,7 +84,7 @@ std::vector<uint8_t> read_mt1959_config(SPTD &sptd, uint32_t config_offset, uint
     std::vector<uint8_t> config(config_size);
 
     if(auto status = cmd_read_buffer(sptd, config.data(), config.size(), READ_BUFFER_Mode::DOWNLOAD_MICROCODE_WITH_OFFSETS, config_offset, config.size()); status.status_code)
-        throw_line("failed to read drive patch configuration");
+        throw_line("failed to read drive patch configuration, SCSI ({})", SPTD::StatusMessage(status));
 
     return config;
 }

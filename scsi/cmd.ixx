@@ -455,6 +455,22 @@ export SPTD::Status cmd_write_buffer(SPTD &sptd, const uint8_t *data, uint32_t d
 }
 
 
+export SPTD::Status cmd_read_buffer(SPTD &sptd, uint8_t *data, uint32_t data_size, READ_BUFFER_Mode mode, uint32_t buffer_offset, uint32_t allocation_length)
+{
+    CDB10_ReadBuffer cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::READ_BUFFER;
+    cdb.mode = (uint8_t)mode;
+    cdb.buffer_offset[0] = ((uint8_t *)&buffer_offset)[2];
+    cdb.buffer_offset[1] = ((uint8_t *)&buffer_offset)[1];
+    cdb.buffer_offset[2] = ((uint8_t *)&buffer_offset)[0];
+    cdb.allocation_length[0] = ((uint8_t *)&allocation_length)[2];
+    cdb.allocation_length[1] = ((uint8_t *)&allocation_length)[1];
+    cdb.allocation_length[2] = ((uint8_t *)&allocation_length)[0];
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), data, data_size);
+}
+
+
 export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t block_size, int32_t address, uint32_t transfer_length, OmniDrive_DiscType disc_type, bool raw_addressing, bool fua,
     bool descramble, OmniDrive_Subchannels subchannels, bool c2)
 {

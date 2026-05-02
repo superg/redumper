@@ -34,8 +34,20 @@ struct DriveEntry
 };
 
 const std::vector<DriveEntry> MT1959_SUPPORTED_DRIVES = {
-    { "HL-DT-ST", "BD-RE BU40N", "MT1959 Boot BU5 " },
-    { "ASUS",     "BW-16D1HT",   "MT1959 Boot JB8 " }
+    { "HL-DT-ST", "BD-RE BU40N",    "MT1959 Boot BU5 " },
+    { "ASUS",     "BW-16D1HT",      "MT1959 Boot JB8 " },
+    { "ASUS",     "BW-16D1H-U",     "MT1959 Boot JB8 " },
+    { "HL-DT-ST", "BD-RE BH16NS60", "MT1959 Boot JB8 " }, // NS60
+    { "HL-DT-ST", "BD-RE WH16NS60", "MT1959 Boot JB8 " }, // NS60
+    { "HL-DT-ST", "BD-RE BH16NS58", "MT1959 Boot JB8 " }, // NS50
+    { "HL-DT-ST", "BD-RE WH16NS58", "MT1959 Boot JB8 " }, // NS50
+    { "HL-DT-ST", "BD-RE BH16NS55", "MT1959 Boot JB8 " }, // NS50
+    { "HL-DT-ST", "BD-RE BH16NS50", "MT1959 Boot JB8 " }, // NS50
+    { "HL-DT-ST", "BD-RE BH14NS50", "MT1959 Boot JB8 " }, // NS50
+    { "HL-DT-ST", "BD-RE BH16NS40", "MT1959 Boot JB8 " }, // NS50
+    { "HL-DT-ST", "BD-RE WH16NS40", "MT1959 Boot JB8 " }, // NS50
+    { "HL-DT-ST", "BD-RE BH14NS40", "MT1959 Boot JB8 " }, // NS50
+    { "HL-DT-ST", "BD-RE WH14NS40", "MT1959 Boot JB8 " }, // NS50
 };
 
 

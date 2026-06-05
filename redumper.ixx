@@ -496,9 +496,9 @@ export int redumper(Options &options)
         if(auto version = is_omnidrive_firmware(ctx.drive_config))
         {
             if(*version < omnidrive_minimum_version())
-                throw_line("outdated OmniDrive drive firmware (current: {}, supported: {})", omnidrive_version_string(*version), omnidrive_version_string(omnidrive_minimum_version()));
-
-            LOG("  firmware: OmniDrive {}", omnidrive_version_string(*version));
+                LOG("  warning: outdated OmniDrive drive firmware (current: {}, recommended: {})", omnidrive_version_string(*version), omnidrive_version_string(omnidrive_minimum_version()));
+            else
+                LOG("  firmware: OmniDrive {}", omnidrive_version_string(*version));
         }
     }
 

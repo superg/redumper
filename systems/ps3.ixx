@@ -170,6 +170,9 @@ private:
             return firmware_version;
 
         uint32_t version_offset = ((uint32_t)sector_buffer[PUP_FILE_OFFSET] << 8) | sector_buffer[PUP_FILE_OFFSET + 1];
+        if(version_offset == 0)
+            return firmware_version;
+
         if(version_offset >= data_reader->sectorSize())
         {
             uint32_t target_sector = pup_file->sectorsLBA() + version_offset / data_reader->sectorSize();

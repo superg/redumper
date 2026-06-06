@@ -1,4 +1,5 @@
 module;
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <map>
@@ -85,7 +86,20 @@ public:
     }
 
 private:
-    static constexpr uint32_t PUP_FILE_OFFSET = 0x3E;
+    static constexpr std::string_view _PUP_MAGIC = "SCEUF\0\0\0";
+    static constexpr uint64_t _VERSION_ID = 0x100;
+    static constexpr uint32_t _VERSION_LENGTH = 4;
+
+    struct PUPHeader
+    {
+        uint8_t magic[8];
+        uint64_t version;
+        uint64_t build;
+        uint64_t records_count;
+        uint64_t header_size;
+        uint64_t data_size;
+    };
+
     struct SFBHeader
     {
         uint8_t magic[4];
@@ -169,20 +183,51 @@ private:
         if(data_reader->read(sector_buffer.data(), pup_file->sectorsLBA(), 1) != 1)
             return firmware_version;
 
-        uint32_t version_offset = ((uint32_t)sector_buffer[PUP_FILE_OFFSET] << 8) | sector_buffer[PUP_FILE_OFFSET + 1];
-        if(version_offset == 0)
+        auto header = (PUPHeader *)sector_buffer.data();
+
+        // check for valid PUP file
+        if(memcmp(header->magic, _PUP_MAGIC.data(), _PUP_MAGIC.size()))
             return firmware_version;
 
-        if(version_offset >= data_reader->sectorSize())
+        // find version record offset
+        uint64_t version_offset;
+        uint32_t sector_number = 0;
+        uint32_t cur = sizeof(PUPHeader);
+        uint64_t records_count = endian_swap(header->records_count);
+        for(uint64_t i = 0; i < records_count; ++i)
         {
-            uint32_t target_sector = pup_file->sectorsLBA() + version_offset / data_reader->sectorSize();
-            if(data_reader->read(sector_buffer.data(), target_sector, 1) != 1)
+            // read next sector if needed
+            if(cur + 4 * sizeof(uint64_t) >= data_reader->sectorSize())
+            {
+                sector_number += 1;
+                uint32_t target_sector = pup_file->sectorsLBA() + sector_number;
+                if(data_reader->read(sector_buffer.data(), target_sector, 1) != 1)
+                    return firmware_version;
+                cur = 0;
+            }
+
+            uint64_t record_type = endian_swap(*(uint64_t *)&sector_buffer[cur]);
+            if(record_type == _VERSION_ID)
+            {
+                version_offset = endian_swap(*(uint64_t *)&sector_buffer[cur + sizeof(uint64_t)]);
+                break;
+            }
+
+            cur += 4 * sizeof(uint64_t);
+        }
+
+        // read sector that version.txt is in
+        uint32_t version_sector = version_offset / data_reader->sectorSize();
+        if(version_sector != sector_number)
+        {
+            if(data_reader->read(sector_buffer.data(), pup_file->sectorsLBA() + version_sector, 1) != 1)
                 return firmware_version;
         }
 
+        // read 4-byte string from version.txt
         uint32_t relative_offset = version_offset % data_reader->sectorSize();
-        if(relative_offset + 4 <= sector_buffer.size())
-            firmware_version.assign((char *)&sector_buffer[relative_offset], 4);
+        if(relative_offset + _VERSION_LENGTH <= sector_buffer.size())
+            firmware_version.assign((char *)&sector_buffer[relative_offset], _VERSION_LENGTH);
 
         return firmware_version;
     }

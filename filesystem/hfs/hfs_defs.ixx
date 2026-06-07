@@ -67,4 +67,6 @@ struct MasterDirectoryBlock
 };
 #pragma pack(pop)
 
+static_assert(sizeof(MasterDirectoryBlock) == 512, "MasterDirectoryBlock must match one 512-byte sector");
+
 }

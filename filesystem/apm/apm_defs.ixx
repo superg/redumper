@@ -87,6 +87,7 @@ struct DriveDescriptor
     uint8_t additional_driver_descriptors[484];
 };
 
+static_assert(sizeof(DriveDescriptor) == 512, "DriveDescriptor must match one 512-byte sector");
 
 struct PartitionMapEntry
 {
@@ -110,5 +111,7 @@ struct PartitionMapEntry
     uint8_t processor_type[16];
     uint8_t unknown_3[2][188];
 };
+
+static_assert(sizeof(PartitionMapEntry) == 512, "PartitionMapEntry must match one 512-byte sector");
 
 }

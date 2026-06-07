@@ -1,6 +1,6 @@
 module;
-#include <cstdint>
 #include <array>
+#include <cstdint>
 
 export module filesystem.hfs:defs;
 

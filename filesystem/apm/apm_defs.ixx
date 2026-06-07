@@ -85,7 +85,6 @@ struct DriveDescriptor
     uint16_t driver_descriptor_count;
     uint8_t first_driver_descriptor[8];
     uint8_t additional_driver_descriptors[484];
-
 };
 
 

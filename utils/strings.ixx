@@ -341,4 +341,22 @@ std::string_view to_string_view(const T (&arr)[N])
     return std::string_view(reinterpret_cast<const char *>(arr), N * sizeof(T));
 }
 
+
+export template<size_t M>
+#pragma pack(push, 1)
+struct pascal_string
+{
+    uint8_t length;
+    char data[M];
+};
+#pragma pack(pop)
+
+
+export template<size_t M>
+std::string from_pascal_string(const pascal_string<M> &string)
+{
+    return std::string(string.data, string.length);
+}
+
+
 }

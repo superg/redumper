@@ -28,6 +28,7 @@ public:
             {
                 PartitionMapEntry partition_map_entry;
                 uint32_t entry_index = 0;
+                constexpr uint32_t MAX_PARTITION_ENTRIES = 512;
                 do
                 {
                     if(data_reader->read((uint8_t *)&partition_map_entry, data_reader->sectorsBase() + PARTITION_MAP_OFFSET + entry_index, 1) != 1)
@@ -35,7 +36,7 @@ public:
 
                     if(to_string_view(partition_map_entry.signature) == PARTITION_MAP_ENTRY_SIGNATURE)
                         partitions.push_back(partition_map_entry);
-                } while(++entry_index < endian_swap(partition_map_entry.entry_count));
+                } while(++entry_index < std::min(endian_swap(partition_map_entry.entry_count), MAX_PARTITION_ENTRIES));
             }
         }
 

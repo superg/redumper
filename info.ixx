@@ -56,6 +56,7 @@ export int redumper_info(Context &ctx, Options &options)
     {
         std::shared_ptr<DataReader> raw_reader;
         std::shared_ptr<DataReader> form1_reader;
+        std::shared_ptr<DataReader> emulated_disk_reader;
 
         if(track_type_is_data_iso(t.second))
             form1_reader = std::make_shared<Image_ISO_Reader>(t.first);
@@ -65,7 +66,8 @@ export int redumper_info(Context &ctx, Options &options)
             form1_reader = std::make_shared<Image_BIN_Reader>(t.first);
         }
 
-        std::shared_ptr<DataReader> emulated_disk_reader = std::make_shared<Image_Disk_Reader>(form1_reader);
+        if(form1_reader)
+            emulated_disk_reader = std::make_shared<Image_Disk_Reader>(form1_reader);
 
         for(auto const &s : Systems::get())
         {

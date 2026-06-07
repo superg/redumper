@@ -19,7 +19,8 @@ public:
     {
         RAW_DATA,
         RAW_AUDIO,
-        ISO
+        ISO,
+        DISK
     };
 
     virtual ~System() = default;

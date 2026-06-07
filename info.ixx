@@ -19,6 +19,7 @@ import options;
 import readers.image_bin_reader;
 import readers.image_iso_reader;
 import readers.image_raw_reader;
+import readers.image_disk_reader;
 import readers.data_reader;
 import systems.systems;
 import utils.hex_bin;
@@ -64,11 +65,20 @@ export int redumper_info(Context &ctx, Options &options)
             form1_reader = std::make_shared<Image_BIN_Reader>(t.first);
         }
 
+        std::shared_ptr<DataReader> emulated_disk_reader = std::make_shared<Image_Disk_Reader>(form1_reader);
+
         for(auto const &s : Systems::get())
         {
             auto system = s();
 
-            auto reader = system->getType() == System::Type::ISO ? form1_reader : raw_reader;
+            std::shared_ptr<DataReader> reader;
+            if(system->getType() == System::Type::ISO)
+                reader = form1_reader;
+            else if(system->getType() == System::Type::DISK)
+                reader = emulated_disk_reader;
+            else
+                reader = raw_reader;
+
             if(!reader)
                 continue;
 

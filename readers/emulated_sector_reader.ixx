@@ -4,6 +4,7 @@ module;
 #include <fstream>
 #include <string.h>
 #include <utility>
+#include <vector>
 #include "throw_line.hh"
 
 export module readers.emulated_sector_reader;

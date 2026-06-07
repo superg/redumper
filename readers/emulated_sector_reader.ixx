@@ -64,12 +64,12 @@ public:
 
     int32_t sectorsBase() override
     {
-        return _source->sectorsBase() / _emulated_sectors_per_source;
+        return _source->sectorsBase() * _emulated_sectors_per_source;
     }
 
     uint32_t sectorsCount() const override
     {
-        return _source->sectorsCount() / _emulated_sectors_per_source;
+        return _source->sectorsCount() * _emulated_sectors_per_source;
     }
 
     int32_t sampleOffset(int32_t lba) override

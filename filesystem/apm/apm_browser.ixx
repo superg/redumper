@@ -30,7 +30,7 @@ public:
                 uint32_t entry_index = 0;
                 do
                 {
-                    if(data_reader->read((uint8_t *)&partition_map_entry, PARTITION_MAP_OFFSET + entry_index, 1) != 1)
+                    if(data_reader->read((uint8_t *)&partition_map_entry, data_reader->sectorsBase() + PARTITION_MAP_OFFSET + entry_index, 1) != 1)
                         break;
 
                     if(to_string_view(partition_map_entry.signature) == PARTITION_MAP_ENTRY_SIGNATURE)

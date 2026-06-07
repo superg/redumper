@@ -356,7 +356,7 @@ struct pascal_string
 export template<size_t M>
 std::string from_pascal_string(const pascal_string<M> &string)
 {
-    return std::string(string.data, string.length);
+    return std::string(string.data, std::min((size_t)string.length, M));
 }
 
 

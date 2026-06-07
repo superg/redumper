@@ -49,10 +49,11 @@ public:
         if(source_sectors_read == 0)
             return 0;
 
-        const uint32_t emulated_sectors_available = source_sectors_read * _emulated_sectors_per_source;
-        const uint32_t data_offset = lba % _emulated_sectors_per_source * S;
+        const uint32_t lba_offset = lba % _emulated_sectors_per_source;
+        const uint32_t emulated_sectors_available = source_sectors_read * _emulated_sectors_per_source - lba_offset;
+        const uint32_t byte_offset = lba_offset * S;
         const uint32_t emulated_sectors_to_copy = std::min(count, emulated_sectors_available);
-        memcpy(sectors, &source_sectors[data_offset], emulated_sectors_to_copy * S);
+        memcpy(sectors, &source_sectors[byte_offset], emulated_sectors_to_copy * S);
 
         return emulated_sectors_to_copy;
     }

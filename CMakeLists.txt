@@ -127,6 +127,7 @@ target_sources(redumper
     "drive/mediatek.ixx"
     "drive/test.ixx"
     "dvd/bd.ixx"
+    "dvd/bd_key.ixx"
     "dvd/bd_scrambler.ixx"
     "dvd/css/css.ixx"
     "dvd/dvd.ixx"

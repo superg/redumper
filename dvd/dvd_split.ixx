@@ -139,7 +139,7 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
 
     std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path iso_path(image_prefix + ".iso");
-    std::filesystem::path physical_path(image_prefix + ".physical");
+    std::filesystem::path manufacturer_path(image_prefix + ".manufacturer");
     if(std::filesystem::exists(iso_path) && !options.overwrite)
     {
         LOG("warning: file already exists ({})", iso_path.filename().string());
@@ -161,6 +161,7 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
     if(!iso_fs.is_open())
         throw_line("unable to open file ({})", iso_path.filename().string());
 
+    bool nintendo_dev_disc = false;
     std::optional<uint8_t> nintendo_key;
     std::vector<std::pair<int32_t, int32_t>> invalid_data_frames;
 
@@ -169,11 +170,17 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
     if(sdram_fs.fail())
         throw_line("seek failed");
 
-    if(std::filesystem::exists(physical_path))
+    if(std::filesystem::exists(manufacturer_path))
     {
-        auto physical = read_vector(physical_path);
-        if(physical.size() > sizeof(CMD_ParameterListHeader) && physical[sizeof(CMD_ParameterListHeader)] == 0xFF)
-            nintendo_key = 0;
+        auto manufacturer = read_vector(manufacturer_path);
+        if(manufacturer.size() > sizeof(CMD_ParameterListHeader))
+        {
+            auto idString = (const char*)&manufacturer[sizeof(CMD_ParameterListHeader) + 0x10];
+            if (strstr(idString, "Nintendo"))
+                nintendo_key = 0;
+            if (strstr(idString, "Emu"))
+                nintendo_dev_disc = true;
+        }
     }
 
     uint32_t main_data_offset = nintendo_key ? offsetof(dvd::DataFrame, cpr_mai) : offsetof(dvd::DataFrame, main_data);
@@ -196,9 +203,9 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
 
         std::span<uint8_t> data((uint8_t *)&df + main_data_offset, FORM1_DATA_SIZE);
 
-        auto key = nintendo::get_key(nintendo_key, lba, df);
-        bool valid = df.valid(key);
-        df.descramble(key);
+        auto key = nintendo::get_key(nintendo_key, lba, df, nintendo_dev_disc);
+        bool valid = df.valid(key, nintendo_dev_disc);
+        df.descramble(key, nintendo_dev_disc);
 
         if(!valid)
         {

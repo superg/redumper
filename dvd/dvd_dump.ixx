@@ -21,6 +21,7 @@ import cd.cdrom;
 import common;
 import drive;
 import dvd;
+import dvd.scrambler;
 import dvd.css;
 import dvd.nintendo;
 import dvd.xbox;
@@ -577,7 +578,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 
 
 void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg,
-    std::optional<uint8_t> &nintendo_key, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+    std::optional<uint8_t> &nintendo_key, bool nintendo_dev_disc, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &, bool))
 {
     if(lba_start > lba_end)
         return;
@@ -603,7 +604,7 @@ void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstr
                 error = true;
                 ++errors.scsi;
             }
-            else if(!edc_match(std::span<uint8_t>(&image_buffer[i * cfg.sector_size], cfg.sector_size), lba_base + i, nintendo_key))
+            else if(!edc_match(std::span<uint8_t>(&image_buffer[i * cfg.sector_size], cfg.sector_size), lba_base + i, nintendo_key, nintendo_dev_disc))
             {
                 error = true;
                 ++errors.edc;
@@ -616,20 +617,20 @@ void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstr
 }
 
 
-auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)
+auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &, bool)
 {
     if(raw && disc_type == DiscType::DVD)
     {
-        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
+        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key, bool nintendo_dev_disc)
         {
             dvd::DataFrame df = RecordingFrame_to_DataFrame((dvd::RecordingFrame &)data[0]);
 
-            return df.valid(nintendo::get_key(nintendo_key, lba, df));
+            return df.valid(nintendo::get_key(nintendo_key, lba, df, nintendo_dev_disc), nintendo_dev_disc);
         };
     }
     else if(raw && (disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R))
     {
-        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
+        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key, bool)
         {
             auto &df = (bd::DataFrame &)data[0];
 
@@ -637,18 +638,18 @@ auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const ui
         };
     }
     else
-        return [](std::span<const uint8_t>, int32_t, std::optional<uint8_t> &) { return true; };
+        return [](std::span<const uint8_t>, int32_t, std::optional<uint8_t> &, bool) { return true; };
 }
 
 
-auto extract_data_func(DiscType disc_type, bool raw) -> std::vector<uint8_t> (*)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)
+auto extract_data_func(DiscType disc_type, bool raw) -> std::vector<uint8_t> (*)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &, bool)
 {
     if(raw && disc_type == DiscType::DVD)
     {
-        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
+        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key, bool nintendo_dev_disc)
         {
             dvd::DataFrame df = RecordingFrame_to_DataFrame((dvd::RecordingFrame &)data[0]);
-            df.descramble(nintendo::get_key(nintendo_key, lba, df));
+            df.descramble(nintendo::get_key(nintendo_key, lba, df, nintendo_dev_disc), nintendo_dev_disc);
 
             uint32_t main_data_offset = nintendo_key ? offsetof(dvd::DataFrame, cpr_mai) : offsetof(dvd::DataFrame, main_data);
 
@@ -657,7 +658,7 @@ auto extract_data_func(DiscType disc_type, bool raw) -> std::vector<uint8_t> (*)
     }
     else if(raw && (disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R))
     {
-        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
+        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key, bool)
         {
             auto &df = (bd::DataFrame &)data[0];
             df.descramble(lba, nintendo_key.has_value());
@@ -666,12 +667,12 @@ auto extract_data_func(DiscType disc_type, bool raw) -> std::vector<uint8_t> (*)
         };
     }
     else
-        return [](std::span<const uint8_t> data, int32_t, std::optional<uint8_t> &) { return std::vector(data.begin(), data.end()); };
+        return [](std::span<const uint8_t> data, int32_t, std::optional<uint8_t> &, bool) { return std::vector(data.begin(), data.end()); };
 }
 
 
 bool sectors_data_state_update(std::span<State> sectors_state, std::span<uint8_t> sectors_data, std::span<const State> sectors_state_in, std::span<const uint8_t> sectors_data_in, uint32_t sector_size,
-    int32_t lba, std::optional<uint8_t> &nintendo_key, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &), bool dump, const Options &options)
+    int32_t lba, std::optional<uint8_t> &nintendo_key, bool nintendo_dev_disc, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &, bool), bool dump, const Options &options)
 {
     bool updated = false;
 
@@ -685,8 +686,8 @@ bool sectors_data_state_update(std::span<State> sectors_state, std::span<uint8_t
 
         if(sectors_state[i] == State::SUCCESS)
         {
-            bool edc = edc_match(sector_data, lba + i, nintendo_key);
-            bool edc_in = edc_match(sector_data_in, lba + i, nintendo_key);
+            bool edc = edc_match(sector_data, lba + i, nintendo_key, nintendo_dev_disc);
+            bool edc_in = edc_match(sector_data_in, lba + i, nintendo_key, nintendo_dev_disc);
 
             if(!edc && edc_in)
             {
@@ -715,7 +716,7 @@ bool sectors_data_state_update(std::span<State> sectors_state, std::span<uint8_t
 
 
 uint32_t sectors_data_state_edc_errors(std::span<const State> sectors_state, std::span<const uint8_t> sectors_data, uint32_t sector_size, int32_t lba, std::optional<uint8_t> &nintendo_key,
-    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+    bool nintendo_dev_disc, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &, bool))
 {
     uint32_t errors = 0;
 
@@ -725,7 +726,7 @@ uint32_t sectors_data_state_edc_errors(std::span<const State> sectors_state, std
             continue;
 
         std::span<const uint8_t> sector_data(&sectors_data[i * sector_size], sector_size);
-        if(!edc_match(sector_data, lba + i, nintendo_key))
+        if(!edc_match(sector_data, lba + i, nintendo_key, nintendo_dev_disc))
             ++errors;
     }
 
@@ -734,10 +735,10 @@ uint32_t sectors_data_state_edc_errors(std::span<const State> sectors_state, std
 
 
 bool sectors_data_complete(std::span<const State> sectors_state, std::span<const uint8_t> sectors_data, uint32_t sector_size, int32_t lba, std::optional<uint8_t> &nintendo_key,
-    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+    bool nintendo_dev_disc, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &, bool))
 {
     return std::all_of(sectors_state.begin(), sectors_state.end(), [](State s) { return s == State::SUCCESS; })
-        && !sectors_data_state_edc_errors(sectors_state, sectors_data, sector_size, lba, nintendo_key, edc_match);
+        && !sectors_data_state_edc_errors(sectors_state, sectors_data, sector_size, lba, nintendo_key, nintendo_dev_disc, edc_match);
 }
 
 
@@ -825,6 +826,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
 
+    bool nintendo_dev_disc;
     std::optional<uint8_t> nintendo_key;
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
@@ -883,8 +885,15 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                         nintendo_key = 0;
                 }
 
+                // for nintendo dev discs (NR/RVT-R), capacity is reported as being 1 by omnidrive while physical remains correct
+                if (omnidrive_firmware && sectors_count_capacity == 1 && sectors_count_capacity != sectors_count_physical)
+                {
+                    nintendo_dev_disc = true;
+                    nintendo_key = 9;
+                }
+
                 // XGD physical sector count is only for video partition
-                if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
+                else if(auto &layer0_ld = (READ_DVD_STRUCTURE_LayerDescriptor &)physical_structures.front()[sizeof(CMD_ParameterListHeader)];
                     (kreon_firmware || omnidrive_firmware) && physical_structures.size() == 1 && get_dvd_layer_length(layer0_ld) != sectors_count_capacity)
                 {
                     xbox = xbox::initialize(protection, *ctx.sptd, layer0_ld, sectors_count_capacity, options.kreon_partial_ss, ctx.drive_config);
@@ -932,17 +941,84 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                 for(uint32_t i = 0; i < physical_structures.size(); ++i)
                 {
                     std::vector<uint8_t> structure;
-                    auto status = cmd_read_disc_structure(*ctx.sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
-                    if(status.status_code)
-                        throw_line("failed to read disc manufacturer structure, SCSI ({})", SPTD::StatusMessage(status));
+                    if (!nintendo_dev_disc)
+                    {
+                        auto status = cmd_read_disc_structure(*ctx.sptd, structure, 0, 0, i, READ_DISC_STRUCTURE_Format::MANUFACTURER, 0);
+                        if(status.status_code)
+                            throw_line("failed to read disc manufacturer structure, SCSI ({})", SPTD::StatusMessage(status));
+                    }
+                    else
+                    {
+                        // nintendo dev discs need manual descrambling
+                        dvd::DataFrame df;
+                        bool dmi_found = false;
+                        for(uint8_t dmi_retries = 0; dmi_retries < 192; ++dmi_retries)
+                        {
+                            uint32_t dmi_address = 0x2E401 + dmi_retries * 0x10;
+                            auto status = cmd_read_omnidrive(*ctx.sptd, (uint8_t *)&df, sizeof(dvd::DataFrame), 0x2E401, 1, OmniDrive_DiscType::DVD, true, false, false, OmniDrive_Subchannels::NONE, false);
+                            if(status.status_code)
+                                LOG("[PSN: {:X}] omnidrive: SCSI error ({})", 0x2E401, SPTD::StatusMessage(status));
+                            else
+                            {
+                                if (df.valid(9, true))
+                                {
+                                    df.descramble(9, true);
+                                    dmi_found = true;
+                                }
+                                else
+                                    LOG("[PSN: {:X}] omnidrive: invalid DMI, discarded", dmi_address);
+                            }
+                        }
+                        if (dmi_found)
+                        {
+                            structure.resize(sizeof(CMD_ParameterListHeader) + FORM1_DATA_SIZE);
+                            *(CMD_ParameterListHeader*)structure.data() = { .data_length = endian_swap((uint16_t)(FORM1_DATA_SIZE + 2)) };
+                            std::copy(df.main_data, df.main_data + FORM1_DATA_SIZE, structure.data() + sizeof(CMD_ParameterListHeader));
+                        }
+                    }
 
                     write_vector(std::format("{}{}.manufacturer", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : ""), structure);
                 }
             }
 
             // store physical structure files
-            for(uint32_t i = 0; i < physical_structures.size(); ++i)
-                write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : ""), physical_structures[i]);
+            if (!nintendo_dev_disc)
+            {
+                for(uint32_t i = 0; i < physical_structures.size(); ++i)
+                    write_vector(std::format("{}{}.physical", image_prefix, physical_structures.size() > 1 ? std::format(".{}", i) : ""), physical_structures[i]);
+            }
+            else
+            {
+                // nintendo dev discs need manual descrambling
+                std::vector<uint8_t> structure;
+                dvd::DataFrame df;
+                bool pfi_found = false;
+                for(uint8_t pfi_retries = 0; pfi_retries < 192; ++pfi_retries)
+                {
+                    uint32_t pfi_address = 0x2E402 + pfi_retries * 0x10;
+                    auto status = cmd_read_omnidrive(*ctx.sptd, (uint8_t *)&df, sizeof(dvd::DataFrame), 0x2E402, 1, OmniDrive_DiscType::DVD, true, false, false, OmniDrive_Subchannels::NONE, false);
+                    if(status.status_code)
+                        LOG("[PSN: {:X}] omnidrive: SCSI error ({})", 0x2E402, SPTD::StatusMessage(status));
+                    else
+                    {
+                        if (df.valid(9, true))
+                        {
+                            df.descramble(9, true);
+                            pfi_found = true;
+                        }
+                        else
+                            LOG("[PSN: {:X}] omnidrive: invalid PFI, discarded", pfi_address);
+                    }
+                }
+                if (pfi_found)
+                {
+                    structure.resize(sizeof(CMD_ParameterListHeader) + FORM1_DATA_SIZE);
+                    *(CMD_ParameterListHeader*)structure.data() = { .data_length = endian_swap((uint16_t)(FORM1_DATA_SIZE + 2)) };
+                    std::copy(df.main_data, df.main_data + FORM1_DATA_SIZE, structure.data() + sizeof(CMD_ParameterListHeader));
+                }
+
+                write_vector(std::format("{}.physical", image_prefix), structure);
+            }
 
             // print physical structures information (Blu-ray)
             if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
@@ -1178,7 +1254,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     else
     {
         LOG_F("analyzing dump... ");
-        refine_init(intervals, errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, edc_match);
+        refine_init(intervals, errors_initial, fs_state, fs_image, lba_start, lba_end, cfg, nintendo_key, nintendo_dev_disc, edc_match);
         LOG("done");
     }
     dvd::Errors errors = errors_initial;
@@ -1235,7 +1311,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         {
             for(uint32_t i = 0; i < sectors_to_read; ++i)
             {
-                if(!edc_match(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key))
+                if(!edc_match(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key, nintendo_dev_disc))
                 {
                     read = true;
                     break;
@@ -1275,7 +1351,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                 {
                     for(uint32_t i = 0; i < sectors_to_read; ++i)
                     {
-                        if(!edc_match(std::span<uint8_t>(&sector_data[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key))
+                        if(!edc_match(std::span<uint8_t>(&sector_data[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key, nintendo_dev_disc))
                         {
                             if(dump)
                             {
@@ -1291,9 +1367,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
             }
 
             uint32_t scsi_before = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
-            uint32_t edc_before = sectors_data_state_edc_errors(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match);
+            uint32_t edc_before = sectors_data_state_edc_errors(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, nintendo_dev_disc, edc_match);
 
-            bool data_updated = sectors_data_state_update(sector_state_file, sector_data_file, sector_state, sector_data, cfg.sector_size, lba, nintendo_key, edc_match, dump, options);
+            bool data_updated = sectors_data_state_update(sector_state_file, sector_data_file, sector_state, sector_data, cfg.sector_size, lba, nintendo_key, nintendo_dev_disc, edc_match, dump,
+                options);
             if(dump || data_updated)
             {
                 write_entry(fs_image, sector_data_file.data(), cfg.sector_size, lba_index, sectors_to_read, 0);
@@ -1302,14 +1379,14 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                 if(!dump)
                 {
                     uint32_t scsi_after = std::count(sector_state_file.begin(), sector_state_file.end(), State::ERROR_SKIP);
-                    uint32_t edc_after = sectors_data_state_edc_errors(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match);
+                    uint32_t edc_after = sectors_data_state_edc_errors(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, nintendo_dev_disc, edc_match);
 
                     errors.scsi -= scsi_before - scsi_after;
                     errors.edc -= edc_before - edc_after;
                 }
             }
 
-            if(!dump && !sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match))
+            if(!dump && !sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, nintendo_dev_disc, edc_match))
             {
                 ++refine_counter;
                 if(refine_counter < refine_retries)
@@ -1326,11 +1403,11 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         {
             if(dump)
             {
-                if(sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, edc_match))
+                if(sectors_data_complete(sector_state_file, sector_data_file, cfg.sector_size, lba, nintendo_key, nintendo_dev_disc, edc_match))
                 {
                     for(uint32_t i = 0; i < sectors_to_read; ++i)
                     {
-                        auto data = extract_data(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key);
+                        auto data = extract_data(std::span<uint8_t>(&sector_data_file[i * cfg.sector_size], cfg.sector_size), lba + i, nintendo_key, nintendo_dev_disc);
 
                         if(rom_update)
                             rom_entry.update(data.data(), data.size());

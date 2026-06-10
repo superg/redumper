@@ -54,6 +54,63 @@ public:
             serial.insert(4, "-");
             os << std::format("  serial: {}", serial) << std::endl;
         }
+
+        std::string content_ids = getContentIds(root_directory, "app.pkg");
+
+        if(content_ids.empty())
+            return;
+
+        os << std::format("  content ID(s): {}", content_ids) << std::endl;
+    }
+
+protected:
+    std:: string getContentIds(std::shared_ptr<iso9660::Entry> root_directory, std::string pkg_name) const
+    {
+        auto app_directory = root_directory->subEntry("app");
+        if(!app_directory)
+            return "";
+
+        auto app_directory_entries = app_directory->entries();
+        std::string content_ids;
+
+        for(auto &e : app_directory_entries)
+        {
+            if(!e->isDirectory())
+                continue;
+
+            auto app_pkg_entry = e->subEntry(pkg_name);
+            if (!app_pkg_entry)
+                continue;
+
+            auto app_pkg_raw = app_pkg_entry->read();
+
+            const uint32_t pkg_magic_const = 0x7F434E54;
+            const uint32_t pkg_magic_offset = 0x00;
+            const uint32_t pkg_magic_size = 4;
+
+            uint32_t app_pkg_magic = 
+                (static_cast<uint32_t>(app_pkg_raw[pkg_magic_offset + 0]) << 24) |
+                (static_cast<uint32_t>(app_pkg_raw[pkg_magic_offset + 1]) << 16) |
+                (static_cast<uint32_t>(app_pkg_raw[pkg_magic_offset + 2]) << 8)  |
+                (static_cast<uint32_t>(app_pkg_raw[pkg_magic_offset + 3]) << 0);
+
+            if(pkg_magic_const != app_pkg_magic)
+                continue;
+
+            const uint32_t pkg_content_id_offset = 0x40;
+            const uint32_t pkg_content_id_size = 36;
+
+            std::span<uint8_t> app_pkg_content_id(app_pkg_raw.data() + pkg_content_id_offset, pkg_content_id_size);
+
+            std::string_view app_pkg_content_id_text(reinterpret_cast<const char*>(app_pkg_content_id.data()), pkg_content_id_size);
+
+            if (!content_ids.empty())
+                content_ids += ", ";
+
+            content_ids += app_pkg_content_id_text;
+        }
+
+        return content_ids;
     }
 };
 

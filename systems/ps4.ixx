@@ -64,7 +64,7 @@ public:
     }
 
 protected:
-    std:: string getContentIds(std::shared_ptr<iso9660::Entry> root_directory, std::string pkg_name) const
+    std::string getContentIds(std::shared_ptr<iso9660::Entry> root_directory, const std::string pkg_name) const
     {
         auto app_directory = root_directory->subEntry("app");
         if(!app_directory)
@@ -79,32 +79,28 @@ protected:
                 continue;
 
             auto app_pkg_entry = e->subEntry(pkg_name);
-            if (!app_pkg_entry)
+            if(!app_pkg_entry)
                 continue;
 
             auto app_pkg_raw = app_pkg_entry->read();
 
-            const uint32_t pkg_magic_const = 0x7F434E54;
-            const uint32_t pkg_magic_offset = 0x00;
-            const uint32_t pkg_magic_size = 4;
-
-            uint32_t app_pkg_magic = 
-                (static_cast<uint32_t>(app_pkg_raw[pkg_magic_offset + 0]) << 24) |
-                (static_cast<uint32_t>(app_pkg_raw[pkg_magic_offset + 1]) << 16) |
-                (static_cast<uint32_t>(app_pkg_raw[pkg_magic_offset + 2]) << 8)  |
-                (static_cast<uint32_t>(app_pkg_raw[pkg_magic_offset + 3]) << 0);
-
-            if(pkg_magic_const != app_pkg_magic)
+            if(app_pkg_raw.size() < _PKG_HEADER_SIZE)
                 continue;
 
-            const uint32_t pkg_content_id_offset = 0x40;
-            const uint32_t pkg_content_id_size = 36;
+            uint32_t app_pkg_magic = 
+                (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 0]) << 24) |
+                (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 1]) << 16) |
+                (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 2]) << 8)  |
+                (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 3]) << 0);
 
-            std::span<uint8_t> app_pkg_content_id(app_pkg_raw.data() + pkg_content_id_offset, pkg_content_id_size);
+            if(app_pkg_magic != _PKG_MAGIC)
+                continue;
 
-            std::string_view app_pkg_content_id_text(reinterpret_cast<const char*>(app_pkg_content_id.data()), pkg_content_id_size);
+            std::span<const uint8_t> app_pkg_content_id(app_pkg_raw.data() + _PKG_CONTENT_ID_OFFSET, _PKG_CONTENT_ID_SIZE);
 
-            if (!content_ids.empty())
+            std::string_view app_pkg_content_id_text(reinterpret_cast<const char*>(app_pkg_content_id.data()), _PKG_CONTENT_ID_SIZE);
+
+            if(!content_ids.empty())
                 content_ids += ", ";
 
             content_ids += app_pkg_content_id_text;
@@ -112,6 +108,13 @@ protected:
 
         return content_ids;
     }
+
+private:
+    static constexpr uint32_t _PKG_HEADER_SIZE = 0x1000;
+    static constexpr uint32_t _PKG_MAGIC = 0x7F434E54;
+    static constexpr uint32_t _PKG_MAGIC_OFFSET = 0x00;
+    static constexpr uint32_t _PKG_CONTENT_ID_OFFSET = 0x40;
+    static constexpr uint32_t _PKG_CONTENT_ID_SIZE = 36;
 };
 
 }

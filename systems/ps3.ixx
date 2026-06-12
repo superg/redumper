@@ -206,9 +206,9 @@ private:
             if(endian_swap(file->type) == 0x100)
             {
                 uint64_t version_offset = endian_swap(file->offset);
-                if(version_offset + 4 > sector_buffer.size())
+                if(version_offset > sector_buffer.size() - _VERSION_LENGTH)
                     return "";
-                return std::string((char *)(sector_buffer.data() + version_offset), 4);
+                return std::string((char *)(sector_buffer.data() + version_offset), _VERSION_LENGTH);
             }
         }
 

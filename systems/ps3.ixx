@@ -100,6 +100,14 @@ private:
         uint64_t data_size;
     };
 
+    struct PUPFile
+    {
+        uint64_t type;
+        uint64_t offset;
+        uint64_t size;
+        uint64_t padding;
+    };
+
     struct SFBHeader
     {
         uint8_t magic[4];
@@ -174,62 +182,37 @@ private:
 
     std::string pupVersion(DataReader *data_reader, std::shared_ptr<iso9660::Entry> pup_file) const
     {
-        std::string firmware_version;
-
         if(!pup_file)
-            return firmware_version;
+            return "";
 
         std::vector<uint8_t> sector_buffer(data_reader->sectorSize());
         if(data_reader->read(sector_buffer.data(), pup_file->sectorsLBA(), 1) != 1)
-            return firmware_version;
+            return "";
 
         auto header = (PUPHeader *)sector_buffer.data();
 
-        // check for valid PUP file
         if(memcmp(header->magic, _PUP_MAGIC.data(), _PUP_MAGIC.size()))
-            return firmware_version;
+            return "";
 
-        // find version record offset
-        uint64_t version_offset;
-        uint32_t sector_number = 0;
         uint32_t cur = sizeof(PUPHeader);
         uint64_t records_count = endian_swap(header->records_count);
         for(uint64_t i = 0; i < records_count; ++i)
         {
-            // read next sector if needed
-            if(cur + 4 * sizeof(uint64_t) >= data_reader->sectorSize())
-            {
-                sector_number += 1;
-                uint32_t target_sector = pup_file->sectorsLBA() + sector_number;
-                if(data_reader->read(sector_buffer.data(), target_sector, 1) != 1)
-                    return firmware_version;
-                cur = 0;
-            }
+            if(cur + sizeof(PUPFile) > sector_buffer.size())
+                return "";
 
-            uint64_t record_type = endian_swap(*(uint64_t *)&sector_buffer[cur]);
-            if(record_type == _VERSION_ID)
+            auto file = (PUPFile *)(sector_buffer.data() + cur);
+            cur += sizeof(PUPFile);
+            if(endian_swap(file->type) == 0x100)
             {
-                version_offset = endian_swap(*(uint64_t *)&sector_buffer[cur + sizeof(uint64_t)]);
-                break;
+                uint64_t version_offset = endian_swap(file->offset);
+                if(version_offset + 4 > sector_buffer.size())
+                    return "";
+                return std::string((char *)(sector_buffer.data() + version_offset), 4);
             }
-
-            cur += 4 * sizeof(uint64_t);
         }
 
-        // read sector that version.txt is in
-        uint32_t version_sector = version_offset / data_reader->sectorSize();
-        if(version_sector != sector_number)
-        {
-            if(data_reader->read(sector_buffer.data(), pup_file->sectorsLBA() + version_sector, 1) != 1)
-                return firmware_version;
-        }
-
-        // read 4-byte string from version.txt
-        uint32_t relative_offset = version_offset % data_reader->sectorSize();
-        if(relative_offset + _VERSION_LENGTH <= sector_buffer.size())
-            firmware_version.assign((char *)&sector_buffer[relative_offset], _VERSION_LENGTH);
-
-        return firmware_version;
+        return "";
     }
 
 protected:

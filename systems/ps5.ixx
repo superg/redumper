@@ -50,7 +50,7 @@ public:
         if(auto it = param_json.find("masterDataId"); it != param_json.end())
             os << std::format("  serial: {}", it->second.insert(4, "-")) << std::endl;
 
-        std::string content_ids = getContentIds(root_directory, "app_sc.pkg");
+        std::string content_ids = getContentIds(root_directory, _PKG_FILE_NAMES);
 
         if(content_ids.empty())
             return;
@@ -59,6 +59,8 @@ public:
     }
 
 private:
+    static constexpr std::array<std::string, 1> _PKG_FILE_NAMES = {"app_sc.pkg"};
+
     std::map<std::string, std::string> loadJSON(std::shared_ptr<iso9660::Entry> json_entry) const
     {
         std::map<std::string, std::string> json;

@@ -55,7 +55,7 @@ public:
             os << std::format("  serial: {}", serial) << std::endl;
         }
 
-        std::string content_ids = getContentIds(root_directory, "app.pkg");
+        std::string content_ids = getContentIds(root_directory, _PKG_FILE_NAMES);
 
         if(content_ids.empty())
             return;
@@ -64,7 +64,7 @@ public:
     }
 
 protected:
-    std::string getContentIds(std::shared_ptr<iso9660::Entry> root_directory, const std::string pkg_name) const
+    std::string getContentIds(std::shared_ptr<iso9660::Entry> root_directory, std::span<const std::string> pkg_file_names) const
     {
         auto app_directory = root_directory->subEntry("app");
         if(!app_directory)
@@ -78,32 +78,37 @@ protected:
             if(!e->isDirectory())
                 continue;
 
-            auto app_pkg_entry = e->subEntry(pkg_name);
-            if(!app_pkg_entry)
-                continue;
+            for(const auto& pkg_file_name : pkg_file_names)
+            {
+                auto app_pkg_entry = e->subEntry(pkg_file_name);
+                if(!app_pkg_entry)
+                    continue;
 
-            auto app_pkg_raw = app_pkg_entry->read();
+                auto app_pkg_raw = app_pkg_entry->read();
 
-            if(app_pkg_raw.size() < _PKG_HEADER_SIZE)
-                continue;
+                if(app_pkg_raw.size() < _PKG_HEADER_SIZE)
+                    continue;
 
-            uint32_t app_pkg_magic = 
-                (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 0]) << 24) |
-                (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 1]) << 16) |
-                (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 2]) << 8)  |
-                (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 3]) << 0);
+                uint32_t app_pkg_magic = 
+                    (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 0]) << 24) |
+                    (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 1]) << 16) |
+                    (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 2]) << 8)  |
+                    (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 3]) << 0);
 
-            if(app_pkg_magic != _PKG_MAGIC)
-                continue;
+                if(app_pkg_magic != _PKG_MAGIC)
+                    continue;
 
-            std::span<const uint8_t> app_pkg_content_id(app_pkg_raw.data() + _PKG_CONTENT_ID_OFFSET, _PKG_CONTENT_ID_SIZE);
+                std::span<const uint8_t> app_pkg_content_id(app_pkg_raw.data() + _PKG_CONTENT_ID_OFFSET, _PKG_CONTENT_ID_SIZE);
 
-            std::string_view app_pkg_content_id_text(reinterpret_cast<const char*>(app_pkg_content_id.data()), _PKG_CONTENT_ID_SIZE);
+                std::string_view app_pkg_content_id_text(reinterpret_cast<const char*>(app_pkg_content_id.data()), _PKG_CONTENT_ID_SIZE);
 
-            if(!content_ids.empty())
-                content_ids += ", ";
+                if(!content_ids.empty())
+                    content_ids += ", ";
 
-            content_ids += app_pkg_content_id_text;
+                content_ids += app_pkg_content_id_text;
+
+                break;
+            }
         }
 
         return content_ids;
@@ -115,6 +120,7 @@ private:
     static constexpr uint32_t _PKG_MAGIC_OFFSET = 0x00;
     static constexpr uint32_t _PKG_CONTENT_ID_OFFSET = 0x40;
     static constexpr uint32_t _PKG_CONTENT_ID_SIZE = 36;
+    static constexpr std::array<std::string, 3> _PKG_FILE_NAMES = {"app.pkg", "app_h.pkg", "app_0.pkg"};
 };
 
 }

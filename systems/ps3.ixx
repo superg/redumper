@@ -1,10 +1,12 @@
 module;
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <map>
 #include <ostream>
 #include <span>
 #include <string_view>
+#include <vector>
 #include "system.hh"
 #include "throw_line.hh"
 
@@ -77,9 +79,35 @@ public:
 
         if(!serial.empty())
             os << std::format("  serial: {}", serial) << std::endl;
+
+        auto firmware_version = pupVersion(data_reader, root_directory->subEntry("PS3_UPDATE/PS3UPDAT.PUP"));
+        if(!firmware_version.empty())
+            os << std::format("  firmware version: {}", firmware_version) << std::endl;
     }
 
 private:
+    static constexpr std::string_view _PUP_MAGIC = "SCEUF\0\0\0";
+    static constexpr uint64_t _VERSION_ID = 0x100;
+    static constexpr uint32_t _VERSION_LENGTH = 4;
+
+    struct PUPHeader
+    {
+        uint8_t magic[8];
+        uint64_t version;
+        uint64_t build;
+        uint64_t records_count;
+        uint64_t header_size;
+        uint64_t data_size;
+    };
+
+    struct PUPFile
+    {
+        uint64_t type;
+        uint64_t offset;
+        uint64_t size;
+        uint64_t padding;
+    };
+
     struct SFBHeader
     {
         uint8_t magic[4];
@@ -150,6 +178,41 @@ private:
         }
 
         return sfb;
+    }
+
+    std::string pupVersion(DataReader *data_reader, std::shared_ptr<iso9660::Entry> pup_file) const
+    {
+        if(!pup_file)
+            return "";
+
+        std::vector<uint8_t> sector_buffer(data_reader->sectorSize());
+        if(data_reader->read(sector_buffer.data(), pup_file->sectorsLBA(), 1) != 1)
+            return "";
+
+        auto header = (PUPHeader *)sector_buffer.data();
+
+        if(memcmp(header->magic, _PUP_MAGIC.data(), _PUP_MAGIC.size()))
+            return "";
+
+        uint32_t cur = sizeof(PUPHeader);
+        uint64_t records_count = endian_swap(header->records_count);
+        for(uint64_t i = 0; i < records_count; ++i)
+        {
+            if(cur + sizeof(PUPFile) > sector_buffer.size())
+                return "";
+
+            auto file = (PUPFile *)(sector_buffer.data() + cur);
+            cur += sizeof(PUPFile);
+            if(endian_swap(file->type) == 0x100)
+            {
+                uint64_t version_offset = endian_swap(file->offset);
+                if(version_offset > sector_buffer.size() - _VERSION_LENGTH)
+                    return "";
+                return std::string((char *)(sector_buffer.data() + version_offset), _VERSION_LENGTH);
+            }
+        }
+
+        return "";
     }
 
 protected:

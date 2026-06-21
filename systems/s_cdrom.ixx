@@ -219,7 +219,7 @@ public:
         if(auto count = ranges_count(subheader_mismatches); count)
             os << std::format("  CD-XA subheader mismatches: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(subheader_mismatches)) : "") << std::endl;
         os << std::endl;
-        os << std::format("  REDUMP.ORG errors: {}", redump_errors) << std::endl;
+        os << std::format("  REDUMP.INFO errors: {}", redump_errors) << std::endl;
     }
 
 private:

@@ -695,7 +695,7 @@ bool sectors_data_state_update(std::span<State> sectors_state, std::span<uint8_t
                 updated = true;
 
                 if(!dump && options.verbose)
-                    LOG_R("[LBA: {}] correction success", lba + i);
+                    LOGC_R("[LBA: {}] correction success", lba + i);
             }
         }
         else
@@ -706,7 +706,7 @@ bool sectors_data_state_update(std::span<State> sectors_state, std::span<uint8_t
             updated = true;
 
             if(!dump && options.verbose)
-                LOG_R("[LBA: {}] correction success", lba + i);
+                LOGC_R("[LBA: {}] correction success", lba + i);
         }
     }
 
@@ -1213,7 +1213,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                 if(status.status_code)
                     throw_line("kreon: failed lock drive, SCSI ({})", SPTD::StatusMessage(status));
                 if(options.verbose)
-                    LOG_R("[LBA: {}] kreon: drive locked", lba);
+                    LOGC_R("[LBA: {}] kreon: drive locked", lba);
                 kreon_locked = true;
             }
 
@@ -1268,7 +1268,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                         }
 
                         if(options.verbose)
-                            LOG_R("[LBA: {}] SCSI error ({}){}", lba + i, SPTD::StatusMessage(status), status_retries);
+                            LOGC_R("[LBA: {}] SCSI error ({}){}", lba + i, SPTD::StatusMessage(status), status_retries);
                     }
                 }
                 else
@@ -1284,7 +1284,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                             }
 
                             if(options.verbose)
-                                LOG_R("[LBA: {}] EDC error{}", lba + i, status_retries);
+                                LOGC_R("[LBA: {}] EDC error{}", lba + i, status_retries);
                         }
                     }
                 }
@@ -1317,7 +1317,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                 else
                 {
                     if(options.verbose)
-                        LOG_R("[LBA: {} .. {}] correction failure", lba, lba + (int32_t)sectors_to_read - 1);
+                        LOGC_R("[LBA: {} .. {}] correction failure", lba, lba + (int32_t)sectors_to_read - 1);
                 }
             }
         }

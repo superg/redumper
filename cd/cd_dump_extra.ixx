@@ -235,7 +235,7 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
             bool all_types = false;
             SPTD::Status status = read_sector(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba, false);
             if(status.status_code && options.verbose)
-                LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+                LOGC("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
 
             status = mediatek_cache_read(*ctx.sptd, cache, mediatek_get_config(ctx.drive_config.type).size_mb * CHUNK_1MB);
             if(status.status_code)
@@ -299,7 +299,7 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
 
                 sector_c2_leadout_backup.assign(sector_c2_leadout.begin(), sector_c2_leadout.end());
 
-                LOG_R("[LBA: {:6}] C2 error (bits: {:4}{})", lba + i, c2_bits, difference_message);
+                LOGC_R("[LBA: {:6}] C2 error (bits: {:4}{})", lba + i, c2_bits, difference_message);
             }
         }
 

@@ -107,7 +107,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
                 if(status.status_code)
                 {
                     if(options.verbose)
-                        LOG("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
+                        LOGC("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
                 }
                 else
                 {
@@ -118,7 +118,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
                         if(std::all_of(sector_c2_sub.begin(), sector_c2_sub.end(), [](uint8_t value) { return value == 0; }))
                         {
                             if(options.verbose)
-                                LOG("warning: subcode is zeroed, skipping (sector type: {}, error field: {}, sub channel: {})", std::get<0>(t), ef.second, sc.second);
+                                LOGC("warning: subcode is zeroed, skipping (sector type: {}, error field: {}, sub channel: {})", std::get<0>(t), ef.second, sc.second);
                             continue;
                         }
                     }
@@ -161,7 +161,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
                 if(status.status_code)
                 {
                     if(options.verbose)
-                        LOG("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
+                        LOGC("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
                 }
                 else
                 {
@@ -172,7 +172,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
                         if(std::all_of(sector_c2_sub.begin(), sector_c2_sub.end(), [](uint8_t value) { return value == 0; }))
                         {
                             if(options.verbose)
-                                LOG("warning: subcode is zeroed, skipping (sector type: {}, error field: {}, sub channel: {})", std::get<0>(t), ef.second, sc.second);
+                                LOGC("warning: subcode is zeroed, skipping (sector type: {}, error field: {}, sub channel: {})", std::get<0>(t), ef.second, sc.second);
                             continue;
                         }
                     }
@@ -215,7 +215,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
                 if(status.status_code)
                 {
                     if(options.verbose)
-                        LOG("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
+                        LOGC("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
                 }
                 else
                 {
@@ -226,7 +226,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
                         if(std::all_of(sector_c2_sub.begin(), sector_c2_sub.end(), [](uint8_t value) { return value == 0; }))
                         {
                             if(options.verbose)
-                                LOG("warning: subcode is zeroed, skipping (sector type: {}, error field: {}, sub channel: {})", std::get<0>(t), ef.second, sc.second);
+                                LOGC("warning: subcode is zeroed, skipping (sector type: {}, error field: {}, sub channel: {})", std::get<0>(t), ef.second, sc.second);
                             continue;
                         }
                     }
@@ -273,7 +273,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
             if(status.status_code)
             {
                 if(options.verbose)
-                    LOG("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
+                    LOGC("[LBA: {:6}] SCSI error ({})", std::get<1>(t), SPTD::StatusMessage(status));
             }
             else
             {
@@ -310,7 +310,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
         if(status.status_code)
         {
             if(options.verbose)
-                LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+                LOGC("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
         }
         else
         {
@@ -332,7 +332,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
         if(status.status_code)
         {
             if(options.verbose)
-                LOG("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+                LOGC("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
             break;
         }
         else
@@ -353,7 +353,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
         if(status.status_code)
         {
             if(options.verbose)
-                LOG("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
+                LOGC("read cache failed, SCSI ({})", SPTD::StatusMessage(status));
         }
         else
         {

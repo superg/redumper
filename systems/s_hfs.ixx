@@ -32,7 +32,7 @@ public:
         return Type::DISK;
     }
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &, bool) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &) const override
     {
         auto hfs_partitions = apm::Browser::getPartitions(data_reader) | std::views::filter([](const apm::PartitionMapEntry &v) { return v.partition_type == apm::PARTITION_TYPE_APPLE_HFS; });
         for(const auto &partition_map_entry : hfs_partitions)

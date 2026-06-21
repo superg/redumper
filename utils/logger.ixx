@@ -164,6 +164,14 @@ constexpr void LOG_R(std::format_string<Args...> fmt, Args &&...args)
 }
 
 
+// erase current line and log message followed by a new line (console)
+export template<typename... Args>
+constexpr void LOGC_R(std::format_string<Args...> fmt, Args &&...args)
+{
+    Logger::get().carriageReturn().log(false, fmt, std::forward<Args>(args)...).lineFeed(false);
+}
+
+
 // erase current line, log message and flush, no new line (console)
 // used for progress update
 export template<typename... Args>

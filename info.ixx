@@ -85,7 +85,7 @@ export int redumper_info(Context &ctx, Options &options)
                 continue;
 
             std::stringstream ss;
-            system->printInfo(ss, reader.get(), t.first, options.verbose);
+            system->printInfo(ss, reader.get(), t.first);
 
             if(ss.rdbuf()->in_avail())
             {

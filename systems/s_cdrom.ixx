@@ -40,7 +40,7 @@ public:
         return Type::RAW_DATA;
     }
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &, bool verbose) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &) const override
     {
         std::vector<std::pair<int32_t, int32_t>> invalid_sync;
         uint32_t mode2_form1 = 0;
@@ -203,21 +203,21 @@ public:
             os << std::format("  mode2 (form 2) EDC: {}", mode2_form2_edc ? "yes" : "no") << std::endl;
         }
         if(auto count = ranges_count(invalid_sync); count)
-            os << std::format("  invalid sync sectors: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(invalid_sync)) : "") << std::endl;
+            os << std::format("  invalid sync sectors: {} (LBA: {})", count, ranges_to_string(invalid_sync)) << std::endl;
         if(auto count = ranges_count(invalid_modes); count)
-            os << std::format("  invalid mode sectors: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(invalid_modes)) : "") << std::endl;
+            os << std::format("  invalid mode sectors: {} (LBA: {})", count, ranges_to_string(invalid_modes)) << std::endl;
         if(auto count = ranges_count(generated); count)
-            os << std::format("  generated sectors (0x55): {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(generated)) : "") << std::endl;
+            os << std::format("  generated sectors (0x55): {} (LBA: {})", count, ranges_to_string(generated)) << std::endl;
         if(auto count = ranges_count(msf_errors); count)
-            os << std::format("  MSF errors: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(msf_errors)) : "") << std::endl;
+            os << std::format("  MSF errors: {} (LBA: {})", count, ranges_to_string(msf_errors)) << std::endl;
         if(auto count = ranges_count(ecc_nc_errors); count)
-            os << std::format("  ECC errors (non-compliant): {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(ecc_nc_errors)) : "") << std::endl;
+            os << std::format("  ECC errors (non-compliant): {} (LBA: {})", count, ranges_to_string(ecc_nc_errors)) << std::endl;
         if(auto count = ranges_count(ecc_errors); count)
-            os << std::format("  ECC errors: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(ecc_errors)) : "") << std::endl;
+            os << std::format("  ECC errors: {} (LBA: {})", count, ranges_to_string(ecc_errors)) << std::endl;
         if(auto count = ranges_count(edc_errors); count)
-            os << std::format("  EDC errors: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(edc_errors)) : "") << std::endl;
+            os << std::format("  EDC errors: {} (LBA: {})", count, ranges_to_string(edc_errors)) << std::endl;
         if(auto count = ranges_count(subheader_mismatches); count)
-            os << std::format("  CD-XA subheader mismatches: {}{}", count, verbose ? std::format(" (LBA: {})", ranges_to_string(subheader_mismatches)) : "") << std::endl;
+            os << std::format("  CD-XA subheader mismatches: {} (LBA: {})", count, ranges_to_string(subheader_mismatches)) << std::endl;
         os << std::endl;
         os << std::format("  REDUMP.INFO errors: {}", redump_errors) << std::endl;
     }

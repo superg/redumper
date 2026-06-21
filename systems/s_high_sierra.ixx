@@ -32,7 +32,7 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &, bool) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &) const override
     {
         auto vd = high_sierra::Browser::findDescriptor(data_reader, high_sierra::VolumeDescriptorType::STANDARD_FS);
         if(vd)

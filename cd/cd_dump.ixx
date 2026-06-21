@@ -139,7 +139,7 @@ bool check_subcode_shift(int32_t &subcode_shift, int32_t lba, std::span<const ui
                 subcode_shift = shift;
 
                 if(options.verbose)
-                    LOG_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
+                    LOGC_R("[LBA: {:6}] subcode desync (shift: {:+})", lba, subcode_shift);
             }
         }
     }
@@ -435,7 +435,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
                         errors.scsi += CD_DATA_SIZE_SAMPLES;
 
                     if(options.verbose)
-                        LOG_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+                        LOGC_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
                 }
             }
             else
@@ -491,7 +491,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
 
                             sector_c2_backup.assign(sector_c2.begin(), sector_c2.end());
 
-                            LOG_R("[LBA: {:6}] C2 error (bits: {:4}{})", lba, c2_bits_count(sector_c2), difference_message);
+                            LOGC_R("[LBA: {:6}] C2 error (bits: {:4}{})", lba, c2_bits_count(sector_c2), difference_message);
                         }
                     }
 
@@ -525,7 +525,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
                         if(!dump && lba < lba_end && (data_updated || subcode_updated))
                         {
                             if(options.verbose)
-                                LOG_R("[LBA: {:6}] correction success", lba);
+                                LOGC_R("[LBA: {:6}] correction success", lba);
                         }
 
                         break;
@@ -558,7 +558,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
                     failure = true;
 
                 if(failure)
-                    LOG_R("[LBA: {:6}] correction failure{}", lba, data_message);
+                    LOGC_R("[LBA: {:6}] correction failure{}", lba, data_message);
             }
         }
     }

@@ -39,7 +39,7 @@ public:
         return Type::ISO;
     }
 
-    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path, bool) const override
+    void printInfo(std::ostream &os, DataReader *data_reader, const std::filesystem::path &track_path) const override
     {
         std::filesystem::path security_path = track_extract_basename(track_path.string()) + ".security";
         if(!std::filesystem::exists(security_path))

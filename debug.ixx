@@ -13,6 +13,7 @@ module;
 
 export module debug;
 
+import bd;
 import cd.cd;
 import cd.common;
 import cd.subcode;
@@ -20,6 +21,7 @@ import cd.toc;
 import common;
 import drive;
 import drive.mediatek;
+import dvd;
 import dvd.dump;
 import dvd.xbox;
 import options;
@@ -410,6 +412,74 @@ export int redumper_debug(Context &ctx, Options &options)
     LOG("");
 
 #endif
+
+    return exit_code;
+}
+
+export int redumper_state(Context &ctx, Options &options)
+{
+    int exit_code = 0;
+
+    std::string image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+
+    std::filesystem::path state_path(image_prefix + ".state");
+    if(!std::filesystem::exists(state_path))
+        throw_line("state file not found ({})", state_path.filename().string());
+
+    bool cd = std::filesystem::exists(image_prefix + ".scram");
+    if(!cd && options.disc_type && *options.disc_type == "CD")
+        cd = true;
+    uint64_t entries_count = std::filesystem::file_size(state_path) / sizeof(State);
+
+    std::fstream state_fs(state_path, std::fstream::in | std::fstream::binary);
+    if(!state_fs.is_open())
+        throw_line("unable to open file ({})", state_path.filename().string());
+
+    int32_t offset = 0;
+    if(cd)
+        offset = LBA_START * CD_DATA_SIZE_SAMPLES;
+    else if(std::filesystem::exists(image_prefix + ".sdram"))
+        offset = dvd::LBA_START;
+    else if(std::filesystem::exists(image_prefix + ".sbram"))
+        offset = bd::LBA_START;
+
+    static const char *STATE_NAME[] = { "Unread", "Read Error", "Success (Plextor lead-in)", "Success (MediaTek lead-out)", "Success" };
+
+    LOG("state file (unit: {}): ", cd ? "samples" : "sectors");
+
+    constexpr uint32_t CHUNK = 4096;
+    std::vector<State> buffer(CHUNK);
+    State current = State::ERROR_SKIP;
+    int64_t range_start = offset;
+
+    auto print_range = [&](int64_t range_end)
+    {
+        if(range_start > range_end)
+            return;
+
+        if(cd)
+            LOG("  {}-{} (LBA {}-{}): {}", range_start, range_end, range_start / CD_DATA_SIZE_SAMPLES, range_end / CD_DATA_SIZE_SAMPLES, STATE_NAME[(uint8_t)current]);
+        else
+            LOG("  {}-{}: {}", range_start, range_end, STATE_NAME[(uint8_t)current]);
+    };
+
+    for(uint64_t i = 0; i < entries_count; i += CHUNK)
+    {
+        uint32_t count = std::min((uint64_t)CHUNK, entries_count - i);
+        state_fs.read((char *)buffer.data(), count * sizeof(State));
+
+        for(uint32_t j = 0; j < count; ++j)
+        {
+            if(buffer[j] != current)
+            {
+                print_range(offset + (int64_t)(i + j) - 1);
+                current = buffer[j];
+                range_start = offset + (int64_t)(i + j);
+            }
+        }
+    }
+
+    print_range(offset + (int64_t)entries_count - 1);
 
     return exit_code;
 }

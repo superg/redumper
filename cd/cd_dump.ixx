@@ -20,6 +20,7 @@ import cd.subcode;
 import cd.toc;
 import common;
 import drive;
+import interval_set;
 import options;
 import range;
 import scsi.cmd;
@@ -338,6 +339,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
     int32_t subcode_shift = 0;
     uint32_t subcode_byte_desync_counter = 0;
 
+    IntervalSet<int32_t> scsi_error_intervals;
+    IntervalSet<int32_t> c2_error_intervals;
+
     SignalINT signal;
 
     int32_t lba_overread = lba_end;
@@ -432,7 +436,10 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
                 if(session_gap_range == nullptr && lba < lba_end)
                 {
                     if(dump)
+                    {
                         errors.scsi += CD_DATA_SIZE_SAMPLES;
+                        scsi_error_intervals.add(lba);
+                    }
 
                     if(options.verbose)
                         LOGC_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
@@ -478,7 +485,10 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
                     if(c2_samples)
                     {
                         if(dump)
+                        {
                             errors.c2 += c2_samples;
+                            c2_error_intervals.add(lba);
+                        }
 
                         if(options.verbose)
                         {
@@ -575,6 +585,16 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
         LOG("  SCSI: {} samples", errors.scsi);
         LOG("  C2: {} samples", errors.c2);
         LOG("  Q: {}", errors.q);
+
+        if(!scsi_error_intervals.empty() || !c2_error_intervals.empty())
+        {
+            LOG("");
+            LOG("LBA error ranges: ");
+            if(!scsi_error_intervals.empty())
+                LOG("  SCSI: {}", scsi_error_intervals.to_string());
+            if(!c2_error_intervals.empty())
+                LOG("  C2: {}", c2_error_intervals.to_string());
+        }
     }
     else
     {

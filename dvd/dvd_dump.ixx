@@ -1378,12 +1378,24 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         LOG("media errors: ");
         LOG("  SCSI: {}", errors.scsi);
         LOG("  EDC: {}", errors.edc);
+
+        if(!error_intervals.empty())
+        {
+            LOG("");
+            LOG("LBA error ranges: {}", error_intervals.to_string());
+        }
     }
     else
     {
         LOG("correction statistics: ");
         LOG("  SCSI: {}", errors_initial.scsi - errors.scsi);
         LOG("  EDC: {}", errors_initial.edc - errors.edc);
+
+        if(!intervals.empty())
+        {
+            LOG("");
+            LOG("LBA error ranges: {}", intervals.to_string());
+        }
     }
 
     if(signal.interrupt())

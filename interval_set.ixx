@@ -1,7 +1,9 @@
 module;
 #include <algorithm>
 #include <cstdint>
+#include <format>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -211,6 +213,19 @@ public:
         }
 
         return std::nullopt;
+    }
+
+
+    std::string to_string() const
+    {
+        std::string str;
+        for(auto &[start, end] : _ranges)
+        {
+            if(!str.empty())
+                str += ", ";
+            str += end - start == 1 ? std::format("{}", start) : std::format("{}-{}", start, end - 1);
+        }
+        return str;
     }
 
 private:

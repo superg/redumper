@@ -144,6 +144,7 @@ const std::map<std::string, Command> COMMANDS{
     { "debug",          { false, false, false, false, false, redumper_debug }        },
     { "fixmsf",         { false, false, false, true, false, redumper_fix_msf }       },
     { "debug::flip",    { false, false, false, true, false, redumper_flip }          },
+    { "debug::state",   { false, false, false, true, false, redumper_state }         },
     { "drive::test",    { true, true, true, false, false, redumper_drive_test }      },
 };
 

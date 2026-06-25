@@ -586,7 +586,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
         LOG("  C2: {} samples", errors.c2);
         LOG("  Q: {}", errors.q);
 
-        if(!scsi_error_intervals.empty() || !c2_error_intervals.empty())
+        if(options.verbose && (!scsi_error_intervals.empty() || !c2_error_intervals.empty()))
         {
             LOG("");
             LOG("LBA error ranges: ");

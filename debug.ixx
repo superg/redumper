@@ -457,10 +457,11 @@ export int redumper_state(Context &ctx, Options &options)
         if(range_start > range_end)
             return;
 
+        const char *state_name = (uint8_t)current < std::size(STATE_NAME) ? STATE_NAME[(uint8_t)current] : "Unknown";
         if(cd)
-            LOG("  {}..{} (LBA {}..{}): {}", range_start, range_end, range_start / CD_DATA_SIZE_SAMPLES, range_end / CD_DATA_SIZE_SAMPLES, STATE_NAME[(uint8_t)current]);
+            LOG("  {}..{} (LBA {}..{}): {}", range_start, range_end, sample_to_lba(range_start, 0), sample_to_lba(range_end, 0), state_name);
         else
-            LOG("  {}..{}: {}", range_start, range_end, STATE_NAME[(uint8_t)current]);
+            LOG("  {}..{}: {}", range_start, range_end, state_name);
     };
 
     for(uint64_t i = 0; i < entries_count; i += CHUNK)

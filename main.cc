@@ -30,6 +30,8 @@ int main(int argc, char *argv[])
 
         if(options.help)
             options.printUsage();
+        else if(options.man)
+            options.printUsageMan();
         else if(options.version)
             LOG("{}", redumper_version());
         else if(options.list_recommended_drives)

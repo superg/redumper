@@ -3,6 +3,7 @@ module;
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 #include "throw_line.hh"
 
 export module options;
@@ -16,12 +17,44 @@ import utils.strings;
 namespace gpsxre
 {
 
+struct UsageOption
+{
+    std::string keys;
+    std::string description;
+};
+
+
+struct UsageGroup
+{
+    std::string name;
+    std::vector<UsageOption> options;
+};
+
+
+struct UsageCommand
+{
+    std::string name;
+    std::string description;
+};
+
+
 export struct Options
 {
+    // built-in defaults for the value options below, shared by the constructor and the usage/man
+    // rendering so the printed "default" always reflects the compile-time value, not parsed argv
+    static constexpr int retries_default = 0;
+    static constexpr int skip_fill_default = 0x55;
+    static constexpr int plextor_leadin_retries_default = 4;
+    static constexpr int mediatek_leadout_retries_default = 32;
+    static constexpr int audio_silence_threshold_default = 32;
+    static constexpr int cdr_error_threshold_default = 16;
+    static constexpr int scsi_timeout_default = 50000;
+
     std::string command;
     std::string arguments;
 
     bool help;
+    bool man;
     bool version;
     bool verbose;
     bool list_recommended_drives;
@@ -87,6 +120,7 @@ export struct Options
 
     Options(int argc, const char *argv[])
         : help(false)
+        , man(false)
         , version(false)
         , verbose(false)
         , list_recommended_drives(false)
@@ -97,26 +131,26 @@ export struct Options
         , overwrite(false)
         , force_split(false)
         , leave_unchanged(false)
-        , retries(0)
+        , retries(retries_default)
         , refine_subchannel(false)
         , refine_sector_mode(false)
         , lba_end_by_subcode(false)
         , force_qtoc(false)
         , legacy_subs(false)
-        , skip_fill(0x55)
+        , skip_fill(skip_fill_default)
         , filesystem_trim(false)
         , plextor_skip_leadin(false)
-        , plextor_leadin_retries(4)
+        , plextor_leadin_retries(plextor_leadin_retries_default)
         , plextor_leadin_force_store(false)
         , mediatek_skip_leadout(false)
-        , mediatek_leadout_retries(32)
+        , mediatek_leadout_retries(mediatek_leadout_retries_default)
         , kreon_partial_ss(false)
         , dvd_raw(false)
         , bd_raw(false)
         , disable_cdtext(false)
         , correct_offset_shift(false)
         , offset_shift_relocate(false)
-        , audio_silence_threshold(32)
+        , audio_silence_threshold(audio_silence_threshold_default)
         , overread_leadout(false)
         , force_unscrambled(false)
         , force_refine(false)
@@ -125,8 +159,8 @@ export struct Options
         , drive_test_skip_cache_read(false)
         , skip_subcode_desync(false)
         , rings(false)
-        , cdr_error_threshold(16)
-        , scsi_timeout(50000)
+        , cdr_error_threshold(cdr_error_threshold_default)
+        , scsi_timeout(scsi_timeout_default)
     {
         for(int i = 1; i < argc; ++i)
             arguments += str_quoted_if_space(argv[i]) + " ";
@@ -160,6 +194,8 @@ export struct Options
                 {
                     if(key == "--help" || key == "-h")
                         help = true;
+                    else if(key == "--man")
+                        man = true;
                     else if(key == "--version")
                         version = true;
                     else if(key == "--verbose")
@@ -367,102 +403,233 @@ export struct Options
 
     void printUsage()
     {
+        auto commands = usageCommands();
+        auto groups = usageGroups();
+
+        // align descriptions to the widest entry in each section
+        std::string::size_type command_width = 0;
+        for(auto &c : commands)
+            if(c.name.length() > command_width)
+                command_width = c.name.length();
+
+        std::string::size_type option_width = 0;
+        for(auto &g : groups)
+            for(auto &o : g.options)
+                if(o.keys.length() > option_width)
+                    option_width = o.keys.length();
+
         LOG("usage: redumper [command] [options]");
         LOG("");
 
         LOG("COMMANDS:");
-        LOG("\tdisc          \taggregate mode that does everything (default)");
-        LOG("\tdump          \tdumps disc to primary dump files");
-        LOG("\tdump::extra   \tdumps extended disc areas such as lead-in and lead-out using specific drives");
-        LOG("\trefine        \trefines dump files by re-reading the disc");
-        LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
-        LOG("\teject         \tejects drive tray");
-        LOG("\tdvdisokey     \tcracks DVD CSS keys directly from iso dump, no drive required");
-        LOG("\tprotection    \tscans dump files for protections");
-        LOG("\tsplit         \tgenerates BIN/CUE track split from dump files");
-        LOG("\thash          \toutputs XML DAT hash entries (CUE/BIN or ISO)");
-        LOG("\tinfo          \toutputs basic image information (CUE/BIN or ISO)");
-        LOG("\tskeleton      \tgenerates image file with zeroed content");
-        LOG("\tflash::mt1339 \tflashes MT1339 drive firmware");
-        LOG("\tflash::mt1959 \tflashes MT1959 drive firmware");
-        LOG("\tflash::sd616  \tflashes SD-616F/T drive firmware");
-        LOG("\tflash::plextor\tflashes PLEXTOR drive firmware");
+        for(auto &c : commands)
+            LOG("\t{:<{}}\t{}", c.name, command_width, c.description);
         LOG("");
 
         LOG("OPTIONS:");
-        LOG("\t(general)");
-        LOG("\t{}                       \tprint usage", helpKeys());
-        LOG("\t--version                       \tprint version");
-        LOG("\t--verbose                       \tverbose output");
-        LOG("\t--list-recommended-drives       \tlist recommended drives");
-        LOG("\t--list-all-drives               \tlist all supported drives");
-        LOG("\t--auto-eject                    \tauto eject after dump");
-        LOG("\t--skeleton                      \tgenerate skeleton after dump");
-        LOG("\t--drive=VALUE                   \tdrive to use, first available drive with disc, if not provided");
-        LOG("\t--speed=VALUE                   \tdrive read speed, optimal drive speed will be used if not provided");
-        LOG("\t--retries=VALUE                 \tnumber of sector retries in case of SCSI/C2 error (default: {})", retries);
-        LOG("\t--image-path=VALUE              \tdump files base directory");
-        LOG("\t--image-name=VALUE              \tdump files prefix, autogenerated in dump mode if not provided");
-        LOG("\t--overwrite                     \toverwrites previously generated dump files");
-        LOG("\t--disc-type=VALUE               \toverride detected disc type (current profile), possible values: CD, DVD, BLURAY, BLURAY-R, HD-DVD");
-        LOG("");
-        LOG("\t(drive configuration)");
-        LOG("\t--drive-type=VALUE              \toverride drive type, possible values: GENERIC, PLEXTOR, MTK2, MTK3, MTK8A, MTK8B, MTK8C");
-        LOG("\t--drive-read-offset=VALUE       \toverride drive read offset");
-        LOG("\t--drive-c2-shift=VALUE          \toverride drive C2 shift");
-        LOG("\t--drive-pregap-start=VALUE      \toverride drive pre-gap start LBA");
-        LOG("\t--drive-read-method=VALUE       \toverride drive read method, possible values: BE, D8, BE_CDDA");
-        LOG("\t--drive-sector-order=VALUE      \toverride drive sector order, possible values: DATA_C2_SUB, DATA_SUB_C2, DATA_SUB, DATA_C2");
-        LOG("");
-        LOG("\t(drive specific)");
-        LOG("\t--plextor-skip-leadin           \tskip dumping lead-in using negative range");
-        LOG("\t--plextor-leadin-retries=VALUE  \tmaximum number of lead-in retries per session (default: {})", plextor_leadin_retries);
-        LOG("\t--plextor-leadin-force-store    \tstore unverified lead-in");
-        LOG("\t--kreon-partial-ss              \tget minimal security sector (fixes bad firmware)");
-        LOG("\t--dvd-raw                       \tdump raw DVD sectors (OmniDrive)");
-        LOG("\t--bd-raw                        \tdump raw BD sectors (OmniDrive)");
+        bool first = true;
+        for(auto &g : groups)
+        {
+            if(!first)
+                LOG("");
+            first = false;
 
-        LOG("\t--mediatek-skip-leadout         \tskip extracting lead-out from drive cache");
-        LOG("\t--mediatek-leadout-retries      \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", mediatek_leadout_retries);
-        LOG("\t--disable-cdtext                \tdisable CD-TEXT reading");
-        LOG("");
-        LOG("\t(offset)");
-        LOG("\t--force-offset=VALUE            \toverride offset autodetection and use supplied value");
-        LOG("\t--audio-silence-threshold=VALUE \tmaximum absolute sample value to treat it as silence (default: {})", audio_silence_threshold);
-        LOG("\t--correct-offset-shift          \tcorrect disc write offset shift");
-        LOG("\t--offset-shift-relocate         \tdon't merge offset groups with non-matching LBA");
-        LOG("");
-        LOG("\t(split)");
-        LOG("\t--force-split                   \tforce track split with errors");
-        LOG("\t--leave-unchanged               \tdon't replace erroneous sectors with generated ones");
-        LOG("\t--force-qtoc                    \tforce QTOC based track split");
-        LOG("\t--legacy-subs                   \treplicate DIC style subchannel based track split");
-        LOG("\t--skip-fill=VALUE               \tfill byte value for skipped sectors (default: 0x{:02X})", skip_fill);
-        LOG("\t--filesystem-trim               \ttrim data track to filesystem size (ISO9660: all media, UDF: DVD and later)");
-        LOG("");
-        LOG("\t(drive test)");
-        LOG("\t--drive-test-skip-plextor-leadin\tskip testing for PLEXTOR negative lead-in range access");
-        LOG("\t--drive-test-skip-cache-read    \tskip testing for MEDIATEK cache read command (F1)");
-        LOG("");
-        LOG("\t(miscellaneous)");
-        LOG("\t--continue=VALUE                \tcontinue \"disc\" command starting from VALUE command");
-        LOG("\t--lba-start=VALUE               \tLBA to start dumping from");
-        LOG("\t--lba-end=VALUE                 \tLBA to stop dumping at (everything before the value), useful for discs with fake TOC");
-        LOG("\t--lba-end-by-subcode            \tDynamically determine LBA end by the last session subcode");
-        LOG("\t--refine-subchannel             \tin addition to SCSI/C2, refine subchannel");
-        LOG("\t--refine-sector-mode            \tupdate sector data only if whole sector is C2 error free");
-        LOG("\t--skip=VALUE                    \tLBA ranges of sectors to skip");
-        LOG("\t--dump-write-offset=VALUE       \toffset hint for data sectors read using BE method");
-        LOG("\t--dump-read-size=VALUE          \tnumber of sectors to read at once on initial dump, DVD only");
-        LOG("\t--overread-leadout              \tdo not limit lead-out to the first hundred sectors, read until drive returns SCSI error");
-        LOG("\t--force-unscrambled             \tdo not attempt to read data sectors as audio (BE read method only)");
-        LOG("\t--force-refine                  \tdo not check TOC when refining a disc");
-        LOG("\t--firmware=VALUE                \tfirmware filename");
-        LOG("\t--force-flash                   \tskip drive vendor/model verification when flashing firmware (WARNING: can brick your drive)");
-        LOG("\t--skip-subcode-desync           \tskip storing sectors with mismatching subcode Q absolute MSF");
-        LOG("\t--rings                         \tenable filesystem based rings detection");
-        LOG("\t--cdr-error-threshold=VALUE     \tmaximum number of trailing C2 errors allowed on a CD-R (default: {})", cdr_error_threshold);
-        LOG("\t--scsi-timeout=VALUE            \tSCSI command timeout, milliseconds (default: {})", scsi_timeout);
+            LOG("\t({})", g.name);
+            for(auto &o : g.options)
+                LOG("\t{:<{}}\t{}", o.keys, option_width, o.description);
+        }
+    }
+
+
+    // emit a roff man page from the same usage model as printUsage(), for packagers (redumper --man > redumper.1)
+    void printUsageMan()
+    {
+        auto commands = usageCommands();
+        auto groups = usageGroups();
+
+        LOGC(".TH REDUMPER 1 \"\" \"redumper {}\" \"User Commands\"", REDUMPER_VERSION_BUILD);
+        LOGC(".SH NAME");
+        LOGC("redumper \\- {}", manEscape("low-level byte-perfect CD/DVD/HD-DVD/Blu-ray disc dumper"));
+        LOGC(".SH SYNOPSIS");
+        LOGC(".B redumper");
+        LOGC("[command] [options]");
+
+        LOGC(".SH COMMANDS");
+        for(auto &c : commands)
+        {
+            LOGC(".TP");
+            LOGC(".B {}", manEscape(c.name));
+            manParagraph(c.description);
+        }
+
+        LOGC(".SH OPTIONS");
+        for(auto &g : groups)
+        {
+            LOGC(".SS {}", manEscape(g.name));
+            for(auto &o : g.options)
+            {
+                LOGC(".TP");
+                LOGC(".B {}", manEscape(o.keys));
+                manParagraph(o.description);
+            }
+        }
+    }
+
+private:
+    static std::vector<UsageCommand> usageCommands()
+    {
+        return {
+            { "disc",           "aggregate mode that does everything (default)"                                },
+            { "dump",           "dumps disc to primary dump files"                                             },
+            { "dump::extra",    "dumps extended disc areas such as lead-in and lead-out using specific drives" },
+            { "refine",         "refines dump files by re-reading the disc"                                    },
+            { "dvdkey",         "extracts DVD CSS keys from the disc or cracks title keys on region mismatch"  },
+            { "eject",          "ejects drive tray"                                                            },
+            { "dvdisokey",      "cracks DVD CSS keys directly from iso dump, no drive required"                },
+            { "protection",     "scans dump files for protections"                                             },
+            { "split",          "generates BIN/CUE track split from dump files"                                },
+            { "hash",           "outputs XML DAT hash entries (CUE/BIN or ISO)"                                },
+            { "info",           "outputs basic image information (CUE/BIN or ISO)"                             },
+            { "skeleton",       "generates image file with zeroed content"                                     },
+            { "flash::mt1339",  "flashes MT1339 drive firmware"                                                },
+            { "flash::mt1959",  "flashes MT1959 drive firmware"                                                },
+            { "flash::sd616",   "flashes SD-616F/T drive firmware"                                             },
+            { "flash::plextor", "flashes PLEXTOR drive firmware"                                               },
+        };
+    }
+
+
+    std::vector<UsageGroup> usageGroups() const
+    {
+        return {
+            { "general",
+             {
+                    { std::string(helpKeys()), "print usage" },
+                    { "--version", "print version" },
+                    { "--verbose", "verbose output" },
+                    { "--list-recommended-drives", "list recommended drives" },
+                    { "--list-all-drives", "list all supported drives" },
+                    { "--auto-eject", "auto eject after dump" },
+                    { "--skeleton", "generate skeleton after dump" },
+                    { "--drive=VALUE", "drive to use, first available drive with disc, if not provided" },
+                    { "--speed=VALUE", "drive read speed, optimal drive speed will be used if not provided" },
+                    { "--retries=VALUE", std::format("number of sector retries in case of SCSI/C2 error (default: {})", retries_default) },
+                    { "--image-path=VALUE", "dump files base directory" },
+                    { "--image-name=VALUE", "dump files prefix, autogenerated in dump mode if not provided" },
+                    { "--overwrite", "overwrites previously generated dump files" },
+                    { "--disc-type=VALUE", "override detected disc type (current profile), possible values: CD, DVD, BLURAY, BLURAY-R, HD-DVD" },
+                } },
+            { "drive configuration",
+             {
+                    { "--drive-type=VALUE", "override drive type, possible values: GENERIC, PLEXTOR, MTK2, MTK3, MTK8A, MTK8B, MTK8C" },
+                    { "--drive-read-offset=VALUE", "override drive read offset" },
+                    { "--drive-c2-shift=VALUE", "override drive C2 shift" },
+                    { "--drive-pregap-start=VALUE", "override drive pre-gap start LBA" },
+                    { "--drive-read-method=VALUE", "override drive read method, possible values: BE, D8, BE_CDDA" },
+                    { "--drive-sector-order=VALUE", "override drive sector order, possible values: DATA_C2_SUB, DATA_SUB_C2, DATA_SUB, DATA_C2" },
+                } },
+            { "drive specific",
+             {
+                    { "--plextor-skip-leadin", "skip dumping lead-in using negative range" },
+                    { "--plextor-leadin-retries=VALUE", std::format("maximum number of lead-in retries per session (default: {})", plextor_leadin_retries_default) },
+                    { "--plextor-leadin-force-store", "store unverified lead-in" },
+                    { "--kreon-partial-ss", "get minimal security sector (fixes bad firmware)" },
+                    { "--dvd-raw", "dump raw DVD sectors (OmniDrive)" },
+                    { "--bd-raw", "dump raw BD sectors (OmniDrive)" },
+                    { "--mediatek-skip-leadout", "skip extracting lead-out from drive cache" },
+                    { "--mediatek-leadout-retries=VALUE", std::format("number of preceding lead-out sector reads to fill up the cache (default: {})", mediatek_leadout_retries_default) },
+                    { "--disable-cdtext", "disable CD-TEXT reading" },
+                } },
+            { "offset",
+             {
+                    { "--force-offset=VALUE", "override offset autodetection and use supplied value" },
+                    { "--audio-silence-threshold=VALUE", std::format("maximum absolute sample value to treat it as silence (default: {})", audio_silence_threshold_default) },
+                    { "--correct-offset-shift", "correct disc write offset shift" },
+                    { "--offset-shift-relocate", "don't merge offset groups with non-matching LBA" },
+                } },
+            { "split",
+             {
+                    { "--force-split", "force track split with errors" },
+                    { "--leave-unchanged", "don't replace erroneous sectors with generated ones" },
+                    { "--force-qtoc", "force QTOC based track split" },
+                    { "--legacy-subs", "replicate DIC style subchannel based track split" },
+                    { "--skip-fill=VALUE", std::format("fill byte value for skipped sectors (default: 0x{:02X})", skip_fill_default) },
+                    { "--filesystem-trim", "trim data track to filesystem size (ISO9660: all media, UDF: DVD and later)" },
+                } },
+            { "drive test",
+             {
+                    { "--drive-test-skip-plextor-leadin", "skip testing for PLEXTOR negative lead-in range access" },
+                    { "--drive-test-skip-cache-read", "skip testing for MEDIATEK cache read command (F1)" },
+                } },
+            { "miscellaneous",
+             {
+                    { "--continue=VALUE", "continue \"disc\" command starting from VALUE command" },
+                    { "--lba-start=VALUE", "LBA to start dumping from" },
+                    { "--lba-end=VALUE", "LBA to stop dumping at (everything before the value), useful for discs with fake TOC" },
+                    { "--lba-end-by-subcode", "Dynamically determine LBA end by the last session subcode" },
+                    { "--refine-subchannel", "in addition to SCSI/C2, refine subchannel" },
+                    { "--refine-sector-mode", "update sector data only if whole sector is C2 error free" },
+                    { "--skip=VALUE", "LBA ranges of sectors to skip" },
+                    { "--dump-write-offset=VALUE", "offset hint for data sectors read using BE method" },
+                    { "--dump-read-size=VALUE", "number of sectors to read at once on initial dump, DVD only" },
+                    { "--overread-leadout", "do not limit lead-out to the first hundred sectors, read until drive returns SCSI error" },
+                    { "--force-unscrambled", "do not attempt to read data sectors as audio (BE read method only)" },
+                    { "--force-refine", "do not check TOC when refining a disc" },
+                    { "--firmware=VALUE", "firmware filename" },
+                    { "--force-flash", "skip drive vendor/model verification when flashing firmware (WARNING: can brick your drive)" },
+                    { "--skip-subcode-desync", "skip storing sectors with mismatching subcode Q absolute MSF" },
+                    { "--rings", "enable filesystem based rings detection" },
+                    { "--cdr-error-threshold=VALUE", std::format("maximum number of trailing C2 errors allowed on a CD-R (default: {})", cdr_error_threshold_default) },
+                    { "--scsi-timeout=VALUE", std::format("SCSI command timeout, milliseconds (default: {})", scsi_timeout_default) },
+                } },
+        };
+    }
+
+
+    static std::string manEscape(std::string_view s)
+    {
+        std::string escaped;
+        for(char c : s)
+        {
+            if(c == '\\' || c == '-')
+                escaped += '\\';
+            escaped += c;
+        }
+        return escaped;
+    }
+
+
+    // emit a description as a fill-mode paragraph, wrapping the escaped text at word
+    // boundaries so no roff source line exceeds the conventional width
+    static void manParagraph(std::string_view text)
+    {
+        std::string escaped = manEscape(text);
+
+        std::string line;
+        std::string::size_type start = 0;
+        while(start < escaped.length())
+        {
+            auto end = escaped.find(' ', start);
+            auto word = escaped.substr(start, end == std::string::npos ? std::string::npos : end - start);
+
+            if(!line.empty() && line.length() + 1 + word.length() > 78)
+            {
+                LOGC("{}", line);
+                line.clear();
+            }
+
+            if(line.empty())
+                line = word;
+            else
+                line += " " + word;
+
+            if(end == std::string::npos)
+                break;
+            start = end + 1;
+        }
+
+        if(!line.empty())
+            LOGC("{}", line);
     }
 };
 

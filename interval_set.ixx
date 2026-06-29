@@ -219,11 +219,11 @@ public:
     std::string to_string() const
     {
         std::string str;
-        for(auto &[start, end] : _ranges)
+        for(auto &r : _ranges)
         {
             if(!str.empty())
                 str += ", ";
-            str += end - start == 1 ? std::format("{}", start) : std::format("{}-{}", start, end - 1);
+            str += (r.second - r.first == 1) ? std::format("{}", r.first) : std::format("{}-{}", r.first, r.second - 1);
         }
         return str;
     }

@@ -443,44 +443,42 @@ export int redumper_state(Context &ctx, Options &options)
     else if(std::filesystem::exists(image_prefix + ".sbram"))
         offset = bd::LBA_START;
 
-    static const char *STATE_NAME[] = { "Unread", "Read Error", "Success (Plextor lead-in)", "Success (MediaTek lead-out)", "Success" };
+    static const char *STATE_NAME[] = { "Unread", "Read Error", "Success (No confirmed C2 data)", "Success (No SCSI state)", "Success" };
 
     LOG("state file (unit: {}): ", cd ? "samples" : "sectors");
 
-    constexpr uint32_t CHUNK = 4096;
-    std::vector<State> buffer(CHUNK);
-    State current = State::ERROR_SKIP;
+    std::vector<State> buffer(CHUNK_1KB + 1);
+    State current = (State)0xFF;
     int64_t range_start = offset;
 
-    auto print_range = [&](int64_t range_end)
+    for (uint64_t i = 0; i < entries_count; i += CHUNK_1KB)
     {
-        if(range_start > range_end)
-            return;
-
-        const char *state_name = (uint8_t)current < std::size(STATE_NAME) ? STATE_NAME[(uint8_t)current] : "Unknown";
-        if(cd)
-            LOG("  {}..{} (LBA {}..{}): {}", range_start, range_end, sample_to_lba(range_start, 0), sample_to_lba(range_end, 0), state_name);
-        else
-            LOG("  {}..{}: {}", range_start, range_end, state_name);
-    };
-
-    for(uint64_t i = 0; i < entries_count; i += CHUNK)
-    {
-        uint32_t count = std::min((uint64_t)CHUNK, entries_count - i);
+        uint32_t count = std::min((uint64_t)CHUNK_1KB, entries_count - i);
         state_fs.read((char *)buffer.data(), count * sizeof(State));
 
-        for(uint32_t j = 0; j < count; ++j)
+        // create state change at end of file to trigger final print
+        if (i + count >= entries_count)
+            buffer[count++] = (State)~(uint8_t)current;
+
+        for (uint32_t j = 0; j < count; ++j)
         {
-            if(buffer[j] != current)
+            if (buffer[j] == current)
+                continue;
+
+            int64_t range_end = offset + (int64_t)(i + j) - 1;
+            if (range_start <= range_end)
             {
-                print_range(offset + (int64_t)(i + j) - 1);
-                current = buffer[j];
-                range_start = offset + (int64_t)(i + j);
+                const char *state_name = (uint8_t)current < std::size(STATE_NAME) ? STATE_NAME[(uint8_t)current] : "Unknown";
+                if (cd)
+                    LOG("  {}..{} (LBA {}..{}): {}", range_start, range_end, sample_to_lba(range_start, 0), sample_to_lba(range_end, 0), state_name);
+                else
+                    LOG("  {}..{}: {}", range_start, range_end, state_name);
             }
+
+            current = buffer[j];
+            range_start = offset + (int64_t)(i + j);
         }
     }
-
-    print_range(offset + (int64_t)entries_count - 1);
 
     return exit_code;
 }

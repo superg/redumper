@@ -451,25 +451,25 @@ export int redumper_state(Context &ctx, Options &options)
     State current = (State)0xFF;
     int64_t range_start = offset;
 
-    for (uint64_t i = 0; i < entries_count; i += CHUNK_1KB)
+    for(uint64_t i = 0; i < entries_count; i += CHUNK_1KB)
     {
         uint32_t count = std::min((uint64_t)CHUNK_1KB, entries_count - i);
         state_fs.read((char *)buffer.data(), count * sizeof(State));
 
         // create state change at end of file to trigger final print
-        if (i + count >= entries_count)
-            buffer[count++] = (State)~(uint8_t)current;
+        if(i + count >= entries_count)
+            buffer[count++] = (State) ~(uint8_t)current;
 
-        for (uint32_t j = 0; j < count; ++j)
+        for(uint32_t j = 0; j < count; ++j)
         {
-            if (buffer[j] == current)
+            if(buffer[j] == current)
                 continue;
 
             int64_t range_end = offset + (int64_t)(i + j) - 1;
-            if (range_start <= range_end)
+            if(range_start <= range_end)
             {
                 const char *state_name = (uint8_t)current < std::size(STATE_NAME) ? STATE_NAME[(uint8_t)current] : "Unknown";
-                if (cd)
+                if(cd)
                     LOG("  {}..{} (LBA {}..{}): {}", range_start, range_end, sample_to_lba(range_start, 0), sample_to_lba(range_end, 0), state_name);
                 else
                     LOG("  {}..{}: {}", range_start, range_end, state_name);

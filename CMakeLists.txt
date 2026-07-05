@@ -230,7 +230,8 @@ endif()
 target_link_libraries(redumper ${libs})
 
 if(REDUMPER_TARGET_LINUX)
-    target_link_options(redumper PRIVATE "-static")
+    set(REDUMPER_LINKER_FLAGS "-static" CACHE STRING "Linker flags")
+    target_link_options(redumper PRIVATE "${REDUMPER_LINKER_FLAGS}")
 endif()
 
 install(TARGETS redumper DESTINATION "bin")

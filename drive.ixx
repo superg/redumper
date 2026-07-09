@@ -112,7 +112,7 @@ static const std::map<ReadMethod, std::string> READ_METHOD_STRING = {
 };
 
 
-static const std::map<SectorOrder, std::string> SECTOR_ORDER_STRING = {
+export const std::map<SectorOrder, std::string> SECTOR_ORDER_STRING = {
     { SectorOrder::DATA_C2_SUB, "DATA_C2_SUB" },
     { SectorOrder::DATA_SUB_C2, "DATA_SUB_C2" },
     { SectorOrder::DATA_SUB,    "DATA_SUB"    },

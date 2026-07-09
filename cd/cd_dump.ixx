@@ -338,6 +338,14 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
     int32_t subcode_shift = 0;
     uint32_t subcode_byte_desync_counter = 0;
 
+    if(dump && ctx.drive_config.type == Type::GENERIC && ctx.drive_config.read_method == ReadMethod::BE && !options.drive_sector_order)
+    {
+        int32_t test_lba = toc.sessions.front().tracks.front().lba_start;
+        if(!detect_sector_order(*ctx.sptd, ctx.drive_config, test_lba))
+            LOG("warning: sector order detection failed, using default");
+        LOG("");
+    }
+
     SignalINT signal;
 
     int32_t lba_overread = lba_end;

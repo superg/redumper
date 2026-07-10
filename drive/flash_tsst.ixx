@@ -21,6 +21,8 @@ import utils.logger;
 namespace gpsxre
 {
 
+const std::set<std::string> TSST_SUPPORTED_VENDORS = { "TSSTcorp", "hp" };
+
 const std::set<std::string> TSST_SUPPORTED_DRIVES = { "DVD-ROM SH-D163A", "DVD-ROM SH-D163B", "DVD-ROM SH-D162C", "DVD-ROM SH-D163C", "DVD-ROM SH-D162D", "DVD-ROM TS-H353A", "DVD-ROM TS-H353B",
     "DVD-ROM TS-H353C", "DVD-ROM TS-H352C", "DVD-ROM TS-H352D", "DVD-ROM SH-116AB", "DVD-ROM SH-118CB" };
 
@@ -50,7 +52,7 @@ export int redumper_flash_tsst(Context &ctx, Options &options)
 {
     int exit_code = 0;
 
-    if(!options.force_flash && (ctx.drive_config.vendor_id != "TSSTcorp" || !TSST_SUPPORTED_DRIVES.contains(ctx.drive_config.product_id)))
+    if(!options.force_flash && (!TSST_SUPPORTED_VENDORS.contains(ctx.drive_config.vendor_id) || !TSST_SUPPORTED_DRIVES.contains(ctx.drive_config.product_id)))
         throw_line("flashing of this drive is unsupported");
 
     // block size is how much data is sent in one command, potentially it can vary but current value is taken from the original flasher

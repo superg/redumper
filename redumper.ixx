@@ -26,6 +26,7 @@ import cd.toc;
 import common;
 import debug;
 import drive;
+import drive.detect;
 import drive.flash.mt1959;
 import drive.flash.plextor;
 import drive.flash.tsst;
@@ -145,6 +146,7 @@ const std::map<std::string, Command> COMMANDS{
     { "fixmsf",         { false, false, false, true, false, redumper_fix_msf }       },
     { "debug::flip",    { false, false, false, true, false, redumper_flip }          },
     { "drive::test",    { true, true, true, false, false, redumper_drive_test }      },
+    { "drive::detect",  { true, true, true, false, false, redumper_drive_detect }    },
 };
 
 
@@ -260,6 +262,8 @@ std::list<std::pair<std::string, Command>> redumper_disc_get_commands(Options &o
     std::list<std::string> cd_commands{ "dump", "dump::extra", "protection", "refine", "dvdkey", "split", "hash", "info" };
     if(options.rings)
         cd_commands.insert(cd_commands.begin(), "rings");
+    if(options.auto_detect)
+        cd_commands.insert(cd_commands.begin(), "drive::detect");
     if(options.auto_eject)
     {
         if(auto it = std::find(cd_commands.begin(), cd_commands.end(), "split"); it != cd_commands.end())

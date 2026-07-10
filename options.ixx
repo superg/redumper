@@ -44,6 +44,7 @@ export struct Options
     std::unique_ptr<int> drive_pregap_start;
     std::unique_ptr<std::string> drive_read_method;
     std::unique_ptr<std::string> drive_sector_order;
+    bool auto_detect;
     std::unique_ptr<double> speed;
     int retries;
     bool refine_subchannel;
@@ -106,6 +107,7 @@ export struct Options
         , overwrite(false)
         , force_split(false)
         , leave_unchanged(false)
+        , auto_detect(false)
         , retries(retries_default)
         , refine_subchannel(false)
         , refine_sector_mode(false)
@@ -230,6 +232,8 @@ export struct Options
                         drive_sector_order = std::make_unique<std::string>();
                         s_value = drive_sector_order.get();
                     }
+                    else if(key == "--auto-detect")
+                        auto_detect = true;
                     else if(key == "--speed")
                     {
                         speed = std::make_unique<double>();
@@ -422,6 +426,7 @@ export struct Options
         LOG("\t--drive-pregap-start=VALUE      \toverride drive pre-gap start LBA");
         LOG("\t--drive-read-method=VALUE       \toverride drive read method, possible values: BE, D8, BE_CDDA");
         LOG("\t--drive-sector-order=VALUE      \toverride drive sector order, possible values: DATA_C2_SUB, DATA_SUB_C2, DATA_SUB, DATA_C2");
+        LOG("\t--auto-detect                   \tattempt to automatically detect drive sector order for generic drives");
         LOG("");
         LOG("\t(drive specific)");
         LOG("\t--plextor-skip-leadin           \tskip dumping lead-in using negative range");

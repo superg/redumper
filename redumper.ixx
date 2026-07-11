@@ -278,7 +278,7 @@ std::list<std::pair<std::string, Command>> redumper_disc_get_commands(Options &o
     {
         for(auto it = cd_commands.begin(); it != cit;)
         {
-            if(*it == "rings" && std::find(cit, cd_commands.end(), "dump") != cd_commands.end() || *it == "protection")
+            if(*it == "rings" && std::find(cit, cd_commands.end(), "dump") != cd_commands.end() || *it == "protection" || *it == "detect")
                 ++it;
             else
                 it = cd_commands.erase(it);

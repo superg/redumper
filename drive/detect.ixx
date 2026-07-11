@@ -91,10 +91,14 @@ export int redumper_drive_detect(Context &ctx, Options &options)
     {
         auto toc_buffer = toc_read(*ctx.sptd);
         TOC toc(toc_buffer, false);
+        if(toc.sessions.empty() || toc.sessions.front().tracks.empty())
+        {
+            LOG("warning: sector order detection failed (TOC has no tracks), using default");
+            return exit_code;
+        }
         int32_t lba = toc.sessions.front().tracks.front().lba_start;
         if(!detect_sector_order(*ctx.sptd, ctx.drive_config, lba))
             LOG("warning: sector order detection failed, using default");
-        LOG("");
     }
 
     return exit_code;

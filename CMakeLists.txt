@@ -35,13 +35,21 @@ include(CPack)
 # C/C++
 set(CMAKE_CXX_STANDARD 20)
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    option(REDUMPER_CLANG_USE_LIBCPP "Link to libc++ instead of system default" OFF)
+
+    if(REDUMPER_CLANG_USE_LIBCPP)
+        add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
+        add_link_options(-stdlib=libc++)
+    endif()
+
+    add_link_options(${REDUMPER_CLANG_LINK_OPTIONS})
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     add_compile_options(-Wall -Wextra -Werror)
 
     # remove after https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99426 is fixed
     add_compile_options(--param=ggc-min-expand=10000)
-endif()
-if(MSVC)
+elseif(MSVC)
     # build MT configuration by default
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 

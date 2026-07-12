@@ -1139,7 +1139,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     uint32_t refine_retries = options.retries ? options.retries : 1;
 
     FilesystemContext fs_ctx;
-    ROMEntry rom_entry(image_prefix + dump_get_config(ctx.disc_type, false).image_extension);
+    ROMEntry rom_entry(options.image_name + dump_get_config(ctx.disc_type, false).image_extension);
     bool rom_update = dump;
 
     SignalINT signal;

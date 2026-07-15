@@ -125,7 +125,7 @@ export int redumper_dvdkey(Context &ctx, Options &options)
 
         std::string protection("unknown");
         if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::NONE)
-            protection = "<none>";
+            protection = "NONE";
         else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CSS_CPPM)
             protection = "CSS/CPPM";
         else if(cpst == READ_DVD_STRUCTURE_CopyrightInformation_CPST::CPRM)
@@ -180,9 +180,9 @@ export int redumper_dvdkey(Context &ctx, Options &options)
                 {
                     std::string title_key;
                     if(t.second.empty())
-                        title_key = "<error>";
+                        title_key = "(error)";
                     else if(is_zeroed(t.second.data(), t.second.size()))
-                        title_key = "<none>";
+                        title_key = "N/A";
                     else
                         title_key = std::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.second[0], t.second[1], t.second[2], t.second[3], t.second[4]);
 
@@ -234,9 +234,9 @@ export int redumper_dvdisokey(Context &ctx, Options &options)
         {
             std::string title_key;
             if(t.second.empty())
-                title_key = "<error>";
+                title_key = "(error)";
             else if(is_zeroed(t.second.data(), t.second.size()))
-                title_key = "<none>";
+                title_key = "N/A";
             else
                 title_key = std::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", t.second[0], t.second[1], t.second[2], t.second[3], t.second[4]);
 

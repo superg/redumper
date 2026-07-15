@@ -309,6 +309,93 @@ void mediatek_process_leadout(Context &ctx, const TOC &toc, std::fstream &fs_scr
 }
 
 
+void generic_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram, std::fstream &fs_state, std::fstream &fs_subcode, Options &options)
+{
+    if(toc.sessions.empty() || toc.sessions.front().tracks.size() <= 1)
+        return;
+
+    auto &t = toc.sessions.front().tracks.front();
+    if(!(t.control & (uint8_t)ChannelQ::Control::DATA))
+        return;
+
+    int32_t track1_end = toc.sessions.front().tracks[1].lba_start;
+    auto write_offset = track_offset_by_sync(t.lba_start, track1_end, fs_state, fs_scram);
+    if(!write_offset)
+        return;
+
+    int32_t combined_offset = *write_offset + ctx.drive_config.read_offset;
+    if(combined_offset >= 0 || combined_offset < -134 * (int32_t)CD_DATA_SIZE_SAMPLES)
+        return;
+
+    // read from preceding sector up to and including start of first track
+    int32_t read_lba = sample_to_lba(*write_offset, 0) - 1;
+    uint32_t read_count = t.lba_start - read_lba + 1;
+
+    // check if lead-in samples are needed
+    uint32_t sample_index = sample_offset_r2a(lba_to_sample(read_lba, -ctx.drive_config.read_offset));
+    uint32_t samples_count = read_count * CD_DATA_SIZE_SAMPLES;
+    std::vector<State> existing_state(samples_count);
+    read_entry(fs_state, (uint8_t *)existing_state.data(), sizeof(State), sample_index, samples_count, 0, (uint8_t)State::ERROR_SKIP);
+    if(std::none_of(existing_state.begin(), existing_state.end(), [](State s) { return s == State::ERROR_SKIP || s == State::ERROR_C2; }))
+        return;
+
+    auto layout = sector_order_layout(ctx.drive_config.sector_order);
+    std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE * read_count);
+    auto error_field = layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2;
+    auto sub_channel = layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
+
+    SPTD::Status status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, read_lba, read_count, READ_CD_ExpectedSectorType::CD_DA, error_field, sub_channel);
+    if(status.status_code)
+        status = cmd_read_cd(*ctx.sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, read_lba, read_count, READ_CD_ExpectedSectorType::ALL_TYPES, error_field, sub_channel);
+
+    if(status.status_code)
+    {
+        if(options.verbose)
+            LOG("GENERIC: lead-in read failed (LBA: {:6}, sectors: {}, SCSI: {})", read_lba, read_count, SPTD::StatusMessage(status));
+        return;
+    }
+
+    LOG("GENERIC: storing lead-in (LBA: {:6}, sectors: {})", read_lba, read_count);
+
+    std::vector<State> state_buffer(read_count * CD_DATA_SIZE_SAMPLES);
+    std::vector<uint8_t> data_buffer(read_count * CD_DATA_SIZE);
+    std::vector<uint8_t> subcode_buffer(read_count * CD_SUBCODE_SIZE);
+
+    for(uint32_t i = 0; i < read_count; ++i)
+    {
+        auto raw = sector_buffer.data() + layout.size * i;
+
+        std::span<State> sector_state(&state_buffer[i * CD_DATA_SIZE_SAMPLES], CD_DATA_SIZE_SAMPLES);
+        std::span<uint8_t> sector_data(&data_buffer[i * CD_DATA_SIZE], CD_DATA_SIZE);
+        std::span<uint8_t> sector_subcode(&subcode_buffer[i * CD_SUBCODE_SIZE], CD_SUBCODE_SIZE);
+
+        if(layout.c2_offset != CD_RAW_DATA_SIZE)
+        {
+            auto sector_state_c2 = c2_to_state(raw + layout.c2_offset, State::SUCCESS);
+            std::copy(sector_state_c2.begin(), sector_state_c2.end(), sector_state.begin());
+
+            if(options.verbose)
+            {
+                uint32_t c2_bits = c2_bits_count(std::span<const uint8_t>(raw + layout.c2_offset, CD_C2_SIZE));
+                if(c2_bits)
+                    LOGC_R("[LBA: {:6}] C2 error (bits: {:4})", read_lba + i, c2_bits);
+            }
+        }
+        else
+            std::fill(sector_state.begin(), sector_state.end(), State::SUCCESS_C2_OFF);
+
+        if(layout.data_offset != CD_RAW_DATA_SIZE)
+            std::copy(raw + layout.data_offset, raw + layout.data_offset + CD_DATA_SIZE, sector_data.begin());
+
+        if(layout.subcode_offset != CD_RAW_DATA_SIZE)
+            std::copy(raw + layout.subcode_offset, raw + layout.subcode_offset + CD_SUBCODE_SIZE, sector_subcode.begin());
+    }
+
+    store_data(fs_scram, fs_state, data_buffer, state_buffer, lba_to_sample(read_lba, -ctx.drive_config.read_offset));
+    store_subcode(fs_subcode, subcode_buffer, read_lba);
+}
+
+
 export int redumper_dump_extra(Context &ctx, Options &options)
 {
     int exit_code = 0;
@@ -333,6 +420,11 @@ export int redumper_dump_extra(Context &ctx, Options &options)
     {
         if(!options.mediatek_skip_leadout && !is_omnidrive_firmware(ctx.drive_config))
             mediatek_process_leadout(ctx, toc, fs_scram, fs_state, fs_subcode, options);
+    }
+    else if(ctx.drive_config.type == Type::GENERIC)
+    {
+        if(!options.generic_skip_leadin)
+            generic_process_leadin(ctx, toc, fs_scram, fs_state, fs_subcode, options);
     }
 
     return exit_code;

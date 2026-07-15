@@ -378,7 +378,7 @@ void generic_process_leadin(Context &ctx, const TOC &toc, std::fstream &fs_scram
             {
                 uint32_t c2_bits = c2_bits_count(std::span<const uint8_t>(raw + layout.c2_offset, CD_C2_SIZE));
                 if(c2_bits)
-                    LOGC_R("[LBA: {:6}] C2 error (bits: {:4})", read_lba + i, c2_bits);
+                    LOGC_R("[LBA: {:6}] C2 error (bits: {:4})", read_lba + (int32_t)i, c2_bits);
             }
         }
         else

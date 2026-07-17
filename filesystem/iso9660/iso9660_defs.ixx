@@ -382,7 +382,7 @@ std::string identifier_to_string(const uint16_t (&identifier)[N])
         utf16_identifier[i] = endian_swap(identifier[i]);
 
     std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert("", u"");
-    std::string utf8_identifier = convert.to_bytes(utf16_identifier, &utf16_identifier[N - 1]);
+    std::string utf8_identifier = convert.to_bytes(utf16_identifier, &utf16_identifier[N]);
 
     return trim(utf8_identifier).c_str();
 }

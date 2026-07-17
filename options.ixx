@@ -63,6 +63,7 @@ export struct Options
     bool plextor_leadin_force_store;
     bool mediatek_skip_leadout;
     int mediatek_leadout_retries;
+    bool generic_skip_leadin;
     bool kreon_partial_ss;
     bool dvd_raw;
     bool bd_raw;
@@ -121,6 +122,7 @@ export struct Options
         , plextor_leadin_force_store(false)
         , mediatek_skip_leadout(false)
         , mediatek_leadout_retries(mediatek_leadout_retries_default)
+        , generic_skip_leadin(false)
         , kreon_partial_ss(false)
         , dvd_raw(false)
         , bd_raw(false)
@@ -282,6 +284,8 @@ export struct Options
                         mediatek_skip_leadout = true;
                     else if(key == "--mediatek-leadout-retries")
                         i_value = &mediatek_leadout_retries;
+                    else if(key == "--generic-skip-leadin")
+                        generic_skip_leadin = true;
                     else if(key == "--kreon-partial-ss")
                         kreon_partial_ss = true;
                     else if(key == "--dvd-raw")
@@ -432,12 +436,12 @@ export struct Options
         LOG("\t--plextor-skip-leadin           \tskip dumping lead-in using negative range");
         LOG("\t--plextor-leadin-retries=VALUE  \tmaximum number of lead-in retries per session (default: {})", plextor_leadin_retries_default);
         LOG("\t--plextor-leadin-force-store    \tstore unverified lead-in");
+        LOG("\t--mediatek-skip-leadout         \tskip extracting lead-out from drive cache");
+        LOG("\t--mediatek-leadout-retries      \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", mediatek_leadout_retries_default);
+        LOG("\t--generic-skip-leadin           \tskip dumping lead-in for negative offset discs on generic drives");
         LOG("\t--kreon-partial-ss              \tget minimal security sector (fixes bad firmware)");
         LOG("\t--dvd-raw                       \tdump raw DVD sectors (OmniDrive)");
         LOG("\t--bd-raw                        \tdump raw BD sectors (OmniDrive)");
-
-        LOG("\t--mediatek-skip-leadout         \tskip extracting lead-out from drive cache");
-        LOG("\t--mediatek-leadout-retries      \tnumber of preceding lead-out sector reads to fill up the cache (default: {})", mediatek_leadout_retries_default);
         LOG("\t--disable-cdtext                \tdisable CD-TEXT reading");
         LOG("");
         LOG("\t(offset)");

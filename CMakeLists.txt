@@ -151,6 +151,7 @@ target_sources(redumper
     "filesystem/iso9660/iso9660_entry.ixx"
     "filesystem/iso9660/iso9660_map.ixx"
     "filesystem/udf/udf.ixx"
+    "filesystem/udf/udf_browser.ixx"
     "filesystem/udf/udf_defs.ixx"
     "hash/block_hasher.ixx"
     "hash/md5.ixx"

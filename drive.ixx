@@ -474,7 +474,7 @@ export std::string omnidrive_version_string(uint32_t version)
 
 export uint32_t omnidrive_minimum_version()
 {
-    return 0x00010002;
+    return 0x00010004;
 }
 
 

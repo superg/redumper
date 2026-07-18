@@ -808,7 +808,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
 
     std::vector<Range<int32_t>> protection;
 
-    bool omnidrive_firmware = is_omnidrive_firmware(ctx.drive_config) != std::nullopt;
+    auto omnidrive_version = is_omnidrive_firmware(ctx.drive_config);
+    if(omnidrive_version && *omnidrive_version == 0x00010003)
+        throw_line("unsupported OmniDrive version for DVD dumping, upgrade to {}", omnidrive_version_string(omnidrive_minimum_version()));
+    bool omnidrive_firmware = omnidrive_version != std::nullopt;
     bool kreon_firmware = is_kreon_firmware(ctx.drive_config);
     bool kreon_locked = false;
 

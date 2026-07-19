@@ -29,14 +29,20 @@ public:
     }
 
 
-    void descramble(std::span<uint8_t> data, uint32_t psn, std::optional<uint8_t> nintendo_key) const
+    void descramble(std::span<uint8_t> data, uint32_t psn, std::optional<uint8_t> nintendo_key, bool nintendo_dev_disc) const
     {
         // determine XOR table offset
         uint32_t offset = (psn >> 4 & 0xF) * FORM1_DATA_SIZE;
 
         // custom XOR table offset for nintendo
         if(nintendo_key)
-            offset = (*nintendo_key ^ (psn >> 4 & 0xF)) * FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
+        {
+            offset = *nintendo_key ^ (psn >> 4 & 0xF);
+            if(nintendo_dev_disc)
+                offset *= FORM1_DATA_SIZE;
+            else
+                offset *= FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
+        }
 
         process(data, offset);
     }

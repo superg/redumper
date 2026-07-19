@@ -85,14 +85,14 @@ export struct DataFrame
     uint32_t edc;
 
 
-    bool valid(std::optional<uint8_t> nintendo_key = std::nullopt) const
+    bool valid(std::optional<uint8_t> nintendo_key = std::nullopt, bool nintendo_dev_disc = false) const
     {
         bool valid = false;
 
         if(id.valid())
         {
             auto df = *this;
-            df.descramble(nintendo_key);
+            df.descramble(nintendo_key, nintendo_dev_disc);
 
             if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(DataFrame, edc)).final())
                 valid = true;
@@ -102,10 +102,10 @@ export struct DataFrame
     }
 
 
-    void descramble(std::optional<uint8_t> nintendo_key = std::nullopt)
+    void descramble(std::optional<uint8_t> nintendo_key = std::nullopt, bool nintendo_dev_disc = false)
     {
         uint32_t psn = endian_swap_from_array<int32_t>(id.id.sector_number);
-        Scrambler::get().descramble(std::span(main_data, FORM1_DATA_SIZE), psn, nintendo_key);
+        Scrambler::get().descramble(std::span(main_data, FORM1_DATA_SIZE), psn, nintendo_key, nintendo_dev_disc);
     }
 };
 

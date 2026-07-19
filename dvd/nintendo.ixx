@@ -21,8 +21,12 @@ uint8_t derive_key(std::span<const uint8_t> cpr_mai)
 }
 
 
-export std::optional<uint8_t> get_key(std::optional<uint8_t> &key_lba0, int32_t lba, const dvd::DataFrame &data_frame)
+export std::optional<uint8_t> get_key(std::optional<uint8_t> &key_lba0, int32_t lba, const dvd::DataFrame &data_frame, bool nintendo_dev_disc)
 {
+    // dev discs have a fixed key of 9
+    if (nintendo_dev_disc)
+        return 9;
+
     std::optional<uint8_t> key;
 
     if(key_lba0 && lba >= 0)

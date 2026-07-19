@@ -11,6 +11,7 @@ export module systems.ps5;
 
 import filesystem.iso9660;
 import readers.data_reader;
+import systems.ps4;
 import utils.misc;
 import utils.strings;
 
@@ -19,7 +20,7 @@ import utils.strings;
 namespace gpsxre
 {
 
-export class SystemPS5 : public System
+export class SystemPS5 : public SystemPS4
 {
 public:
     std::string getName() override
@@ -48,9 +49,18 @@ public:
 
         if(auto it = param_json.find("masterDataId"); it != param_json.end())
             os << std::format("  serial: {}", it->second.insert(4, "-")) << std::endl;
+
+        std::string content_ids = getContentIds(root_directory, _PKG_FILE_NAMES);
+
+        if(content_ids.empty())
+            return;
+
+        os << std::format("  content ID(s): {}", content_ids) << std::endl;
     }
 
 private:
+    static constexpr std::array<std::string, 1> _PKG_FILE_NAMES = {"app_sc.pkg"};
+
     std::map<std::string, std::string> loadJSON(std::shared_ptr<iso9660::Entry> json_entry) const
     {
         std::map<std::string, std::string> json;

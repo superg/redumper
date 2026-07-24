@@ -821,6 +821,9 @@ private:
 
     void initTOC(const std::vector<uint8_t> &toc_buffer)
     {
+        if(toc_buffer.size() < sizeof(CMD_ParameterListHeader))
+            return;
+
         // don't rely on anything and sort by session number / track number
         std::map<uint8_t, Session::Track> tracks;
 
@@ -864,6 +867,9 @@ private:
 
     void initFullTOC(const std::vector<uint8_t> &toc_buffer)
     {
+        if(toc_buffer.size() < sizeof(CMD_ParameterListHeader))
+            return;
+
         // don't rely on anything and sort by session number / track number
         std::map<uint8_t, std::map<uint8_t, Session::Track>> tracks;
 

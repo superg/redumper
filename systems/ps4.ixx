@@ -9,9 +9,11 @@ module;
 
 export module systems.ps4;
 
+import cd.cdrom;
 import filesystem.iso9660;
 import readers.data_reader;
 import systems.ps3;
+import utils.endian;
 
 
 
@@ -55,7 +57,7 @@ public:
             os << std::format("  serial: {}", serial) << std::endl;
         }
 
-        std::string content_ids = getContentIds(root_directory, _PKG_FILE_NAMES);
+        std::string content_ids = getContentIds(data_reader, root_directory, _PKG_FILE_NAMES);
 
         if(content_ids.empty())
             return;
@@ -64,7 +66,7 @@ public:
     }
 
 protected:
-    std::string getContentIds(std::shared_ptr<iso9660::Entry> root_directory, std::span<const std::string> pkg_file_names) const
+    std::string getContentIds(DataReader *data_reader, std::shared_ptr<iso9660::Entry> root_directory, std::span<const std::string> pkg_file_names) const
     {
         auto app_directory = root_directory->subEntry("app");
         if(!app_directory)
@@ -84,28 +86,18 @@ protected:
                 if(!app_pkg_entry)
                     continue;
 
-                auto app_pkg_raw = app_pkg_entry->read();
+                std::vector<uint8_t> app_pkg_header(FORM1_DATA_SIZE);
+                data_reader->read((uint8_t *)app_pkg_header.data(), app_pkg_entry->sectorsLBA(), 1);
+                auto pkg_header = (PkgHeader *)app_pkg_header.data();
+                pkg_header->swapEndianness();
 
-                if(app_pkg_raw.size() < _PKG_HEADER_SIZE)
+                if(pkg_header->pkg_magic != _PKG_MAGIC)
                     continue;
-
-                uint32_t app_pkg_magic = 
-                    (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 0]) << 24) |
-                    (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 1]) << 16) |
-                    (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 2]) << 8)  |
-                    (static_cast<uint32_t>(app_pkg_raw[_PKG_MAGIC_OFFSET + 3]) << 0);
-
-                if(app_pkg_magic != _PKG_MAGIC)
-                    continue;
-
-                std::span<const uint8_t> app_pkg_content_id(app_pkg_raw.data() + _PKG_CONTENT_ID_OFFSET, _PKG_CONTENT_ID_SIZE);
-
-                std::string_view app_pkg_content_id_text(reinterpret_cast<const char*>(app_pkg_content_id.data()), _PKG_CONTENT_ID_SIZE);
 
                 if(!content_ids.empty())
                     content_ids += ", ";
 
-                content_ids += app_pkg_content_id_text;
+                content_ids += std::string(reinterpret_cast<const char*>(pkg_header->pkg_content_id), sizeof(pkg_header->pkg_content_id));
 
                 break;
             }
@@ -115,12 +107,42 @@ protected:
     }
 
 private:
-    static constexpr uint32_t _PKG_HEADER_SIZE = 0x1000;
     static constexpr uint32_t _PKG_MAGIC = 0x7F434E54;
-    static constexpr uint32_t _PKG_MAGIC_OFFSET = 0x00;
-    static constexpr uint32_t _PKG_CONTENT_ID_OFFSET = 0x40;
-    static constexpr uint32_t _PKG_CONTENT_ID_SIZE = 36;
     static constexpr std::array<std::string, 3> _PKG_FILE_NAMES = {"app.pkg", "app_h.pkg", "app_0.pkg"};
+
+    struct PkgHeader
+    {
+        uint32_t pkg_magic;
+        uint32_t pkg_type;
+        uint32_t pkg_0x008;
+        uint32_t pkg_file_count;
+        uint32_t pkg_entry_count;
+        uint16_t pkg_sc_entry_count;
+        uint16_t pkg_entry_count_2;
+        uint32_t pkg_table_offset;
+        uint32_t pkg_entry_data_size;
+        uint64_t pkg_body_offset;
+        uint64_t pkg_body_size;
+        uint64_t pkg_content_offset;
+        uint64_t pkg_content_size;
+        unsigned char pkg_content_id[0x24];  
+
+        void swapEndianness() {
+            pkg_magic = endian_swap(pkg_magic);
+            pkg_type = endian_swap(pkg_type);
+            pkg_0x008 = endian_swap(pkg_0x008);
+            pkg_file_count = endian_swap(pkg_file_count);
+            pkg_entry_count = endian_swap(pkg_entry_count);
+            pkg_sc_entry_count = endian_swap(pkg_sc_entry_count);
+            pkg_entry_count_2 = endian_swap(pkg_entry_count_2);
+            pkg_table_offset = endian_swap(pkg_table_offset);
+            pkg_entry_data_size = endian_swap(pkg_entry_data_size);
+            pkg_body_offset = endian_swap(pkg_body_offset);
+            pkg_body_size = endian_swap(pkg_body_size);
+            pkg_content_offset = endian_swap(pkg_content_offset);
+            pkg_content_size = endian_swap(pkg_content_size);
+        };
+    };
 };
 
 }

@@ -50,7 +50,7 @@ public:
         if(auto it = param_json.find("masterDataId"); it != param_json.end())
             os << std::format("  serial: {}", it->second.insert(4, "-")) << std::endl;
 
-        std::string content_ids = getContentIds(root_directory, _PKG_FILE_NAMES);
+        std::string content_ids = getContentIds(data_reader, root_directory, _PKG_FILE_NAMES);
 
         if(content_ids.empty())
             return;

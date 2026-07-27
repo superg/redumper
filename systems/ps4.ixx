@@ -80,7 +80,7 @@ protected:
             if(!e->isDirectory())
                 continue;
 
-            for(const auto& pkg_file_name : pkg_file_names)
+            for(const auto &pkg_file_name : pkg_file_names)
             {
                 auto app_pkg_entry = e->subEntry(pkg_file_name);
                 if(!app_pkg_entry)
@@ -97,7 +97,7 @@ protected:
                 if(!content_ids.empty())
                     content_ids += ", ";
 
-                content_ids += std::string(reinterpret_cast<const char*>(pkg_header->pkg_content_id), sizeof(pkg_header->pkg_content_id));
+                content_ids += std::string(reinterpret_cast<const char *>(pkg_header->pkg_content_id), sizeof(pkg_header->pkg_content_id));
 
                 break;
             }
@@ -108,7 +108,7 @@ protected:
 
 private:
     static constexpr uint32_t _PKG_MAGIC = 0x7F434E54;
-    static constexpr std::array<std::string, 3> _PKG_FILE_NAMES = {"app.pkg", "app_h.pkg", "app_0.pkg"};
+    static constexpr std::array<std::string, 3> _PKG_FILE_NAMES = { "app.pkg", "app_h.pkg", "app_0.pkg" };
 
     struct PkgHeader
     {
@@ -125,9 +125,10 @@ private:
         uint64_t pkg_body_size;
         uint64_t pkg_content_offset;
         uint64_t pkg_content_size;
-        unsigned char pkg_content_id[0x24];  
+        unsigned char pkg_content_id[0x24];
 
-        void swapEndianness() {
+        void swapEndianness()
+        {
             pkg_magic = endian_swap(pkg_magic);
             pkg_type = endian_swap(pkg_type);
             pkg_0x008 = endian_swap(pkg_0x008);

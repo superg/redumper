@@ -4,6 +4,7 @@ module;
 #include <map>
 #include <ostream>
 #include <span>
+#include <vector>
 #include "system.hh"
 #include "throw_line.hh"
 

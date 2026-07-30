@@ -287,11 +287,9 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 }
 
 
-std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager,
-    const std::vector<Range<int32_t>> &protection, bool dreamcast, const Options &options)
+void write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection,
+    bool dreamcast, const Options &options)
 {
-    std::vector<std::string> xml_lines;
-
     Scrambler scrambler;
     std::vector<uint8_t> sector(CD_DATA_SIZE);
     std::vector<State> state(CD_DATA_SIZE_SAMPLES);
@@ -416,11 +414,12 @@ std::vector<std::string> write_tracks(Context &ctx, const TOC &toc, std::fstream
                 //                LOG("debug: scram offset: {:08X}", debug_get_scram_offset(d.first, write_offset));
             }
 
-            xml_lines.emplace_back(rom_entry.xmlLine());
+            if(lilo)
+                ctx.dat_extra.emplace_back(rom_entry.xmlLine());
+            else
+                ctx.dat.emplace_back(rom_entry.xmlLine());
         }
     }
-
-    return xml_lines;
 }
 
 
@@ -1439,7 +1438,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     // write tracks
     LOG("writing tracks");
-    ctx.dat = write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, dreamcast, options);
+    write_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, dreamcast, options);
     LOG("done");
     LOG("");
 

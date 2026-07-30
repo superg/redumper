@@ -40,6 +40,12 @@ public:
     }
 
 
+    uint64_t getSize() const
+    {
+        return _size;
+    }
+
+
     std::string xmlLine()
     {
         // do it only once because final() for MD5/SHA-1 modifies state

@@ -1393,7 +1393,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         signal.raiseDefault();
 
     if(rom_update)
-        ctx.dat = std::vector<std::string>(1, rom_entry.xmlLine());
+        ctx.dat.emplace_back(rom_entry.xmlLine());
 
     return errors.scsi || errors.edc;
 }

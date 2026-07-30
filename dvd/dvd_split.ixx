@@ -59,8 +59,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
 
                 ROMEntry dmi_rom_entry(dmi_path.filename().string());
                 dmi_rom_entry.update(manufacturer.data(), FORM1_DATA_SIZE);
-                if(ctx.dat.has_value())
-                    ctx.dat->push_back(dmi_rom_entry.xmlLine());
+                ctx.dat_extra.emplace_back(dmi_rom_entry.xmlLine());
             }
             else
             {
@@ -88,8 +87,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
 
                 ROMEntry pfi_rom_entry(pfi_path.filename().string());
                 pfi_rom_entry.update(physical.data(), FORM1_DATA_SIZE);
-                if(ctx.dat.has_value())
-                    ctx.dat->push_back(pfi_rom_entry.xmlLine());
+                ctx.dat_extra.emplace_back(pfi_rom_entry.xmlLine());
             }
             else
             {
@@ -114,8 +112,7 @@ void generate_extra_xbox(Context &ctx, Options &options)
 
             ROMEntry ss_rom_entry(ss_path.filename().string());
             ss_rom_entry.update(security.data(), FORM1_DATA_SIZE);
-            if(ctx.dat.has_value())
-                ctx.dat->push_back(ss_rom_entry.xmlLine());
+            ctx.dat_extra.emplace_back(ss_rom_entry.xmlLine());
         }
         else
         {

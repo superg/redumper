@@ -70,7 +70,8 @@ export struct Context
     std::optional<bool> protection_trim;
     RefineCache refine_cache;
     std::optional<bool> refine;
-    std::optional<std::vector<std::string>> dat;
+    std::vector<std::string> dat;
+    std::vector<std::string> dat_extra;
 };
 
 

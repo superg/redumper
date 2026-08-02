@@ -217,7 +217,7 @@ public:
         if(auto count = ranges_count(edc_errors); count)
             os << std::format("  EDC errors: {} (LBA: {})", count, ranges_to_string(edc_errors)) << std::endl;
         if(auto count = ranges_count(subheader_mismatches); count)
-            os << std::format("  CD-XA subheader mismatches: {} (LBA: {})", count, ranges_to_string(subheader_mismatches)) << std::endl;
+            os << std::format("  CD-XA subheader mismatches: {}", count) << std::endl;
         os << std::endl;
         os << std::format("  REDUMP.INFO errors: {}", redump_errors) << std::endl;
     }

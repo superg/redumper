@@ -404,6 +404,9 @@ export struct Options
         LOG("\tflash::mt1959 \tflashes MT1959 drive firmware");
         LOG("\tflash::sd616  \tflashes SD-616F/T drive firmware");
         LOG("\tflash::plextor\tflashes PLEXTOR drive firmware");
+        LOG("\ttools::fixmsf       \trepairs sectors with invalid sync or MSF addresses");
+        LOG("\ttools::fixmsf::shift\treorders sectors using their MSF addresses");
+        LOG("\ttools::trim         \ttrims a raw CD image to its ISO9660 volume size");
         LOG("");
 
         LOG("OPTIONS:");

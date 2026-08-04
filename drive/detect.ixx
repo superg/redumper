@@ -1,7 +1,10 @@
 module;
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 export module drive.detect;
@@ -24,13 +27,23 @@ namespace gpsxre
 {
 
 
+// keep detection candidates local and constexpr: optimized C++ module builds can miscompile iteration over the exported,
+// dynamically initialized SECTOR_ORDER_STRING map. This also makes the probe order explicit.
+static constexpr std::array<std::pair<SectorOrder, std::string_view>, 4> SECTOR_ORDER_CANDIDATES = {
+    std::pair{ SectorOrder::DATA_C2_SUB, std::string_view{ "DATA_C2_SUB" } },
+    std::pair{ SectorOrder::DATA_SUB_C2, std::string_view{ "DATA_SUB_C2" } },
+    std::pair{ SectorOrder::DATA_SUB,    std::string_view{ "DATA_SUB" }    },
+    std::pair{ SectorOrder::DATA_C2,     std::string_view{ "DATA_C2" }     }
+};
+
+
 export bool detect_sector_order(SPTD &sptd, DriveConfig &drive_config, int32_t lba)
 {
     std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
 
-    for(auto const &order : SECTOR_ORDER_STRING)
+    for(auto const &[order, name] : SECTOR_ORDER_CANDIDATES)
     {
-        auto test_layout = sector_order_layout(order.first);
+        auto test_layout = sector_order_layout(order);
 
         auto error_field = test_layout.c2_offset == CD_RAW_DATA_SIZE ? READ_CD_ErrorField::NONE : READ_CD_ErrorField::C2;
         auto sub_channel = test_layout.subcode_offset == CD_RAW_DATA_SIZE ? READ_CD_SubChannel::NONE : READ_CD_SubChannel::RAW;
@@ -55,8 +68,8 @@ export bool detect_sector_order(SPTD &sptd, DriveConfig &drive_config, int32_t l
                         continue;
                 }
 
-                drive_config.sector_order = order.first;
-                LOG("GENERIC: auto-detected sector order: {}", order.second);
+                drive_config.sector_order = order;
+                LOG("GENERIC: auto-detected sector order: {}", name);
                 return true;
             }
         }
@@ -68,8 +81,8 @@ export bool detect_sector_order(SPTD &sptd, DriveConfig &drive_config, int32_t l
                 auto c2_start = sector_buffer.data() + test_layout.c2_offset;
                 if(std::all_of(c2_start, c2_start + CD_C2_SIZE, [](uint8_t v) { return v == 0; }))
                 {
-                    drive_config.sector_order = order.first;
-                    LOG("GENERIC: auto-detected sector order: {} (no subcode validation)", order.second);
+                    drive_config.sector_order = order;
+                    LOG("GENERIC: auto-detected sector order: {} (no subcode validation)", name);
                     return true;
                 }
             }

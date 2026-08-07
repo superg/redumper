@@ -18,6 +18,9 @@ constexpr std::string_view DESCRIPTOR_ID_NSR2 = "NSR02";
 constexpr std::string_view DESCRIPTOR_ID_NSR3 = "NSR03";
 constexpr std::string_view DESCRIPTOR_ID_TEA = "TEA01";
 const std::set<std::string_view> DESCRIPTORS = { DESCRIPTOR_ID_BEA, DESCRIPTOR_ID_BOOT2, DESCRIPTOR_ID_CDW, DESCRIPTOR_ID_NSR2, DESCRIPTOR_ID_NSR3, DESCRIPTOR_ID_TEA };
+constexpr std::string_view PARTITION_TYPE_ID_VIRTUAL = "*UDF Virtual Partition";
+constexpr std::string_view PARTITION_TYPE_ID_SPARABLE = "*UDF Sparable Partition";
+constexpr std::string_view PARTITION_TYPE_ID_METADATA = "*UDF Metadata Partition";
 
 
 enum class TagIdentifier : uint16_t
@@ -31,9 +34,14 @@ enum class TagIdentifier : uint16_t
     LOGICAL,
     UNALLOCATED_SPACE,
     TERMINATING,
-    LOGICAL_INTEGRITY
-};
+    LOGICAL_INTEGRITY,
 
+    FILE_SET = 256,
+    FILE_IDENTIFIER = 257,
+    ALLOCATION_EXTENT = 258,
+    FILE_ENTRY = 261,
+    EXTENDED_FILE_ENTRY = 266
+};
 
 #pragma pack(push, 1)
 struct DescriptorTag
@@ -84,6 +92,12 @@ struct charspec
     uint8_t character_set_info[63];
 };
 
+struct short_ad
+{
+    uint32_t extent_length;
+    uint32_t extent_position;
+};
+
 struct lb_addr
 {
     uint32_t logical_block_number;
@@ -100,8 +114,39 @@ struct long_ad
 struct EntityID
 {
     uint8_t flags;
-    uint8_t identifier[23];
-    uint8_t identifier_suffix[8];
+    char identifier[23];
+    char identifier_suffix[8];
+};
+
+struct partition_map_header
+{
+    uint8_t partition_map_type;
+    uint8_t partition_map_length;
+};
+
+struct partition_map_type_1 : partition_map_header
+{
+    uint16_t volume_sequence_number;
+    uint16_t partition_number;
+};
+
+struct partition_map_type_2_header : partition_map_header
+{
+    uint8_t reserved_1[2];
+    EntityID partition_type_identifier;
+};
+
+struct metadata_partition_map : partition_map_type_2_header
+{
+    uint16_t volume_sequence_number;
+    uint16_t partition_number;
+    uint32_t metadata_file_location;
+    uint32_t metadata_mirror_file_location;
+    uint32_t metadata_bitmap_file_location;
+    uint32_t allocation_unit_size;
+    uint16_t alignment_unit_size;
+    uint8_t flags;
+    uint8_t reserved_2[5];
 };
 
 struct LogicalVolumeDescriptor
@@ -174,6 +219,35 @@ struct FileEntry
     timestamp attribute_time;
     uint32_t checkpoint;
     long_ad extended_attribute_icb;
+    EntityID implementation_identifier;
+    uint64_t unique_id;
+    uint32_t length_of_extended_attributes;
+    uint32_t length_of_allocation_descriptors;
+    uint8_t extended_attributes_and_allocation_descriptors[];
+};
+
+struct ExtendedFileEntry
+{
+    DescriptorTag descriptor_tag;
+    icbtag icb_tag;
+    uint32_t uid;
+    uint32_t gid;
+    uint32_t permissions;
+    uint16_t file_link_count;
+    uint8_t record_format;
+    uint8_t record_display_attributes;
+    uint32_t record_length;
+    uint64_t information_length;
+    uint64_t object_size;
+    uint64_t logical_blocks_recorded;
+    timestamp access_time;
+    timestamp modification_time;
+    timestamp creation_time;
+    timestamp attribute_time;
+    uint32_t checkpoint;
+    uint32_t reserved;
+    long_ad extended_attribute_icb;
+    long_ad stream_directory_icb;
     EntityID implementation_identifier;
     uint64_t unique_id;
     uint32_t length_of_extended_attributes;

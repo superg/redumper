@@ -313,7 +313,6 @@ export const DriveReadOffset DRIVE_READ_OFFSETS[] = {
     { "ASUS",     "SDR-08B1-U A",     +6    },
     { "ASUS",     "SDR-08B1-U",       +6    },
     { "ASUS",     "SDRW-0806T-D",     +704  },
-    { "ASUS",     "SDRW-08D2S-U",     +6    },
     { "ASUS",     "SDRW-08D3S-U",     +6    },
     { "ASUS",     "SDRW-08D6S-U",     +6    },
     { "ASUS",     "SDRW-08U1MT",      +6    },

@@ -214,6 +214,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "PLEXTOR" , "CD-R PX-W8220T"   , ""    , "", "", +355, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W8432T"   , ""    , "", "", +355, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
     // OTHER
+    { "ASUS"    , "SDRW-08D2S-U"     , "A812", "", "",    +6,  0,    0, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // internal model: LG GP75N
     { "ASUS"    , "SDRW-08D2S-U"     , "B901", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // internal model: DU-8A6NH11B
     { "ASUS"    , "SDRW-08U9M-U"     , "A112", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  },
     { "Lite-On" , "LTN483S 48x Max"  , "PD03", "", "", -1164,  0,    0, ReadMethod::BE, SectorOrder::DATA_C2    , Type::GENERIC  },

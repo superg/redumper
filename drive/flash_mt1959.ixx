@@ -35,6 +35,7 @@ struct DriveEntry
 
 const std::vector<DriveEntry> MT1959_SUPPORTED_DRIVES = {
     { "HL-DT-ST", "BD-RE BU40N",    "MT1959 Boot BU5 " },
+    { "HL-DT-ST", "BD-RE BU50N",    "MT1959 Boot BU5 " }, // MT1959 Boot BU51
     { "ASUS",     "BW-16D1HT",      "MT1959 Boot JB8 " },
     { "ASUS",     "BW-16D1H-U",     "MT1959 Boot JB8 " },
     { "HL-DT-ST", "BD-RE BH16NS60", "MT1959 Boot JB8 " }, // NS60
@@ -142,7 +143,7 @@ export int redumper_flash_mt1959(Context &ctx, Options &options)
 
     auto drive_config = read_mt1959_config(*ctx.sptd, config_offset, config_size);
     std::string_view drive_id((const char *)drive_config.data(), id_size);
-    if(drive_id != firmware_id)
+    if(drive_id != firmware_id && !(drive_id == "MT1959 Boot BU51" && firmware_id == "MT1959 Boot BU5 "))
         throw_line("firmware id mismatch (drive: {}, firmware: {})", drive_id, firmware_id);
 
     LOG("drive patch configuration (offset: 0x{:04X}, size: 0x{:X}): ", config_offset, config_size);

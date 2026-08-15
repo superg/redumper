@@ -416,9 +416,7 @@ struct FilesystemContext
     bool search = true;
     bool udf = false;
     std::vector<std::pair<uint32_t, uint32_t>> udf_vds;
-    uint32_t udf_partition_end = 0;
     std::optional<udf::ExtentDescriptor> udf_reserve_vds;
-    std::optional<uint32_t> udf_trailing_avdp_lba;
 };
 
 
@@ -453,19 +451,22 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
         }
     }
 
+    // A valid primary AVDP is sufficient to detect UDF even when the volume
+    // recognition sequence is absent or not recognized.
+    if(lba == udf::AVDP_PRIMARY_LBA)
+    {
+        if(auto const &avdp = (udf::AnchorVolumeDescriptorPointer &)data[0]; avdp.descriptor_tag.tag_identifier == udf::TagIdentifier::ANCHOR_POINTER && avdp.descriptor_tag.tag_location == lba)
+        {
+            ctx.udf = true;
+            // ordering is intentional
+            ctx.udf_vds.emplace_back(avdp.reserve_vds.location, scale_up(avdp.reserve_vds.length, FORM1_DATA_SIZE));
+            ctx.udf_vds.emplace_back(avdp.main_vds.location, scale_up(avdp.main_vds.length, FORM1_DATA_SIZE));
+            ctx.udf_reserve_vds = avdp.reserve_vds;
+        }
+    }
+
     if(ctx.udf)
     {
-        if(lba == udf::AVDP_PRIMARY_LBA)
-        {
-            if(auto const &avdp = (udf::AnchorVolumeDescriptorPointer &)data[0]; avdp.descriptor_tag.tag_identifier == udf::TagIdentifier::ANCHOR_POINTER)
-            {
-                // ordering is intentional
-                ctx.udf_vds.emplace_back(avdp.reserve_vds.location, scale_up(avdp.reserve_vds.length, FORM1_DATA_SIZE));
-                ctx.udf_vds.emplace_back(avdp.main_vds.location, scale_up(avdp.main_vds.length, FORM1_DATA_SIZE));
-                ctx.udf_reserve_vds = avdp.reserve_vds;
-            }
-        }
-
         if(!ctx.udf_vds.empty() && (uint64_t)ctx.udf_vds.back().first + ctx.udf_vds.back().second <= lba)
         {
             std::vector<uint8_t> sector_data_file(ctx.udf_vds.back().second * FORM1_DATA_SIZE);
@@ -495,33 +496,17 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
                         break;
                 }
 
-                ctx.udf_vds.pop_back();
-                ctx.udf_partition_end = std::max(ctx.udf_partition_end, sectors_count);
+                ctx.udf_vds.clear();
 
                 auto reserve_vds = ctx.udf_reserve_vds.value_or(udf::ExtentDescriptor{});
-                ctx.udf_trailing_avdp_lba = udf::get_trailing_avdp_lba(ctx.udf_partition_end, reserve_vds.location, reserve_vds.length, FORM1_DATA_SIZE);
-            }
-            else
-                ctx.udf_vds.pop_back();
-        }
-
-        if(ctx.udf_trailing_avdp_lba && lba >= *ctx.udf_trailing_avdp_lba)
-        {
-            auto const &tag = (udf::DescriptorTag &)data[0];
-
-            if(udf::is_trailing_avdp_search_lba(lba, *ctx.udf_trailing_avdp_lba))
-            {
-                if(tag.tag_identifier == udf::TagIdentifier::ANCHOR_POINTER && tag.tag_location == lba && lba < std::numeric_limits<uint32_t>::max())
+                if(auto volume_sectors_count = udf::get_volume_sectors_count(sectors_count, reserve_vds.location, reserve_vds.length, FORM1_DATA_SIZE); volume_sectors_count)
                 {
-                    ss = std::make_pair(lba + 1, true);
+                    ss = std::make_pair(*volume_sectors_count, true);
                     ctx.udf = false;
                 }
             }
             else
-            {
-                LOG("warning: UDF trailing AVDP not found after reserve VDS");
-                ctx.udf = false;
-            }
+                ctx.udf_vds.pop_back();
         }
     }
 

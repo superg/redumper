@@ -8,43 +8,31 @@ import filesystem.udf_size;
 using namespace gpsxre;
 
 
-TEST(UDF, TrailingAVDPLbaFollowsReserveVDS)
+TEST(UDF, VolumeSectorsCountIncludesReserveVDSAndTrailingAVDP)
 {
     constexpr uint32_t sector_size = 2048;
     constexpr uint32_t partition_start = 277;
     constexpr uint32_t partition_length = 23728682;
-    auto trailing_avdp_lba = udf::get_trailing_avdp_lba(partition_start + partition_length, 23728959, 32768, sector_size);
-
-    ASSERT_EQ(trailing_avdp_lba, 23728975);
-    EXPECT_EQ(*trailing_avdp_lba + 1, 23728976);
+    EXPECT_EQ(udf::get_volume_sectors_count(partition_start + partition_length, 23728959, 32768, sector_size), 23728976);
 }
 
 
-TEST(UDF, TrailingAVDPLbaUsesPartitionEndWithoutReserveVDS)
+TEST(UDF, VolumeSectorsCountUsesPartitionEndWithoutReserveVDS)
 {
-    EXPECT_EQ(udf::get_trailing_avdp_lba(1000, 0, 0, 2048), 1000);
+    EXPECT_EQ(udf::get_volume_sectors_count(1000, 0, 0, 2048), 1001);
 }
 
 
-TEST(UDF, TrailingAVDPLbaUsesLargestMetadataEnd)
+TEST(UDF, VolumeSectorsCountUsesLargestMetadataEnd)
 {
-    EXPECT_EQ(udf::get_trailing_avdp_lba(1000, 500, 2048, 2048), 1000);
-    EXPECT_EQ(udf::get_trailing_avdp_lba(900, 1000, 2049, 2048), 1002);
+    EXPECT_EQ(udf::get_volume_sectors_count(1000, 500, 2048, 2048), 1001);
+    EXPECT_EQ(udf::get_volume_sectors_count(900, 1000, 2049, 2048), 1003);
 }
 
 
-TEST(UDF, TrailingAVDPLbaRejectsInvalidOrOverflowingValues)
+TEST(UDF, VolumeSectorsCountRejectsInvalidOrOverflowingValues)
 {
-    EXPECT_EQ(udf::get_trailing_avdp_lba(0, 0, 0, 2048), std::nullopt);
-    EXPECT_EQ(udf::get_trailing_avdp_lba(1000, 0, 0, 0), std::nullopt);
-    EXPECT_EQ(udf::get_trailing_avdp_lba(1000, std::numeric_limits<uint32_t>::max(), 2048, 2048), std::nullopt);
-}
-
-
-TEST(UDF, TrailingAVDPSearchIsBounded)
-{
-    EXPECT_FALSE(udf::is_trailing_avdp_search_lba(999, 1000));
-    EXPECT_TRUE(udf::is_trailing_avdp_search_lba(1000, 1000));
-    EXPECT_TRUE(udf::is_trailing_avdp_search_lba(1255, 1000));
-    EXPECT_FALSE(udf::is_trailing_avdp_search_lba(1256, 1000));
+    EXPECT_EQ(udf::get_volume_sectors_count(0, 0, 0, 2048), std::nullopt);
+    EXPECT_EQ(udf::get_volume_sectors_count(1000, 0, 0, 0), std::nullopt);
+    EXPECT_EQ(udf::get_volume_sectors_count(1000, std::numeric_limits<uint32_t>::max(), 2048, 2048), std::nullopt);
 }

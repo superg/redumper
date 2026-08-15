@@ -26,6 +26,7 @@ import dvd.nintendo;
 import dvd.xbox;
 import filesystem.iso9660;
 import filesystem.udf;
+import filesystem.udf_size;
 import interval_set;
 import options;
 import range;
@@ -415,6 +416,9 @@ struct FilesystemContext
     bool search = true;
     bool udf = false;
     std::vector<std::pair<uint32_t, uint32_t>> udf_vds;
+    uint32_t udf_partition_end = 0;
+    std::optional<udf::ExtentDescriptor> udf_reserve_vds;
+    std::optional<uint32_t> udf_trailing_avdp_lba;
 };
 
 
@@ -458,10 +462,11 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
                 // ordering is intentional
                 ctx.udf_vds.emplace_back(avdp.reserve_vds.location, scale_up(avdp.reserve_vds.length, FORM1_DATA_SIZE));
                 ctx.udf_vds.emplace_back(avdp.main_vds.location, scale_up(avdp.main_vds.length, FORM1_DATA_SIZE));
+                ctx.udf_reserve_vds = avdp.reserve_vds;
             }
         }
 
-        if(!ctx.udf_vds.empty() && ctx.udf_vds.back().first + ctx.udf_vds.back().second <= lba)
+        if(!ctx.udf_vds.empty() && (uint64_t)ctx.udf_vds.back().first + ctx.udf_vds.back().second <= lba)
         {
             std::vector<uint8_t> sector_data_file(ctx.udf_vds.back().second * FORM1_DATA_SIZE);
             std::vector<State> sector_state_file(ctx.udf_vds.back().second);
@@ -482,20 +487,41 @@ std::optional<std::pair<uint32_t, bool>> filesystem_search_size(FilesystemContex
                     {
                         auto const &partition = (udf::PartitionDescriptor &)sector_data_file[i * FORM1_DATA_SIZE];
 
-                        sectors_count = std::max(sectors_count, partition.partition_starting_location + partition.partition_length);
+                        uint64_t partition_end = (uint64_t)partition.partition_starting_location + partition.partition_length;
+                        if(partition_end <= std::numeric_limits<uint32_t>::max())
+                            sectors_count = std::max(sectors_count, (uint32_t)partition_end);
                     }
                     else if(tag.tag_identifier == udf::TagIdentifier::TERMINATING)
                         break;
                 }
 
-                ctx.udf_vds.clear();
+                ctx.udf_vds.pop_back();
+                ctx.udf_partition_end = std::max(ctx.udf_partition_end, sectors_count);
 
-                if(sectors_count)
-                    // account for trailing AVDP
-                    ss = std::make_pair(sectors_count + 1, true);
+                auto reserve_vds = ctx.udf_reserve_vds.value_or(udf::ExtentDescriptor{});
+                ctx.udf_trailing_avdp_lba = udf::get_trailing_avdp_lba(ctx.udf_partition_end, reserve_vds.location, reserve_vds.length, FORM1_DATA_SIZE);
             }
             else
                 ctx.udf_vds.pop_back();
+        }
+
+        if(ctx.udf_trailing_avdp_lba && lba >= *ctx.udf_trailing_avdp_lba)
+        {
+            auto const &tag = (udf::DescriptorTag &)data[0];
+
+            if(udf::is_trailing_avdp_search_lba(lba, *ctx.udf_trailing_avdp_lba))
+            {
+                if(tag.tag_identifier == udf::TagIdentifier::ANCHOR_POINTER && tag.tag_location == lba && lba < std::numeric_limits<uint32_t>::max())
+                {
+                    ss = std::make_pair(lba + 1, true);
+                    ctx.udf = false;
+                }
+            }
+            else
+            {
+                LOG("warning: UDF trailing AVDP not found after reserve VDS");
+                ctx.udf = false;
+            }
         }
     }
 

@@ -153,6 +153,7 @@ target_sources(redumper
     "filesystem/udf/udf.ixx"
     "filesystem/udf/udf_browser.ixx"
     "filesystem/udf/udf_defs.ixx"
+    "filesystem/udf/udf_size.ixx"
     "hash/block_hasher.ixx"
     "hash/md5.ixx"
     "hash/sha1.ixx"

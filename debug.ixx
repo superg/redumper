@@ -126,33 +126,34 @@ export int redumper_debug(Context &ctx, Options &options)
 
     if(1)
     {
-        constexpr uint32_t buffer_offset = 0x1afffe;
-        constexpr uint32_t boundary_length = 0x102;
-        constexpr uint32_t full_length = 0xe42102;
-        constexpr uint32_t firmware_entry_offset = 0xdd0052;
-        constexpr uint32_t firmware_entry_length = 64;
-        constexpr uint32_t ff2000_offset = 0xe42002;
-        constexpr uint32_t ff2000_length = 256;
-
         SPTD sptd(options.drive, options.scsi_timeout);
 
-        std::vector<uint8_t> boundary_buffer(boundary_length);
-        if(auto status = cmd_read_buffer(sptd, boundary_buffer.data(), boundary_buffer.size(), READ_BUFFER_Mode::READ_DATA, buffer_offset, boundary_length); status.status_code)
-            throw_line("READ BUFFER boundary probe failed, SCSI ({})", SPTD::StatusMessage(status));
-        write_vector("read_buffer_boundary.debug", boundary_buffer);
+        auto read_memory = [&sptd](uint32_t address, uint16_t length)
+        {
+            uint8_t cdb[12] = {};
+            cdb[0] = 0xf5;
+            cdb[4] = (uint8_t)(address >> 24);
+            cdb[5] = (uint8_t)(address >> 16);
+            cdb[6] = (uint8_t)(address >> 8);
+            cdb[7] = (uint8_t)address;
+            cdb[8] = (uint8_t)(length >> 8);
+            cdb[9] = (uint8_t)length;
 
-        std::vector<uint8_t> full_buffer(full_length);
-        if(auto status = cmd_read_buffer(sptd, full_buffer.data(), full_buffer.size(), READ_BUFFER_Mode::READ_DATA, buffer_offset, full_length); status.status_code)
-            throw_line("READ BUFFER full probe failed, SCSI ({})", SPTD::StatusMessage(status));
-        write_vector("read_buffer_full.debug", full_buffer);
+            std::vector<uint8_t> data(length);
+            if(auto status = sptd.sendCommand(cdb, sizeof(cdb), data.data(), data.size()); status.status_code)
+                throw_line("F5 memory read failed at 0x{:08x}, SCSI ({})", address, SPTD::StatusMessage(status));
 
-        std::vector<uint8_t> firmware_entry(full_buffer.begin() + firmware_entry_offset, full_buffer.begin() + firmware_entry_offset + firmware_entry_length);
-        std::vector<uint8_t> ff2000(full_buffer.begin() + ff2000_offset, full_buffer.begin() + ff2000_offset + ff2000_length);
-        write_vector("read_buffer_f80050.debug", firmware_entry);
-        write_vector("read_buffer_ff2000.debug", ff2000);
+            return data;
+        };
+
+        auto firmware_entry = read_memory(0x00f80050, 64);
+        write_vector("read_memory_f80050.debug", firmware_entry);
 
         const uint8_t expected_firmware_entry[] = { 0x8a, 0xfd, 0xce, 0xa9 };
         LOG("firmware entry signature: {}", memcmp(firmware_entry.data(), expected_firmware_entry, sizeof(expected_firmware_entry)) ? "mismatch" : "match");
+
+        auto ff2000 = read_memory(0x00ff2000, 256);
+        write_vector("read_memory_ff2000.debug", ff2000);
         LOG("");
     }
 

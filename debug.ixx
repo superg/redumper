@@ -146,14 +146,15 @@ export int redumper_debug(Context &ctx, Options &options)
             return data;
         };
 
-        auto firmware_entry = read_memory(0x00f80050, 64);
-        write_vector("read_memory_f80050.debug", firmware_entry);
-
-        const uint8_t expected_firmware_entry[] = { 0x8a, 0xfd, 0xce, 0xa9 };
-        LOG("firmware entry signature: {}", memcmp(firmware_entry.data(), expected_firmware_entry, sizeof(expected_firmware_entry)) ? "mismatch" : "match");
-
-        auto ff2000 = read_memory(0x00ff2000, 256);
-        write_vector("read_memory_ff2000.debug", ff2000);
+        std::vector<uint8_t> high_memory;
+        high_memory.reserve(0x10000);
+        for(uint32_t address = 0x00ff0000; address < 0x01000000; address += 0x4000)
+        {
+            LOG("reading memory at 0x{:08x}", address);
+            auto chunk = read_memory(address, 0x4000);
+            high_memory.insert(high_memory.end(), chunk.begin(), chunk.end());
+        }
+        write_vector("read_memory_ff0000.debug", high_memory);
         LOG("");
     }
 

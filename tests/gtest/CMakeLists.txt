@@ -59,7 +59,10 @@ add_gtest(gtest_unscramble
         "${CMAKE_SOURCE_DIR}/utils/file_io.ixx"
         "${CMAKE_SOURCE_DIR}/utils/misc.ixx"
         "${CMAKE_SOURCE_DIR}/utils/strings.ixx"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+target_compile_definitions(gtest_unscramble PRIVATE
+    REDUMPER_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../unscramble"
 )
 
 add_gtest(gtest_crc

@@ -16,9 +16,9 @@ using namespace gpsxre;
 
 TEST(Unscramble, AllSamples)
 {
-    const std::filesystem::path data_dir = "unscramble";
+    const std::filesystem::path data_dir = REDUMPER_TEST_DATA_DIR;
     ASSERT_TRUE(std::filesystem::exists(data_dir) && std::filesystem::is_directory(data_dir))
-        << "unscramble/ data directory not found relative to working directory " << std::filesystem::current_path();
+        << "unscramble data directory not found at " << data_dir;
 
     Scrambler scrambler;
 

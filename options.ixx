@@ -67,6 +67,7 @@ export struct Options
     bool kreon_partial_ss;
     bool dvd_raw;
     bool bd_raw;
+    bool force_omnidrive;
     bool disable_cdtext;
     bool correct_offset_shift;
     bool offset_shift_relocate;
@@ -126,6 +127,7 @@ export struct Options
         , kreon_partial_ss(false)
         , dvd_raw(false)
         , bd_raw(false)
+        , force_omnidrive(false)
         , disable_cdtext(false)
         , correct_offset_shift(false)
         , offset_shift_relocate(false)
@@ -292,6 +294,8 @@ export struct Options
                         dvd_raw = true;
                     else if(key == "--bd-raw")
                         bd_raw = true;
+                    else if(key == "--force-omnidrive")
+                        force_omnidrive = true;
                     else if(key == "--disable-cdtext")
                         disable_cdtext = true;
                     else if(key == "--correct-offset-shift")
@@ -445,6 +449,7 @@ export struct Options
         LOG("\t--kreon-partial-ss              \tget minimal security sector (fixes bad firmware)");
         LOG("\t--dvd-raw                       \tdump raw DVD sectors (OmniDrive)");
         LOG("\t--bd-raw                        \tdump raw BD sectors (OmniDrive)");
+        LOG("\t--force-omnidrive               \tforce OmniDrive mode (if drive enclosure overwrites drive inquiry)");
         LOG("\t--disable-cdtext                \tdisable CD-TEXT reading");
         LOG("");
         LOG("\t(offset)");

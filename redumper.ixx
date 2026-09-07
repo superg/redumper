@@ -43,6 +43,7 @@ import scsi.cmd;
 import scsi.mmc;
 import scsi.sptd;
 import skeleton;
+import utils.endian;
 import utils.file_io;
 import utils.logger;
 import utils.misc;
@@ -432,6 +433,13 @@ export int redumper(Options &options)
         ctx.drive_config = drive_get_config(cmd_drive_query(*ctx.sptd));
         drive_override_config(ctx.drive_config, options.drive_type.get(), options.drive_read_offset.get(), options.drive_c2_shift.get(), options.drive_pregap_start.get(),
             options.drive_read_method.get(), options.drive_sector_order.get());
+
+        if(options.force_omnidrive && !is_omnidrive_firmware(ctx.drive_config))
+        {
+            char vvv[3];
+            endian_swap_to_array(vvv, omnidrive_minimum_version());
+            ctx.drive_config.reserved5 = std::string("OmniDrive") + std::string(vvv, sizeof(vvv));
+        }
 
         std::optional<GET_CONFIGURATION_FeatureCode_ProfileList> current_profile;
         if(aggregate.drive_ready)

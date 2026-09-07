@@ -5,6 +5,7 @@ module;
 #include <fstream>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "throw_line.hh"
 
@@ -136,7 +137,7 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
 
     std::filesystem::path state_path(image_prefix + ".state");
     std::filesystem::path iso_path(image_prefix + ".iso");
-    std::filesystem::path physical_path(image_prefix + ".physical");
+    std::filesystem::path manufacturer_path(image_prefix + ".manufacturer");
     if(std::filesystem::exists(iso_path) && !options.overwrite)
     {
         LOG("warning: file already exists ({})", iso_path.filename().string());
@@ -166,11 +167,17 @@ void dvd_extract_iso(Context &ctx, std::filesystem::path sdram_path, Options &op
     if(sdram_fs.fail())
         throw_line("seek failed");
 
-    if(std::filesystem::exists(physical_path))
+    if(std::filesystem::exists(manufacturer_path))
     {
-        auto physical = read_vector(physical_path);
-        if(physical.size() > sizeof(CMD_ParameterListHeader) && physical[sizeof(CMD_ParameterListHeader)] == 0xFF)
-            nintendo_key = 0;
+        auto manufacturer = read_vector(manufacturer_path);
+        constexpr size_t id_offset = sizeof(CMD_ParameterListHeader) + 0x10;
+        constexpr std::string_view nintendo_id_start = "Nintendo";
+        if(manufacturer.size() >= id_offset + nintendo_id_start.size())
+        {
+            std::string_view id_string(reinterpret_cast<const char *>(manufacturer.data() + id_offset), nintendo_id_start.size());
+            if(id_string == nintendo_id_start)
+                nintendo_key = 0;
+        }
     }
 
     uint32_t main_data_offset = nintendo_key ? offsetof(dvd::DataFrame, cpr_mai) : offsetof(dvd::DataFrame, main_data);

@@ -90,3 +90,8 @@ add_gtest(gtest_bit_copy
     SOURCE  "test_bit_copy.cc"
     MODULES "${CMAKE_SOURCE_DIR}/utils/misc.ixx"
 )
+
+add_gtest(gtest_udf
+    SOURCE  "test_udf.cc"
+    MODULES "${CMAKE_SOURCE_DIR}/filesystem/udf/udf_size.ixx"
+)

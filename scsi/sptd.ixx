@@ -65,7 +65,11 @@ public:
 #endif
     {
 #if defined(_WIN32)
-        _handle = CreateFile(std::format("//./{}:", drive_path[0]).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+        std::string device_name = drive_path;
+        if(device_name.size() == 1)
+            device_name += ':';
+
+        _handle = CreateFile(std::format("//./{}", device_name).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
         if(_handle == INVALID_HANDLE_VALUE)
             throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
 #elif defined(__APPLE__)

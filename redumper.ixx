@@ -203,6 +203,13 @@ const std::map<GET_CONFIGURATION_FeatureCode_ProfileList, std::string> PROFILE_S
     { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_R_DL,         "HD DVD-R DL"        },
     { GET_CONFIGURATION_FeatureCode_ProfileList::HDDVD_RW_DL,        "HD DVD-RW DL"       },
 
+    { GET_CONFIGURATION_FeatureCode_ProfileList::PS1_CD_ROM,         "PS1 CD-ROM"         },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::PS2_CD_ROM,         "PS2 CD-ROM"         },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::PS2_DVD_ROM,        "PS2 DVD-ROM"        },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::PS3_DVD_ROM,        "PS3 DVD-ROM"        },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::PS3_BD_ROM,         "PS3 BD-ROM"         },
+    { GET_CONFIGURATION_FeatureCode_ProfileList::PS4_BD_ROM,         "PS4 BD-ROM"         },
+
     { GET_CONFIGURATION_FeatureCode_ProfileList::NON_STANDARD,       "NON STANDARD"       }
 };
 
@@ -217,6 +224,8 @@ DiscType profile_to_disc_type(GET_CONFIGURATION_FeatureCode_ProfileList profile)
     case GET_CONFIGURATION_FeatureCode_ProfileList::CD_ROM:
     case GET_CONFIGURATION_FeatureCode_ProfileList::CD_R:
     case GET_CONFIGURATION_FeatureCode_ProfileList::CD_RW:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::PS1_CD_ROM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::PS2_CD_ROM:
         disc_type = DiscType::CD;
         break;
 
@@ -231,10 +240,14 @@ DiscType profile_to_disc_type(GET_CONFIGURATION_FeatureCode_ProfileList profile)
     case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R:
     case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_RW_DL:
     case GET_CONFIGURATION_FeatureCode_ProfileList::DVD_PLUS_R_DL:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::PS2_DVD_ROM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::PS3_DVD_ROM:
         disc_type = DiscType::DVD;
         break;
 
     case GET_CONFIGURATION_FeatureCode_ProfileList::BD_ROM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::PS3_BD_ROM:
+    case GET_CONFIGURATION_FeatureCode_ProfileList::PS4_BD_ROM:
         disc_type = DiscType::BLURAY;
         break;
 

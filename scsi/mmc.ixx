@@ -128,6 +128,13 @@ export enum class GET_CONFIGURATION_FeatureCode_ProfileList : uint16_t
     HDDVD_R_DL = 0x58,
     HDDVD_RW_DL = 0x5A,
 
+    PS1_CD_ROM = 0xFF50,
+    PS2_CD_ROM = 0xFF60,
+    PS2_DVD_ROM = 0xFF61,
+    PS3_DVD_ROM = 0xFF70,
+    PS3_BD_ROM = 0xFF71,
+    PS4_BD_ROM = 0xFF80,
+
     NON_STANDARD = 0xFFFF
 };
 

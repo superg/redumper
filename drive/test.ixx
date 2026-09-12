@@ -269,7 +269,7 @@ export int redumper_drive_test(Context &ctx, Options &options)
         for(auto sc : SUB_CODE_STRING)
         {
             std::vector<uint8_t> sector_buffer(CD_DATA_SIZE + CD_C2_SIZE + CD_SUBCODE_SIZE);
-            status = cmd_read_cdda(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), std::get<1>(t), 1, sc.first).first;
+            status = cmd_read_cdda(*ctx.sptd, sector_buffer.data(), sector_buffer.size(), std::get<1>(t), 1, sc.first);
             if(status.status_code)
             {
                 if(options.verbose)

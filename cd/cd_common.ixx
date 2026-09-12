@@ -468,10 +468,7 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, 
         if(drive_config.read_method == ReadMethod::D8)
         {
             auto sub_code = drive_config.sector_order == SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
-            auto [result, transferred_length] = cmd_read_cdda(sptd, sector_buffer.data(), layout.size, lba, sectors_count, sub_code);
-            status = result;
-            if(!status.status_code && transferred_length != layout.size * sectors_count)
-                status.status_code = SPTD::HOST_SHORT_TRANSFER;
+            status = cmd_read_cdda(sptd, sector_buffer.data(), layout.size, lba, sectors_count, sub_code);
         }
         else
         {

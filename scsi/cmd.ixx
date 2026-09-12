@@ -2,7 +2,6 @@ module;
 #include <cstdint>
 #include <cstring>
 #include <format>
-#include <utility>
 #include <vector>
 
 export module scsi.cmd;
@@ -279,7 +278,7 @@ export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, uint32_t block_siz
 
 
 // FIXME: pass sectors size in argument
-export std::pair<SPTD::Status, uint32_t> cmd_read_cdda(SPTD &sptd, uint8_t *sectors, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
+export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
 {
     CDB12_ReadCDDA cdb = {};
 
@@ -288,7 +287,11 @@ export std::pair<SPTD::Status, uint32_t> cmd_read_cdda(SPTD &sptd, uint8_t *sect
     *(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
     cdb.sub_code = (uint8_t)sub_code;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
+    auto [status, transferred_length] = sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
+    if(!status.status_code && transferred_length != READ_CDDA_SIZES[(uint8_t)sub_code] * transfer_length)
+        status.status_code = SPTD::HOST_SHORT_TRANSFER;
+
+    return status;
 }
 
 

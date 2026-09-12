@@ -147,8 +147,7 @@ export int redumper_debug(Context &ctx, Options &options)
             if(auto status = sptd.sendCommand(cdb, sizeof(cdb), response, sizeof(response)).first; status.status_code)
                 throw_line("DE mode {} probe failed, SCSI ({})", mode, SPTD::StatusMessage(status));
 
-            LOG("  DE mode {}: {:02x} {:02x} ({})", mode, response[0], response[1],
-                (uint8_t)(response[0] ^ response[1]) == 0xff ? "complement valid" : "complement invalid");
+            LOG("  DE mode {}: {:02x} {:02x} ({})", mode, response[0], response[1], (uint8_t)(response[0] ^ response[1]) == 0xff ? "complement valid" : "complement invalid");
             if(mode == 0)
                 port_mask = response[0];
         }
@@ -172,8 +171,7 @@ export int redumper_debug(Context &ctx, Options &options)
 
         uint8_t configuration_value = configuration[1];
         uint32_t low_count = std::popcount((uint32_t)(port_mask & 0x07));
-        bool visible_recovery_gates = low_count < 2 && ((port_mask & 0x04) == 0 || configuration_value != 0)
-            && configuration_value != 0x11 && configuration_value != 0x12;
+        bool visible_recovery_gates = low_count < 2 && ((port_mask & 0x04) == 0 || configuration_value != 0) && configuration_value != 0x11 && configuration_value != 0x12;
 
         LOG("  configuration entry 0x0f at 0x00ffc01e: {:02x} {:02x}", configuration[0], configuration[1]);
         LOG("  forced-recovery gates excluding P1.6: {}", visible_recovery_gates ? "pass" : "fail");

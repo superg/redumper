@@ -2,6 +2,7 @@ module;
 #include <cstdint>
 #include <cstring>
 #include <format>
+#include <utility>
 #include <vector>
 
 export module scsi.cmd;
@@ -49,7 +50,7 @@ SPTD::Status cdb_send_receive(SPTD &sptd, std::vector<uint8_t> &response, T &cdb
 
     response.resize(initial_size);
     *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(response.size());
-    status = sptd.sendCommand(&cdb, sizeof(cdb), response.data(), (uint32_t)response.size());
+    status = sptd.sendCommand(&cdb, sizeof(cdb), response.data(), (uint32_t)response.size()).first;
     if(status.status_code)
     {
         response.clear();
@@ -63,7 +64,7 @@ SPTD::Status cdb_send_receive(SPTD &sptd, std::vector<uint8_t> &response, T &cdb
 
             *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(response_size);
 
-            status = sptd.sendCommand(&cdb, sizeof(cdb), response.data(), (uint32_t)response.size());
+            status = sptd.sendCommand(&cdb, sizeof(cdb), response.data(), (uint32_t)response.size()).first;
             if(status.status_code)
                 response_size = 0;
             // always use the size from the latest read attempt, this fixes some identified KREON issues
@@ -83,7 +84,7 @@ export SPTD::Status cmd_drive_ready(SPTD &sptd)
     CDB6_Generic cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::TEST_UNIT_READY;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first;
 }
 
 
@@ -97,7 +98,7 @@ export SPTD::Status cmd_inquiry(SPTD &sptd, uint8_t *data, uint32_t data_size, I
 
     *(uint16_t *)cdb.allocation_length = endian_swap<uint16_t>(data_size);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), data, data_size);
+    return sptd.sendCommand(&cdb, sizeof(cdb), data, data_size).first;
 }
 
 
@@ -111,7 +112,7 @@ export SPTD::Status cmd_read_capacity(SPTD &sptd, uint32_t &lba, uint32_t &block
 
     READ_CAPACITY_Response response;
 
-    auto status = sptd.sendCommand(&cdb, sizeof(cdb), &response, sizeof(response));
+    auto status = sptd.sendCommand(&cdb, sizeof(cdb), &response, sizeof(response)).first;
     if(!status.status_code)
     {
         lba = endian_swap(response.address);
@@ -176,7 +177,7 @@ export SPTD::Status cmd_send_key(SPTD &sptd, const uint8_t *data, uint32_t data_
         memcpy(parameter_list.data() + sizeof(CMD_ParameterListHeader), data, data_size);
     }
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), parameter_list.empty() ? nullptr : parameter_list.data(), parameter_list.size(), true);
+    return sptd.sendCommand(&cdb, sizeof(cdb), parameter_list.empty() ? nullptr : parameter_list.data(), parameter_list.size(), true).first;
 }
 
 
@@ -189,7 +190,7 @@ export SPTD::Status cmd_report_key(SPTD &sptd, std::vector<uint8_t> &response, u
     cdb.agid = agid;
     cdb.key_format = (uint8_t)key_format;
 
-    return key_format == REPORT_KEY_KeyFormat::INVALIDATE_AGID ? sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0) : cdb_send_receive(sptd, response, cdb);
+    return key_format == REPORT_KEY_KeyFormat::INVALIDATE_AGID ? sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first : cdb_send_receive(sptd, response, cdb);
 }
 
 
@@ -199,7 +200,7 @@ export SPTD::Status cmd_seek(SPTD &sptd, int32_t lba)
     cdb.operation_code = (uint8_t)CDB_OperationCode::SEEK;
     *(int32_t *)cdb.lba = endian_swap(lba);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first;
 }
 
 
@@ -211,7 +212,7 @@ export SPTD::Status cmd_read(SPTD &sptd, uint8_t *buffer, uint32_t block_size, i
     *(int32_t *)cdb.starting_lba = endian_swap(start_lba);
     *(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, block_size * transfer_length);
+    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, block_size * transfer_length).first;
 }
 
 
@@ -237,7 +238,7 @@ SPTD::Status cmd_read_cd_msf(SPTD &sptd, uint8_t *sectors, uint32_t block_size, 
 
     uint32_t transfer_length = MSF_to_LBA(end_msf) - MSF_to_LBA(start_msf);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
+    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length).first;
 }
 
 
@@ -273,12 +274,12 @@ export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, uint32_t block_siz
     cdb.include_sync_data = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? 0 : 1;
     cdb.sub_channel_selection = (uint8_t)sub_channel;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
+    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length).first;
 }
 
 
 // FIXME: pass sectors size in argument
-export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
+export std::pair<SPTD::Status, uint32_t> cmd_read_cdda(SPTD &sptd, uint8_t *sectors, uint32_t block_size, int32_t start_lba, uint32_t transfer_length, READ_CDDA_SubCode sub_code)
 {
     CDB12_ReadCDDA cdb = {};
 
@@ -296,7 +297,7 @@ export SPTD::Status cmd_plextor_reset(SPTD &sptd)
     CDB6_Generic cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::PLEXTOR_RESET;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first;
 }
 
 
@@ -305,7 +306,7 @@ export SPTD::Status cmd_synchronize_cache(SPTD &sptd)
     CDB6_Generic cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::SYNCHRONIZE_CACHE;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first;
 }
 
 
@@ -315,7 +316,7 @@ export SPTD::Status cmd_set_cd_speed(SPTD &sptd, uint16_t speed)
     cdb.operation_code = (uint8_t)CDB_OperationCode::SET_CD_SPEED;
     *(uint16_t *)cdb.read_speed = endian_swap(speed);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first;
 }
 
 
@@ -327,7 +328,7 @@ export SPTD::Status cmd_mediatek_read_cache(SPTD &sptd, uint8_t *buffer, uint32_
     cdb.offset = endian_swap(offset);
     cdb.size = endian_swap(size);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, size);
+    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, size).first;
 }
 
 
@@ -341,7 +342,7 @@ export SPTD::Status cmd_get_configuration_current_profile(SPTD &sptd, GET_CONFIG
     GET_CONFIGURATION_FeatureHeader feature_header = {};
     uint16_t size = sizeof(feature_header);
     *(uint16_t *)cdb.allocation_length = endian_swap(size);
-    auto status = sptd.sendCommand(&cdb, sizeof(cdb), &feature_header, size);
+    auto status = sptd.sendCommand(&cdb, sizeof(cdb), &feature_header, size).first;
 
     current_profile = (GET_CONFIGURATION_FeatureCode_ProfileList)endian_swap(feature_header.current_profile);
 
@@ -360,7 +361,7 @@ SPTD::Status cmd_get_configuration(SPTD &sptd)
     *(uint16_t *)cdb.allocation_length = endian_swap(size);
     std::vector<uint8_t> buffer(size);
 
-    auto status = sptd.sendCommand(&cdb, sizeof(cdb), buffer.data(), buffer.size());
+    auto status = sptd.sendCommand(&cdb, sizeof(cdb), buffer.data(), buffer.size()).first;
 
     auto feature_header = (GET_CONFIGURATION_FeatureHeader *)buffer.data();
     uint32_t fds_size = endian_swap(feature_header->data_length) - (sizeof(GET_CONFIGURATION_FeatureHeader) - sizeof(feature_header->data_length));
@@ -391,7 +392,7 @@ export SPTD::Status cmd_kreon_get_security_sector(SPTD &sptd, std::vector<uint8_
     cdb.reserved2 = ss_val;
     cdb.control = 0xC0;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), response_data.data(), response_data.size());
+    return sptd.sendCommand(&cdb, sizeof(cdb), response_data.data(), response_data.size()).first;
 }
 
 
@@ -413,7 +414,7 @@ export SPTD::Status cmd_kreon_set_lock_state(SPTD &sptd, KREON_LockState lock_st
         cdb.extended = (uint8_t)lock_state;
     }
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first;
 }
 
 
@@ -424,7 +425,7 @@ export SPTD::Status cmd_start_stop_unit(SPTD &sptd, uint8_t load_eject, uint8_t 
     cdb.load_eject = load_eject;
     cdb.start = start;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0);
+    return sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first;
 }
 
 
@@ -435,7 +436,7 @@ export SPTD::Status cmd_flash_tsst(SPTD &sptd, const uint8_t *data, uint32_t dat
     cdb.unknown1 = unknown1;
     cdb.mode = (uint8_t)mode;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, data_size, true);
+    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, data_size, true).first;
 }
 
 
@@ -451,7 +452,7 @@ export SPTD::Status cmd_write_buffer(SPTD &sptd, const uint8_t *data, uint32_t d
     cdb.parameter_list_length[1] = ((uint8_t *)&parameter_list_length)[1];
     cdb.parameter_list_length[2] = ((uint8_t *)&parameter_list_length)[0];
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, data_size, true);
+    return sptd.sendCommand(&cdb, sizeof(cdb), (void *)data, data_size, true).first;
 }
 
 
@@ -467,7 +468,7 @@ export SPTD::Status cmd_read_buffer(SPTD &sptd, uint8_t *data, uint32_t data_siz
     cdb.allocation_length[1] = ((uint8_t *)&allocation_length)[1];
     cdb.allocation_length[2] = ((uint8_t *)&allocation_length)[0];
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), data, data_size);
+    return sptd.sendCommand(&cdb, sizeof(cdb), data, data_size).first;
 }
 
 
@@ -485,7 +486,7 @@ export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t blo
     *(int32_t *)cdb.address = endian_swap(address);
     *(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, block_size * transfer_length);
+    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, block_size * transfer_length).first;
 }
 
 }

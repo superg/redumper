@@ -144,7 +144,7 @@ export int redumper_debug(Context &ctx, Options &options)
             cdb[1] = mode;
 
             uint8_t response[2] = {};
-            if(auto status = sptd.sendCommand(cdb, sizeof(cdb), response, sizeof(response)); status.status_code)
+            if(auto status = sptd.sendCommand(cdb, sizeof(cdb), response, sizeof(response)).first; status.status_code)
                 throw_line("DE mode {} probe failed, SCSI ({})", mode, SPTD::StatusMessage(status));
 
             LOG("  DE mode {}: {:02x} {:02x} ({})", mode, response[0], response[1],
@@ -167,7 +167,7 @@ export int redumper_debug(Context &ctx, Options &options)
         cdb[9] = 2;
 
         uint8_t configuration[2] = {};
-        if(auto status = sptd.sendCommand(cdb, sizeof(cdb), configuration, sizeof(configuration)); status.status_code)
+        if(auto status = sptd.sendCommand(cdb, sizeof(cdb), configuration, sizeof(configuration)).first; status.status_code)
             throw_line("F5 configuration read failed, SCSI ({})", SPTD::StatusMessage(status));
 
         uint8_t configuration_value = configuration[1];
@@ -181,7 +181,7 @@ export int redumper_debug(Context &ctx, Options &options)
         LOG("");
     }
 
-    if(1)
+    if(0)
     {
         SPTD sptd(options.drive, options.scsi_timeout);
 
@@ -197,7 +197,7 @@ export int redumper_debug(Context &ctx, Options &options)
             cdb[9] = (uint8_t)length;
 
             std::vector<uint8_t> data(length);
-            if(auto status = sptd.sendCommand(cdb, sizeof(cdb), data.data(), data.size()); status.status_code)
+            if(auto status = sptd.sendCommand(cdb, sizeof(cdb), data.data(), data.size()).first; status.status_code)
                 throw_line("F5 memory read failed at 0x{:08x}, SCSI ({})", address, SPTD::StatusMessage(status));
 
             return data;
@@ -396,7 +396,7 @@ export int redumper_debug(Context &ctx, Options &options)
     }
 
     // MEDIATEK cache dump extract
-    if(1)
+    if(0)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 

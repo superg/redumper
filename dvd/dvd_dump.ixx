@@ -156,6 +156,8 @@ static const std::string BLURAY_CHANNEL_LENGTH[] =
     "74.5nm",
     "69.0nm",
     "reserved1",
+    "58.26nm",
+    "55.87nm",
     "reserved2",
     "reserved3",
     "reserved4",
@@ -165,9 +167,7 @@ static const std::string BLURAY_CHANNEL_LENGTH[] =
     "reserved8",
     "reserved9",
     "reserved10",
-    "reserved11",
-    "reserved12",
-    "reserved13"
+    "reserved11"
 };
 // clang-format on
 

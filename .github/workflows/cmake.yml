@@ -110,24 +110,37 @@ jobs:
     needs: check
     strategy:
       matrix:
-        arch: [x64, arm64]
-    runs-on: macos-14
+        include:
+          - arch: x64
+            os: macos-15-intel
+            host_arch: x86_64
+          - arch: arm64
+            os: macos-15
+            host_arch: arm64
+    runs-on: ${{matrix.os}}
     steps:
-    - name: Customize Software
+    - name: Verify Runner Toolchain
+      shell: bash
       run: |
-        brew install llvm@18
-    - name: Customize Software
-      if: ${{ matrix.arch == 'x64' }}
-      run: |
-        softwareupdate --install-rosetta --agree-to-license
-        arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        arch -x86_64 /usr/local/bin/brew install llvm@18
+        actual_arch="$(uname -m)"
+        echo "Host architecture: ${actual_arch}"
+        test "${actual_arch}" = "${{matrix.host_arch}}"
+
+        llvm_root="$(brew --prefix llvm@18)"
+        echo "LLVM root: ${llvm_root}"
+        test -x "${llvm_root}/bin/clang++"
     - name: Checkout
       uses: actions/checkout@v6
     - name: CMake Configure
       run: cmake -B ${{github.workspace}}/BUILD -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DREDUMPER_VERSION_BUILD=${{needs.check.outputs.build_number}} -DCMAKE_TOOLCHAIN_FILE="cmake/toolchains/macos-${{matrix.arch}}.cmake"
     - name: CMake Build
       run: cmake --build ${{github.workspace}}/BUILD --config Release
+    - name: Verify Architecture
+      shell: bash
+      run: |
+        binary_arch="$(lipo -archs "${{github.workspace}}/BUILD/redumper")"
+        echo "Binary architecture: ${binary_arch}"
+        test "${binary_arch}" = "${{matrix.host_arch}}"
     - name: CTest
       working-directory: ${{github.workspace}}/BUILD
       run: ctest -C Release --output-on-failure --verbose

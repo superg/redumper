@@ -9,6 +9,7 @@ module;
 #include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 #include "throw_line.hh"
 
@@ -45,6 +46,7 @@ export class SPTD
 {
 public:
     static constexpr uint32_t DEFAULT_TIMEOUT = 50000;
+    static constexpr uint8_t HOST_SHORT_TRANSFER = 0xFF;
 
     struct Status
     {
@@ -65,7 +67,11 @@ public:
 #endif
     {
 #if defined(_WIN32)
-        _handle = CreateFile(std::format("//./{}:", drive_path[0]).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+        std::string device_name = drive_path;
+        if(device_name.size() == 1)
+            device_name += ':';
+
+        _handle = CreateFile(std::format("//./{}", device_name).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
         if(_handle == INVALID_HANDLE_VALUE)
             throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
 #elif defined(__APPLE__)
@@ -150,9 +156,10 @@ public:
     }
 
 
-    Status sendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, bool out = false)
+    std::pair<Status, uint32_t> sendCommand(const void *cdb, uint8_t cdb_length, void *buffer, uint32_t buffer_length, bool out = false)
     {
         Status status = {};
+        uint32_t transferred_length = 0;
 
 #if defined(_WIN32)
         // FIXME: simplify and reuse common SenseData
@@ -171,6 +178,8 @@ public:
         BOOL success = DeviceIoControl(_handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &sptd_sd, sizeof(sptd_sd), &sptd_sd, sizeof(sptd_sd), &bytes_returned, nullptr);
         if(success != TRUE)
             throw_line("SYSTEM ({})", getLastError());
+
+        transferred_length = sptd_sd.sptd.DataTransferLength;
 
         if(sptd_sd.sptd.ScsiStatus != SCSISTAT_GOOD)
         {
@@ -209,6 +218,8 @@ public:
         if(auto kret = (*task.get())->ExecuteTaskSync(task.get(), &sense_data, &task_status, &transfer_count); kret != KERN_SUCCESS)
             throw_line("failed to execute task (MACH: {})", mach_error_string(kret));
 
+        transferred_length = (uint32_t)transfer_count;
+
         if(task_status != kSCSITaskStatus_GOOD)
         {
             status.status_code = task_status;
@@ -234,6 +245,8 @@ public:
         if(result < 0)
             throw_line("SYSTEM ({})", getLastError());
 
+        transferred_length = hdr.dxfer_len - hdr.resid;
+
         if(hdr.status)
         {
             status.status_code = hdr.status;
@@ -243,7 +256,7 @@ public:
         }
 #endif
 
-        return status;
+        return { status, transferred_length };
     }
 
 
@@ -561,7 +574,8 @@ const std::map<uint8_t, std::string> SPTD::_SCSISTAT_STRINGS = {
     { 0x22, "COMMAND TERMINATED"           },
     { 0x28, "TASK SET FULL"                },
     { 0x30, "ACA ACTIVE"                   },
-    { 0x40, "TASK ABORTED"                 }
+    { 0x40, "TASK ABORTED"                 },
+    { 0xFF, "HOST: SHORT TRANSFER"         }  // host error
 };
 
 

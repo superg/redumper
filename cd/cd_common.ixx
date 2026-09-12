@@ -468,7 +468,7 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, 
         if(drive_config.read_method == ReadMethod::D8)
         {
             auto sub_code = drive_config.sector_order == SectorOrder::DATA_SUB ? READ_CDDA_SubCode::DATA_SUB : READ_CDDA_SubCode::DATA_C2_SUB;
-            status = cmd_read_cdda(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, sub_code);
+            status = cmd_read_cdda(sptd, sector_buffer.data(), layout.size, lba, sectors_count, sub_code);
         }
         else
         {

@@ -124,6 +124,95 @@ export int redumper_debug(Context &ctx, Options &options)
     std::filesystem::path physical_path(image_prefix + ".physical");
     std::filesystem::path sub_path(image_prefix + ".subcode");
 
+    if(1)
+    {
+        SPTD sptd(options.drive, options.scsi_timeout);
+
+        auto drive_query = cmd_drive_query(sptd);
+        bool monitor_mode = drive_query.vendor_id == "PLEXTOR" && drive_query.product_id == "MONT";
+        bool firmware_mode = drive_query.vendor_id == "PLEXTOR" && drive_query.product_id.find("PX-W5224A") != std::string::npos;
+
+        LOG("Plextor boot-state probe");
+        LOG("  inquiry: {} {} {}", drive_query.vendor_id, drive_query.product_id, drive_query.product_revision_level);
+        LOG("  active mode: {}", monitor_mode ? "recovery monitor" : firmware_mode ? "normal firmware" : "unknown");
+
+        uint8_t port_mask = 0;
+        for(uint8_t mode = 0; mode <= 4; ++mode)
+        {
+            uint8_t cdb[12] = {};
+            cdb[0] = 0xde;
+            cdb[1] = mode;
+
+            uint8_t response[2] = {};
+            if(auto status = sptd.sendCommand(cdb, sizeof(cdb), response, sizeof(response)).first; status.status_code)
+                throw_line("DE mode {} probe failed, SCSI ({})", mode, SPTD::StatusMessage(status));
+
+            LOG("  DE mode {}: {:02x} {:02x} ({})", mode, response[0], response[1], (uint8_t)(response[0] ^ response[1]) == 0xff ? "complement valid" : "complement invalid");
+            if(mode == 0)
+                port_mask = response[0];
+        }
+
+        LOG("  P0.1: {}", port_mask & 0x01 ? "low" : "high");
+        LOG("  P0.2: {}", port_mask & 0x02 ? "low" : "high");
+        LOG("  P0.6: {}", port_mask & 0x04 ? "low" : "high");
+        LOG("  P0.0: {}", port_mask & 0x08 ? "low" : "high");
+        LOG("  P0.5: {}", port_mask & 0x10 ? "low" : "high");
+
+        uint8_t cdb[12] = {};
+        cdb[0] = 0xf5;
+        cdb[5] = 0xff;
+        cdb[6] = 0xc0;
+        cdb[7] = 0x1e;
+        cdb[9] = 2;
+
+        uint8_t configuration[2] = {};
+        if(auto status = sptd.sendCommand(cdb, sizeof(cdb), configuration, sizeof(configuration)).first; status.status_code)
+            throw_line("F5 configuration read failed, SCSI ({})", SPTD::StatusMessage(status));
+
+        uint8_t configuration_value = configuration[1];
+        uint32_t low_count = std::popcount((uint32_t)(port_mask & 0x07));
+        bool visible_recovery_gates = low_count < 2 && ((port_mask & 0x04) == 0 || configuration_value != 0) && configuration_value != 0x11 && configuration_value != 0x12;
+
+        LOG("  configuration entry 0x0f at 0x00ffc01e: {:02x} {:02x}", configuration[0], configuration[1]);
+        LOG("  forced-recovery gates excluding P1.6: {}", visible_recovery_gates ? "pass" : "fail");
+        LOG("  P1.6: not observable through DE/F5");
+        LOG("");
+    }
+
+    if(0)
+    {
+        SPTD sptd(options.drive, options.scsi_timeout);
+
+        auto read_memory = [&sptd](uint32_t address, uint16_t length)
+        {
+            uint8_t cdb[12] = {};
+            cdb[0] = 0xf5;
+            cdb[4] = (uint8_t)(address >> 24);
+            cdb[5] = (uint8_t)(address >> 16);
+            cdb[6] = (uint8_t)(address >> 8);
+            cdb[7] = (uint8_t)address;
+            cdb[8] = (uint8_t)(length >> 8);
+            cdb[9] = (uint8_t)length;
+
+            std::vector<uint8_t> data(length);
+            if(auto status = sptd.sendCommand(cdb, sizeof(cdb), data.data(), data.size()).first; status.status_code)
+                throw_line("F5 memory read failed at 0x{:08x}, SCSI ({})", address, SPTD::StatusMessage(status));
+
+            return data;
+        };
+
+        std::vector<uint8_t> high_memory;
+        high_memory.reserve(0x10000);
+        for(uint32_t address = 0x00ff0000; address < 0x01000000; address += 0x4000)
+        {
+            LOG("reading memory at 0x{:08x}", address);
+            auto chunk = read_memory(address, 0x4000);
+            high_memory.insert(high_memory.end(), chunk.begin(), chunk.end());
+        }
+        write_vector("read_memory_ff0000.debug", high_memory);
+        LOG("");
+    }
+
     if(0)
     {
         // auto ss = read_vector("security_sector3.debug");
@@ -305,7 +394,7 @@ export int redumper_debug(Context &ctx, Options &options)
     }
 
     // MEDIATEK cache dump extract
-    if(1)
+    if(0)
     {
         std::vector<uint8_t> cache = read_vector(cache_path);
 

@@ -1116,22 +1116,26 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     {
         if(*options.dump_read_size <= 0)
             throw_line("dump read size must be positive (value: {})", *options.dump_read_size);
+        if(raw && omnidrive_firmware)
+        {
+            if(*options.dump_read_size > 59)
+                LOG("warning: dump read size greater than 59 requires a USB 3.0 connection");
+#ifdef _WIN32
+            if(*options.dump_read_size > 31)
+                LOG("warning: raw dump read size greater than 31 requires increasing OS MaximumTransferLength");
+#endif
+            if((ctx.disc_type == DiscType::DVD) && ((*options.dump_read_size * sizeof(dvd::DataFrame)) & 1023) > 512)
+                LOG("warning: raw DVD dump read size of {} on a USB 3.0 connection may have issues", *options.dump_read_size);
+            if((ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R) && ((*options.dump_read_size * sizeof(bd::OmniDriveDataFrame)) & 1023) > 512)
+                LOG("warning: raw BD dump read size of {} on a USB 3.0 connection may have issues", *options.dump_read_size);
+        }
         dump_read_size = *options.dump_read_size;
     }
     else if(raw && omnidrive_firmware)
     {
-        if(ctx.disc_type == DiscType::DVD)
-        {
-            // ensure default total transfer length is less than 65536 bytes (31 * 2064)
-            LOG("warning: setting dump read size to 31 for raw DVD dumping");
-            dump_read_size = 31;
-        }
-        else if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
-        {
-            // ensure default total transfer length is less than 16384 (7 * 2072)
-            LOG("warning: setting dump read size to 7 for raw BD dumping");
-            dump_read_size = 7;
-        }
+        // ensure default total transfer length is less than 65536 bytes (31 * 2070)
+        LOG("warning: setting dump read size to 31 for raw dumping");
+        dump_read_size = 31;
     }
     else
         dump_read_size = DVD_READ_SIZE;

@@ -540,7 +540,7 @@ DumpConfig dump_get_config(DiscType disc_type, bool raw)
 }
 
 
-SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size, int32_t lba, uint32_t sectors_count, bool force_unit_access, DiscType disc_type, bool raw)
+SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size, int32_t lba, uint32_t &sectors_count, bool force_unit_access, DiscType disc_type, bool raw, bool &truncation_warned)
 {
     SPTD::Status status;
 
@@ -552,11 +552,22 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             throw_line("invalid sector size for raw DVD read (expected: {}, actual: {})", sizeof(dvd::RecordingFrame), sector_size);
 
         std::vector<dvd::DataFrame> data_frames(sectors_count);
-        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(dvd::DataFrame), lba, sectors_count, OmniDrive_DiscType::DVD, false, force_unit_access, false,
+        auto [s, transferred] = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(dvd::DataFrame), lba, sectors_count, OmniDrive_DiscType::DVD, false, force_unit_access, false,
             OmniDrive_Subchannels::NONE, false);
+        status = s;
 
         if(!status.status_code)
         {
+            uint32_t bytes_requested = sectors_count * (uint32_t)sizeof(dvd::DataFrame);
+            if(transferred < bytes_requested)
+            {
+                if(!truncation_warned && transferred == (bytes_requested / 1024) * 1024 + 512)
+                {
+                    LOG("warning: received short transfer, if using USB 3.0 try a USB 2.0 cable or a different dump read size");
+                    truncation_warned = true;
+                }
+                sectors_count = transferred / (uint32_t)sizeof(dvd::DataFrame);
+            }
             for(uint32_t i = 0; i < sectors_count; ++i)
             {
                 auto &recording_frame = (dvd::RecordingFrame &)sectors[i * sizeof(dvd::RecordingFrame)];
@@ -570,11 +581,22 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             throw_line("invalid sector size for raw BD read (expected: {}, actual: {})", sizeof(bd::DataFrame), sector_size);
 
         std::vector<bd::OmniDriveDataFrame> data_frames(sectors_count);
-        status = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(bd::OmniDriveDataFrame), lba, sectors_count, OmniDrive_DiscType::BD, false, force_unit_access, false,
+        auto [s, transferred] = cmd_read_omnidrive(sptd, (uint8_t *)data_frames.data(), sizeof(bd::OmniDriveDataFrame), lba, sectors_count, OmniDrive_DiscType::BD, false, force_unit_access, false,
             OmniDrive_Subchannels::NONE, false);
+        status = s;
 
         if(!status.status_code)
         {
+            uint32_t bytes_requested = sectors_count * (uint32_t)sizeof(bd::OmniDriveDataFrame);
+            if(transferred < bytes_requested)
+            {
+                if(!truncation_warned && transferred == (bytes_requested / 1024) * 1024 + 512)
+                {
+                    LOG("warning: received short transfer, if using USB 3.0 try a USB 2.0 cable or a different dump read size");
+                    truncation_warned = true;
+                }
+                sectors_count = transferred / (uint32_t)sizeof(bd::OmniDriveDataFrame);
+            }
             for(uint32_t i = 0; i < sectors_count; ++i)
             {
                 auto &df = (bd::DataFrame &)sectors[i * sizeof(bd::DataFrame)];
@@ -1200,6 +1222,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         LOG("done");
     }
     dvd::Errors errors = errors_initial;
+    bool truncation_warned = false;
 
     for(auto const &p : string_to_ranges<int32_t>(options.skip))
         intervals.remove(p.first, p.second);
@@ -1272,7 +1295,13 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                 if(!dump)
                     status_retries = std::format(", retry: {}", refine_counter + 1);
 
-                auto status = read_dvd_sectors(*ctx.sptd, sector_data.data(), cfg.sector_size, lba + lba_shift, sectors_to_read, !dump && refine_counter, ctx.disc_type, raw);
+                auto status = read_dvd_sectors(*ctx.sptd, sector_data.data(), cfg.sector_size, lba + lba_shift, sectors_to_read, !dump && refine_counter, ctx.disc_type, raw, truncation_warned);
+
+                // shrink current interval if not all sectors were transferred
+                sector_data_file = sector_data_file.first(sectors_to_read * cfg.sector_size);
+                sector_state_file = sector_state_file.first(sectors_to_read);
+                sector_data.resize(sector_data_file.size());
+                sector_state.resize(sectors_to_read, State::SUCCESS);
                 if(status.status_code)
                 {
                     std::fill(sector_state.begin(), sector_state.end(), State::ERROR_SKIP);

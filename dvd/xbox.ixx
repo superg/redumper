@@ -356,7 +356,8 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
         for(uint8_t ss_retries = 0; ss_retries < 4; ++ss_retries)
         {
             uint32_t ss_address = XGD_SS_LEADOUT_SECTOR + ss_retries * 0x40;
-            auto status = cmd_read_omnidrive(sptd, (uint8_t *)&df, sizeof(dvd::DataFrame), ss_address, 1, OmniDrive_DiscType::DVD, true, false, false, OmniDrive_Subchannels::NONE, false).first;
+            auto [s, transferred] = cmd_read_omnidrive(sptd, (uint8_t *)&df, sizeof(dvd::DataFrame), ss_address, 1, OmniDrive_DiscType::DVD, true, false, false, OmniDrive_Subchannels::NONE, false);
+            auto status = transferred < sizeof(dvd::DataFrame) ? SPTD::Status{ SPTD::HOST_SHORT_TRANSFER } : s;
             if(status.status_code)
                 LOG("[PSN: {:X}] omnidrive: SCSI error ({})", ss_address, SPTD::StatusMessage(status));
             else

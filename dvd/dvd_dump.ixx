@@ -561,12 +561,17 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             uint32_t bytes_requested = sectors_count * (uint32_t)sizeof(dvd::DataFrame);
             if(transferred < bytes_requested)
             {
-                if(!truncation_warned && transferred == (bytes_requested / 1024) * 1024 + 512)
+                if(transferred < sizeof(dvd::DataFrame))
+                    status.status_code = SPTD::HOST_SHORT_TRANSFER;
+                else
                 {
-                    LOG("warning: received short transfer, if using USB 3.0 try a USB 2.0 cable or a different dump read size");
-                    truncation_warned = true;
+                    if(!truncation_warned && transferred == (bytes_requested / 1024) * 1024 + 512)
+                    {
+                        LOG("warning: received short transfer, if using USB 3.0 try a USB 2.0 cable or a different dump read size");
+                        truncation_warned = true;
+                    }
+                    sectors_count = transferred / (uint32_t)sizeof(dvd::DataFrame);
                 }
-                sectors_count = transferred / (uint32_t)sizeof(dvd::DataFrame);
             }
             for(uint32_t i = 0; i < sectors_count; ++i)
             {
@@ -590,12 +595,17 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
             uint32_t bytes_requested = sectors_count * (uint32_t)sizeof(bd::OmniDriveDataFrame);
             if(transferred < bytes_requested)
             {
-                if(!truncation_warned && transferred == (bytes_requested / 1024) * 1024 + 512)
+                if(transferred < sizeof(bd::OmniDriveDataFrame))
+                    status.status_code = SPTD::HOST_SHORT_TRANSFER;
+                else
                 {
-                    LOG("warning: received short transfer, if using USB 3.0 try a USB 2.0 cable or a different dump read size");
-                    truncation_warned = true;
+                    if(!truncation_warned && transferred == (bytes_requested / 1024) * 1024 + 512)
+                    {
+                        LOG("warning: received short transfer, if using USB 3.0 try a USB 2.0 cable or a different dump read size");
+                        truncation_warned = true;
+                    }
+                    sectors_count = transferred / (uint32_t)sizeof(bd::OmniDriveDataFrame);
                 }
-                sectors_count = transferred / (uint32_t)sizeof(bd::OmniDriveDataFrame);
             }
             for(uint32_t i = 0; i < sectors_count; ++i)
             {
@@ -1138,6 +1148,12 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     {
         if(*options.dump_read_size <= 0)
             throw_line("dump read size must be positive (value: {})", *options.dump_read_size);
+        if(raw && omnidrive_firmware)
+        {
+            uint32_t frame_size = (ctx.disc_type == DiscType::DVD) ? sizeof(dvd::DataFrame) : sizeof(bd::OmniDriveDataFrame);
+            if((uint32_t)*options.dump_read_size > std::numeric_limits<uint32_t>::max() / frame_size)
+                throw_line("dump read size too large, would overflow transfer buffer (value: {})", *options.dump_read_size);
+        }
         if(raw && omnidrive_firmware)
         {
             if(*options.dump_read_size > 59)

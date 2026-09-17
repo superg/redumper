@@ -456,7 +456,11 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, 
 
     if(is_omnidrive_firmware(drive_config))
     {
-        status = cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, OmniDrive_DiscType::CD, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true).first;
+        auto [s, transferred] =
+            cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, OmniDrive_DiscType::CD, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true);
+        status = s;
+        if(!status.status_code && transferred != sectors_count * CD_RAW_DATA_SIZE)
+            status.status_code = SPTD::HOST_SHORT_TRANSFER;
     }
     else
     {

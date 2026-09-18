@@ -129,8 +129,9 @@ export int redumper_debug(Context &ctx, Options &options)
         SPTD sptd(options.drive, options.scsi_timeout);
 
         auto drive_query = cmd_drive_query(sptd);
-        bool monitor_mode = drive_query.vendor_id == "PLEXTOR" && drive_query.product_id == "MONT";
-        bool firmware_mode = drive_query.vendor_id == "PLEXTOR" && drive_query.product_id.find("PX-W5224A") != std::string::npos;
+        bool w5224 = drive_query.vendor_id == "PLEXTOR" && drive_query.product_id.find("PX-W5224A") != std::string::npos;
+        bool monitor_mode = w5224 && drive_query.product_revision_level == "0.00";
+        bool firmware_mode = w5224 && !monitor_mode;
 
         LOG("Plextor boot-state probe");
         LOG("  inquiry: {} {} {}", drive_query.vendor_id, drive_query.product_id, drive_query.product_revision_level);

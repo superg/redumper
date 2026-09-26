@@ -43,6 +43,16 @@ enum class TagIdentifier : uint16_t
     EXTENDED_FILE_ENTRY = 266
 };
 
+// From ECMA 167 14.6.6, not fully filled out since we only handle DIRECTORY here anyway.
+enum class FileType : uint8_t
+{
+    UNSPECIFIED,
+    UNALLOCATED_SPACE_ENTRY,
+    PARTITION_INTEGRITY_ENTRY,
+    INDIRECT_ENTRY,
+    DIRECTORY
+};
+
 #pragma pack(push, 1)
 struct DescriptorTag
 {
@@ -196,9 +206,20 @@ struct icbtag
     uint8_t strategy_parameter[2];
     uint16_t maximum_number_of_entries;
     uint8_t reserved;
-    uint8_t file_type;
+    FileType file_type;
     lb_addr parent_icb_location;
     uint16_t flags;
+};
+
+struct FileIdentifierDescriptor
+{
+    DescriptorTag descriptor_tag;
+    uint16_t file_version_number;
+    uint8_t file_characteristics;
+    uint8_t length_of_file_identifier;
+    long_ad icb;
+    uint16_t length_of_implementation_use;
+    uint8_t implementation_use_and_file_identifier_and_padding[];
 };
 
 struct FileEntry

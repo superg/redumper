@@ -54,7 +54,7 @@ export void flash_plextor(SPTD &sptd, const std::span<const uint8_t> firmware_da
         cmd_drive_ready(sptd);
 
         auto mode = offset_next < firmware_data.size() ? WRITE_BUFFER_Mode::DOWNLOAD_MICROCODE : WRITE_BUFFER_Mode::DOWNLOAD_MICROCODE_SAVE;
-        SPTD::Status status = cmd_write_buffer(sptd, &firmware_data[offset], size, mode, offset, size);
+        SPTD::Status status = cmd_write_buffer(sptd, &firmware_data[offset], size, mode, 0, offset, size);
         if(status.status_code)
             throw_line("failed to flash firmware, SCSI ({})", SPTD::StatusMessage(status));
 

@@ -475,8 +475,8 @@ export SPTD::Status cmd_read_buffer(SPTD &sptd, uint8_t *data, uint32_t data_siz
 }
 
 
-export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t block_size, int32_t address, uint32_t transfer_length, OmniDrive_DiscType disc_type,
-    bool raw_addressing, bool fua, bool descramble, OmniDrive_Subchannels subchannels, bool c2)
+export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t block_size, int32_t address, uint32_t transfer_length, OmniDrive_DiscType disc_type, bool raw_addressing, bool fua,
+    bool descramble, OmniDrive_Subchannels subchannels, bool c2)
 {
     CDB12_ReadOmniDrive cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::READ_OMNIDRIVE;
@@ -491,7 +491,6 @@ export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t blo
 
     auto [status, transferred] = sptd.sendCommand(&cdb, sizeof(cdb), buffer, block_size * transfer_length);
 
-    sector_size 
     if(!status.status_code && transferred != block_size * transfer_length)
         status.status_code = SPTD::HOST_SHORT_TRANSFER;
 

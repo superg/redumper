@@ -2,6 +2,7 @@ module;
 #include <cstdint>
 #include <cstring>
 #include <format>
+#include <utility>
 #include <vector>
 
 export module scsi.cmd;
@@ -493,7 +494,7 @@ export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t blo
 }
 
 
-export SPTD::Status cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer_size, SpiralDrive_Operation operation, uint16_t timeout, int32_t value)
+export std::pair<SPTD::Status, uint32_t> cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer_size, SpiralDrive_Operation operation, uint16_t timeout, int32_t value)
 {
     CDB12_SpiralDrive cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::SPIRALDRIVE;
@@ -501,7 +502,7 @@ export SPTD::Status cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer
     cdb.timeout = endian_swap(timeout);
     cdb.value = endian_swap(value);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, buffer_size).first;
+    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, buffer_size);
 }
 
 }

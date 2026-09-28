@@ -527,6 +527,13 @@ export int redumper(Options &options)
             else
                 LOG("  firmware: OmniDrive {}", omnidrive_version_string(*version));
         }
+        else if(auto version = is_spiraldrive_firmware(ctx.drive_config))
+        {
+            if(*version < spiraldrive_minimum_version())
+                LOG("  warning: outdated SpiralDrive drive firmware (current: {}, recommended: {})", spiraldrive_version_string(*version), spiraldrive_version_string(spiraldrive_minimum_version()));
+            else
+                LOG("  firmware: SpiralDrive {}", spiraldrive_version_string(*version));
+        }
     }
 
     if(!options.image_name.empty())

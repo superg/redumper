@@ -479,4 +479,35 @@ export uint32_t omnidrive_minimum_version()
 }
 
 
+export std::optional<uint32_t> is_spiraldrive_firmware(const DriveConfig &drive_config)
+{
+    constexpr std::string_view prefix = "SpiralDrive v";
+    if(!drive_config.vendor_specific.starts_with(prefix))
+        return std::nullopt;
+
+    auto version = tokenize(drive_config.vendor_specific.substr(prefix.size()), ".", nullptr);
+    if(version.size() != 3 || std::count(drive_config.vendor_specific.begin(), drive_config.vendor_specific.end(), '.') != 2)
+        return std::nullopt;
+
+    auto major = str_to_uint64(version[0]);
+    auto minor = str_to_uint64(version[1]);
+    auto patch = str_to_uint64(version[2]);
+    if(!major || !minor || !patch || *major > 0xff || *minor > 0xff || *patch > 0xff)
+        return std::nullopt;
+
+    return (uint32_t)((*major << 16) | (*minor << 8) | *patch);
+}
+
+
+export std::string spiraldrive_version_string(uint32_t version)
+{
+    return omnidrive_version_string(version);
+}
+
+
+export uint32_t spiraldrive_minimum_version()
+{
+    return 0x00010000;
+}
+
 }

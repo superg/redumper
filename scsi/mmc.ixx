@@ -28,6 +28,7 @@ export enum class CDB_OperationCode : uint8_t
     READ_CD_MSF = 0xB9,
     READ_CD = 0xBE,
     READ_OMNIDRIVE = 0xC0,
+    SPIRALDRIVE = 0xC4,
     READ_CD_MSF_D5 = 0xD5,
     READ_CDDA = 0xD8,
     PLEXTOR_RESET = 0xEE,
@@ -283,6 +284,13 @@ export enum class OmniDrive_Subchannels : uint8_t
     NONE,
     ENABLED,
     AUDIO_SUBQ
+};
+
+
+export enum class SpiralDrive_Operation : uint8_t
+{
+    SEEK = 1,
+    READ = 2
 };
 
 
@@ -944,6 +952,16 @@ export struct CDB12_ReadOmniDrive
     uint8_t c2          :1;
     uint8_t reserved2   :5;
     uint8_t control;
+};
+
+
+export struct CDB12_SpiralDrive
+{
+    uint8_t operation_code;
+    uint8_t operation;
+    uint16_t timeout;
+    uint32_t value;
+    uint32_t reserved;
 };
 
 }

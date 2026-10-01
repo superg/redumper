@@ -489,7 +489,12 @@ export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t blo
     *(int32_t *)cdb.address = endian_swap(address);
     *(uint32_t *)cdb.transfer_blocks = endian_swap(transfer_length);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, block_size * transfer_length).first;
+    auto [status, transferred] = sptd.sendCommand(&cdb, sizeof(cdb), buffer, block_size * transfer_length);
+
+    if(!status.status_code && transferred != block_size * transfer_length)
+        status.status_code = SPTD::HOST_SHORT_TRANSFER;
+
+    return status;
 }
 
 

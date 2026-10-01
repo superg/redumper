@@ -110,7 +110,7 @@ redumper disc --drive=<drive> --dvd-raw
 redumper disc --drive=<drive> --bd-raw
 ```
 
-OmniDrive also enables redumper to dump Xbox, Xbox 360, Nintendo GameCube, Wii, and Wii U discs. redumper detects these proprietary formats and automatically uses the appropriate raw acquisition path; Nintendo discs are also descrambled as part of the dump. No additional raw-mode option is required.
+OmniDrive also enables redumper to dump Xbox, Xbox 360, Nintendo GameCube, Wii, and Wii U discs. redumper detects these proprietary formats and automatically uses the appropriate raw acquisition path; Nintendo discs are also descrambled as part of the dump. No additional raw-mode option is required. If you are getting SCSI errors with OmniDrive, try lower the transfer length (`--dump-read-size`).
 
 ### Test an unknown drive
 

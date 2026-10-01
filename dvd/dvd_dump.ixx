@@ -1120,18 +1120,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     }
     else if(raw && omnidrive_firmware)
     {
-        if(ctx.disc_type == DiscType::DVD)
-        {
-            // ensure default total transfer length is less than 65536 bytes (31 * 2064)
-            LOG("warning: setting dump read size to 31 for raw DVD dumping");
-            dump_read_size = 31;
-        }
-        else if(ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R)
-        {
-            // ensure default total transfer length is less than 16384 (7 * 2072)
-            LOG("warning: setting dump read size to 7 for raw BD dumping");
-            dump_read_size = 7;
-        }
+        // ensure default total transfer length is less than 65536 bytes (31 * 2070)
+        LOG("warning: setting dump read size to 31 for raw dumping");
+        dump_read_size = 31;
     }
     else
         dump_read_size = DVD_READ_SIZE;

@@ -54,6 +54,7 @@ public:
         uint8_t sense_key;
         uint8_t asc;
         uint8_t ascq;
+        uint8_t information[4];
     };
 
 
@@ -187,6 +188,7 @@ public:
             status.sense_key = sptd_sd.sd.SenseKey;
             status.asc = sptd_sd.sd.AdditionalSenseCode;
             status.ascq = sptd_sd.sd.AdditionalSenseCodeQualifier;
+            memcpy(status.information, sptd_sd.sd.Information, sizeof(sptd_sd.sd.Information));
         }
 #elif defined(__APPLE__)
         auto task = make_unique_resource_checked((*_scsiTaskDeviceInterface.get())->CreateSCSITask(_scsiTaskDeviceInterface.get()), (SCSITaskInterface **)nullptr,
@@ -226,6 +228,10 @@ public:
             status.sense_key = sense_data.SENSE_KEY & 0x0F;
             status.asc = sense_data.ADDITIONAL_SENSE_CODE;
             status.ascq = sense_data.ADDITIONAL_SENSE_CODE_QUALIFIER;
+            status.information[0] = sense_data.INFORMATION_1;
+            status.information[1] = sense_data.INFORMATION_2;
+            status.information[2] = sense_data.INFORMATION_3;
+            status.information[3] = sense_data.INFORMATION_4;
         }
 #else
         SenseData sense_data;
@@ -253,6 +259,7 @@ public:
             status.sense_key = sense_data.sense_key;
             status.asc = sense_data.additional_sense_code;
             status.ascq = sense_data.additional_sense_code_qualifier;
+            memcpy(status.information, sense_data.information, sizeof(sense_data.information));
         }
 #endif
 

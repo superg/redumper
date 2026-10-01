@@ -1,15 +1,14 @@
 module;
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <optional>
 #include <string_view>
-#include <variant>
 #include <vector>
 
 export module filesystem.udf:browser;
 
 import :defs;
+import :entry;
 
 import cd.cdrom;
 import readers.data_reader;
@@ -59,7 +58,7 @@ public:
         return {};
     }
 
-    static std::variant<std::shared_ptr<udf::FileEntry>, std::shared_ptr<udf::ExtendedFileEntry>> rootDirectory(DataReader *data_reader)
+    static std::shared_ptr<Entry> rootDirectory(DataReader *data_reader)
     {
         // Try and find the AVDP so we can look through the volume descriptor sequence.
         auto const avdp = findAnchorVolumeDescriptorPointer(data_reader);
@@ -129,29 +128,7 @@ public:
                 auto const &file_set_descriptor = (udf::FileSetDescriptor &)fsd_data[0];
 
                 auto const &root_directory_icb_extent = file_set_descriptor.root_directory_icb;
-
-                // If we have the partition the root directory is in, read and return it.
-                if(partition_starting_locations.size() - 1 >= root_directory_icb_extent.extent_location.partition_reference_number)
-                {
-                    std::vector<uint8_t> root_directory_data(FORM1_DATA_SIZE);
-                    data_reader->read(root_directory_data.data(),
-                        partition_starting_locations[root_directory_icb_extent.extent_location.partition_reference_number] + root_directory_icb_extent.extent_location.logical_block_number, 1);
-
-                    auto const &tag = (udf::DescriptorTag &)root_directory_data[0];
-                    if(tag.tag_identifier == udf::TagIdentifier::FILE_ENTRY)
-                    {
-                        auto root_directory_file_entry = std::shared_ptr<udf::FileEntry>(new udf::FileEntry());
-                        std::memcpy(root_directory_file_entry.get(), root_directory_data.data(), sizeof(udf::FileEntry));
-                        return root_directory_file_entry;
-                    }
-                    else if(tag.tag_identifier == udf::TagIdentifier::EXTENDED_FILE_ENTRY)
-                    {
-                        auto root_directory_file_entry = std::shared_ptr<udf::ExtendedFileEntry>(new udf::ExtendedFileEntry());
-                        std::memcpy(root_directory_file_entry.get(), root_directory_data.data(), sizeof(udf::ExtendedFileEntry));
-
-                        return root_directory_file_entry;
-                    }
-                }
+                return std::make_shared<Entry>(data_reader, "", root_directory_icb_extent, partition_starting_locations);
             }
         }
 

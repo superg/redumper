@@ -353,6 +353,33 @@ export SPTD::Status cmd_get_configuration_current_profile(SPTD &sptd, GET_CONFIG
 }
 
 
+export SPTD::Status cmd_get_configuration_firmware_information(SPTD &sptd, GET_CONFIGURATION_FirmwareInformationBody *firmware_information)
+{
+    CDB10_GetConfiguration cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::GET_CONFIGURATION;
+    cdb.requested_type = (uint8_t)GET_CONFIGURATION_RequestedType::ONE;
+    cdb.starting_feature_number = endian_swap<uint16_t>(0x10C);
+
+    uint16_t size = sizeof(GET_CONFIGURATION_FeatureHeader) + sizeof(GET_CONFIGURATION_FeatureDescriptor) + sizeof(GET_CONFIGURATION_FirmwareInformationBody);
+    *(uint16_t *)cdb.allocation_length = endian_swap(size);
+    std::vector<uint8_t> buffer(size);
+
+    auto status = sptd.sendCommand(&cdb, sizeof(cdb), buffer.data(), buffer.size()).first;
+
+    GET_CONFIGURATION_FeatureHeader feature_header = {};
+    memcpy(&feature_header, buffer.data(), sizeof(GET_CONFIGURATION_FeatureHeader));
+    if(!status.status_code && feature_header.data_length == 4)
+    {
+        status.status_code = SPTD::HOST_SHORT_TRANSFER;
+        return status;
+    }
+
+    memcpy(firmware_information, buffer.data() + sizeof(GET_CONFIGURATION_FeatureHeader) + sizeof(GET_CONFIGURATION_FeatureDescriptor), sizeof(*firmware_information));
+
+    return status;
+}
+
+
 SPTD::Status cmd_get_configuration(SPTD &sptd)
 {
     CDB10_GetConfiguration cdb = {};

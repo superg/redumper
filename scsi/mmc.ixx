@@ -405,6 +405,17 @@ export struct GET_CONFIGURATION_FeatureDescriptor
     uint8_t feature_dependent_data[0];
 };
 
+export struct GET_CONFIGURATION_FirmwareInformationBody
+{
+    char century[2];
+    char year[2];
+    char month[2];
+    char day[2];
+    char hour[2];
+    char minutes[2];
+    char seconds[2];
+    uint8_t reserved[2];
+};
 
 export struct READ_DVD_STRUCTURE_StructureListEntry
 {

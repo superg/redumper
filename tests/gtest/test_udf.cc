@@ -36,3 +36,10 @@ TEST(UDF, VolumeSectorsCountRejectsInvalidOrOverflowingValues)
     EXPECT_EQ(udf::get_volume_sectors_count(1000, 0, 0, 0), std::nullopt);
     EXPECT_EQ(udf::get_volume_sectors_count(1000, std::numeric_limits<uint32_t>::max(), 2048, 2048), std::nullopt);
 }
+
+
+TEST(UDF, VolumeSectorsCountHandlesUpperBoundary)
+{
+    EXPECT_EQ(udf::get_volume_sectors_count(std::numeric_limits<uint32_t>::max() - 1, 0, 0, 2048), std::numeric_limits<uint32_t>::max());
+    EXPECT_EQ(udf::get_volume_sectors_count(std::numeric_limits<uint32_t>::max(), 0, 0, 2048), std::nullopt);
+}

@@ -24,7 +24,7 @@ constexpr std::optional<uint32_t> get_volume_sectors_count(uint32_t partition_en
     if(metadata_end >= std::numeric_limits<uint32_t>::max())
         return std::nullopt;
 
-    return metadata_end + 1;
+    return static_cast<uint32_t>(metadata_end + 1);
 }
 
 }

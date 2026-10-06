@@ -443,11 +443,12 @@ export SPTD::Status cmd_flash_tsst(SPTD &sptd, const uint8_t *data, uint32_t dat
 }
 
 
-export SPTD::Status cmd_write_buffer(SPTD &sptd, const uint8_t *data, uint32_t data_size, WRITE_BUFFER_Mode mode, uint32_t buffer_offset, uint32_t parameter_list_length)
+export SPTD::Status cmd_write_buffer(SPTD &sptd, const uint8_t *data, uint32_t data_size, WRITE_BUFFER_Mode mode, uint8_t buffer_id, uint32_t buffer_offset, uint32_t parameter_list_length)
 {
     CDB10_WriteBuffer cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::WRITE_BUFFER;
     cdb.mode = (uint8_t)mode;
+    cdb.buffer_id = buffer_id;
     cdb.buffer_offset[0] = ((uint8_t *)&buffer_offset)[2];
     cdb.buffer_offset[1] = ((uint8_t *)&buffer_offset)[1];
     cdb.buffer_offset[2] = ((uint8_t *)&buffer_offset)[0];
@@ -459,11 +460,12 @@ export SPTD::Status cmd_write_buffer(SPTD &sptd, const uint8_t *data, uint32_t d
 }
 
 
-export SPTD::Status cmd_read_buffer(SPTD &sptd, uint8_t *data, uint32_t data_size, READ_BUFFER_Mode mode, uint32_t buffer_offset, uint32_t allocation_length)
+export SPTD::Status cmd_read_buffer(SPTD &sptd, uint8_t *data, uint32_t data_size, READ_BUFFER_Mode mode, uint8_t buffer_id, uint32_t buffer_offset, uint32_t allocation_length)
 {
     CDB10_ReadBuffer cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::READ_BUFFER;
     cdb.mode = (uint8_t)mode;
+    cdb.buffer_id = buffer_id;
     cdb.buffer_offset[0] = ((uint8_t *)&buffer_offset)[2];
     cdb.buffer_offset[1] = ((uint8_t *)&buffer_offset)[1];
     cdb.buffer_offset[2] = ((uint8_t *)&buffer_offset)[0];

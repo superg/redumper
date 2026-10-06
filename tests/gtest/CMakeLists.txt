@@ -76,6 +76,13 @@ add_gtest(gtest_crc
         "${CMAKE_SOURCE_DIR}/utils/misc.ixx"
 )
 
+add_gtest(gtest_aes_cmac
+    SOURCE  "test_aes_cmac.cc"
+    MODULES
+        "${CMAKE_SOURCE_DIR}/hash/aes128.ixx"
+        "${CMAKE_SOURCE_DIR}/hash/cmac.ixx"
+)
+
 add_gtest(gtest_range
     SOURCE  "test_range.cc"
     MODULES "${CMAKE_SOURCE_DIR}/range.ixx"

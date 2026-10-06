@@ -156,6 +156,8 @@ target_sources(redumper
     "filesystem/udf/udf_entry.ixx"
     "filesystem/udf/udf_size.ixx"
     "hash/block_hasher.ixx"
+    "hash/aes128.ixx"
+    "hash/cmac.ixx"
     "hash/md5.ixx"
     "hash/sha1.ixx"
     "readers/disc_read_cdda_reader.ixx"

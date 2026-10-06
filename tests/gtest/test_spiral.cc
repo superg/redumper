@@ -102,7 +102,7 @@ Reply read_reply(int32_t count, std::vector<uint8_t> data, uint8_t status = 0, u
 
 Reply seek_reply(uint8_t status = 0)
 {
-    return { SpiralDrive_Operation::SEEK, -200, {}, 0, status };
+    return { SpiralDrive_Operation::SEEK, 0, {}, 0, status };
 }
 
 
@@ -164,7 +164,7 @@ protected:
 };
 
 
-TEST_F(SpiralDump, SearchesAnchorsAndHonorsExclusiveEnd)
+TEST_F(SpiralDump, StartsAtCurrentPositionAnchorsAndHonorsExclusiveEnd)
 {
     auto opts = options();
     opts.lba_end = std::make_unique<int>(-147);
@@ -173,26 +173,24 @@ TEST_F(SpiralDump, SearchesAnchorsAndHonorsExclusiveEnd)
     std::vector<uint8_t> sectors;
     for(uint32_t i = 0; i < 16; ++i)
     {
-        auto sector = i == 0 ? frame(0x12, 0, -3000) : i == 1 ? frame(0x13, 1, -149, true) : frame(0x14, 1, 100 + i);
+        auto sector = i == 0 ? frame(0x11, 0, -3000) : i == 1 ? frame(0x12, 0, -3000) : i == 2 ? frame(0x13, 1, -149, true) : frame(0x14, 1, 100 + i);
         sectors.insert(sectors.end(), sector.begin(), sector.end());
     }
 
     FakeTransport transport{
         {
-         read_reply(1, frame(0x10, 1, 100)),
          seek_reply(),
-         read_reply(1, frame(0x11, 0, -3000)),
          read_reply(16, sectors),
          }
     };
 
     EXPECT_EQ(run(transport, ctx, opts), 1);
-    EXPECT_EQ(transport.next, 4);
+    EXPECT_EQ(transport.next, 2);
     EXPECT_EQ(byte_at(".scram", -151, CD_DATA_SIZE), 0x11);
     EXPECT_EQ(byte_at(".scram", -150, CD_DATA_SIZE), 0x12);
     EXPECT_EQ(byte_at(".scram", -149, CD_DATA_SIZE), 0x13);
     EXPECT_EQ(byte_at(".scram", -148, CD_DATA_SIZE), 0x14);
-    EXPECT_EQ(byte_at(".subcode", -149, CD_SUBCODE_SIZE), sectors[CD_RAW_DATA_SIZE + CD_DATA_SIZE + CD_C2_SIZE]);
+    EXPECT_EQ(byte_at(".subcode", -149, CD_SUBCODE_SIZE), sectors[2 * CD_RAW_DATA_SIZE + CD_DATA_SIZE + CD_C2_SIZE]);
     EXPECT_EQ(byte_at(".state", -149, CD_DATA_SIZE_SAMPLES), (uint8_t)State::ERROR_C2);
     EXPECT_EQ(byte_at(".state", -149, CD_DATA_SIZE_SAMPLES, 1), (uint8_t)State::SUCCESS);
     EXPECT_EQ(std::filesystem::file_size(path(".scram")), (uint64_t)(-147 - LBA_START) * CD_DATA_SIZE);
@@ -201,24 +199,81 @@ TEST_F(SpiralDump, SearchesAnchorsAndHonorsExclusiveEnd)
 }
 
 
-TEST_F(SpiralDump, DiscardsEntireScsiErrorResponse)
+TEST_F(SpiralDump, CanAnchorAtCurrentLeadoutPosition)
 {
     auto opts = options();
+    opts.lba_end = std::make_unique<int>(216);
     auto ctx = context();
-    auto rejected = batch(0xee, 1, -133);
     FakeTransport transport{
         {
-         read_reply(1, frame(0x21, 0, -3000)),
-         read_reply(16, batch(0x22, 1, -149)),
-         read_reply(16, rejected, 2, 5 * CD_RAW_DATA_SIZE),
+         seek_reply(),
+         read_reply(16, batch(0x61, CD_LEADOUT_TRACK_NUMBER, 200)),
          }
     };
 
     EXPECT_EQ(run(transport, ctx, opts), 0);
-    EXPECT_EQ(transport.next, 3);
-    EXPECT_EQ(byte_at(".scram", -150, CD_DATA_SIZE), 0x21);
+    EXPECT_EQ(transport.next, 2);
+    EXPECT_EQ(byte_at(".scram", 200, CD_DATA_SIZE), 0x61);
+    EXPECT_EQ(byte_at(".scram", 215, CD_DATA_SIZE), 0x61);
+}
+
+
+TEST_F(SpiralDump, DiscardsScsiErrorResponseAndContinuesWithNextBatch)
+{
+    auto opts = options();
+    opts.lba_end = std::make_unique<int>(-101);
+    opts.verbose = true;
+    auto ctx = context();
+    auto rejected = batch(0xee, 1, -133);
+    FakeTransport transport{
+        {
+         seek_reply(),
+         read_reply(16, batch(0x22, 1, -149)),
+         read_reply(16, rejected, 2, 5 * CD_RAW_DATA_SIZE),
+         read_reply(16, batch(0x23, 1, -117)),
+         read_reply(16, batch(0x24, CD_LEADOUT_TRACK_NUMBER, -100)),
+         }
+    };
+
+    ::testing::internal::CaptureStdout();
+    EXPECT_EQ(run(transport, ctx, opts), 0);
+    auto output = ::testing::internal::GetCapturedStdout();
+    auto first_shift = output.find("subcode desync");
+    ASSERT_NE(first_shift, std::string::npos);
+    auto second_shift = output.find("subcode desync", first_shift + 1);
+    ASSERT_NE(second_shift, std::string::npos);
+    EXPECT_EQ(output.find("subcode desync", second_shift + 1), std::string::npos);
+    EXPECT_NE(output.find("shift: +16"), std::string::npos);
+    EXPECT_NE(output.find("shift: +17"), std::string::npos);
+    EXPECT_NE(output.find("Q LBA: -85"), std::string::npos);
+    EXPECT_EQ(transport.next, 5);
+    EXPECT_EQ(byte_at(".scram", -149, CD_DATA_SIZE), 0x22);
     EXPECT_EQ(byte_at(".scram", -134, CD_DATA_SIZE), 0x22);
-    EXPECT_EQ(std::filesystem::file_size(path(".scram")), (uint64_t)(-133 - LBA_START) * CD_DATA_SIZE);
+    EXPECT_EQ(byte_at(".scram", -133, CD_DATA_SIZE), 0x23);
+    EXPECT_EQ(byte_at(".scram", -117, CD_DATA_SIZE), 0x24);
+    EXPECT_EQ(byte_at(".scram", -102, CD_DATA_SIZE), 0x24);
+    EXPECT_EQ(std::filesystem::file_size(path(".scram")), (uint64_t)(-101 - LBA_START) * CD_DATA_SIZE);
+}
+
+
+TEST_F(SpiralDump, ShowsUnknownQLbaWhenCurrentFrameHasInvalidQ)
+{
+    auto opts = options();
+    opts.lba_end = std::make_unique<int>(-133);
+    auto ctx = context();
+    auto sectors = batch(0x52, 1, -149);
+    sectors[15 * CD_RAW_DATA_SIZE + CD_DATA_SIZE + CD_C2_SIZE] ^= 0x40;
+    FakeTransport transport{
+        {
+         seek_reply(),
+         read_reply(16, std::move(sectors)),
+         }
+    };
+
+    ::testing::internal::CaptureStdout();
+    EXPECT_EQ(run(transport, ctx, opts), 0);
+    auto output = ::testing::internal::GetCapturedStdout();
+    EXPECT_NE(output.find("Q LBA: ?"), std::string::npos);
 }
 
 
@@ -229,7 +284,7 @@ TEST_F(SpiralDump, RejectsGoodShortTransferWithoutWritingItsBatch)
     auto short_data = batch(0xee, 1, -133);
     FakeTransport transport{
         {
-         read_reply(1, frame(0x21, 0, -3000)),
+         seek_reply(),
          read_reply(16, batch(0x22, 1, -149)),
          read_reply(16, short_data, 0, (uint32_t)short_data.size() - 1),
          }
@@ -244,15 +299,15 @@ TEST_F(SpiralDump, ThrowsWithoutAnchorAndCreatesNoDumpFiles)
 {
     auto opts = options();
     auto ctx = context();
-    FakeTransport transport{
-        {
-         read_reply(1, frame(0x31, 0, -3000)),
-         read_reply(16, batch(0x32, 0, -3000)),
-         read_reply(16, batch(0xee, 1, -149), 2),
-         }
-    };
+    FakeTransport transport;
+    transport.replies.push_back(seek_reply());
+    transport.replies.push_back(read_reply(16, batch(0x32, 0, -3000)));
+    transport.replies.push_back(read_reply(16, batch(0xee, 1, -149), 2));
+    for(uint32_t i = 1; i < 16; ++i)
+        transport.replies.push_back(read_reply(16, batch(0xee, 1, -149), 2));
 
     EXPECT_THROW(run(transport, ctx, opts), std::runtime_error);
+    EXPECT_EQ(transport.next, 18);
     EXPECT_FALSE(std::filesystem::exists(path(".scram")));
     EXPECT_FALSE(std::filesystem::exists(path(".state")));
     EXPECT_FALSE(std::filesystem::exists(path(".subcode")));
@@ -265,16 +320,15 @@ TEST_F(SpiralDump, FailsOnSeekErrorAndRejectsWrongFirmware)
     auto ctx = context();
     FakeTransport transport{
         {
-         read_reply(1, frame(0x41, 1, 100)),
          seek_reply(2),
          }
     };
 
     EXPECT_THROW(run(transport, ctx, opts), std::runtime_error);
-    EXPECT_EQ(transport.next, 2);
+    EXPECT_EQ(transport.next, 1);
     ctx.drive_config.vendor_specific = "stock firmware";
     EXPECT_THROW(run(transport, ctx, opts), std::runtime_error);
-    EXPECT_EQ(transport.next, 2);
+    EXPECT_EQ(transport.next, 1);
 }
 
 

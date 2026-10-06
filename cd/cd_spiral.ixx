@@ -35,22 +35,14 @@ namespace
 
 constexpr uint16_t SPIRAL_TIMEOUT_MS = 5000;
 constexpr uint32_t SPIRAL_READ_FRAMES = 16;
-constexpr uint32_t SPIRAL_SEARCH_MOVES = 256;
+constexpr uint32_t SPIRAL_MAX_CONSECUTIVE_READ_ERRORS = 16;
 constexpr uint32_t SPIRAL_MAX_STAGED_FRAMES = 100000;
-constexpr int32_t SPIRAL_SEEK_INWARD = -200;
-
-
-bool is_leadin(const uint8_t *frame)
+std::optional<int32_t> position_q_lba(const uint8_t *frame)
 {
     auto q = subcode_extract_q(frame + CD_DATA_SIZE + CD_C2_SIZE);
-    return q.isValid() && q.adr == 1 && q.mode1.tno == 0;
-}
-
-
-std::optional<int32_t> track_lba(const uint8_t *frame)
-{
-    auto q = subcode_extract_q(frame + CD_DATA_SIZE + CD_C2_SIZE);
-    if(!q.isValid() || q.adr != 1 || q.mode1.tno == 0 || q.mode1.tno > 0x99 || (q.mode1.tno & 0x0f) > 9 || !BCDMSF_valid(q.mode1.a_msf))
+    if(!q.isValid() || q.adr != 1 || q.mode1.tno == 0 || !BCDMSF_valid(q.mode1.a_msf))
+        return std::nullopt;
+    if(q.mode1.tno != CD_LEADOUT_TRACK_NUMBER && (q.mode1.tno > 0x99 || (q.mode1.tno & 0x0f) > 9))
         return std::nullopt;
 
     return BCDMSF_to_LBA(q.mode1.a_msf);
@@ -89,47 +81,28 @@ export int redumper_dump_spiral_with_transport(Context &ctx, Options &options, c
         std::filesystem::create_directories(options.image_path);
 
     SignalINT signal;
-    std::vector<uint8_t> probe(CD_RAW_DATA_SIZE);
-    bool found_leadin = false;
-
-    for(uint32_t move = 0; move <= SPIRAL_SEARCH_MOVES; ++move)
-    {
-        if(signal.interrupt())
-            signal.raiseDefault();
-
-        auto result = send(probe.data(), CD_RAW_DATA_SIZE, SpiralDrive_Operation::READ, SPIRAL_TIMEOUT_MS, 1);
-        check_good_transfer(result, CD_RAW_DATA_SIZE);
-        if(!result.first.status_code && is_leadin(probe.data()))
-        {
-            found_leadin = true;
-            LOG("SpiralDrive lead-in found after {} inward moves", move);
-            break;
-        }
-
-        if(move == SPIRAL_SEARCH_MOVES)
-            break;
-
-        auto seek = send(nullptr, 0, SpiralDrive_Operation::SEEK, SPIRAL_TIMEOUT_MS, SPIRAL_SEEK_INWARD);
-        if(seek.first.status_code)
-            throw_line("SpiralDrive inward SEEK failed (SCSI: {})", SPTD::StatusMessage(seek.first));
-        check_good_transfer(seek, 0);
-    }
-
-    if(!found_leadin)
-        throw_line("SpiralDrive lead-in was not found after {} inward moves", SPIRAL_SEARCH_MOVES);
+    std::vector<uint8_t> staged;
+    auto seek = send(nullptr, 0, SpiralDrive_Operation::SEEK, SPIRAL_TIMEOUT_MS, 0);
+    if(seek.first.status_code)
+        throw_line("SpiralDrive SEEK(0) failed (SCSI: {})", SPTD::StatusMessage(seek.first));
+    check_good_transfer(seek, 0);
+    LOG("SpiralDrive starting at current servo position");
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
     std::fstream fs_scram;
     std::fstream fs_state;
     std::fstream fs_subcode;
 
-    std::vector<uint8_t> staged(probe.begin(), probe.end());
     std::vector<uint8_t> read_buffer(SPIRAL_READ_FRAMES * CD_RAW_DATA_SIZE);
     uint64_t c2_errors = 0;
     uint64_t q_errors = 0;
     uint64_t q_mismatches = 0;
     uint64_t frames_written = 0;
+    uint64_t read_errors = 0;
+    uint32_t consecutive_read_errors = 0;
     int64_t next_lba = 0;
+    int32_t subcode_shift = 0;
+    std::optional<int32_t> current_q_lba;
     bool anchored = false;
     bool done = false;
 
@@ -138,11 +111,18 @@ export int redumper_dump_spiral_with_transport(Context &ctx, Options &options, c
         if(next_lba < LBA_START || next_lba >= LBA_LIMIT)
             throw_line("SpiralDrive stream LBA is outside the CD file range ({})", next_lba);
 
-        if(auto q_lba = track_lba(frame); q_lba && *q_lba != next_lba)
+        current_q_lba = position_q_lba(frame);
+        if(current_q_lba)
         {
-            ++q_mismatches;
-            if(options.verbose)
-                LOGC("SpiralDrive Q mismatch (stream LBA: {}, Q LBA: {})", next_lba, *q_lba);
+            int32_t shift = *current_q_lba - (int32_t)next_lba;
+            if(shift)
+                ++q_mismatches;
+            if(subcode_shift != shift)
+            {
+                subcode_shift = shift;
+                if(options.verbose)
+                    LOGC_R("[LBA: {:6}] SpiralDrive subcode desync (shift: {:+})", next_lba, subcode_shift);
+            }
         }
         if(!subcode_extract_q(frame + CD_DATA_SIZE + CD_C2_SIZE).isValid())
             ++q_errors;
@@ -169,14 +149,14 @@ export int redumper_dump_spiral_with_transport(Context &ctx, Options &options, c
         if(staged.size() / CD_RAW_DATA_SIZE >= SPIRAL_MAX_STAGED_FRAMES)
             throw_line("SpiralDrive stream exceeded {} frames without an LBA anchor", SPIRAL_MAX_STAGED_FRAMES);
         staged.insert(staged.end(), frame, frame + CD_RAW_DATA_SIZE);
-        auto q_lba = track_lba(frame);
+        auto q_lba = position_q_lba(frame);
         if(!q_lba)
             return;
 
         int64_t staged_frames = (int64_t)(staged.size() / CD_RAW_DATA_SIZE);
         int64_t first_lba = (int64_t)*q_lba - (staged_frames - 1);
         if(first_lba < LBA_START || (int64_t)*q_lba >= LBA_LIMIT)
-            throw_line("SpiralDrive lead-in cannot be placed in the standard CD LBA range (first: {}, anchor: {})", first_lba, *q_lba);
+            throw_line("SpiralDrive stream cannot be placed in the standard CD LBA range (first: {}, anchor: {})", first_lba, *q_lba);
         if(options.lba_end && *options.lba_end <= first_lba)
             throw_line("dump::spiral --lba-end precedes the first acquired frame (first: {}, end: {})", first_lba, *options.lba_end);
 
@@ -217,20 +197,27 @@ export int redumper_dump_spiral_with_transport(Context &ctx, Options &options, c
         auto result = send(read_buffer.data(), bytes, SpiralDrive_Operation::READ, SPIRAL_TIMEOUT_MS, count);
         if(result.first.status_code)
         {
-            LOG("SpiralDrive READ ended (SCSI: {}, transferred: {} bytes; response discarded)", SPTD::StatusMessage(result.first), result.second);
-            break;
+            ++read_errors;
+            ++consecutive_read_errors;
+            if(consecutive_read_errors >= SPIRAL_MAX_CONSECUTIVE_READ_ERRORS)
+                throw_line("SpiralDrive READ failed {} consecutive times; stream cannot advance (last SCSI: {})", consecutive_read_errors, SPTD::StatusMessage(result.first));
+            LOG_R("warning: SpiralDrive READ at stream LBA {} failed (SCSI: {}, transferred: {} bytes; response discarded); continuing; alignment may be lost", next_lba, SPTD::StatusMessage(result.first), result.second);
+            continue;
         }
         check_good_transfer(result, bytes);
+        consecutive_read_errors = 0;
 
         for(uint32_t i = 0; i < count && !done; ++i)
         {
-            accept_frame(read_buffer.data() + i * CD_RAW_DATA_SIZE);
+            const uint8_t *frame = read_buffer.data() + i * CD_RAW_DATA_SIZE;
+            accept_frame(frame);
             if(anchored && options.lba_end && next_lba >= *options.lba_end)
                 done = true;
         }
 
         if(anchored)
-            LOGC_RF("SpiralDrive LBA: {}, frames: {}, C2 samples: {}, invalid Q: {}", next_lba, frames_written, c2_errors, q_errors);
+            LOGC_RF("SpiralDrive LBA: {}, Q LBA: {}, frames: {}, C2 samples: {}, invalid Q: {}", next_lba,
+                current_q_lba ? std::to_string(*current_q_lba) : std::string("?"), frames_written, c2_errors, q_errors);
     }
 
     if(!anchored)
@@ -238,7 +225,7 @@ export int redumper_dump_spiral_with_transport(Context &ctx, Options &options, c
 
     LOGC_RF("");
     LOGC("");
-    LOG("SpiralDrive captured {} frames; C2: {} samples; invalid Q: {}; Q mismatches: {}", frames_written, c2_errors, q_errors, q_mismatches);
+    LOG("SpiralDrive captured {} frames; C2: {} samples; invalid Q: {}; Q mismatches: {}; SCSI READ errors: {}", frames_written, c2_errors, q_errors, q_mismatches, read_errors);
 
     return c2_errors || (options.refine_subchannel && q_errors);
 }

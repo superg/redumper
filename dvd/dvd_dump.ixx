@@ -979,7 +979,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                         for(uint32_t i = 0; i + 1 < layer_lengths.size(); ++i)
                         {
                             layer_break += layer_lengths[i];
-                            LOG("layer break{}: {}", layer_lengths.size() > 1 ? std::format(" (layer: {})", i) : "", layer_break);
+                            LOG("layer break{}: {}", layer_lengths.size() > 2 ? std::format(" (layer: {})", i) : "", layer_break);
                         }
 
                         LOG("");

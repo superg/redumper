@@ -273,7 +273,20 @@ export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, uint32_t block_siz
     cdb.include_sync_data = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? 0 : 1;
     cdb.sub_channel_selection = (uint8_t)sub_channel;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length).first;
+    // request exactly what the drive will return: some USB bridges (e.g. ASMedia ASM1153) corrupt
+    // data when the allocation length exceeds the actual transfer
+    uint32_t sector_size = CD_DATA_SIZE;
+    if(error_field == READ_CD_ErrorField::C2)
+        sector_size += CD_C2_SIZE;
+    else if(error_field == READ_CD_ErrorField::C2_BEB)
+        sector_size += CD_C2_SIZE + 2;
+    if(sub_channel == READ_CD_SubChannel::Q)
+        sector_size += 16;
+    else if(sub_channel != READ_CD_SubChannel::NONE)
+        sector_size += CD_SUBCODE_SIZE;
+    sector_size = std::min(sector_size, block_size);
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, sector_size * transfer_length).first;
 }
 
 

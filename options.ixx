@@ -394,6 +394,7 @@ export struct Options
         LOG("COMMANDS:");
         LOG("\tdisc          \taggregate mode that does everything (default)");
         LOG("\tdump          \tdumps disc to primary dump files");
+        LOG("\tdump::spiral  \tdumps the physical CD stream using SpiralDrive firmware");
         LOG("\tdump::extra   \tdumps extended disc areas such as lead-in and lead-out using specific drives");
         LOG("\trefine        \trefines dump files by re-reading the disc");
         LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");

@@ -224,6 +224,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "HL-DT-ST", "BD-RE WH16NS40"   , "1.05", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // scrambled
     { "HL-DT-ST", "BD-RE WH16NS60"   , "1.02", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // scrambled
     { "HL-DT-ST", "DVD+-RW GH50N"    , "B103", "", "",  +667,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB   , Type::GENERIC  },
+    { "HL-DT-ST", "DVDRAM SP80NB60"  , "PD00", "", "",    +6,  0,    0, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  },
     { "CREATIVE", "CD5233E-N"        , "0.20", "", "",   +12,  0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  },
     { "PLEXTOR" , "DVDR PX-740A"     , "1.02", "", "",  +618,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB   , Type::GENERIC  }, // doesn't stop on lead-out but always returns same sector
     { "PLEXTOR" , "DVDR PX-L890SA"   , "1.07", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // scrambled

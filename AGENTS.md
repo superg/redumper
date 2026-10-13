@@ -2,13 +2,15 @@
 
 This file holds durable working preferences and project rules for this repository.
 
-The separate Ponytail section below preserves the complete [upstream AGENTS.md](https://github.com/DietrichGebert/ponytail/blob/main/AGENTS.md). Our repository-specific rules take precedence wherever they apply, including the current restriction on adding tests.
+The separate Ponytail section below preserves the complete [upstream AGENTS.md](https://github.com/DietrichGebert/ponytail/blob/main/AGENTS.md). Our repository-specific rules take precedence wherever they apply, including the current restriction on adding SpiralDrive tests.
 
 ## Code style
 
 - Name new or renamed functions in `snake_case`, for example `read_sector`.
 - Name variables in lowercase `snake_case`, including globals, locals, parameters and structure fields.
 - Name constants, macros, and enum values in uppercase `SNAKE_CASE`, including `constexpr` constants.
+- Do not add type suffixes to numeric literals unless required for correctness or compilation.
+- Use explicit loop termination conditions when known; do not use an infinite loop with `break` for normal successful completion.
 - Name new or renamed structure, enum, and other types in `PascalCase`, for example `DriveState` and `ReadMode`.
 - Keep abbreviations and acronyms fully uppercase in PascalCase identifiers, for example `SpiralDriveCDB` instead of `SpiralDriveCdb`.
 - Use the repository's `.clang-format` as the source of truth for C/C++ formatting. Read it before editing and run `clang-format` on changed code where available.
@@ -31,7 +33,10 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 
 ## Project rules
 
+- Do not add or expand SpiralDrive tests at this stage unless explicitly requested.
+- Always explicitly set the drive to 4× speed before any optical-drive test or diagnostic.
 - Always show progress during SpiralDrive dumping, including capture before an LBA anchor is available.
+- Omit `SpiralDrive` from log messages during SpiralDrive dumping; the mode already provides that context.
 - If `../gplextor` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware and a fully annotated Ghidra project. Consult it for any aspect of SpiralDrive development; Ghidra is available through MCP.
 - If `../spiraldrive-pxw5224a` exists, it contains a custom SpiralDrive firmware implementation for PLEXTOR PX-W5224A based on the stock 1.04 firmware. Consult it for any aspect of SpiralDrive development.
 

@@ -130,7 +130,7 @@ const std::map<std::string, Command> COMMANDS{
     // NAME              DRIVE READY AUTO IMAGE GENERATE HANDLER
     { "rings",                { true, true, true, false, false, redumper_rings }           },
     { "dump",                 { true, true, true, true, true, redumper_dump }              },
-    { "dump::spiral",         { true, true, true, true, true, redumper_dump_spiral }       },
+    { "spiral::dump",         { true, true, true, true, true, redumper_spiral_dump }       },
     { "dump::extra",          { true, true, true, true, false, redumper_dump_extra }       },
     { "refine",               { true, true, true, true, false, redumper_refine }           },
     { "dvdkey",               { true, true, true, false, false, redumper_dvdkey }          },

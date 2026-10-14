@@ -23,6 +23,7 @@ endif()
 
 # packaging
 set(CPACK_GENERATOR "ZIP")
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
 # extract platform suffix from toolchain filename
 if(CMAKE_TOOLCHAIN_FILE)
     get_filename_component(toolchain_basename ${CMAKE_TOOLCHAIN_FILE} NAME_WE)

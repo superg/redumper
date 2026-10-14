@@ -181,6 +181,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "TSSTcorp", "DVD-ROM TS-H353C" , "ZZ00", ""                    , "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
     { "HL-DT-ST", "DVD-ROM DH41N"    , "ZZ00", ""                    , "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
     { "PLDS"    , "DVD-ROM DH-16D5S" , "ZZ00", "2025-06-18 15:03 Fen", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
+    { "ATAPI"   , "DVD D DH16D2S"    , "GD0D", "2007/06/04 17:00"    , "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // wakasio
     { "hp"      , "DVD RW AD-7290H5" , "SE02", ""                    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "Optiarc" , "DVD RW AD-7173A"  , "1-04", "seri-v1    BT-LIGGY" , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "NEC"     , "DVD_RW ND-3520AW" , "3.07", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri

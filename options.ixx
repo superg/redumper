@@ -431,11 +431,11 @@ export struct Options
         LOG("\t--disc-type=VALUE               \toverride detected disc type (current profile), possible values: CD, DVD, BLURAY, BLURAY-R, HD-DVD");
         LOG("");
         LOG("\t(drive configuration)");
-        LOG("\t--drive-type=VALUE              \toverride drive type, possible values: GENERIC, PLEXTOR, MTK2, MTK3, MTK8A, MTK8B, MTK8C");
+        LOG("\t--drive-type=VALUE              \toverride drive type, possible values: GENERIC, PLEXTOR, MTK2, MTK2B, MTK3, MTK8A, MTK8B, MTK8C");
         LOG("\t--drive-read-offset=VALUE       \toverride drive read offset");
         LOG("\t--drive-c2-shift=VALUE          \toverride drive C2 shift");
         LOG("\t--drive-pregap-start=VALUE      \toverride drive pre-gap start LBA");
-        LOG("\t--drive-read-method=VALUE       \toverride drive read method, possible values: BE, D8, BE_CDDA");
+        LOG("\t--drive-read-method=VALUE       \toverride drive read method, possible values: BE, D8");
         LOG("\t--drive-sector-order=VALUE      \toverride drive sector order, possible values: DATA_C2_SUB, DATA_SUB_C2, DATA_SUB, DATA_C2");
         LOG("\t--auto-detect                   \tattempt to automatically detect drive sector order for generic drives");
         LOG("");

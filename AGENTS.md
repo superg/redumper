@@ -10,6 +10,9 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Name variables in lowercase `snake_case`, including globals, locals, parameters and structure fields.
 - Name constants, macros, and enum values in uppercase `SNAKE_CASE`, including `constexpr` constants.
 - Do not add type suffixes to numeric literals unless required for correctness or compilation.
+- Base each buffer write's size and emptiness checks on the corresponding buffer.
+- Use `std::span` for non-owning views into read buffers.
+- Use `int32_t` for LBA values and arithmetic.
 - Use explicit loop termination conditions when known; do not use an infinite loop with `break` for normal successful completion.
 - Name new or renamed structure, enum, and other types in `PascalCase`, for example `DriveState` and `ReadMode`.
 - Keep abbreviations and acronyms fully uppercase in PascalCase identifiers, for example `SpiralDriveCDB` instead of `SpiralDriveCdb`.
@@ -35,7 +38,10 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 
 - Do not add or expand SpiralDrive tests at this stage unless explicitly requested.
 - Always explicitly set the drive to 4× speed before any optical-drive test or diagnostic.
-- Always show progress during SpiralDrive dumping, including capture before an LBA anchor is available.
+- Always show progress during SpiralDrive dumping.
+- Write SpiralDrive raw capture files in arrival order without staging, LBA anchoring, reserved lead-in space, or offset compensation.
+- Keep the SpiralDrive read buffer fixed at the configured batch size; do not resize it.
+- Calculate SpiralDrive end limits from the latest valid positional Q at the start of each capture iteration.
 - Omit `SpiralDrive` from log messages during SpiralDrive dumping; the mode already provides that context.
 - If `../gplextor` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware and a fully annotated Ghidra project. Consult it for any aspect of SpiralDrive development; Ghidra is available through MCP.
 - If `../spiraldrive-pxw5224a` exists, it contains a custom SpiralDrive firmware implementation for PLEXTOR PX-W5224A based on the stock 1.04 firmware. Consult it for any aspect of SpiralDrive development.

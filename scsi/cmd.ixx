@@ -528,7 +528,7 @@ export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t blo
 }
 
 
-export std::pair<SPTD::Status, uint32_t> cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer_size, SpiralDrive_Operation operation, uint16_t timeout, int32_t value)
+export SPTD::Status cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer_size, SpiralDrive_Operation operation, uint16_t timeout, int32_t value)
 {
     CDB12_SpiralDrive cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::SPIRALDRIVE;
@@ -536,7 +536,7 @@ export std::pair<SPTD::Status, uint32_t> cmd_spiraldrive(SPTD &sptd, uint8_t *bu
     cdb.timeout = endian_swap(timeout);
     cdb.value = endian_swap(value);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, buffer_size);
+    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, buffer_size).first;
 }
 
 }

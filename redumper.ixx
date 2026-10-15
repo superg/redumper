@@ -14,6 +14,7 @@ module;
 
 export module redumper;
 
+import bd.key;
 import cd.cd;
 import cd.dump;
 import cd.dump_extra;
@@ -131,6 +132,7 @@ const std::map<std::string, Command> COMMANDS{
     { "dump::extra",          { true, true, true, true, false, redumper_dump_extra }       },
     { "refine",               { true, true, true, true, false, redumper_refine }           },
     { "dvdkey",               { true, true, true, false, false, redumper_dvdkey }          },
+    { "bdkey",                { true, true, true, false, false, redumper_bdkey }           },
     { "eject",                { true, false, false, false, false, redumper_eject }         },
     { "dvdisokey",            { false, false, false, true, false, redumper_dvdisokey }     },
     { "protection",           { false, false, false, true, false, redumper_protection }    },

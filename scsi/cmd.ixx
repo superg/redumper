@@ -288,7 +288,7 @@ export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, uint32_t block_s
     cdb.sub_code = (uint8_t)sub_code;
 
     auto [status, transferred_length] = sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
-    if(!status.status_code && transferred_length != READ_CDDA_SIZES[(uint8_t)sub_code] * transfer_length)
+    if(!status.status_code && transferred_length < READ_CDDA_SIZES[(uint8_t)sub_code] * transfer_length)
         status.status_code = SPTD::HOST_SHORT_TRANSFER;
 
     return status;

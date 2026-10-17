@@ -43,6 +43,7 @@ namespace gpsxre
 {
 
 export constexpr int32_t LBA_START = -45150; // MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
+export constexpr int32_t LBA_ZERO_INDEX = -LBA_START;
 
 
 export enum class TrackType

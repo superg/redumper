@@ -75,6 +75,7 @@ export struct Options
     int audio_silence_threshold;
     std::unique_ptr<int> dump_write_offset;
     std::unique_ptr<int> dump_read_size;
+    int spiraldrive_read_size;
     bool overread_leadout;
     bool force_unscrambled;
     bool force_refine;
@@ -95,6 +96,7 @@ export struct Options
     static constexpr int audio_silence_threshold_default = 32;
     static constexpr int cdr_error_threshold_default = 16;
     static constexpr int scsi_timeout_default = 50000;
+    static constexpr int SPIRALDRIVE_READ_SIZE_DEFAULT = 16;
 
 
     Options(int argc, const char *argv[])
@@ -132,6 +134,7 @@ export struct Options
         , correct_offset_shift(false)
         , offset_shift_relocate(false)
         , audio_silence_threshold(audio_silence_threshold_default)
+        , spiraldrive_read_size(SPIRALDRIVE_READ_SIZE_DEFAULT)
         , overread_leadout(false)
         , force_unscrambled(false)
         , force_refine(false)
@@ -319,6 +322,8 @@ export struct Options
                         dump_read_size = std::make_unique<int>();
                         i_value = dump_read_size.get();
                     }
+                    else if(key == "--spiraldrive-read-size")
+                        i_value = &spiraldrive_read_size;
                     else if(key == "--overread-leadout")
                         overread_leadout = true;
                     else if(key == "--force-unscrambled")
@@ -394,6 +399,7 @@ export struct Options
         LOG("COMMANDS:");
         LOG("\tdisc          \taggregate mode that does everything (default)");
         LOG("\tdump          \tdumps disc to primary dump files");
+        LOG("\tdump::spiral  \tdumps the physical CD stream using SpiralDrive firmware");
         LOG("\tdump::extra   \tdumps extended disc areas such as lead-in and lead-out using specific drives");
         LOG("\trefine        \trefines dump files by re-reading the disc");
         LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
@@ -469,6 +475,9 @@ export struct Options
         LOG("\t(drive test)");
         LOG("\t--drive-test-skip-plextor-leadin\tskip testing for PLEXTOR negative lead-in range access");
         LOG("\t--drive-test-skip-cache-read    \tskip testing for MEDIATEK cache read command (F1)");
+        LOG("");
+        LOG("\t(SpiralDrive)");
+        LOG("\t--spiraldrive-read-size=VALUE   \tnumber of sectors to read at once (default: {})", SPIRALDRIVE_READ_SIZE_DEFAULT);
         LOG("");
         LOG("\t(miscellaneous)");
         LOG("\t--continue=VALUE                \tcontinue \"disc\" command starting from VALUE command");

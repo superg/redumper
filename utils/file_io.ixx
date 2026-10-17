@@ -100,18 +100,18 @@ export void write_entry_bit(std::fstream &fs, const uint8_t *data, uint64_t entr
     if(!entry_size || !count)
         return;
 
-    constexpr uint64_t MAX_SIZE =
-        std::min({ (uint64_t)INT64_MAX, (uint64_t)std::numeric_limits<std::streamoff>::max(), (uint64_t)std::numeric_limits<std::streamsize>::max(), (uint64_t)std::numeric_limits<size_t>::max() });
+    constexpr uint64_t MAX_POSITION = std::min((uint64_t)INT64_MAX, (uint64_t)std::numeric_limits<std::streamoff>::max());
+    constexpr uint64_t MAX_SIZE = std::min({ MAX_POSITION, (uint64_t)std::numeric_limits<std::streamsize>::max(), (uint64_t)std::numeric_limits<size_t>::max() });
     bool half_byte = bit_offset % BYTE_BITS != 0;
     int64_t byte_offset = bit_offset / BYTE_BITS + (bit_offset % BYTE_BITS > 0);
-    if(entry_size > (MAX_SIZE - half_byte) / count || (index && entry_size > MAX_SIZE / index))
+    if(entry_size > (MAX_SIZE - half_byte) / count || (index && entry_size > MAX_POSITION / index))
         throw_line("entry range is too large");
     uint64_t total_size = entry_size * count;
-    if(byte_offset < 0 && (uint64_t)-byte_offset > MAX_SIZE - index * entry_size)
+    if(byte_offset < 0 && (uint64_t)-byte_offset > MAX_POSITION - index * entry_size)
         throw_line("entry position is too large");
     int64_t file_offset = (int64_t)(index * entry_size) - byte_offset;
     uint64_t size = total_size + half_byte;
-    if(file_offset > 0 && size > MAX_SIZE - file_offset)
+    if(file_offset > 0 && size > MAX_POSITION - file_offset)
         throw_line("entry range is too large");
     uint64_t skip = file_offset < 0 ? std::min((uint64_t)-file_offset, size) : 0;
     if(skip == size)
@@ -186,18 +186,18 @@ export void read_entry_bit(std::fstream &fs, uint8_t *data, uint64_t entry_size,
     if(!entry_size || !count)
         return;
 
-    constexpr uint64_t MAX_SIZE =
-        std::min({ (uint64_t)INT64_MAX, (uint64_t)std::numeric_limits<std::streamoff>::max(), (uint64_t)std::numeric_limits<std::streamsize>::max(), (uint64_t)std::numeric_limits<size_t>::max() });
+    constexpr uint64_t MAX_POSITION = std::min((uint64_t)INT64_MAX, (uint64_t)std::numeric_limits<std::streamoff>::max());
+    constexpr uint64_t MAX_SIZE = std::min({ MAX_POSITION, (uint64_t)std::numeric_limits<std::streamsize>::max(), (uint64_t)std::numeric_limits<size_t>::max() });
     bool half_byte = bit_offset % BYTE_BITS != 0;
     int64_t byte_offset = bit_offset / BYTE_BITS + (bit_offset % BYTE_BITS > 0);
-    if(entry_size > (MAX_SIZE - half_byte) / count || (index && entry_size > MAX_SIZE / index))
+    if(entry_size > (MAX_SIZE - half_byte) / count || (index && entry_size > MAX_POSITION / index))
         throw_line("entry range is too large");
     uint64_t total_size = entry_size * count;
-    if(byte_offset < 0 && (uint64_t)-byte_offset > MAX_SIZE - index * entry_size)
+    if(byte_offset < 0 && (uint64_t)-byte_offset > MAX_POSITION - index * entry_size)
         throw_line("entry position is too large");
     int64_t file_offset = (int64_t)(index * entry_size) - byte_offset;
     uint64_t size = total_size + half_byte;
-    if(file_offset > 0 && size > MAX_SIZE - file_offset)
+    if(file_offset > 0 && size > MAX_POSITION - file_offset)
         throw_line("entry range is too large");
     uint64_t skip = file_offset < 0 ? std::min((uint64_t)-file_offset, size) : 0;
     file_offset = std::max(file_offset, (int64_t)0);

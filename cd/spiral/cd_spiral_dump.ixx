@@ -157,11 +157,15 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     uint32_t lba_limit = std::numeric_limits<uint32_t>::max();
     for(uint32_t lba_index = 0;;)
     {
-        if(options.lba_end && q_lba)
+        if(options.lba_end)
         {
-            int32_t start_lba = q_lba->first - (int32_t)q_lba->second;
-            lba_limit = (uint32_t)*options.lba_end - (uint32_t)std::min(*options.lba_end, start_lba);
+            if(q_lba)
+            {
+                int32_t start_lba = q_lba->first - (int32_t)q_lba->second;
+                lba_limit = (uint32_t)*options.lba_end - (uint32_t)std::min(*options.lba_end, start_lba);
+            }
         }
+
         if(lba_index >= lba_limit)
             break;
 

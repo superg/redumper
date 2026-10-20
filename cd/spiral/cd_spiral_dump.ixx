@@ -15,6 +15,7 @@ module;
 export module cd.spiral;
 
 import cd.cd;
+import cd.common;
 import cd.subcode;
 import common;
 import drive;
@@ -42,38 +43,31 @@ void seek_spiral_start(SPTD &sptd, SignalINT &signal, const Options &options)
     constexpr uint32_t MAX_SEEKS = 0x7FFF;
 
     LOG("seeking inner pickup limit");
-    SpiralDrive_SeekResult seek_result = SpiralDrive_SeekResult::OK;
-    int32_t inward_step = INWARD_SEEK_STEP;
+    SpiralDrive_SeekResult seek_result = SpiralDrive_SeekResult::NONE;
     for(uint32_t i = 0; i < MAX_SEEKS; ++i)
     {
         if(signal.interrupt())
             signal.raiseDefault();
 
-        if(auto status = cmd_spiraldrive(sptd, (uint8_t *)&seek_result, sizeof(seek_result), SpiralDrive_Operation::SEEK, C4_TIMEOUT_MS, -inward_step); status.status_code)
-            throw_line("inward SEEK failed (step: {}, SCSI: {})", inward_step, SPTD::StatusMessage(status));
+        seek_result = SpiralDrive_SeekResult::NONE;
+        if(auto status = cmd_spiraldrive(sptd, (uint8_t *)&seek_result, sizeof(seek_result), SpiralDrive_Operation::SEEK, C4_TIMEOUT_MS, -INWARD_SEEK_STEP); status.status_code)
+            throw_line("inward SEEK failed (step: {}, iteration: {}, SCSI: {})", INWARD_SEEK_STEP, i + 1, SPTD::StatusMessage(status));
 
-        if(seek_result == SpiralDrive_SeekResult::OK)
+        if(seek_result == SpiralDrive_SeekResult::NONE)
         {
             if(options.verbose)
-                LOG("inward SEEK success (step: {}, iteration: {})", inward_step, i + 1);
-        }
-        else if(seek_result == SpiralDrive_SeekResult::FAILED)
-        {
-            if(inward_step == 1)
-                throw_line("inward SEEK failed at minimum step magnitude");
-
-            inward_step /= 2;
-            if(options.verbose)
-                LOG("inward SEEK failed, reducing magnitude (step: {})", inward_step);
+                LOG("inward SEEK success (step: {}, iteration: {})", INWARD_SEEK_STEP, i + 1);
         }
         else if(seek_result == SpiralDrive_SeekResult::INNER_LIMIT)
         {
-            LOG("inward SEEK inner limit reached (step: {}, iterations: {})", inward_step, i + 1);
+            LOG("inward SEEK inner limit reached (step: {}, iterations: {})", INWARD_SEEK_STEP, i + 1);
             break;
         }
+        else
+            throw_line("inward SEEK returned an invalid result (result: {}, step: {}, iteration: {})", (uint8_t)seek_result, INWARD_SEEK_STEP, i + 1);
     }
     if(seek_result != SpiralDrive_SeekResult::INNER_LIMIT)
-        throw_line("inward SEEK inner limit was not reached (step: {}, iteration: {})", inward_step, MAX_SEEKS);
+        throw_line("inward SEEK inner limit was not reached (step: {}, iteration: {})", INWARD_SEEK_STEP, MAX_SEEKS);
 
     LOG("seeking readable start");
     bool read_success = false;
@@ -88,8 +82,8 @@ void seek_spiral_start(SPTD &sptd, SignalINT &signal, const Options &options)
         {
             if(auto status = cmd_spiraldrive(sptd, (uint8_t *)&seek_result, sizeof(seek_result), SpiralDrive_Operation::SEEK, C4_TIMEOUT_MS, OUTWARD_SEEK_STEP); status.status_code)
                 throw_line("outward SEEK failed (step: {}, SCSI: {})", OUTWARD_SEEK_STEP, SPTD::StatusMessage(status));
-            if(seek_result != SpiralDrive_SeekResult::OK)
-                throw_line("outward SEEK failed (result: {}, step: {}, iteration: {})", (uint8_t)seek_result, OUTWARD_SEEK_STEP, i + 1);
+            if(seek_result != SpiralDrive_SeekResult::NONE)
+                throw_line("outward SEEK returned an invalid result (result: {}, step: {}, iteration: {})", (uint8_t)seek_result, OUTWARD_SEEK_STEP, i + 1);
 
             if(options.verbose)
                 LOG("outward SEEK success (step: {}, iteration: {})", OUTWARD_SEEK_STEP, i + 1);
@@ -188,7 +182,6 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
                 std::fill(sector_subcode.begin(), sector_subcode.end(), 0);
             }
 
-            errors_c2 += std::any_of(sector_c2.begin(), sector_c2.end(), [](uint8_t byte) { return byte != 0; });
             ChannelQ q = subcode_extract_q(sector_subcode.data());
             if(q.isValid())
             {
@@ -198,12 +191,19 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
             else
                 ++errors_q;
 
+            if(auto c2_bits = c2_bits_count(sector_c2); c2_bits)
+            {
+                ++errors_c2;
+                if(options.verbose)
+                    LOGC_R("[LBA: {:>6}] C2 error (bits: {:4})", q_lba ? std::to_string(q_lba->first + (int32_t)(lba_index + i - q_lba->second)) : "------", c2_bits);
+            }
+
             write_entry_bit(fs_main, sector_data.data(), sector_data.size(), lba_index + i, 1, 0, false);
             write_entry_bit(fs_c2, sector_c2.data(), sector_c2.size(), lba_index + i, 1, 0, true);
             write_entry_bit(fs_sub, sector_subcode.data(), sector_subcode.size(), lba_index + i, 1, 0, false);
         }
 
-        LOGC_RF("{} sector: {:6}, LBA: {:6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? std::to_string(q_lba->first + (int32_t)(lba_index - q_lba->second)) : "------",
+        LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? std::to_string(q_lba->first + (int32_t)(lba_index - q_lba->second)) : "------",
             errors_c2, errors_q);
 
         if(signal.interrupt())

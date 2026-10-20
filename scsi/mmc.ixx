@@ -969,9 +969,8 @@ export enum class SpiralDrive_Operation : uint8_t
 
 export enum class SpiralDrive_SeekResult : uint8_t
 {
-    FAILED = 0,
-    OK = 1,
-    INNER_LIMIT = 2
+    NONE = 0,
+    INNER_LIMIT = 1
 };
 
 

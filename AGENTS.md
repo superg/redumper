@@ -41,6 +41,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Do not add or expand SpiralDrive tests at this stage unless explicitly requested.
 - Always explicitly set the drive to 4× speed before any optical-drive test or diagnostic.
 - Always show progress during SpiralDrive dumping.
+- Inward SpiralDrive homing uses a fixed SEEK step until sensor-confirmed INNER_LIMIT; abort on any SEEK error with its SCSI details instead of reducing the step or retrying the failed command.
 - Write SpiralDrive raw capture files in arrival order without staging, LBA anchoring, reserved lead-in space, or offset compensation.
 - Keep the SpiralDrive read buffer fixed at the configured batch size; do not resize it.
 - Calculate SpiralDrive end limits from the latest valid positional Q at the start of each capture iteration.

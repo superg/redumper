@@ -222,6 +222,7 @@ export enum class READ_DISC_STRUCTURE_Format : uint8_t
     RESERVED4,
     WRITE_PROTECTION = 0xC0,
     RESERVED5,
+    AACS_VID = 0x80,
     STRUCTURE_LIST = 0xFF
 };
 
@@ -233,29 +234,24 @@ export enum class READ_DVD_STRUCTURE_CopyrightInformation_CPST : uint8_t
     CPRM
 };
 
-export enum class SEND_KEY_KeyFormat : uint8_t
-{
-    CHALLENGE_KEY = 0x01,
-    KEY2 = 0x03,
-    RPC_STRUCTURE = 0x06,
-    INVALIDATE_AGID = 0x3F
-};
 
-
-export enum class REPORT_KEY_KeyClass : uint8_t
+export enum class KEY_KeyClass : uint8_t
 {
     DVD_CSS_CPPM_CPRM,
-    REWRITABLE_SECURITY_SERVICE_A
+    REWRITABLE_SECURITY_SERVICE_A,
+    AACS
 };
 
 
-export enum class REPORT_KEY_KeyFormat : uint8_t
+export enum class KEY_KeyFormat : uint8_t
 {
     AGID,
     CHALLENGE_KEY,
     KEY1,
-    TITLE_KEY = 0x04,
+    KEY2,
+    TITLE_KEY,
     ASF,
+    RPC_STRUCTURE,
     RPC_STATE = 0x08,
     AGID_CPRM = 0x11,
     INVALIDATE_AGID = 0x3F
@@ -375,6 +371,20 @@ export struct REPORT_KEY_ChallengeKey
 {
     uint8_t challenge[10];
     uint8_t reserved[2];
+};
+
+
+export struct REPORT_KEY_ChallengeCertificate
+{
+    uint8_t host_nonce[20];
+    uint8_t host_certificate[92];
+};
+
+
+export struct REPORT_KEY_Signed
+{
+    uint8_t host_key_point[40];
+    uint8_t host_key_signature[40];
 };
 
 
@@ -735,7 +745,8 @@ export struct CDB12_SendKey
     uint8_t operation_code;
     uint8_t reserved2 :5;
     uint8_t reserved1 :3;
-    uint8_t reserved3[6];
+    uint8_t reserved3[5];
+    uint8_t key_class;
     uint16_t parameter_list_length;
     uint8_t key_format :6;
     uint8_t agid       :2;

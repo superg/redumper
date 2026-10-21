@@ -85,6 +85,10 @@ export struct Options
     bool force_flash;
     bool drive_test_skip_plextor_leadin;
     bool drive_test_skip_cache_read;
+    std::unique_ptr<std::string> host_nonce;
+    std::unique_ptr<std::string> host_certificate;
+    std::unique_ptr<std::string> host_key_point;
+    std::unique_ptr<std::string> host_private_key;
     bool skip_subcode_desync;
     bool rings;
     int cdr_error_threshold;
@@ -346,6 +350,30 @@ export struct Options
                         drive_test_skip_plextor_leadin = true;
                     else if(key == "--drive-test-skip-cache-read")
                         drive_test_skip_cache_read = true;
+                    else if(key == "--host-nonce")
+                    {
+                        host_nonce = std::make_unique<std::string>();
+                        s_value = host_nonce.get();
+                        arguments.erase(arguments.find(key), key.size() + 2 + 40);
+                    }
+                    else if(key == "--host-certificate")
+                    {
+                        host_certificate = std::make_unique<std::string>();
+                        s_value = host_certificate.get();
+                        arguments.erase(arguments.find(key), key.size() + 2 + 184);
+                    }
+                    else if(key == "--host-key-point")
+                    {
+                        host_key_point = std::make_unique<std::string>();
+                        s_value = host_key_point.get();
+                        arguments.erase(arguments.find(key), key.size() + 2 + 80);
+                    }
+                    else if(key == "--host-private-key")
+                    {
+                        host_private_key = std::make_unique<std::string>();
+                        s_value = host_private_key.get();
+                        arguments.erase(arguments.find(key), key.size() + 2 + 40);
+                    }
                     else if(key == "--skip-subcode-desync")
                         skip_subcode_desync = true;
                     else if(key == "--rings")

@@ -158,10 +158,11 @@ export SPTD::Status cmd_read_disc_structure(SPTD &sptd, std::vector<uint8_t> &re
 }
 
 
-export SPTD::Status cmd_send_key(SPTD &sptd, const uint8_t *data, uint32_t data_size, SEND_KEY_KeyFormat key_format, uint8_t agid)
+export SPTD::Status cmd_send_key(SPTD &sptd, const uint8_t *data, uint32_t data_size, KEY_KeyClass key_class, KEY_KeyFormat key_format, uint8_t agid)
 {
     CDB12_SendKey cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::SEND_KEY;
+    cdb.key_class = (uint8_t)key_class;
     cdb.key_format = (uint8_t)key_format;
     cdb.agid = agid;
 
@@ -181,7 +182,7 @@ export SPTD::Status cmd_send_key(SPTD &sptd, const uint8_t *data, uint32_t data_
 }
 
 
-export SPTD::Status cmd_report_key(SPTD &sptd, std::vector<uint8_t> &response, uint32_t lba, REPORT_KEY_KeyClass key_class, uint8_t agid, REPORT_KEY_KeyFormat key_format)
+export SPTD::Status cmd_report_key(SPTD &sptd, std::vector<uint8_t> &response, uint32_t lba, KEY_KeyClass key_class, uint8_t agid, KEY_KeyFormat key_format)
 {
     CDB12_ReportKey cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::REPORT_KEY;
@@ -190,7 +191,7 @@ export SPTD::Status cmd_report_key(SPTD &sptd, std::vector<uint8_t> &response, u
     cdb.agid = agid;
     cdb.key_format = (uint8_t)key_format;
 
-    return key_format == REPORT_KEY_KeyFormat::INVALIDATE_AGID ? sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first : cdb_send_receive(sptd, response, cdb);
+    return key_format == KEY_KeyFormat::INVALIDATE_AGID ? sptd.sendCommand(&cdb, sizeof(cdb), nullptr, 0).first : cdb_send_receive(sptd, response, cdb);
 }
 
 

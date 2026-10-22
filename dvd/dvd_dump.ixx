@@ -834,6 +834,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
             LOG("kreon: failed to unlock drive, SCSI ({})", SPTD::StatusMessage(status));
     }
 
+    // disable jamless play on LG firmware to prevent false-negative read errors
+    if(is_jamless_play_firmware(ctx.drive_config) && !drive_set_jamless_play(*ctx.sptd, JamlessPlayMode::OFF, JamlessPlayPersist::TEMPORARY))
+        LOG("warning: failed to disable Jamless Play");
+
     // get capacity
     uint32_t sectors_count_capacity = get_sectors_count_capacity(*ctx.sptd);
 

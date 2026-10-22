@@ -36,7 +36,7 @@ namespace gpsxre
 constexpr uint16_t C4_TIMEOUT_MS = 5000;
 
 
-void seek_spiral_start(SPTD &sptd, SignalINT &signal, const Options &options)
+void seek_spiral_start(SPTD &sptd, const Options &options)
 {
     constexpr int32_t INWARD_SEEK_STEP = 50;
     constexpr int32_t OUTWARD_SEEK_STEP = 1;
@@ -46,9 +46,6 @@ void seek_spiral_start(SPTD &sptd, SignalINT &signal, const Options &options)
     SpiralDrive_SeekResult seek_result = SpiralDrive_SeekResult::NONE;
     for(uint32_t i = 0; i < MAX_SEEKS; ++i)
     {
-        if(signal.interrupt())
-            signal.raiseDefault();
-
         seek_result = SpiralDrive_SeekResult::NONE;
         if(auto status = cmd_spiraldrive(sptd, (uint8_t *)&seek_result, sizeof(seek_result), SpiralDrive_Operation::SEEK, C4_TIMEOUT_MS, -INWARD_SEEK_STEP); status.status_code)
             throw_line("inward SEEK failed (step: {}, iteration: {}, SCSI: {})", INWARD_SEEK_STEP, i + 1, SPTD::StatusMessage(status));
@@ -74,9 +71,6 @@ void seek_spiral_start(SPTD &sptd, SignalINT &signal, const Options &options)
     std::vector<uint8_t> buffer(CD_RAW_DATA_SIZE);
     for(uint32_t i = 0; i < MAX_SEEKS; ++i)
     {
-        if(signal.interrupt())
-            signal.raiseDefault();
-
         // seek
         if(i)
         {
@@ -126,8 +120,6 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
             throw_line("spiral::dump requires a drive running SpiralDrive firmware");
     }
 
-    auto read_size = (uint32_t)options.spiraldrive_read_size;
-
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
     if(!options.overwrite && (std::filesystem::exists(image_prefix + ".main.raw") || std::filesystem::exists(image_prefix + ".c2.raw") || std::filesystem::exists(image_prefix + ".sub.raw")))
         throw_line("dump already exists (image name: {})", options.image_name);
@@ -139,77 +131,90 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     fs_c2.exceptions(std::ios::badbit | std::ios::failbit);
     fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
 
-    std::vector<uint8_t> read_buffer(read_size * CD_RAW_DATA_SIZE);
+    std::vector<uint8_t> sector(CD_RAW_DATA_SIZE);
+    std::span<uint8_t> sector_data(sector.data(), CD_DATA_SIZE);
+    std::span<uint8_t> sector_c2(sector.data() + CD_DATA_SIZE, CD_C2_SIZE);
+    std::span<uint8_t> sector_subcode(sector.data() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
 
-    SignalINT signal;
-    seek_spiral_start(*ctx.sptd, signal, options);
+    seek_spiral_start(*ctx.sptd, options);
 
     uint32_t errors_c2 = 0;
     uint32_t errors_q = 0;
     std::optional<std::pair<int32_t, uint32_t>> q_lba;
+    std::optional<int32_t> lba_end;
+    if(options.spiraldrive_dreamcast)
+        lba_end = 45000;
 
-    uint32_t lba_limit = std::numeric_limits<uint32_t>::max();
-    for(uint32_t lba_index = 0;;)
+    SignalINT signal;
+    for(uint32_t lba_index = 0; !signal.interrupt(); ++lba_index)
     {
-        if(options.lba_end)
+        if(q_lba)
         {
-            if(q_lba)
+            int32_t lba = q_lba->first + (int32_t)(lba_index - q_lba->second);
+
+            if(options.lba_end)
             {
-                int32_t start_lba = q_lba->first - (int32_t)q_lba->second;
-                lba_limit = (uint32_t)*options.lba_end - (uint32_t)std::min(*options.lba_end, start_lba);
+                if(lba >= *options.lba_end)
+                    break;
+            }
+            else if(lba_end)
+            {
+                if(lba >= *lba_end)
+                    break;
             }
         }
 
-        if(lba_index >= lba_limit)
-            break;
-
-        uint32_t sectors_to_read = std::min(read_size, lba_limit - lba_index);
-        auto status = cmd_spiraldrive(*ctx.sptd, read_buffer.data(), sectors_to_read * CD_RAW_DATA_SIZE, SpiralDrive_Operation::READ, C4_TIMEOUT_MS, sectors_to_read);
+        auto status = cmd_spiraldrive(*ctx.sptd, sector.data(), CD_RAW_DATA_SIZE, SpiralDrive_Operation::READ, C4_TIMEOUT_MS, 1);
         if(status.status_code)
-            LOG_R("READ failed (sectors: {}, SCSI: {})", sectors_to_read, SPTD::StatusMessage(status));
-
-        for(uint32_t i = 0; i < sectors_to_read; ++i)
         {
-            std::span<uint8_t> sector(read_buffer.data() + (uint64_t)i * CD_RAW_DATA_SIZE, CD_RAW_DATA_SIZE);
-            std::span<uint8_t> sector_data(sector.begin(), CD_DATA_SIZE);
-            std::span<uint8_t> sector_c2(sector.begin() + CD_DATA_SIZE, CD_C2_SIZE);
-            std::span<uint8_t> sector_subcode(sector.begin() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
-
-            if(status.status_code)
-            {
-                std::fill(sector_data.begin(), sector_data.end(), 0);
-                std::fill(sector_c2.begin(), sector_c2.end(), 0xFF);
-                std::fill(sector_subcode.begin(), sector_subcode.end(), 0);
-            }
-
-            ChannelQ q = subcode_extract_q(sector_subcode.data());
-            if(q.isValid())
-            {
-                if(q.adr == 1 && q.mode1.tno)
-                    q_lba = { BCDMSF_to_LBA(q.mode1.a_msf), lba_index + i };
-            }
-            else
-                ++errors_q;
-
-            if(auto c2_bits = c2_bits_count(sector_c2); c2_bits)
-            {
-                ++errors_c2;
-                if(options.verbose)
-                    LOGC_R("[LBA: {:>6}] C2 error (bits: {:4})", q_lba ? std::to_string(q_lba->first + (int32_t)(lba_index + i - q_lba->second)) : "------", c2_bits);
-            }
-
-            write_entry_bit(fs_main, sector_data.data(), sector_data.size(), lba_index + i, 1, 0, false);
-            write_entry_bit(fs_c2, sector_c2.data(), sector_c2.size(), lba_index + i, 1, 0, true);
-            write_entry_bit(fs_sub, sector_subcode.data(), sector_subcode.size(), lba_index + i, 1, 0, false);
+            std::fill(sector_data.begin(), sector_data.end(), 0);
+            std::fill(sector_c2.begin(), sector_c2.end(), 0xFF);
+            std::fill(sector_subcode.begin(), sector_subcode.end(), 0);
+            
+            LOG_R("READ failed (SCSI: {})", SPTD::StatusMessage(status));
         }
 
-        LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? std::to_string(q_lba->first + (int32_t)(lba_index - q_lba->second)) : "------",
+        ChannelQ q = subcode_extract_q(sector_subcode.data());
+        if(q.isValid())
+        {
+            if(q.adr == 1)
+            {
+                if(q.mode1.tno)
+                {
+                    q_lba = { BCDMSF_to_LBA(q.mode1.a_msf), lba_index };
+                }
+                // lead-in
+                else
+                {
+                    if(q.mode1.point_index == 0xA2)
+                    {
+                        int32_t lba = BCDMSF_to_LBA(q.mode1.a_msf);
+                        if(!lba_end || *lba_end < lba)
+                        {
+                            lba_end = lba + OVERREAD_COUNT;
+                            LOG_R("session lead-out detected (LBA: {:6})", lba);
+                        }
+                    }
+                }
+            }
+        }
+        else
+            ++errors_q;
+
+        if(auto c2_bits = c2_bits_count(sector_c2); c2_bits)
+        {
+            ++errors_c2;
+
+            if(options.verbose)
+                LOGC_R("[LBA: {:>6}] C2 error (bits: {:4})", q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, c2_bits);
+        }
+
+        write_entry_bit(fs_main, sector_data.data(), sector_data.size(), lba_index, 1, 0, false);
+        write_entry_bit(fs_c2, sector_c2.data(), sector_c2.size(), lba_index, 1, 0, true);
+        write_entry_bit(fs_sub, sector_subcode.data(), sector_subcode.size(), lba_index, 1, 0, false);
+
+        LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START,
             errors_c2, errors_q);
-
-        if(signal.interrupt())
-            break;
-
-        lba_index += sectors_to_read;
     }
 
     LOGC_RF("");

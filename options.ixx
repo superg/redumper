@@ -75,7 +75,7 @@ export struct Options
     int audio_silence_threshold;
     std::unique_ptr<int> dump_write_offset;
     std::unique_ptr<int> dump_read_size;
-    int spiraldrive_read_size;
+    bool spiraldrive_dreamcast;
     bool overread_leadout;
     bool force_unscrambled;
     bool force_refine;
@@ -96,7 +96,6 @@ export struct Options
     static constexpr int audio_silence_threshold_default = 32;
     static constexpr int cdr_error_threshold_default = 16;
     static constexpr int scsi_timeout_default = 50000;
-    static constexpr int SPIRALDRIVE_READ_SIZE_DEFAULT = 16;
 
 
     Options(int argc, const char *argv[])
@@ -134,7 +133,7 @@ export struct Options
         , correct_offset_shift(false)
         , offset_shift_relocate(false)
         , audio_silence_threshold(audio_silence_threshold_default)
-        , spiraldrive_read_size(SPIRALDRIVE_READ_SIZE_DEFAULT)
+        , spiraldrive_dreamcast(false)
         , overread_leadout(false)
         , force_unscrambled(false)
         , force_refine(false)
@@ -322,8 +321,8 @@ export struct Options
                         dump_read_size = std::make_unique<int>();
                         i_value = dump_read_size.get();
                     }
-                    else if(key == "--spiraldrive-read-size")
-                        i_value = &spiraldrive_read_size;
+                    else if(key == "--spiraldrive-dreamcast")
+                        spiraldrive_dreamcast = true;
                     else if(key == "--overread-leadout")
                         overread_leadout = true;
                     else if(key == "--force-unscrambled")
@@ -477,7 +476,7 @@ export struct Options
         LOG("\t--drive-test-skip-cache-read    \tskip testing for MEDIATEK cache read command (F1)");
         LOG("");
         LOG("\t(SpiralDrive)");
-        LOG("\t--spiraldrive-read-size=VALUE   \tnumber of sectors to read at once (default: {})", SPIRALDRIVE_READ_SIZE_DEFAULT);
+        LOG("\t--spiraldrive-dreamcast         \tcontinue through the first session lead-out to LBA 45000");
         LOG("");
         LOG("\t(miscellaneous)");
         LOG("\t--continue=VALUE                \tcontinue \"disc\" command starting from VALUE command");

@@ -228,6 +228,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "PLEXTOR" , "CD-R PX-W8220T"   , ""    , "", "", +355, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W8432T"   , ""    , "", "", +355, 294,  -75, ReadMethod::D8, SectorOrder::DATA_SUB   , Type::PLEXTOR  },
     // OTHER
+    { "ASUS"    , "BW-12B1LT"        , "1.03", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // experimental MT1939 OmniDrive; layout is probed with C0
     { "ASUS"    , "SDRW-08D2S-U"     , "A812", "", "",    +6,  0,    0, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // internal model: LG GP75N
     { "ASUS"    , "SDRW-08D2S-U"     , "B901", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // internal model: DU-8A6NH11B
     { "ASUS"    , "SDRW-08U9M-U"     , "A112", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  },

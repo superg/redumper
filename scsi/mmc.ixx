@@ -287,13 +287,6 @@ export enum class OmniDrive_Subchannels : uint8_t
 };
 
 
-export enum class SpiralDrive_Operation : uint8_t
-{
-    SEEK = 1,
-    READ = 2
-};
-
-
 export struct CMD_ParameterListHeader
 {
     uint16_t data_length;
@@ -967,12 +960,27 @@ export struct CDB12_ReadOmniDrive
 };
 
 
+export enum class SpiralDrive_Operation : uint8_t
+{
+    SEEK = 1,
+    READ = 2
+};
+
+
+export enum class SpiralDrive_SeekResult : uint8_t
+{
+    FAILED = 0,
+    OK = 1,
+    INNER_LIMIT = 2
+};
+
+
 export struct CDB12_SpiralDrive
 {
     uint8_t operation_code;
     uint8_t operation;
     uint16_t timeout;
-    uint32_t value;
+    int32_t value;
     uint32_t reserved;
 };
 

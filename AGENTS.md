@@ -45,6 +45,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Write SpiralDrive raw capture files in arrival order without staging, LBA anchoring, reserved lead-in space, or offset compensation.
 - Keep the SpiralDrive read buffer fixed at the configured batch size; do not resize it.
 - Calculate SpiralDrive end limits from the latest valid positional Q at the start of each capture iteration.
+- Apply SpiralDrive overread only to lead-out limits (A2), not next-session program-area pointers (B0).
 - Omit `SpiralDrive` from log messages during SpiralDrive dumping; the mode already provides that context.
 - If `../gplextor` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware and a fully annotated Ghidra project. Consult it for any aspect of SpiralDrive development; Ghidra is available through MCP.
 - If `../spiraldrive-pxw5224a` exists, it contains a custom SpiralDrive firmware implementation for PLEXTOR PX-W5224A based on the stock 1.04 firmware. Consult it for any aspect of SpiralDrive development.

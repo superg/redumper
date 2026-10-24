@@ -153,6 +153,7 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
         lba_end = 45000;
 
     bool q_mismatch_message = false;
+    bool last_session_message = false;
     SignalINT signal;
     for(uint32_t lba_index = 0; !signal.interrupt(); ++lba_index)
     {
@@ -208,6 +209,29 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
                         {
                             lba_end = lba + OVERREAD_COUNT;
                             LOG_R("session lead-out detected (LBA: {:6})", lba);
+                        }
+                    }
+                }
+            }
+            else if(q.adr == 5)
+            {
+                if(!q.mode1.tno && q.mode1.point_index == 0xB0)
+                {
+                    if(q.mode1.msf.m == 0xFF && q.mode1.msf.s == 0xFF && q.mode1.msf.f == 0xFF)
+                    {
+                        if(!last_session_message)
+                        {
+                            LOG_R("last session detected");
+                            last_session_message = true;
+                        }
+                    }
+                    else
+                    {
+                        int32_t lba = BCDMSF_to_LBA(q.mode1.msf);
+                        if(!lba_end || *lba_end < lba)
+                        {
+                            lba_end = lba;
+                            LOG_R("next session program area detected (LBA: {:6})", lba);
                         }
                     }
                 }

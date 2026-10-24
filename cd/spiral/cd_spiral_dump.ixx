@@ -1,6 +1,7 @@
 module;
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -34,6 +35,7 @@ namespace gpsxre
 {
 
 constexpr uint16_t C4_TIMEOUT_MS = 5000;
+constexpr uint32_t C4_FRAME_SIZE = CD_RAW_DATA_SIZE + sizeof(ChannelQ);
 
 
 void seek_spiral_start(SPTD &sptd, const Options &options)
@@ -68,7 +70,7 @@ void seek_spiral_start(SPTD &sptd, const Options &options)
 
     LOG("seeking readable start");
     bool read_success = false;
-    std::vector<uint8_t> buffer(CD_RAW_DATA_SIZE);
+    std::vector<uint8_t> buffer(C4_FRAME_SIZE);
     for(uint32_t i = 0; i < MAX_SEEKS; ++i)
     {
         // seek
@@ -121,20 +123,25 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     }
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
-    if(!options.overwrite && (std::filesystem::exists(image_prefix + ".main.raw") || std::filesystem::exists(image_prefix + ".c2.raw") || std::filesystem::exists(image_prefix + ".sub.raw")))
+    if(!options.overwrite
+        && (std::filesystem::exists(image_prefix + ".main.raw") || std::filesystem::exists(image_prefix + ".c2.raw") || std::filesystem::exists(image_prefix + ".sub.raw")
+            || std::filesystem::exists(image_prefix + ".subq.raw")))
         throw_line("dump already exists (image name: {})", options.image_name);
 
     std::fstream fs_main(image_prefix + ".main.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_c2(image_prefix + ".c2.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
+    std::fstream fs_subq(image_prefix + ".subq.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     fs_main.exceptions(std::ios::badbit | std::ios::failbit);
     fs_c2.exceptions(std::ios::badbit | std::ios::failbit);
     fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
+    fs_subq.exceptions(std::ios::badbit | std::ios::failbit);
 
-    std::vector<uint8_t> sector(CD_RAW_DATA_SIZE);
+    std::vector<uint8_t> sector(C4_FRAME_SIZE);
     std::span<uint8_t> sector_data(sector.data(), CD_DATA_SIZE);
     std::span<uint8_t> sector_c2(sector.data() + CD_DATA_SIZE, CD_C2_SIZE);
-    std::span<uint8_t> sector_subcode(sector.data() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
+    std::span<uint8_t> sector_sub(sector.data() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
+    std::span<uint8_t> sector_subq(sector.data() + CD_RAW_DATA_SIZE, sizeof(ChannelQ));
 
     seek_spiral_start(*ctx.sptd, options);
 
@@ -145,6 +152,7 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     if(options.spiraldrive_dreamcast)
         lba_end = 45000;
 
+    bool q_mismatch_message = false;
     SignalINT signal;
     for(uint32_t lba_index = 0; !signal.interrupt(); ++lba_index)
     {
@@ -164,19 +172,26 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
             }
         }
 
-        auto status = cmd_spiraldrive(*ctx.sptd, sector.data(), CD_RAW_DATA_SIZE, SpiralDrive_Operation::READ, C4_TIMEOUT_MS, 1);
+        auto status = cmd_spiraldrive(*ctx.sptd, sector.data(), (uint32_t)sector.size(), SpiralDrive_Operation::READ, C4_TIMEOUT_MS, 1);
         if(status.status_code)
         {
             std::fill(sector_data.begin(), sector_data.end(), 0);
             std::fill(sector_c2.begin(), sector_c2.end(), 0xFF);
-            std::fill(sector_subcode.begin(), sector_subcode.end(), 0);
-            
+            std::fill(sector_sub.begin(), sector_sub.end(), 0);
+            std::fill(sector_subq.begin(), sector_subq.end(), 0);
+
             LOG_R("READ failed (SCSI: {})", SPTD::StatusMessage(status));
         }
 
-        ChannelQ q = subcode_extract_q(sector_subcode.data());
+        auto &q = (ChannelQ &)sector_subq[0];
         if(q.isValid())
         {
+            if(!q_mismatch_message && !subcode_extract_q(sector_sub.data()).isValid())
+            {
+                LOG_R("raw subcode mismatch (LBA: {})", q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START);
+                q_mismatch_message = true;
+            }
+
             if(q.adr == 1)
             {
                 if(q.mode1.tno)
@@ -211,10 +226,11 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
 
         write_entry_bit(fs_main, sector_data.data(), sector_data.size(), lba_index, 1, 0, false);
         write_entry_bit(fs_c2, sector_c2.data(), sector_c2.size(), lba_index, 1, 0, true);
-        write_entry_bit(fs_sub, sector_subcode.data(), sector_subcode.size(), lba_index, 1, 0, false);
+        write_entry_bit(fs_sub, sector_sub.data(), sector_sub.size(), lba_index, 1, 0, false);
+        write_entry_bit(fs_subq, sector_subq.data(), sector_subq.size(), lba_index, 1, 0, false);
 
-        LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START,
-            errors_c2, errors_q);
+        LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, errors_c2,
+            errors_q);
     }
 
     LOGC_RF("");
@@ -224,6 +240,7 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     fs_main.close();
     fs_c2.close();
     fs_sub.close();
+    fs_subq.close();
 
     LOG("media errors: ");
     LOG("  C2: {}", errors_c2);

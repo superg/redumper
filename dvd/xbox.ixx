@@ -331,7 +331,7 @@ export void get_security_layer_descriptor_ranges(std::vector<Range<int32_t>> &pr
 }
 
 
-export void clean_security_sector(std::vector<uint8_t> &security_sector)
+export bool clean_security_sector(std::vector<uint8_t> &security_sector)
 {
     auto &sld = (SecurityLayerDescriptor &)security_sector[0];
     int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
@@ -342,6 +342,7 @@ export void clean_security_sector(std::vector<uint8_t> &security_sector)
     auto &drive_responses = (std::array<SecurityLayerDescriptor::DriveResponse, challenge_entries> &)sld.drive_table_copy;
 
     // rebuild challenge table
+    bool valid = true;
     if(xgd == 2 || xgd == 3)
     {
         constexpr std::array<uint8_t, AES128::BLOCK_SIZE> key{ 0xD1, 0xE3, 0xB3, 0x3A, 0x6C, 0x1E, 0xF7, 0x70, 0x5F, 0x6D, 0xE9, 0x3B, 0xB6, 0xC0, 0xDC, 0x71 };
@@ -370,7 +371,6 @@ export void clean_security_sector(std::vector<uint8_t> &security_sector)
 
         // collate CID map
         std::map<uint8_t, uint32_t> challenge_ids;
-        bool valid = true;
         for(uint32_t i = 0; i < challenge_entries; ++i)
         {
             if(!challenge_ids.emplace(dcrt[i].cid, i).second)
@@ -447,6 +447,8 @@ export void clean_security_sector(std::vector<uint8_t> &security_sector)
             }
         }
     }
+
+    return valid;
 }
 
 

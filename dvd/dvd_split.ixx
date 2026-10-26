@@ -116,6 +116,10 @@ void generate_extra_xbox(Context &ctx, Options &options)
                 ss_rom_entry.update(security.data(), FORM1_DATA_SIZE);
                 ctx.dat_extra.emplace_back(ss_rom_entry.xmlLine());
             }
+            else
+            {
+                LOG("warning: invalid SS");
+            }
         }
         else
         {

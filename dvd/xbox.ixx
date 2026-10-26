@@ -415,6 +415,8 @@ export bool clean_security_sector(std::vector<uint8_t> &security_sector)
                     valid = false;
                 break;
             default:
+                if(++challenge_count <= 8)
+                    valid = false;
                 break;
             }
         }
@@ -475,11 +477,8 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
 
     if(kreon)
     {
-        if(bool complete_ss = read_security_layer_descriptor(sptd, security_sector, partial_ss); !complete_ss)
-        {
-            LOG("kreon: failed to get complete security sector");
+        if(!read_security_layer_descriptor(sptd, security_sector, partial_ss))
             ss_message = "incomplete";
-        }
     }
     else if(omnidrive)
     {
@@ -553,22 +552,22 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
         else
             sld.xgd23.xgd3.cpr_mai = cpr_mai_key;
 
-        // descramble ranges
+        // descramble drive entries
         std::vector<uint8_t> indices((uint8_t *)&sld.drive_table_copy, (uint8_t *)&sld.drive_table_copy + sizeof(sld.drive_table));
         for(uint8_t i = 0; i < indices.size(); ++i)
             indices[i] ^= ((uint8_t *)&cpr_mai_key)[i % 4];
 
-        std::vector<uint8_t> ss_range(sizeof(sld.drive_table), 0);
-        std::vector<uint8_t> ss_range_scrambled((uint8_t *)&sld.drive_table, (uint8_t *)&sld.drive_table + sizeof(sld.drive_table));
+        std::vector<uint8_t> drive_table(sizeof(sld.drive_table), 0);
+        std::vector<uint8_t> drive_table_scrambled((uint8_t *)&sld.drive_table, (uint8_t *)&sld.drive_table + sizeof(sld.drive_table));
         for(uint8_t i = 0; i < indices.size(); ++i)
-            ss_range[i] = ss_range_scrambled[indices[i]];
+            drive_table[i] = drive_table_scrambled[indices[i]];
 
-        // copy ranges into ss
-        std::copy(ss_range.begin(), ss_range.end(), (uint8_t *)&sld.drive_table);
-        std::copy(ss_range.begin(), ss_range.end(), (uint8_t *)&sld.drive_table_copy);
+        // copy drive entries into ss
+        std::copy(drive_table.begin(), drive_table.end(), (uint8_t *)&sld.drive_table);
+        std::copy(drive_table.begin(), drive_table.end(), (uint8_t *)&sld.drive_table_copy);
 
         if(xgd_version(ss_layer0_last) != 1)
-            ss_message = "incomplete";
+            ss_message = "zeroed";
     }
 
     LOG("{}: XGD detected (version: {}, security sector: {})", kreon ? "kreon" : "omnidrive", xgd_version(ss_layer0_last), ss_message);

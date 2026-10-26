@@ -756,7 +756,7 @@ void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const dvd::E
 {
     uint32_t percentage = 100;
     if(lba_start < lba_end)
-        percentage = (uint64_t)percentage * (uint64_t)(lba - lba_start) / (uint64_t)(lba_end - lba_start);
+        percentage = (int64_t)percentage * (lba - lba_start) / (lba_end - lba_start);
     LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {}, EDC: {} }}", spinner_animation(), percentage, lba, lba_end, errors.scsi, errors.edc);
 }
 

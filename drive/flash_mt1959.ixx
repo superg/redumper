@@ -2,6 +2,7 @@ module;
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <span>
 #include <string>
@@ -21,6 +22,7 @@ import scsi.sptd;
 import utils.file_io;
 import utils.hex_bin;
 import utils.logger;
+import hash.aes128;
 
 
 
@@ -168,10 +170,44 @@ std::string read_mt1959_svccode(SPTD &sptd, uint32_t svccode_offset, uint32_t sv
 }
 
 
-void modify_firmware(std::span<uint8_t> firmware_data, uint32_t clear_size, uint32_t bootstring_offset, std::string &bootstring)
+bool needs_encryption(SPTD &sptd, std::string &vendor_specific)
+{
+    GET_CONFIGURATION_FirmwareInformationBody firmware_information;
+
+    if(auto status = cmd_get_configuration_firmware_information(sptd, &firmware_information); status.status_code)
+        throw_line("failed to read current firmware build date/time, SCSI ({})", SPTD::StatusMessage(status));
+
+    // if year < 2020
+    if(const uint8_t decade = firmware_information.year[0] - '0'; decade < 2)
+        return false;
+
+    if(vendor_specific.empty() || vendor_specific.size() < 2)
+    {
+        LOGC("invalid vendor-specific data; assuming encrypted firmware is required");
+        return true;
+    }
+
+    return vendor_specific[1] != 'M';
+}
+
+
+void modify_firmware(std::span<uint8_t> firmware_data, uint32_t clear_size, uint32_t bootstring_offset, std::string &bootstring, bool encrypt_firmware)
 {
     std::fill(firmware_data.begin(), firmware_data.begin() + clear_size, (uint8_t)0xFF);
     std::copy(bootstring.begin(), bootstring.end(), &firmware_data[bootstring_offset]);
+
+    if(!encrypt_firmware)
+        return;
+
+    constexpr std::array<uint8_t, AES128::BLOCK_SIZE> MT1959_ENC_KEY{ 0x5E, 0x9E, 0x4F, 0x00, 0x94, 0xEF, 0x20, 0xAB, 0x52, 0xE3, 0x5E, 0x73, 0x6A, 0xCB, 0x23, 0x24 };
+    const AES128 aes128(MT1959_ENC_KEY);
+    for(auto i = 0; i < firmware_data.size(); i += AES128::BLOCK_SIZE)
+    {
+        std::array<uint8_t, AES128::BLOCK_SIZE> block;
+        memcpy(block.data(), firmware_data.data() + i, block.size());
+        block = aes128.encryptBlock(block);
+        memcpy(firmware_data.data() + i, block.data(), block.size());
+    }
 }
 
 
@@ -190,6 +226,8 @@ export int redumper_flash_mt1959(Context &ctx, Options &options)
     auto firmware_data = read_vector(options.firmware);
     if(firmware_data.size() < clear_size)
         throw_line("firmware data too small (size: {:#x}, required: {:#x})", firmware_data.size(), clear_size);
+    if(firmware_data.size() % 16 != 0)
+        throw_line("firmware size is incorrect (not a multiple of 16) (size: {:#x})", firmware_data.size());
 
     auto drive_bootstring = read_mt1959_bootstring(*ctx.sptd, bootstring_offset, bootstring_size);
     auto drive_svccode = read_mt1959_svccode(*ctx.sptd, svccode_offset, svccode_size);
@@ -235,7 +273,8 @@ export int redumper_flash_mt1959(Context &ctx, Options &options)
     }
     bootstring = std::string(bootstring_prefix) + bootstring;
 
-    modify_firmware(firmware_data, clear_size, bootstring_offset, bootstring);
+    const bool encrypt_firmware = needs_encryption(*ctx.sptd, ctx.drive_config.vendor_specific);
+    modify_firmware(firmware_data, clear_size, bootstring_offset, bootstring, encrypt_firmware);
 
     flash_mt1959(*ctx.sptd, firmware_data, block_size);
 

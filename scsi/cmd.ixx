@@ -273,7 +273,20 @@ export SPTD::Status cmd_read_cd(SPTD &sptd, uint8_t *sectors, uint32_t block_siz
     cdb.include_sync_data = expected_sector_type == READ_CD_ExpectedSectorType::CD_DA ? 0 : 1;
     cdb.sub_channel_selection = (uint8_t)sub_channel;
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length).first;
+    // request exactly what the drive will return: some USB bridges (e.g. ASMedia ASM1153) corrupt
+    // data when the allocation length exceeds the actual transfer
+    uint32_t sector_size = CD_DATA_SIZE;
+    if(error_field == READ_CD_ErrorField::C2)
+        sector_size += CD_C2_SIZE;
+    else if(error_field == READ_CD_ErrorField::C2_BEB)
+        sector_size += CD_C2_SIZE + 2;
+    if(sub_channel == READ_CD_SubChannel::Q)
+        sector_size += 16;
+    else if(sub_channel != READ_CD_SubChannel::NONE)
+        sector_size += CD_SUBCODE_SIZE;
+    sector_size = std::min(sector_size, block_size);
+
+    return sptd.sendCommand(&cdb, sizeof(cdb), sectors, sector_size * transfer_length).first;
 }
 
 
@@ -288,7 +301,7 @@ export SPTD::Status cmd_read_cdda(SPTD &sptd, uint8_t *sectors, uint32_t block_s
     cdb.sub_code = (uint8_t)sub_code;
 
     auto [status, transferred_length] = sptd.sendCommand(&cdb, sizeof(cdb), sectors, block_size * transfer_length);
-    if(!status.status_code && transferred_length != READ_CDDA_SIZES[(uint8_t)sub_code] * transfer_length)
+    if(!status.status_code && transferred_length < READ_CDDA_SIZES[(uint8_t)sub_code] * transfer_length)
         status.status_code = SPTD::HOST_SHORT_TRANSFER;
 
     return status;
@@ -348,6 +361,33 @@ export SPTD::Status cmd_get_configuration_current_profile(SPTD &sptd, GET_CONFIG
     auto status = sptd.sendCommand(&cdb, sizeof(cdb), &feature_header, size).first;
 
     current_profile = (GET_CONFIGURATION_FeatureCode_ProfileList)endian_swap(feature_header.current_profile);
+
+    return status;
+}
+
+
+export SPTD::Status cmd_get_configuration_firmware_information(SPTD &sptd, GET_CONFIGURATION_FirmwareInformationBody *firmware_information)
+{
+    CDB10_GetConfiguration cdb = {};
+    cdb.operation_code = (uint8_t)CDB_OperationCode::GET_CONFIGURATION;
+    cdb.requested_type = (uint8_t)GET_CONFIGURATION_RequestedType::ONE;
+    cdb.starting_feature_number = endian_swap<uint16_t>(0x10C);
+
+    uint16_t size = sizeof(GET_CONFIGURATION_FeatureHeader) + sizeof(GET_CONFIGURATION_FeatureDescriptor) + sizeof(GET_CONFIGURATION_FirmwareInformationBody);
+    *(uint16_t *)cdb.allocation_length = endian_swap(size);
+    std::vector<uint8_t> buffer(size);
+
+    auto status = sptd.sendCommand(&cdb, sizeof(cdb), buffer.data(), buffer.size()).first;
+
+    GET_CONFIGURATION_FeatureHeader feature_header = {};
+    memcpy(&feature_header, buffer.data(), sizeof(GET_CONFIGURATION_FeatureHeader));
+    if(!status.status_code && feature_header.data_length == 4)
+    {
+        status.status_code = SPTD::HOST_SHORT_TRANSFER;
+        return status;
+    }
+
+    memcpy(firmware_information, buffer.data() + sizeof(GET_CONFIGURATION_FeatureHeader) + sizeof(GET_CONFIGURATION_FeatureDescriptor), sizeof(*firmware_information));
 
     return status;
 }

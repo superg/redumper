@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -67,6 +68,18 @@ export enum class Type
     MTK3,
     MTK2,
     MTK2B
+};
+
+export enum class JamlessPlayMode : uint8_t
+{
+    OFF = 0xDD,
+    ON = 0xEE
+};
+
+export enum class JamlessPlayPersist : uint8_t
+{
+    TEMPORARY = 0x00,
+    FLASH = 0xFF
 };
 
 export struct DriveConfig
@@ -181,6 +194,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "TSSTcorp", "DVD-ROM TS-H353C" , "ZZ00", ""                    , "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
     { "HL-DT-ST", "DVD-ROM DH41N"    , "ZZ00", ""                    , "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
     { "PLDS"    , "DVD-ROM DH-16D5S" , "ZZ00", "2025-06-18 15:03 Fen", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
+    { "ATAPI"   , "DVD D DH16D2S"    , "GD0D", "2007/06/04 17:00"    , "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // wakasio
     { "hp"      , "DVD RW AD-7290H5" , "SE02", ""                    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "Optiarc" , "DVD RW AD-7173A"  , "1-04", "seri-v1    BT-LIGGY" , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "NEC"     , "DVD_RW ND-3520AW" , "3.07", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
@@ -224,6 +238,8 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "HL-DT-ST", "BD-RE WH16NS40"   , "1.05", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // scrambled
     { "HL-DT-ST", "BD-RE WH16NS60"   , "1.02", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // scrambled
     { "HL-DT-ST", "DVD+-RW GH50N"    , "B103", "", "",  +667,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB   , Type::GENERIC  },
+    { "HL-DT-ST", "DVDRAM SP80NB60"  , "PD00", "", "",    +6,  0,    0, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  },
+    { "HL-DT-ST", "DVDRAM GP57ES40"  , "RF01", "", "",    +6,  0,    0, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  },
     { "CREATIVE", "CD5233E-N"        , "0.20", "", "",   +12,  0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  },
     { "PLEXTOR" , "DVDR PX-740A"     , "1.02", "", "",  +618,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB   , Type::GENERIC  }, // doesn't stop on lead-out but always returns same sector
     { "PLEXTOR" , "DVDR PX-L890SA"   , "1.07", "", "",    +6,  0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // scrambled
@@ -435,6 +451,26 @@ export SectorLayout sector_order_layout(const SectorOrder &sector_order)
     }
 
     return sector_layout;
+}
+
+
+export bool is_jamless_play_firmware(const DriveConfig &drive_config)
+{
+    return drive_config.vendor_id == "HL-DT-ST" && (drive_config.product_id.starts_with("DV") || drive_config.product_id.starts_with("BD"));
+}
+
+
+export bool drive_set_jamless_play(SPTD &sptd, JamlessPlayMode mode, JamlessPlayPersist persist)
+{
+    std::array<uint8_t, 4> response = {};
+    uint32_t transferred = 0;
+    uint32_t allocation_length = (uint32_t)mode << 16 | (uint32_t)persist << 8;
+    auto status = cmd_read_buffer(sptd, response.data(), response.size(), READ_BUFFER_Mode::LG_JAMLESS_PLAY_CONTROL, 0x01, 0, allocation_length);
+    if(status.status_code)
+        return false;
+
+    std::array<uint8_t, 4> expected_response = mode == JamlessPlayMode::OFF ? std::array<uint8_t, 4>{ 0xDD, 0x00, 0x00, 0x00 } : std::array<uint8_t, 4>{ 0xEE, 0x01, 0x00, 0x00 };
+    return response == expected_response;
 }
 
 

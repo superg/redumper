@@ -108,12 +108,18 @@ void generate_extra_xbox(Context &ctx, Options &options)
         auto security = read_vector(security_path);
         if(security.size() == FORM1_DATA_SIZE)
         {
-            xbox::clean_security_sector(security);
-            write_vector(ss_path, security);
+            if(xbox::clean_security_sector(security))
+            {
+                write_vector(ss_path, security);
 
-            ROMEntry ss_rom_entry(ss_path.filename().string());
-            ss_rom_entry.update(security.data(), FORM1_DATA_SIZE);
-            ctx.dat_extra.emplace_back(ss_rom_entry.xmlLine());
+                ROMEntry ss_rom_entry(ss_path.filename().string());
+                ss_rom_entry.update(security.data(), FORM1_DATA_SIZE);
+                ctx.dat_extra.emplace_back(ss_rom_entry.xmlLine());
+            }
+            else
+            {
+                LOG("warning: invalid SS");
+            }
         }
         else
         {

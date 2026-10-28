@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -14,6 +15,7 @@ import cd.cdrom;
 import drive;
 import dvd;
 import dvd.edc;
+import hash.aes128;
 import range;
 import scsi.cmd;
 import scsi.mmc;
@@ -38,16 +40,53 @@ export struct Context
 #pragma pack(push, 1)
 export union SecurityLayerDescriptor
 {
-    struct Range
-    {
-        uint8_t unknown[3];
-        uint8_t psn_start[3];
-        uint8_t psn_end[3];
-    };
-
     struct ChallengeResponse
     {
-        uint8_t unknown[9];
+        uint8_t cdata[4];
+
+        union
+        {
+            struct
+            {
+                uint8_t rdata[4];
+                uint8_t flag;
+            };
+
+            struct
+            {
+                uint16_t angle_a;
+                uint8_t reserved;
+                uint16_t angle_b;
+            };
+        };
+    };
+
+    struct ChallengeEntry
+    {
+        uint8_t type;
+        uint8_t cid;
+        uint8_t tolerance;
+        uint8_t ctype;
+        uint8_t cdata[4];
+        uint8_t rdata[4];
+    };
+
+    struct DriveResponse
+    {
+        uint8_t type;
+        uint8_t cid;
+        uint8_t mod;
+
+        union
+        {
+            uint8_t data[6];
+
+            struct
+            {
+                uint8_t psn_start[3];
+                uint8_t psn_end[3];
+            };
+        };
     };
 
     READ_DVD_STRUCTURE_LayerDescriptor ld;
@@ -108,7 +147,7 @@ export union SecurityLayerDescriptor
                 uint8_t ccrt_version;     // 0x300
                 uint8_t ccrt_count;       // 0x301
                 uint8_t reserved_302[2];  // 0x302
-                uint8_t ccrt[252];        // 0x304
+                ChallengeEntry ccrt[21];  // 0x304
                 uint8_t reserved_400[96]; // 0x400
                 uint8_t media_id[16];     // 0x460
                 uint8_t reserved_470[46]; // 0x470
@@ -116,25 +155,25 @@ export union SecurityLayerDescriptor
             } xgd23;
         };
 
-        uint64_t authoring_filetime; // 0x49F
-        uint32_t cert_unixtime;      // 0x4A7
-        uint8_t reserved_4AB[15];    // 0x4AB
-        uint8_t unknown_4BA;         // 0x4BA
-        uint8_t game_id[16];         // 0x4BB
-        uint8_t sha1_a[20];          // 0x4CB
-        uint8_t signature_a[256];    // 0x4DF
-        uint64_t mastering_filetime; // 0x5DF
-        uint8_t reserved_5E7[4];     // 0x5E7
-        uint8_t reserved_5EB[15];    // 0x5EB
-        uint8_t unknown_5FA;         // 0x5FA
-        uint8_t factory_id[16];      // 0x5FB
-        uint8_t sha1_b[20];          // 0x60B
-        uint8_t signature_b[64];     // 0x61F
-        uint8_t version;             // 0x65F
-        uint8_t range_count;         // 0x660
-        Range ranges[23];            // 0x661
-        Range ranges_copy[23];       // 0x730
-        uint8_t reserved_7FF;        // 0x7FF
+        uint64_t authoring_filetime;        // 0x49F
+        uint32_t cert_unixtime;             // 0x4A7
+        uint8_t reserved_4AB[15];           // 0x4AB
+        uint8_t unknown_4BA;                // 0x4BA
+        uint8_t game_id[16];                // 0x4BB
+        uint8_t sha1_a[20];                 // 0x4CB
+        uint8_t signature_a[256];           // 0x4DF
+        uint64_t mastering_filetime;        // 0x5DF
+        uint8_t reserved_5E7[4];            // 0x5E7
+        uint8_t reserved_5EB[15];           // 0x5EB
+        uint8_t unknown_5FA;                // 0x5FA
+        uint8_t factory_id[16];             // 0x5FB
+        uint8_t sha1_b[20];                 // 0x60B
+        uint8_t signature_b[64];            // 0x61F
+        uint8_t version;                    // 0x65F
+        uint8_t range_count;                // 0x660
+        DriveResponse drive_table[23];      // 0x661
+        DriveResponse drive_table_copy[23]; // 0x730
+        uint8_t reserved_7FF;               // 0x7FF
     };
 };
 #pragma pack(pop)
@@ -261,14 +300,14 @@ bool read_security_layer_descriptor(SPTD &sptd, std::vector<uint8_t> &response_d
 
 void merge_xgd3_security_layer_descriptor(SecurityLayerDescriptor &sld, const SecurityLayerDescriptor &sld_kreon)
 {
-    memcpy(sld.ranges, sld_kreon.ranges, sizeof(sld.ranges));
-    memcpy(sld.ranges_copy, sld_kreon.ranges_copy, sizeof(sld.ranges_copy));
+    memcpy(sld.drive_table, sld_kreon.drive_table, sizeof(sld.drive_table));
+    memcpy(sld.drive_table_copy, sld_kreon.drive_table_copy, sizeof(sld.drive_table_copy));
     sld.xgd23.xgd3.cpr_mai = sld_kreon.xgd23.xgd2.cpr_mai;
 
     for(uint32_t i = 0; i < 4; ++i)
     {
-        memcpy(sld.xgd23.xgd3.crd[i].unknown, sld_kreon.xgd23.xgd2.crd[i].unknown, 8);
-        memcpy(sld.xgd23.xgd3.crd[4 + i].unknown, sld_kreon.xgd23.xgd2.crd[4 + i].unknown, 6);
+        memcpy(&sld.xgd23.xgd3.crd[i], &sld_kreon.xgd23.xgd2.crd[i], 8);
+        memcpy(&sld.xgd23.xgd3.crd[4 + i], &sld_kreon.xgd23.xgd2.crd[4 + i], 6);
     }
 }
 
@@ -284,39 +323,134 @@ export void get_security_layer_descriptor_ranges(std::vector<Range<int32_t>> &pr
         if(xgd_version(layer0_last) == 1 && i >= 16 || xgd_version(layer0_last) != 1 && i != 0 && i != 3)
             continue;
 
-        auto psn_start = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_start));
-        auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.ranges[i].psn_end));
+        auto psn_start = sign_extend<24>(endian_swap_from_array<int32_t>(sld.drive_table[i].psn_start));
+        auto psn_end = sign_extend<24>(endian_swap_from_array<int32_t>(sld.drive_table[i].psn_end));
 
         insert_range(protection, { PSN_to_LBA(psn_start, layer0_last), PSN_to_LBA(psn_end, layer0_last) + 1 });
     }
 }
 
 
-export void clean_security_sector(std::vector<uint8_t> &security_sector)
+export bool clean_security_sector(std::vector<uint8_t> &security_sector)
 {
-    auto &sld = (xbox::SecurityLayerDescriptor &)security_sector[0];
-
+    auto &sld = (SecurityLayerDescriptor &)security_sector[0];
     int32_t layer0_last = sign_extend<24>(endian_swap(sld.ld.layer0_end_sector));
+    uint32_t xgd = xgd_version(layer0_last);
 
-    constexpr uint16_t DEFAULT_VALUES[] = { 0x01, 0x5B, 0xB5, 0x10F };
+    constexpr uint32_t challenge_entries = sizeof(sld.xgd23.ccrt) / sizeof(sld.xgd23.ccrt[0]);
 
-    if(xgd_version(layer0_last) == 2)
+    auto &drive_responses = (std::array<SecurityLayerDescriptor::DriveResponse, challenge_entries> &)sld.drive_table_copy;
+
+    // rebuild challenge table
+    bool valid = true;
+    if(xgd == 2 || xgd == 3)
     {
-        for(std::size_t i = 0; i < std::size(DEFAULT_VALUES); ++i)
+        constexpr std::array<uint8_t, AES128::BLOCK_SIZE> key{ 0xD1, 0xE3, 0xB3, 0x3A, 0x6C, 0x1E, 0xF7, 0x70, 0x5F, 0x6D, 0xE9, 0x3B, 0xB6, 0xC0, 0xDC, 0x71 };
+        constexpr uint32_t ccrt_cbc_size = 15 * AES128::BLOCK_SIZE;
+
+        // decrypt first 15 blocks
+        const AES128 aes(key);
+        std::array<uint8_t, AES128::BLOCK_SIZE> iv{};
+        std::array<uint8_t, sizeof(sld.xgd23.ccrt)> dcrt_bytes{};
+        for(uint32_t offset = 0; offset < ccrt_cbc_size; offset += AES128::BLOCK_SIZE)
         {
-            memcpy(&sld.xgd23.xgd2.crd[4 + i].unknown[4], &DEFAULT_VALUES[i], sizeof(uint16_t));
-            uint16_t zero = 0;
-            memcpy(&sld.xgd23.xgd2.crd[4 + i].unknown[7], &zero, sizeof(uint16_t));
+            std::array<uint8_t, AES128::BLOCK_SIZE> ciphertext;
+            std::copy_n((const uint8_t *)sld.xgd23.ccrt + offset, ciphertext.size(), ciphertext.begin());
+
+            const auto decrypted = aes.decryptBlock(ciphertext);
+            for(uint32_t i = 0; i < AES128::BLOCK_SIZE; ++i)
+                dcrt_bytes[offset + i] = decrypted[i] ^ iv[i];
+
+            iv = ciphertext;
+        }
+
+        // copy remainder decrypted
+        std::copy_n((const uint8_t *)sld.xgd23.ccrt + ccrt_cbc_size, sizeof(dcrt_bytes) - ccrt_cbc_size, dcrt_bytes.begin() + ccrt_cbc_size);
+
+        auto &dcrt = (std::array<SecurityLayerDescriptor::ChallengeEntry, challenge_entries> &)dcrt_bytes;
+
+        // collate CID map
+        std::map<uint8_t, uint32_t> challenge_ids;
+        for(uint32_t i = 0; i < challenge_entries; ++i)
+        {
+            if(!challenge_ids.emplace(dcrt[i].cid, i).second)
+            {
+                valid = false;
+                break;
+            }
+        }
+
+        // validate challenge response table
+        std::array<uint32_t, challenge_entries> candidate_indices{};
+        uint32_t challenge_count = 0;
+        for(uint32_t i = 0; valid && i < challenge_entries; ++i)
+        {
+            auto &response = drive_responses[i];
+            auto challenge_it = challenge_ids.find(response.cid);
+            if(challenge_it == challenge_ids.end())
+            {
+                valid = false;
+                break;
+            }
+
+            candidate_indices[i] = challenge_it->second;
+            auto &challenge = dcrt[candidate_indices[i]];
+
+            switch(challenge.type)
+            {
+            case 0x14:
+                if(response.type != 0x03 || ++challenge_count >= 5)
+                    valid = false;
+                break;
+            case 0x15:
+                if(response.type != 0x01 || ++challenge_count >= 5)
+                    valid = false;
+                break;
+            case 0x24:
+                if(response.type != 0x07 || ++challenge_count < 5 || challenge_count > 8)
+                    valid = false;
+                break;
+            case 0x25:
+                if(response.type != 0x05 || ++challenge_count < 5 || challenge_count > 8)
+                    valid = false;
+                break;
+            default:
+                if(++challenge_count <= 8)
+                    valid = false;
+                break;
+            }
+        }
+
+        if(valid)
+        {
+            // fill in first 8 entries in replay table
+            constexpr uint16_t ANGLE_DEFAULT_VALUES[] = { 0x01, 0x5B, 0xB5, 0x10F };
+            SecurityLayerDescriptor::ChallengeResponse *crd = xgd == 3 ? sld.xgd23.xgd3.crd : sld.xgd23.xgd2.crd;
+            for(uint32_t i = 0; i < 8; ++i)
+            {
+                auto &candidate = dcrt[candidate_indices[i]];
+                auto &entry = crd[i];
+
+                memcpy(entry.cdata, candidate.cdata, sizeof(entry.cdata));
+
+                if(i >= 4)
+                {
+                    // angle challenge response normalization
+                    uint16_t angle_value = ANGLE_DEFAULT_VALUES[i - 4];
+                    entry.angle_a = angle_value;
+                    entry.angle_b = xgd == 3 ? angle_value : 0;
+                }
+                else
+                {
+                    // fixed value normalization
+                    memcpy(entry.rdata, candidate.rdata, sizeof(entry.rdata));
+                    entry.flag = 0;
+                }
+            }
         }
     }
-    else if(xgd_version(layer0_last) == 3)
-    {
-        for(std::size_t i = 0; i < std::size(DEFAULT_VALUES); ++i)
-        {
-            memcpy(&sld.xgd23.xgd3.crd[4 + i].unknown[4], &DEFAULT_VALUES[i], sizeof(uint16_t));
-            memcpy(&sld.xgd23.xgd3.crd[4 + i].unknown[7], &DEFAULT_VALUES[i], sizeof(uint16_t));
-        }
-    }
+
+    return valid;
 }
 
 
@@ -343,11 +477,8 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
 
     if(kreon)
     {
-        if(bool complete_ss = read_security_layer_descriptor(sptd, security_sector, partial_ss); !complete_ss)
-        {
-            LOG("kreon: failed to get complete security sector");
+        if(!read_security_layer_descriptor(sptd, security_sector, partial_ss))
             ss_message = "incomplete";
-        }
     }
     else if(omnidrive)
     {
@@ -421,22 +552,22 @@ export std::shared_ptr<Context> initialize(std::vector<Range<int32_t>> &protecti
         else
             sld.xgd23.xgd3.cpr_mai = cpr_mai_key;
 
-        // descramble ranges
-        std::vector<uint8_t> indices((uint8_t *)&sld.ranges_copy, (uint8_t *)&sld.ranges_copy + sizeof(sld.ranges));
+        // descramble drive entries
+        std::vector<uint8_t> indices((uint8_t *)&sld.drive_table_copy, (uint8_t *)&sld.drive_table_copy + sizeof(sld.drive_table));
         for(uint8_t i = 0; i < indices.size(); ++i)
             indices[i] ^= ((uint8_t *)&cpr_mai_key)[i % 4];
 
-        std::vector<uint8_t> ss_range(sizeof(sld.ranges), 0);
-        std::vector<uint8_t> ss_range_scrambled((uint8_t *)&sld.ranges, (uint8_t *)&sld.ranges + sizeof(sld.ranges));
+        std::vector<uint8_t> drive_table(sizeof(sld.drive_table), 0);
+        std::vector<uint8_t> drive_table_scrambled((uint8_t *)&sld.drive_table, (uint8_t *)&sld.drive_table + sizeof(sld.drive_table));
         for(uint8_t i = 0; i < indices.size(); ++i)
-            ss_range[i] = ss_range_scrambled[indices[i]];
+            drive_table[i] = drive_table_scrambled[indices[i]];
 
-        // copy ranges into ss
-        std::copy(ss_range.begin(), ss_range.end(), (uint8_t *)&sld.ranges);
-        std::copy(ss_range.begin(), ss_range.end(), (uint8_t *)&sld.ranges_copy);
+        // copy drive entries into ss
+        std::copy(drive_table.begin(), drive_table.end(), (uint8_t *)&sld.drive_table);
+        std::copy(drive_table.begin(), drive_table.end(), (uint8_t *)&sld.drive_table_copy);
 
         if(xgd_version(ss_layer0_last) != 1)
-            ss_message = "incomplete";
+            ss_message = "zeroed";
     }
 
     LOG("{}: XGD detected (version: {}, security sector: {})", kreon ? "kreon" : "omnidrive", xgd_version(ss_layer0_last), ss_message);

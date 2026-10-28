@@ -2,7 +2,7 @@
 
 This file holds durable working preferences and project rules for this repository.
 
-The separate Ponytail section below preserves the complete [upstream AGENTS.md](https://github.com/DietrichGebert/ponytail/blob/main/AGENTS.md). Our repository-specific rules take precedence wherever they apply, including the current restriction on adding SpiralDrive tests.
+The separate Ponytail section below preserves the complete [upstream AGENTS.md](https://github.com/DietrichGebert/ponytail/blob/main/AGENTS.md). Our repository-specific rules take precedence wherever they apply.
 
 ## Code style
 
@@ -11,7 +11,6 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Name variables in lowercase `snake_case`, including globals, locals, parameters and structure fields.
 - Name constants, macros, and enum values in uppercase `SNAKE_CASE`, including `constexpr` constants.
 - Do not add type suffixes to numeric literals unless required for correctness or compilation.
-- Base each buffer write's size and emptiness checks on the corresponding buffer.
 - Use `std::span` for non-owning views into read buffers.
 - Use `int32_t` for LBA values and arithmetic.
 - Use explicit loop termination conditions when known; do not use an infinite loop with `break` for normal successful completion.
@@ -42,7 +41,6 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Always explicitly set the drive to 4× speed before any optical-drive test or diagnostic.
 - Always show progress during SpiralDrive dumping.
 - Inward SpiralDrive homing uses a fixed SEEK step until sensor-confirmed INNER_LIMIT; abort on any SEEK error with its SCSI details instead of reducing the step or retrying the failed command.
-- Write SpiralDrive raw capture files in arrival order without staging, LBA anchoring, reserved lead-in space, or offset compensation.
 - Keep the SpiralDrive read buffer fixed at the configured batch size; do not resize it.
 - Calculate SpiralDrive end limits from the latest valid positional Q at the start of each capture iteration.
 - Apply SpiralDrive overread only to lead-out limits (A2), not next-session program-area pointers (B0).

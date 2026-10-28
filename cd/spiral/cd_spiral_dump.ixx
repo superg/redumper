@@ -207,7 +207,7 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
                         int32_t lba = BCDMSF_to_LBA(q.mode1.a_msf);
                         if(!lba_end || *lba_end < lba)
                         {
-                            lba_end = lba + OVERREAD_COUNT;
+                            lba_end = lba + options.spiraldrive_leadout_sectors;
                             LOG_R("session lead-out detected (LBA: {:6})", lba);
                         }
                     }

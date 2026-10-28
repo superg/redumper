@@ -76,6 +76,7 @@ export struct Options
     std::unique_ptr<int> dump_write_offset;
     std::unique_ptr<int> dump_read_size;
     bool spiraldrive_dreamcast;
+    int spiraldrive_leadout_sectors;
     bool overread_leadout;
     bool force_unscrambled;
     bool force_refine;
@@ -96,6 +97,7 @@ export struct Options
     static constexpr int audio_silence_threshold_default = 32;
     static constexpr int cdr_error_threshold_default = 16;
     static constexpr int scsi_timeout_default = 50000;
+    static constexpr int SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT = 100;
 
 
     Options(int argc, const char *argv[])
@@ -134,6 +136,7 @@ export struct Options
         , offset_shift_relocate(false)
         , audio_silence_threshold(audio_silence_threshold_default)
         , spiraldrive_dreamcast(false)
+        , spiraldrive_leadout_sectors(SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT)
         , overread_leadout(false)
         , force_unscrambled(false)
         , force_refine(false)
@@ -323,6 +326,8 @@ export struct Options
                     }
                     else if(key == "--spiraldrive-dreamcast")
                         spiraldrive_dreamcast = true;
+                    else if(key == "--spiraldrive-leadout-sectors")
+                        i_value = &spiraldrive_leadout_sectors;
                     else if(key == "--overread-leadout")
                         overread_leadout = true;
                     else if(key == "--force-unscrambled")
@@ -398,7 +403,7 @@ export struct Options
         LOG("COMMANDS:");
         LOG("\tdisc          \taggregate mode that does everything (default)");
         LOG("\tdump          \tdumps disc to primary dump files");
-        LOG("\tdump::spiral  \tdumps the physical CD stream using SpiralDrive firmware");
+        LOG("\tspiral::dump  \tdumps the physical CD stream using SpiralDrive firmware");
         LOG("\tdump::extra   \tdumps extended disc areas such as lead-in and lead-out using specific drives");
         LOG("\trefine        \trefines dump files by re-reading the disc");
         LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
@@ -477,6 +482,7 @@ export struct Options
         LOG("");
         LOG("\t(SpiralDrive)");
         LOG("\t--spiraldrive-dreamcast         \tcontinue through the first session lead-out to LBA 45000");
+        LOG("\t--spiraldrive-leadout-sectors=VALUE\tnumber of lead-out sectors to overread (default: {})", SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT);
         LOG("");
         LOG("\t(miscellaneous)");
         LOG("\t--continue=VALUE                \tcontinue \"disc\" command starting from VALUE command");

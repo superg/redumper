@@ -128,6 +128,8 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
             || std::filesystem::exists(image_prefix + ".subq.raw")))
         throw_line("dump already exists (image name: {})", options.image_name);
 
+    seek_spiral_start(*ctx.sptd, options);
+
     std::fstream fs_main(image_prefix + ".main.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_c2(image_prefix + ".c2.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
@@ -142,8 +144,6 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     std::span<uint8_t> sector_c2(sector.data() + CD_DATA_SIZE, CD_C2_SIZE);
     std::span<uint8_t> sector_sub(sector.data() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
     std::span<uint8_t> sector_subq(sector.data() + CD_RAW_DATA_SIZE, sizeof(ChannelQ));
-
-    seek_spiral_start(*ctx.sptd, options);
 
     uint32_t errors_c2 = 0;
     uint32_t errors_q = 0;

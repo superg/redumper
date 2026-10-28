@@ -230,7 +230,7 @@ void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const Errors
 {
     uint32_t percentage = 100;
     if(lba_start < lba_end)
-        percentage = (int64_t)percentage * (lba - lba_start) / (lba_end - lba_start);
+        percentage = percentage * (lba - lba_start) / (lba_end - lba_start);
 
     LOGC_RF("{} [{:3}%] LBA: {:6}/{}, errors: {{ SCSIs: {}, C2s: {}, Q: {} }}{}", spinner_animation(), percentage, lba, lba_end, errors.scsi, errors.c2, errors.q, status_message);
 };

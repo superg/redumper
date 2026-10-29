@@ -2,6 +2,7 @@ module;
 #include <cstdint>
 #include <cstring>
 #include <format>
+#include <utility>
 #include <vector>
 
 export module scsi.cmd;
@@ -548,7 +549,11 @@ export SPTD::Status cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer
     cdb.timeout = endian_swap(timeout);
     cdb.value = endian_swap(value);
 
-    return sptd.sendCommand(&cdb, sizeof(cdb), buffer, buffer_size).first;
+    auto [status, transferred_length] = sptd.sendCommand(&cdb, sizeof(cdb), buffer, buffer_size);
+    if(!status.status_code && transferred_length != buffer_size)
+        status.status_code = SPTD::HOST_SHORT_TRANSFER;
+
+    return status;
 }
 
 }

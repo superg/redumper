@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -67,6 +68,18 @@ export enum class Type
     MTK3,
     MTK2,
     MTK2B
+};
+
+export enum class JamlessPlayMode : uint8_t
+{
+    OFF = 0xDD,
+    ON = 0xEE
+};
+
+export enum class JamlessPlayPersist : uint8_t
+{
+    TEMPORARY = 0x00,
+    FLASH = 0xFF
 };
 
 export struct DriveConfig
@@ -191,6 +204,8 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "Optiarc" , "DVD RW AD-7590A"  , "1.V1", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "SONY"    , "DVD RW DRU-875S"  , "1.61", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "Optiarc" , "DVD RW AD-7203A"  , "1.09", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
+    { "Optiarc" , "DVD RW AD-5240S"  , "1.03", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
+    { "Optiarc" , "DVD RW AD-7910A"  , "1.D1", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     // PATCHED KREON
     { "TSSTcorp", "DVD-ROM SH-D163B" , "ZZ01", "KREON V1.00.........", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
     { "TSSTcorp", "DVD-ROM SH-D163A" , "DC02", "KREON V1.00.........", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // MoriGM
@@ -439,6 +454,26 @@ export SectorLayout sector_order_layout(const SectorOrder &sector_order)
     }
 
     return sector_layout;
+}
+
+
+export bool is_jamless_play_firmware(const DriveConfig &drive_config)
+{
+    return drive_config.vendor_id == "HL-DT-ST" && (drive_config.product_id.starts_with("DV") || drive_config.product_id.starts_with("BD"));
+}
+
+
+export bool drive_set_jamless_play(SPTD &sptd, JamlessPlayMode mode, JamlessPlayPersist persist)
+{
+    std::array<uint8_t, 4> response = {};
+    uint32_t transferred = 0;
+    uint32_t allocation_length = (uint32_t)mode << 16 | (uint32_t)persist << 8;
+    auto status = cmd_read_buffer(sptd, response.data(), response.size(), READ_BUFFER_Mode::LG_JAMLESS_PLAY_CONTROL, 0x01, 0, allocation_length);
+    if(status.status_code)
+        return false;
+
+    std::array<uint8_t, 4> expected_response = mode == JamlessPlayMode::OFF ? std::array<uint8_t, 4>{ 0xDD, 0x00, 0x00, 0x00 } : std::array<uint8_t, 4>{ 0xEE, 0x01, 0x00, 0x00 };
+    return response == expected_response;
 }
 
 

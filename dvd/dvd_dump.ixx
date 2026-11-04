@@ -756,7 +756,7 @@ void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const dvd::E
 {
     uint32_t percentage = 100;
     if(lba_start < lba_end)
-        percentage = percentage * (lba - lba_start) / (lba_end - lba_start);
+        percentage = (int64_t)percentage * (lba - lba_start) / (lba_end - lba_start);
     LOGC_RF("{} [{:3}%] LBA: {:7}/{}, errors: {{ SCSI: {}, EDC: {} }}", spinner_animation(), percentage, lba, lba_end, errors.scsi, errors.edc);
 }
 
@@ -833,6 +833,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
         if(status.status_code)
             LOG("kreon: failed to unlock drive, SCSI ({})", SPTD::StatusMessage(status));
     }
+
+    // disable jamless play on LG firmware to prevent false-negative read errors
+    if(is_jamless_play_firmware(ctx.drive_config) && !drive_set_jamless_play(*ctx.sptd, JamlessPlayMode::OFF, JamlessPlayPersist::TEMPORARY))
+        LOG("warning: failed to disable Jamless Play");
 
     // get capacity
     uint32_t sectors_count_capacity = get_sectors_count_capacity(*ctx.sptd);

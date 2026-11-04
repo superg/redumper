@@ -53,6 +53,10 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Calculate SpiralDrive end limits from the latest valid positional Q at the start of each capture iteration.
 - Apply SpiralDrive overread only to lead-out limits (A2), not next-session program-area pointers (B0).
 - Omit `SpiralDrive` from log messages during SpiralDrive dumping; the mode already provides that context.
+- For SpiralDrive conversion, use `.sub.raw` as the sector-count authority and the file I/O helpers with filler bytes; raw streams need not have matching or sector-aligned lengths.
+- Map discontinuous SpiralDrive captures into source-ordered segments starting at the first valid Q that reveals each jump; later segments overwrite all earlier stream data at overlapping LBAs regardless of quality.
+- Print conversion segments like `cd_split.ixx` offset statistics: LBA range `[start .. end)`, sector count, and jump; omit indices, gap listings, and aggregate coverage/session summaries.
+- Derive TOC encoding from `cd/toc.ixx` first; consult stock firmware only for fields the decoder does not cover.
 - If `../gplextor` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware and a fully annotated Ghidra project. Consult it for any aspect of SpiralDrive development; Ghidra is available through MCP.
 - If `../spiraldrive-pxw5224a` exists, it contains a custom SpiralDrive firmware implementation for PLEXTOR PX-W5224A based on the stock 1.04 firmware. Consult it for any aspect of SpiralDrive development.
 

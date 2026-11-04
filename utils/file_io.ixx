@@ -18,7 +18,7 @@ export module utils.file_io;
 namespace gpsxre
 {
 
-export void write_entry(std::fstream &fs, const uint8_t *data, uint64_t entry_size, uint64_t index, uint64_t count, int64_t byte_offset)
+export void write_entry(std::fstream &fs, const uint8_t *data, uint64_t entry_size, uint64_t index, uint64_t count, int64_t byte_offset, uint8_t fill_byte = 0)
 {
     int64_t file_offset = index * entry_size - byte_offset;
 
@@ -35,6 +35,24 @@ export void write_entry(std::fstream &fs, const uint8_t *data, uint64_t entry_si
 
     if(size)
     {
+        fs.seekp(0, std::fstream::end);
+        int64_t file_size = fs.tellp();
+        if(fs.fail() || file_size < 0)
+            throw_line("seek failed");
+
+        if(file_offset > file_size)
+        {
+            std::vector<uint8_t> filler(std::min(file_offset - file_size, (int64_t)65536), fill_byte);
+            for(int64_t position = file_size; position < file_offset;)
+            {
+                int64_t fill_size = std::min(file_offset - position, (int64_t)filler.size());
+                fs.write((const char *)filler.data(), fill_size);
+                if(fs.fail())
+                    throw_line("write failed");
+                position += fill_size;
+            }
+        }
+
         fs.seekp(file_offset);
         if(fs.fail())
             throw_line("seek failed");

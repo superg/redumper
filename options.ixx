@@ -409,6 +409,7 @@ export struct Options
         LOG("\tdump          \tdumps disc to primary dump files");
         LOG("\tspiral::dump  \tdumps the physical CD stream using SpiralDrive firmware");
         LOG("\tspiral::dreamcast\tenables or disables GD-ROM HD session using SpiralDrive firmware");
+        LOG("\tspiral::convert\tconverts physical CD captures into redumper output files");
         LOG("\tdump::extra   \tdumps extended disc areas such as lead-in and lead-out using specific drives");
         LOG("\trefine        \trefines dump files by re-reading the disc");
         LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");

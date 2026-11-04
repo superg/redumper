@@ -24,6 +24,7 @@ import cd.scrambler;
 import cd.split;
 import cd.spiral;
 import cd.spiral.dreamcast;
+import cd.spiral_convert;
 import cd.subcode;
 import cd.toc;
 import common;
@@ -133,6 +134,7 @@ const std::map<std::string, Command> COMMANDS{
     { "dump",                 { true, true, true, true, true, redumper_dump }               },
     { "spiral::dump",         { true, true, true, true, true, redumper_spiral_dump }        },
     { "spiral::dreamcast",    { true, true, true, false, false, redumper_spiral_dreamcast } },
+    { "spiral::convert",      { false, false, false, true, false, redumper_spiral_convert } },
     { "dump::extra",          { true, true, true, true, false, redumper_dump_extra }        },
     { "refine",               { true, true, true, true, false, redumper_refine }            },
     { "dvdkey",               { true, true, true, false, false, redumper_dvdkey }           },

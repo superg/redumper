@@ -207,6 +207,9 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "Optiarc" , "DVD RW AD-5240S"  , "1.03", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     { "Optiarc" , "DVD RW AD-7910A"  , "1.D1", "seri-01 BT-LIGGY"    , "",  +48,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // seri
     // PATCHED PLEXTOR
+    { "PLEXTOR" , "CD-R PX-S88T"     , "G106", ""                    , "",  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
+    { "PLEXTOR" , "CD-R PX-W1610A"   , "G105", ""                    , "",  +99, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
+    { "PLEXTOR" , "CD-R PX-W2410A"   , "G104", ""                    , "",  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W4824A"   , "G107", ""                    , "",  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     // PATCHED KREON
     { "TSSTcorp", "DVD-ROM SH-D163B" , "ZZ01", "KREON V1.00.........", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM

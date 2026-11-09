@@ -43,6 +43,7 @@ namespace gpsxre
 {
 
 export constexpr int32_t LBA_START = -45150; // MSVC internal compiler error: MSF_to_LBA(MSF_LEADIN_START); // -45150
+export constexpr int32_t LBA_ZERO_INDEX = -LBA_START;
 
 
 export enum class TrackType
@@ -441,7 +442,8 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 }
 
 
-export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba, bool flush_cache)
+export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba, bool flush_cache,
+    OmniDrive_DiscType omnidrive_disc_type = OmniDrive_DiscType::CD, bool omnidrive_leadin = false)
 {
     SPTD::Status status;
 
@@ -456,7 +458,8 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, 
 
     if(is_omnidrive_firmware(drive_config))
     {
-        status = cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, OmniDrive_DiscType::CD, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true);
+        status = cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, omnidrive_disc_type, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true,
+            omnidrive_leadin);
     }
     else
     {

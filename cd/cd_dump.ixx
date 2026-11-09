@@ -14,8 +14,10 @@ module;
 export module cd.dump;
 
 import cd.cd;
+import cd.cdrom;
 import cd.common;
 import cd.dreamcast;
+import cd.scrambler;
 import cd.subcode;
 import cd.toc;
 import common;
@@ -236,6 +238,70 @@ void status_update(int32_t lba, int32_t lba_start, int32_t lba_end, const Errors
 };
 
 
+void dreamcast_dump_leadin(Context &ctx, std::fstream &fs_scram, std::fstream &fs_state, std::fstream &fs_subcode, const Options &options)
+{
+    std::vector<uint8_t> sector_buffer(CD_RAW_DATA_SIZE);
+    std::span<const uint8_t> sector_data(sector_buffer.begin(), CD_DATA_SIZE);
+    std::span<const uint8_t> sector_c2(sector_buffer.begin() + CD_DATA_SIZE, CD_C2_SIZE);
+    std::span<const uint8_t> sector_subcode(sector_buffer.begin() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
+
+    uint32_t sectors_count = 0;
+    uint32_t reads_failed = 0;
+    uint32_t errors_c2 = 0;
+    int32_t lba_low = LBA_LIMIT;
+    int32_t lba_high = 0;
+    dreamcast::leadin_read(
+        [&](int32_t lba)
+        {
+            LOGC_RF("{} [LBA: {:6}] HD lead-in, sectors: {}, failed reads: {}, C2: {}", spinner_animation(), lba, sectors_count, reads_failed, errors_c2);
+
+            bool unscrambled = false;
+            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, false, OmniDrive_DiscType::GD, true);
+            if(status.status_code)
+            {
+                if(status.sense_key == 0x05 && status.asc == 0x24 && status.ascq == 0x00)
+                    throw_line("dreamcast: drive firmware does not support GD-ROM HD area reading");
+
+                ++reads_failed;
+                if(options.verbose)
+                    LOGC_R("[LBA: {:6}] SCSI error ({})", lba, SPTD::StatusMessage(status));
+
+                return false;
+            }
+
+            // HD lead-in sectors are returned unscrambled, scramble data back
+            if(std::equal(sector_buffer.begin(), sector_buffer.begin() + sizeof(CD_DATA_SYNC), CD_DATA_SYNC))
+                Scrambler::process(sector_buffer.data(), sector_buffer.data(), 0, CD_DATA_SIZE);
+
+            auto sector_state = c2_to_state(sector_c2.data(), State::SUCCESS);
+            if(std::count(sector_state.begin(), sector_state.end(), State::ERROR_C2))
+                ++errors_c2;
+
+            int32_t lba_index = lba - LBA_START;
+            write_entry(fs_scram, sector_data.data(), CD_DATA_SIZE, lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE);
+            write_entry(fs_state, (uint8_t *)sector_state.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset);
+            write_entry(fs_subcode, sector_subcode.data(), CD_SUBCODE_SIZE, lba_index, 1, 0);
+
+            ++sectors_count;
+            lba_low = std::min(lba_low, lba);
+            lba_high = std::max(lba_high, lba);
+
+            return true;
+        });
+
+    LOGC_RF("");
+    if(sectors_count)
+    {
+        MSF msf_low = LBA_to_BCDMSF(lba_low);
+        MSF msf_high = LBA_to_BCDMSF(lba_high);
+        LOG_R("dreamcast: HD lead-in (LBA: [{} .. {}], MSF: {:02X}:{:02X}:{:02X}-{:02X}:{:02X}:{:02X}, sectors: {}/{} ({}%), failed reads: {}, C2 errors: {})", lba_low, lba_high, msf_low.m, msf_low.s,
+            msf_low.f, msf_high.m, msf_high.s, msf_high.f, sectors_count, dreamcast::LEADIN_SIZE, 100 * sectors_count / (uint32_t)dreamcast::LEADIN_SIZE, reads_failed, errors_c2);
+    }
+    else
+        LOG_R("dreamcast: HD lead-in not found (failed reads: {})", reads_failed);
+}
+
+
 export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
 {
     if(dump)
@@ -274,6 +340,8 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
 
         lba_end_by_subcode = true;
     }
+
+    bool dreamcast_omnidrive = dreamcast && is_omnidrive_firmware(ctx.drive_config);
 
     int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
     int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
@@ -330,6 +398,22 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
         insert_range(session_gaps, r);
     }
 
+    int32_t lba_gd = dreamcast_omnidrive ? session_gaps.back().end : LBA_LIMIT;
+
+    // GD-ROM HD lead-in is read at the session gap jump
+    bool dreamcast_leadin = dreamcast_omnidrive && dump;
+    auto session_gap_jump = [&](int32_t &lba, const Range<int32_t> &range)
+    {
+        if(dreamcast_leadin)
+        {
+            dreamcast_dump_leadin(ctx, fs_scram, fs_state, fs_subcode, options);
+            dreamcast_leadin = false;
+        }
+
+        LOG_R("[LBA: {:6}] session gap jump (LBA: {:6})", lba, range.end);
+        lba = range.end - 1;
+    };
+
     Errors errors_initial = {};
     if(!dump)
         refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, -ctx.drive_config.read_offset, -data_drive_offset);
@@ -348,6 +432,13 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
             LOG_R("[LBA: {:6}] forced stop ", lba);
             LOG("");
             break;
+        }
+
+        // jump over the session gap after the lead-out overread
+        if(auto range = find_range(session_gaps, lba); dreamcast_omnidrive && range != nullptr && lba >= range->start + (int32_t)OVERREAD_COUNT)
+        {
+            session_gap_jump(lba, *range);
+            continue;
         }
 
         int32_t lba_index = lba - LBA_START;
@@ -390,12 +481,16 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
                 status_message = std::format(", retry: {}{}", r, data_message);
             }
 
-            status_update(lba, lba_start, lba_overread, errors, status_message);
+            // progress of the current GD-ROM area, each up to its lead-out overread
+            if(dreamcast_omnidrive)
+                status_update(lba, lba < lba_gd ? lba_start : lba_gd, (lba < lba_gd ? session_gaps.back().start : dreamcast::LEADOUT_LBA) + (int32_t)OVERREAD_COUNT, errors, status_message);
+            else
+                status_update(lba, lba_start, lba_overread, errors, status_message);
 
             // read sector
             auto read_time_start = std::chrono::high_resolution_clock::now();
             bool unscrambled = options.force_unscrambled;
-            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, r != 0);
+            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, r != 0, lba >= lba_gd ? OmniDrive_DiscType::GD : OmniDrive_DiscType::CD);
             auto read_time_stop = std::chrono::high_resolution_clock::now();
 
             if(!data_unscrambled_message && unscrambled)
@@ -419,11 +514,9 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
 
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
             auto session_gap_range = find_range(session_gaps, lba);
-            if(session_gap_range != nullptr && slow_sector)
+            if(session_gap_range != nullptr && (slow_sector || dreamcast_omnidrive && status.status_code))
             {
-                LOG_R("[LBA: {:6}] session gap jump (LBA: {:6})", lba, session_gap_range->end);
-
-                lba = session_gap_range->end - 1;
+                session_gap_jump(lba, *session_gap_range);
                 break;
             }
 

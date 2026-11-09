@@ -275,7 +275,8 @@ export enum class OmniDrive_DiscType : uint8_t
 {
     CD,
     DVD,
-    BD
+    BD,
+    GD
 };
 
 
@@ -284,13 +285,6 @@ export enum class OmniDrive_Subchannels : uint8_t
     NONE,
     ENABLED,
     AUDIO_SUBQ
-};
-
-
-export enum class SpiralDrive_Operation : uint8_t
-{
-    SEEK = 1,
-    READ = 2
 };
 
 
@@ -962,8 +956,24 @@ export struct CDB12_ReadOmniDrive
     uint8_t transfer_blocks[4];
     uint8_t subchannels :2;
     uint8_t c2          :1;
-    uint8_t reserved2   :5;
+    uint8_t reserved2   :1;
+    uint8_t leadin      :1;
+    uint8_t reserved3   :3;
     uint8_t control;
+};
+
+
+export enum class SpiralDrive_Operation : uint8_t
+{
+    SEEK = 1,
+    READ = 2
+};
+
+
+export enum class SpiralDrive_SeekResult : uint8_t
+{
+    NONE = 0,
+    INNER_LIMIT = 1
 };
 
 
@@ -972,7 +982,7 @@ export struct CDB12_SpiralDrive
     uint8_t operation_code;
     uint8_t operation;
     uint16_t timeout;
-    uint32_t value;
+    int32_t value;
     uint32_t reserved;
 };
 

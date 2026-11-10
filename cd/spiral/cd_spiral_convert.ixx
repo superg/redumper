@@ -28,6 +28,7 @@ import scsi.mmc;
 import utils.endian;
 import utils.file_io;
 import utils.logger;
+import utils.misc;
 
 
 
@@ -111,14 +112,10 @@ void encode_spiral_toc(const std::vector<SpiralTOCEntries> &sessions, std::vecto
             if(entry == entries.end())
                 throw_line("missing confirmed TOC track (session: {}, track: {})", session_index + 1, track_number);
             const auto &q = entry->second;
-            if(!BCDMSF_valid(q.mode1.a_msf))
-                throw_line("invalid TOC track address (session: {}, track: {})", session_index + 1, track_number);
             tracks[track_number] = { 0, q.control, q.adr, track_number, 0, endian_swap((uint32_t)BCDMSF_to_LBA(q.mode1.a_msf)) };
         }
 
         const auto &leadout = entries.at({ 1, 0xA2 });
-        if(!BCDMSF_valid(leadout.mode1.a_msf))
-            throw_line("invalid TOC lead-out address (session: {})", session_index + 1);
         tracks[CD_LEADOUT_TRACK_NUMBER] = { 0, leadout.control, leadout.adr, CD_LEADOUT_TRACK_NUMBER, 0, endian_swap((uint32_t)BCDMSF_to_LBA(leadout.mode1.a_msf)) };
 
         for(const auto &[key, q] : entries)
@@ -148,29 +145,9 @@ void encode_spiral_toc(const std::vector<SpiralTOCEntries> &sessions, std::vecto
 }
 
 
-export int redumper_spiral_convert(Context &, Options &options)
+auto analyze_spiral_subcode(std::fstream &fs_sub, int32_t sectors_count, std::span<uint8_t> sub_buffer)
 {
-    constexpr int32_t BATCH_SIZE = 256;
-    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    for(const char *extension : { ".toc", ".fulltoc", ".scram", ".state", ".subcode" })
-        if(!options.overwrite && std::filesystem::exists(image_prefix + extension))
-            throw_line("output already exists ({})", image_prefix + extension);
-
-    std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::binary);
-    std::fstream fs_main(image_prefix + ".main.raw", std::ios::in | std::ios::binary);
-    std::fstream fs_c2(image_prefix + ".c2.raw", std::ios::in | std::ios::binary);
-    if(!fs_sub.is_open() || !fs_main.is_open() || !fs_c2.is_open())
-        throw_line("unable to open capture files (image name: {})", options.image_name);
-    fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
-    fs_main.exceptions(std::ios::badbit | std::ios::failbit);
-    fs_c2.exceptions(std::ios::badbit | std::ios::failbit);
-
-    uint64_t sub_size = std::filesystem::file_size(image_prefix + ".sub.raw");
-    uint64_t raw_sectors = sub_size / CD_SUBCODE_SIZE + (sub_size % CD_SUBCODE_SIZE != 0);
-    if(raw_sectors > (uint64_t)(std::numeric_limits<int32_t>::max() - LBA_ZERO_INDEX))
-        throw_line("capture is too large");
-    int32_t sectors_count = (int32_t)raw_sectors;
-    std::vector<uint8_t> sub_buffer(BATCH_SIZE * CD_SUBCODE_SIZE);
+    auto batch_size = (int32_t)(sub_buffer.size() / CD_SUBCODE_SIZE);
     std::vector<SpiralTOCEntries> sessions(1);
     std::optional<int32_t> zero_index;
     std::vector<std::pair<int32_t, int32_t>> segments;
@@ -178,9 +155,9 @@ export int redumper_spiral_convert(Context &, Options &options)
     uint8_t repeat_count = 0;
     bool program_area_seen = false;
     LOG("analyzing subcode (sectors: {})", sectors_count);
-    for(int32_t batch_index = 0; batch_index < sectors_count; batch_index += BATCH_SIZE)
+    for(int32_t batch_index = 0; batch_index < sectors_count; batch_index += batch_size)
     {
-        int32_t count = std::min(BATCH_SIZE, sectors_count - batch_index);
+        int32_t count = std::min(batch_size, sectors_count - batch_index);
         read_entry(fs_sub, sub_buffer.data(), CD_SUBCODE_SIZE, batch_index, count, 0, 0);
         for(int32_t i = 0; i < count; ++i)
         {
@@ -197,8 +174,6 @@ export int redumper_spiral_convert(Context &, Options &options)
             if(q.adr == 1 && q.mode1.tno)
             {
                 program_area_seen = true;
-                if(!BCDMSF_valid(q.mode1.a_msf))
-                    throw_line("invalid absolute Q position (sector: {})", sector_index);
                 int32_t lba = BCDMSF_to_LBA(q.mode1.a_msf);
                 int32_t current_zero_index = sector_index - lba;
                 if(!zero_index)
@@ -241,6 +216,7 @@ export int redumper_spiral_convert(Context &, Options &options)
                 repeat_count = 0;
             }
         }
+
         LOGC_RF("analyzing subcode: {} / {}", batch_index + count, sectors_count);
     }
     LOGC_RF("");
@@ -252,6 +228,31 @@ export int redumper_spiral_convert(Context &, Options &options)
     if(prefix_sectors < 0)
         throw_line("capture starts before the supported output origin (LBA: {})", -*zero_index);
 
+    return std::pair(std::move(sessions), std::move(segments));
+}
+
+
+export int redumper_spiral_convert(Context &, Options &options)
+{
+    constexpr int32_t BATCH_SIZE = 256;
+    auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
+    for(const char *extension : { ".toc", ".fulltoc", ".scram", ".state", ".subcode" })
+        if(!options.overwrite && std::filesystem::exists(image_prefix + extension))
+            throw_line("output already exists ({})", image_prefix + extension);
+
+    std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::binary);
+    std::fstream fs_main(image_prefix + ".main.raw", std::ios::in | std::ios::binary);
+    std::fstream fs_c2(image_prefix + ".c2.raw", std::ios::in | std::ios::binary);
+    if(!fs_sub.is_open() || !fs_main.is_open() || !fs_c2.is_open())
+        throw_line("unable to open capture files (image name: {})", options.image_name);
+    fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
+    fs_main.exceptions(std::ios::badbit | std::ios::failbit);
+    fs_c2.exceptions(std::ios::badbit | std::ios::failbit);
+
+    auto sectors_count = (int32_t)scale_up(std::filesystem::file_size(image_prefix + ".sub.raw"), CD_SUBCODE_SIZE);
+    std::vector<uint8_t> sub_buffer(BATCH_SIZE * CD_SUBCODE_SIZE);
+    auto [sessions, segments] = analyze_spiral_subcode(fs_sub, sectors_count, sub_buffer);
+
     LOG("segments:");
     int32_t previous_end = segments.front().second;
     for(size_t segment_index = 0; segment_index < segments.size(); ++segment_index)
@@ -259,13 +260,10 @@ export int redumper_spiral_convert(Context &, Options &options)
         const auto &[source_index, lba] = segments[segment_index];
         int32_t source_end = segment_index + 1 < segments.size() ? segments[segment_index + 1].first : sectors_count;
         int32_t count = source_end - source_index;
-        if(lba < LBA_START || count > std::numeric_limits<int32_t>::max() - (lba - LBA_START))
-            throw_line("segment is outside the supported output range (sector: {}, LBA: {}, sectors: {})", source_index, lba, count);
         int32_t lba_end = lba + count;
         LOG("  LBA: [{:6} .. {:6}), count: {:6}, jump: {:+}", lba, lba_end, count, lba - previous_end);
         previous_end = lba_end;
     }
-
     LOG("");
 
     std::vector<uint8_t> toc_buffer;

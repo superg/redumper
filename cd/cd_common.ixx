@@ -443,7 +443,7 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 
 
 export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba, bool flush_cache,
-    OmniDrive_DiscType omnidrive_disc_type = OmniDrive_DiscType::CD, bool omnidrive_leadin = false)
+    OmniDrive_DiscType omnidrive_disc_type = OmniDrive_DiscType::CD)
 {
     SPTD::Status status;
 
@@ -458,8 +458,7 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, 
 
     if(is_omnidrive_firmware(drive_config))
     {
-        status = cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, omnidrive_disc_type, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true,
-            omnidrive_leadin);
+        status = cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, omnidrive_disc_type, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true);
     }
     else
     {

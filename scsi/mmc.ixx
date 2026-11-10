@@ -956,9 +956,7 @@ export struct CDB12_ReadOmniDrive
     uint8_t transfer_blocks[4];
     uint8_t subchannels :2;
     uint8_t c2          :1;
-    uint8_t reserved2   :1;
-    uint8_t leadin      :1;
-    uint8_t reserved3   :3;
+    uint8_t reserved2   :5;
     uint8_t control;
 };
 

@@ -1,8 +1,6 @@
 module;
 #include <algorithm>
 #include <cstdint>
-#include <functional>
-#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -23,14 +21,6 @@ namespace gpsxre::dreamcast
 
 export constexpr std::string_view SYSTEM_AREA_MAGIC = "SEGA SEGAKATANA";
 export constexpr int32_t IP_BIN_LBA = 45000;
-// HD area lead-in, F0:00:00 to F1:28:74 (6675 sectors total)
-constexpr int32_t LEADIN_LBA = 674850;
-export constexpr int32_t LEADIN_SIZE = 6675;
-// HD area lead-out, C2:04:00
-export constexpr int32_t LEADOUT_LBA = 549150;
-constexpr int32_t LEADIN_FIND_STEP = 64;
-constexpr int32_t LEADIN_BACK_BLOCK = 8;
-constexpr uint32_t LEADIN_ERRORS_MAX = 40;
 constexpr std::string_view TOC1_MAGIC = "TOC1";
 constexpr uint8_t CONTROL_ADR_TERMINATOR = 0xFF;
 
@@ -115,54 +105,6 @@ export void update_toc(TOC &toc, std::span<const uint8_t> sector)
     session_add_track(session, bcd_decode(CD_LEADOUT_TRACK_NUMBER), toc1.leadout.lba, toc1.leadout.control_adr);
 
     toc.sessions.push_back(session);
-}
-
-
-// HD lead-in read order: search for the first readable sector, read forward from it, then read back below it
-export void leadin_read(const std::function<bool(int32_t)> &read_lba)
-{
-    uint32_t errors = 0;
-    auto read = [&](int32_t lba)
-    {
-        bool success = read_lba(lba);
-        errors = success ? 0 : errors + 1;
-        return success;
-    };
-
-    std::optional<int32_t> lba_first;
-    int32_t lba_floor = LEADIN_LBA;
-    for(int32_t lba = LEADIN_LBA; !lba_first && lba < LEADIN_LBA + LEADIN_SIZE && errors < LEADIN_ERRORS_MAX; lba += LEADIN_FIND_STEP)
-    {
-        if(read(lba))
-            lba_first = lba;
-        else
-            lba_floor = lba + 1;
-    }
-    if(!lba_first)
-        return;
-
-    for(int32_t lba = *lba_first + 1; lba < LEADIN_LBA + LEADIN_SIZE && errors < LEADIN_ERRORS_MAX; ++lba)
-        read(lba);
-
-    // read back in blocks, each block upwards so that the drive seeks once per block
-    for(int32_t block_end = *lba_first; block_end > lba_floor && errors < LEADIN_ERRORS_MAX;)
-    {
-        int32_t block_start = std::max(block_end - LEADIN_BACK_BLOCK, lba_floor);
-        if(!read(block_start))
-        {
-            // read the rest of the block downwards until a read fails
-            for(int32_t lba = block_end - 1; lba > block_start && errors < LEADIN_ERRORS_MAX; --lba)
-                if(!read(lba))
-                    break;
-
-            break;
-        }
-
-        for(int32_t lba = block_start + 1; lba < block_end && errors < LEADIN_ERRORS_MAX; ++lba)
-            read(lba);
-
-        block_end = block_start;
-    }
 }
 
 }

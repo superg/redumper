@@ -35,6 +35,7 @@ module;
 export module scsi.sptd;
 
 import utils.logger;
+import utils.misc;
 import utils.unique_resource;
 
 
@@ -170,7 +171,7 @@ public:
         sptd_sd.sptd.SenseInfoLength = sizeof(sptd_sd.sd);
         sptd_sd.sptd.DataIn = out ? SCSI_IOCTL_DATA_OUT : SCSI_IOCTL_DATA_IN;
         sptd_sd.sptd.DataTransferLength = buffer_length;
-        sptd_sd.sptd.TimeOutValue = _timeout;
+        sptd_sd.sptd.TimeOutValue = scale_up(_timeout, 1000u);
         sptd_sd.sptd.DataBuffer = buffer;
         sptd_sd.sptd.SenseInfoOffset = offsetof(SPTD_SD, sd);
         memcpy(sptd_sd.sptd.Cdb, cdb, cdb_length);

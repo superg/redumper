@@ -23,11 +23,14 @@ namespace gpsxre
 {
 
 const std::map<std::string, uint32_t> PLEXTOR_SUPPORTED_DRIVES = {
+    { "CD-R PX-S88T",   0x1000 },
+    { "CD-R PX-W1610A", 0x1000 },
     { "CD-R PX-W2410A", 0x4000 },
     { "CD-R PX-W4012A", 0x1000 },
     { "CD-R PX-W4012S", 0x1000 },
     { "CD-R PX-W4824A", 0x1000 },
     { "CD-R PX-W5224A", 0x1000 },
+    { "CD-R PX-W8432T", 0x1000 },
     { "CD-R PREMIUM",   0x1000 },
     { "CD-R PREMIUM2",  0x1000 },
     { "DVDR PX-704A",   0x1000 },

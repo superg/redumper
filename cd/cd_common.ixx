@@ -20,6 +20,7 @@ export module cd.common;
 
 import cd.cd;
 import cd.cdrom;
+import cd.dreamcast;
 import cd.scrambler;
 import cd.subcode;
 import cd.toc;
@@ -442,7 +443,7 @@ export std::ostream &redump_print_subq(std::ostream &os, int32_t lba, const Chan
 }
 
 
-export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba, bool flush_cache)
+export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, const DriveConfig &drive_config, int32_t lba, bool flush_cache, bool dreamcast)
 {
     SPTD::Status status;
 
@@ -457,7 +458,8 @@ export SPTD::Status read_sector(SPTD &sptd, uint8_t *sector, bool &unscrambled, 
 
     if(is_omnidrive_firmware(drive_config))
     {
-        status = cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count, OmniDrive_DiscType::CD, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true);
+        status = cmd_read_omnidrive(sptd, sector_buffer.data(), CD_RAW_DATA_SIZE, lba, sectors_count,
+            dreamcast && lba >= dreamcast::IP_BIN_LBA - (int32_t)CD_PREGAP_SIZE ? OmniDrive_DiscType::GD : OmniDrive_DiscType::CD, false, flush_cache, false, OmniDrive_Subchannels::ENABLED, true);
     }
     else
     {
@@ -647,7 +649,7 @@ export std::optional<int32_t> track_offset_by_sync(Context &ctx, uint32_t lba, u
         for(uint32_t j = 0; j < sectors_to_check; ++j)
         {
             bool all_types = false;
-            auto status = read_sector(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba + i + j, false);
+            auto status = read_sector(*ctx.sptd, sector_buffer.data(), all_types, ctx.drive_config, lba + i + j, false, ctx.dreamcast && *ctx.dreamcast);
             if(status.status_code)
                 throw_line("failed to read sector");
 

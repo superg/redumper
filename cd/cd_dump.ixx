@@ -275,8 +275,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
         lba_end_by_subcode = true;
     }
 
-    bool dreamcast_omnidrive = dreamcast && is_omnidrive_firmware(ctx.drive_config);
-
     int32_t lba_start = options.lba_start ? *options.lba_start : ctx.drive_config.pregap_start;
     int32_t lba_end = options.lba_end ? *options.lba_end : toc.sessions.back().tracks.back().lba_end;
 
@@ -332,8 +330,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
         insert_range(session_gaps, r);
     }
 
-    int32_t lba_gd = dreamcast_omnidrive ? session_gaps.back().end : LBA_LIMIT;
-
     Errors errors_initial = {};
     if(!dump)
         refine_init_errors(errors_initial, fs_state, fs_subcode, lba_start, lba_end, -ctx.drive_config.read_offset, -data_drive_offset);
@@ -354,7 +350,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
             break;
         }
 
-        if(auto range = find_range(session_gaps, lba); dreamcast_omnidrive && range != nullptr && lba >= range->start + (int32_t)OVERREAD_COUNT)
+        if(auto range = find_range(session_gaps, lba); dreamcast && is_omnidrive_firmware(ctx.drive_config) && range != nullptr && lba >= range->start + (int32_t)OVERREAD_COUNT)
         {
             LOG_R("[LBA: {:6}] session gap jump (LBA: {:6})", lba, range->end);
 
@@ -407,7 +403,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
             // read sector
             auto read_time_start = std::chrono::high_resolution_clock::now();
             bool unscrambled = options.force_unscrambled;
-            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, r != 0, lba >= lba_gd ? OmniDrive_DiscType::GD : OmniDrive_DiscType::CD);
+            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, r != 0, dreamcast);
             auto read_time_stop = std::chrono::high_resolution_clock::now();
 
             if(!data_unscrambled_message && unscrambled)
@@ -431,7 +427,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
 
             bool slow_sector = std::chrono::duration_cast<std::chrono::seconds>(read_time_stop - read_time_start).count() > SLOW_SECTOR_TIMEOUT;
             auto session_gap_range = find_range(session_gaps, lba);
-            if(session_gap_range != nullptr && (slow_sector || dreamcast_omnidrive && status.status_code))
+            if(session_gap_range != nullptr && slow_sector)
             {
                 LOG_R("[LBA: {:6}] session gap jump (LBA: {:6})", lba, session_gap_range->end);
 

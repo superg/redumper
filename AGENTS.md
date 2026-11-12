@@ -24,6 +24,11 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - In CMake files, follow the same column limit where practical and use the available width instead of wrapping arguments onto many short lines.
 - In CMake files, enclose string literals in double quotes, for example `"string"`.
 
+## Message wording
+
+- Do not hardcode command-line option spellings in error messages or help descriptions. Keep option names in their declarations and help listings.
+- Help descriptions state what an option does. Error messages state what went wrong, without usage hints or suggested actions.
+
 ## Memory upkeep
 
 - When the user states a clear, reusable working preference or a stable project rule, record it in this file during the task so future conversations can use it.
@@ -36,6 +41,8 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Never edit `.gitignore` or add ignore exceptions. The user manages that file and decides when exceptions are needed.
 
 ## Project rules
+
+- Do not add try/catch blocks. Exceptions are non-recoverable and must propagate to the existing root main handler, which prints the error and exits.
 
 - Do not add or expand SpiralDrive tests at this stage unless explicitly requested.
 - Always explicitly set the drive to 4× speed before any optical-drive test or diagnostic.

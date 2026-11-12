@@ -481,7 +481,7 @@ export struct Options
         LOG("\t--drive-test-skip-cache-read    \tskip testing for MEDIATEK cache read command (F1)");
         LOG("");
         LOG("\t(SpiralDrive)");
-        LOG("\t--spiraldrive-dreamcast         \tcontinue through the first session lead-out to LBA 45000");
+        LOG("\t--spiraldrive-dreamcast         \tenable GD-ROM HD session, spiral::dump: continue past SD lead-out");
         LOG("\t--spiraldrive-leadout-sectors=VALUE\tnumber of lead-out sectors to overread (default: {})", SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT);
         LOG("");
         LOG("\t(miscellaneous)");

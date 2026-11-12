@@ -127,6 +127,18 @@ export TOC toc_choose(const std::vector<uint8_t> &toc_buffer, const std::vector<
 }
 
 
+export void set_dreamcast_hd_session(Context &ctx, bool enable)
+{
+    if(!is_spiraldrive_firmware(ctx.drive_config))
+        throw_line("drive is not running SpiralDrive firmware");
+
+    LOG("{} GD-ROM HD session", enable ? "enabling" : "disabling");
+    if(auto status = cmd_spiraldrive(*ctx.sptd, nullptr, 0, SpiralDrive_Operation::DREAMCAST, 0, enable); status.status_code)
+        throw_line("failed to {} GD-ROM HD session, SCSI ({})", enable ? "enable" : "disable", SPTD::StatusMessage(status));
+    LOG("");
+}
+
+
 export std::vector<uint8_t> toc_read(SPTD &sptd)
 {
     std::vector<uint8_t> toc_buffer;

@@ -16,6 +16,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Use explicit loop termination conditions when known; do not use an infinite loop with `break` for normal successful completion.
 - Name new or renamed structure, enum, and other types in `PascalCase`, for example `DriveState` and `ReadMode`.
 - Keep abbreviations and acronyms fully uppercase in PascalCase identifiers, for example `SpiralDriveCDB` instead of `SpiralDriveCdb`.
+- Always write files with LF line endings, never CR/LF.
 - Use the repository's `.clang-format` as the source of truth for C/C++ formatting. Read it before editing and run `clang-format` on changed code where available.
 - Never disable `clang-format` with source directives unless the user explicitly requests it.
 - Leave three empty lines after an include block before the rest of the code.

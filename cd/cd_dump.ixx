@@ -248,9 +248,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
     else
         image_check_exists(options);
 
-    if(options.spiraldrive_dreamcast)
-        set_dreamcast_hd_session(ctx, true);
-
     auto toc = toc_process(ctx, options, dump);
     if(dump)
     {
@@ -571,9 +568,6 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
         LOGC_RF("");
         LOGC("");
     }
-
-    if(options.spiraldrive_dreamcast)
-        set_dreamcast_hd_session(ctx, false);
 
     if(dump)
     {

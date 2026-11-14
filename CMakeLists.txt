@@ -104,6 +104,7 @@ target_sources(redumper
     "cd/cd_dump_extra.ixx"
     "cd/cd_dump.ixx"
     "cd/spiral/cd_spiral_dump.ixx"
+    "cd/spiral/cd_spiral_dreamcast.ixx"
     "cd/cdrom.ixx"
     "cd/dreamcast.ixx"
     "cd/cd_ecc.ixx"

@@ -76,6 +76,7 @@ export struct Options
     std::unique_ptr<int> dump_write_offset;
     std::unique_ptr<int> dump_read_size;
     bool spiraldrive_dreamcast;
+    bool spiraldrive_dreamcast_disable;
     int spiraldrive_leadout_sectors;
     bool overread_leadout;
     bool force_unscrambled;
@@ -136,6 +137,7 @@ export struct Options
         , offset_shift_relocate(false)
         , audio_silence_threshold(audio_silence_threshold_default)
         , spiraldrive_dreamcast(false)
+        , spiraldrive_dreamcast_disable(false)
         , spiraldrive_leadout_sectors(SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT)
         , overread_leadout(false)
         , force_unscrambled(false)
@@ -326,6 +328,8 @@ export struct Options
                     }
                     else if(key == "--spiraldrive-dreamcast")
                         spiraldrive_dreamcast = true;
+                    else if(key == "--spiraldrive-dreamcast-disable")
+                        spiraldrive_dreamcast_disable = true;
                     else if(key == "--spiraldrive-leadout-sectors")
                         i_value = &spiraldrive_leadout_sectors;
                     else if(key == "--overread-leadout")
@@ -404,6 +408,7 @@ export struct Options
         LOG("\tdisc          \taggregate mode that does everything (default)");
         LOG("\tdump          \tdumps disc to primary dump files");
         LOG("\tspiral::dump  \tdumps the physical CD stream using SpiralDrive firmware");
+        LOG("\tspiral::dreamcast\tenables or disables GD-ROM HD session using SpiralDrive firmware");
         LOG("\tdump::extra   \tdumps extended disc areas such as lead-in and lead-out using specific drives");
         LOG("\trefine        \trefines dump files by re-reading the disc");
         LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
@@ -481,7 +486,8 @@ export struct Options
         LOG("\t--drive-test-skip-cache-read    \tskip testing for MEDIATEK cache read command (F1)");
         LOG("");
         LOG("\t(SpiralDrive)");
-        LOG("\t--spiraldrive-dreamcast         \tenable GD-ROM HD session, spiral::dump: continue past SD lead-out");
+        LOG("\t--spiraldrive-dreamcast         \tenable GD-ROM HD session before disc commands, spiral::dump: continue past SD lead-out");
+        LOG("\t--spiraldrive-dreamcast-disable \tdisable GD-ROM HD session");
         LOG("\t--spiraldrive-leadout-sectors=VALUE\tnumber of lead-out sectors to overread (default: {})", SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT);
         LOG("");
         LOG("\t(miscellaneous)");

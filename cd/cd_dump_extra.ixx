@@ -403,9 +403,6 @@ export int redumper_dump_extra(Context &ctx, Options &options)
     if(ctx.disc_type != DiscType::CD)
         return exit_code;
 
-    if(options.spiraldrive_dreamcast)
-        set_dreamcast_hd_session(ctx, true);
-
     auto toc = toc_process(ctx, options, false);
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
@@ -428,12 +425,6 @@ export int redumper_dump_extra(Context &ctx, Options &options)
     {
         if(!options.generic_skip_leadin)
             generic_process_leadin(ctx, toc, fs_scram, fs_state, fs_subcode, options);
-    }
-
-    if(options.spiraldrive_dreamcast)
-    {
-        LOG("");
-        set_dreamcast_hd_session(ctx, false);
     }
 
     return exit_code;

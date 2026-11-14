@@ -350,6 +350,14 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
             break;
         }
 
+        if(auto range = find_range(session_gaps, lba); dreamcast && is_omnidrive_firmware(ctx.drive_config) && range != nullptr && lba >= range->start + (int32_t)OVERREAD_COUNT)
+        {
+            LOG_R("[LBA: {:6}] session gap jump (LBA: {:6})", lba, range->end);
+
+            lba = range->end - 1;
+            continue;
+        }
+
         int32_t lba_index = lba - LBA_START;
 
         read_entry(fs_state, (uint8_t *)sector_state_file_a.data(), CD_DATA_SIZE_SAMPLES, lba_index, 1, ctx.drive_config.read_offset, (uint8_t)State::ERROR_SKIP);
@@ -395,7 +403,7 @@ export bool redumper_dump_cd(Context &ctx, const Options &options, bool dump)
             // read sector
             auto read_time_start = std::chrono::high_resolution_clock::now();
             bool unscrambled = options.force_unscrambled;
-            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, r != 0);
+            auto status = read_sector(*ctx.sptd, sector_buffer.data(), unscrambled, ctx.drive_config, lba, r != 0, dreamcast);
             auto read_time_stop = std::chrono::high_resolution_clock::now();
 
             if(!data_unscrambled_message && unscrambled)

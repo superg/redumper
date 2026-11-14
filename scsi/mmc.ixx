@@ -275,7 +275,8 @@ export enum class OmniDrive_DiscType : uint8_t
 {
     CD,
     DVD,
-    BD
+    BD,
+    GD
 };
 
 

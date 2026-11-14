@@ -211,6 +211,7 @@ static const std::vector<DriveConfig> DRIVE_DATABASE =
     { "PLEXTOR" , "CD-R PX-W1610A"   , "G105", ""                    , "",  +99, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W2410A"   , "G104", ""                    , "",  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     { "PLEXTOR" , "CD-R PX-W4824A"   , "G107", ""                    , "",  +98, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
+    { "PLEXTOR" , "CD-R PX-W5224A"   , "G104", ""                    , "",  +30, 294,  -75, ReadMethod::D8, SectorOrder::DATA_C2_SUB, Type::PLEXTOR  },
     // PATCHED KREON
     { "TSSTcorp", "DVD-ROM SH-D163B" , "ZZ01", "KREON V1.00.........", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_C2_SUB, Type::GENERIC  }, // MoriGM
     { "TSSTcorp", "DVD-ROM SH-D163A" , "DC02", "KREON V1.00.........", "",   +6,   0, -135, ReadMethod::BE, SectorOrder::DATA_SUB_C2, Type::GENERIC  }, // MoriGM

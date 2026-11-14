@@ -963,7 +963,8 @@ export struct CDB12_ReadOmniDrive
 export enum class SpiralDrive_Operation : uint8_t
 {
     SEEK = 1,
-    READ = 2
+    READ = 2,
+    DREAMCAST = 3
 };
 
 

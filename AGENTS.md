@@ -43,7 +43,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 
 ## Project rules
 
-- Do not add try/catch blocks. Exceptions are non-recoverable and must propagate to the existing root main handler, which prints the error and exits.
+- Every thrown exception is terminal and is handled only by the root try/catch in `main()`, which prints the error and exits. Never add try/catch below `main()`, since catching there implies recovery; implement recovery through return values or status checks, not exceptions.
 
 - Do not add or expand SpiralDrive tests at this stage unless explicitly requested.
 - Always explicitly set the drive to 4× speed before any optical-drive test or diagnostic.

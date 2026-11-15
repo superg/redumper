@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <climits>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -9,8 +10,10 @@ module;
 #include <limits>
 #include <map>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include "throw_line.hh"
@@ -23,6 +26,7 @@ import cd.cd;
 import cd.common;
 import cd.subcode;
 import common;
+import crc.crc16_gsm;
 import options;
 import scsi.mmc;
 import utils.endian;
@@ -36,6 +40,15 @@ namespace gpsxre
 {
 
 using SpiralTOCEntries = std::map<std::pair<uint8_t, uint8_t>, ChannelQ>;
+using SpiralCDTextKey = std::pair<uint8_t, uint8_t>;
+
+
+struct SpiralCDText
+{
+    std::map<SpiralCDTextKey, CD_TEXT_Descriptor> packs;
+    std::map<SpiralCDTextKey, SpiralCDTextKey> next;
+    std::optional<SpiralCDTextKey> previous;
+};
 
 
 FULL_TOC_Descriptor encode_spiral_full_toc_entry(uint8_t session_number, const ChannelQ &q)
@@ -145,7 +158,71 @@ void encode_spiral_toc(const std::vector<SpiralTOCEntries> &sessions, std::vecto
 }
 
 
-auto analyze_spiral_subcode(std::fstream &fs_sub, int32_t sectors_count, std::span<uint8_t> sub_buffer)
+// lead-in R-W carries 6-bit symbols without interleaving, every 24 symbols form one 18-byte pack
+void collect_spiral_cd_text_packs(std::span<const uint8_t> sector_sub, SpiralCDText &cd_text)
+{
+    constexpr uint32_t SYMBOL_BITS = 6;
+    constexpr uint32_t PACK_SYMBOLS = sizeof(CD_TEXT_Descriptor) * CHAR_BIT / SYMBOL_BITS;
+    for(uint32_t pack_offset = 0; pack_offset < CD_SUBCODE_SIZE; pack_offset += PACK_SYMBOLS)
+    {
+        CD_TEXT_Descriptor pack;
+        std::span<uint8_t> bytes((uint8_t *)&pack, sizeof(pack));
+        for(uint32_t i = 0; i < PACK_SYMBOLS; i += 4)
+        {
+            uint32_t bits = 0;
+            for(uint32_t j = 0; j < 4; ++j)
+                bits = bits << SYMBOL_BITS | (sector_sub[pack_offset + i + j] & 0x3F);
+            for(uint32_t j = 0; j < 3; ++j)
+                bytes[i / 4 * 3 + j] = (uint8_t)(bits >> (2 - j) * CHAR_BIT);
+        }
+
+        if((pack.pack_type & 0xF0) == 0x80 && CRC16_GSM().update(bytes.data(), bytes.size() - sizeof(pack.crc)).final() == endian_swap(pack.crc))
+        {
+            SpiralCDTextKey key((uint8_t)pack.block_number, pack.sequence_number);
+            cd_text.packs.emplace(key, pack);
+            if(cd_text.previous)
+                cd_text.next.emplace(*cd_text.previous, key);
+            cd_text.previous = key;
+        }
+        else
+            cd_text.previous.reset();
+    }
+}
+
+
+// packs repeat cyclically in the lead-in, recorded order is restored by following adjacency from the lowest key
+void encode_spiral_cd_text(const SpiralCDText &cd_text, std::vector<uint8_t> &cd_text_buffer)
+{
+    cd_text_buffer.assign(sizeof(CMD_ParameterListHeader), 0);
+    auto append_pack = [&cd_text_buffer](const CD_TEXT_Descriptor &pack)
+    {
+        std::span<const uint8_t> bytes((const uint8_t *)&pack, sizeof(pack));
+        cd_text_buffer.insert(cd_text_buffer.end(), bytes.begin(), bytes.end());
+    };
+
+    std::set<SpiralCDTextKey> visited;
+    std::optional<SpiralCDTextKey> key = cd_text.packs.begin()->first;
+    while(key && !visited.contains(*key))
+    {
+        visited.insert(*key);
+        append_pack(cd_text.packs.at(*key));
+        auto next = cd_text.next.find(*key);
+        key = next == cd_text.next.end() ? std::nullopt : std::optional(next->second);
+    }
+
+    // packs never read adjacent to the restored chain
+    for(const auto &[pack_key, pack] : cd_text.packs)
+        if(!visited.contains(pack_key))
+            append_pack(pack);
+
+    CMD_ParameterListHeader cd_text_header{
+        endian_swap((uint16_t)(cd_text_buffer.size() - sizeof(uint16_t))), { 0, 0 }
+    };
+    std::memcpy(cd_text_buffer.data(), &cd_text_header, sizeof(cd_text_header));
+}
+
+
+auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t sectors_count, std::span<uint8_t> sub_buffer, std::span<ChannelQ> subq_buffer)
 {
     auto batch_size = (int32_t)(sub_buffer.size() / CD_SUBCODE_SIZE);
     std::vector<SpiralTOCEntries> sessions(1);
@@ -154,16 +231,23 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, int32_t sectors_count, std::sp
     std::optional<ChannelQ> repeated_q;
     uint8_t repeat_count = 0;
     bool program_area_seen = false;
+    std::vector<SpiralCDText> cd_texts(1);
     LOG("analyzing subcode (sectors: {})", sectors_count);
     for(int32_t batch_index = 0; batch_index < sectors_count; batch_index += batch_size)
     {
         int32_t count = std::min(batch_size, sectors_count - batch_index);
         read_entry(fs_sub, sub_buffer.data(), CD_SUBCODE_SIZE, batch_index, count, 0, 0);
+        read_entry(fs_subq, (uint8_t *)subq_buffer.data(), sizeof(ChannelQ), batch_index, count, 0, 0);
         for(int32_t i = 0; i < count; ++i)
         {
             int32_t sector_index = batch_index + i;
             std::span<const uint8_t> sector_sub(sub_buffer.data() + i * CD_SUBCODE_SIZE, CD_SUBCODE_SIZE);
+            if(!program_area_seen)
+                collect_spiral_cd_text_packs(sector_sub, cd_texts.back());
+
             auto q = subcode_extract_q(sector_sub.data());
+            if(!q.isValid())
+                q = subq_buffer[i];
             if(!q.isValid())
             {
                 repeated_q.reset();
@@ -194,6 +278,7 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, int32_t sectors_count, std::sp
                     if(sessions.size() >= 99)
                         throw_line("too many captured sessions");
                     sessions.emplace_back();
+                    cd_texts.emplace_back();
                     program_area_seen = false;
                 }
 
@@ -228,30 +313,36 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, int32_t sectors_count, std::sp
     if(prefix_sectors < 0)
         throw_line("capture starts before the supported output origin (LBA: {})", -*zero_index);
 
-    return std::pair(std::move(sessions), std::move(segments));
+    return std::tuple(std::move(sessions), std::move(segments), std::move(cd_texts));
 }
 
 
 export int redumper_spiral_convert(Context &, Options &options)
 {
-    constexpr int32_t BATCH_SIZE = 256;
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    for(const char *extension : { ".toc", ".fulltoc", ".scram", ".state", ".subcode" })
+    for(const char *extension : { ".toc", ".fulltoc", ".cdtext", ".scram", ".state", ".subcode" })
         if(!options.overwrite && std::filesystem::exists(image_prefix + extension))
             throw_line("output already exists ({})", image_prefix + extension);
 
-    std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::binary);
     std::fstream fs_main(image_prefix + ".main.raw", std::ios::in | std::ios::binary);
     std::fstream fs_c2(image_prefix + ".c2.raw", std::ios::in | std::ios::binary);
-    if(!fs_sub.is_open() || !fs_main.is_open() || !fs_c2.is_open())
+    std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::binary);
+    std::fstream fs_subq(image_prefix + ".subq.raw", std::ios::in | std::ios::binary);
+    if(!fs_main.is_open() || !fs_c2.is_open() || !fs_sub.is_open() || !fs_subq.is_open())
         throw_line("unable to open capture files (image name: {})", options.image_name);
-    fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
     fs_main.exceptions(std::ios::badbit | std::ios::failbit);
     fs_c2.exceptions(std::ios::badbit | std::ios::failbit);
+    fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
+    fs_subq.exceptions(std::ios::badbit | std::ios::failbit);
+
+    constexpr int32_t BATCH_SIZE = 256;
+    std::vector<uint8_t> main_buffer(BATCH_SIZE * CD_DATA_SIZE);
+    std::vector<uint8_t> c2_buffer(BATCH_SIZE * CD_C2_SIZE);
+    std::vector<uint8_t> sub_buffer(BATCH_SIZE * CD_SUBCODE_SIZE);
+    std::vector<ChannelQ> subq_buffer(BATCH_SIZE * 1);
 
     auto sectors_count = (int32_t)scale_up(std::filesystem::file_size(image_prefix + ".sub.raw"), CD_SUBCODE_SIZE);
-    std::vector<uint8_t> sub_buffer(BATCH_SIZE * CD_SUBCODE_SIZE);
-    auto [sessions, segments] = analyze_spiral_subcode(fs_sub, sectors_count, sub_buffer);
+    auto [sessions, segments, cd_texts] = analyze_spiral_subcode(fs_sub, fs_subq, sectors_count, sub_buffer, subq_buffer);
 
     LOG("segments:");
     int32_t previous_end = segments.front().second;
@@ -272,14 +363,24 @@ export int redumper_spiral_convert(Context &, Options &options)
     write_vector(image_prefix + ".toc", toc_buffer);
     write_vector(image_prefix + ".fulltoc", full_toc_buffer);
 
+    // shortcut: only the first session CD-TEXT is stored, extend once a disc with later session CD-TEXT is found
+    if(!cd_texts.front().packs.empty())
+    {
+        std::vector<uint8_t> cd_text_buffer;
+        encode_spiral_cd_text(cd_texts.front(), cd_text_buffer);
+        write_vector(image_prefix + ".cdtext", cd_text_buffer);
+    }
+    for(size_t session_index = 1; session_index < cd_texts.size(); ++session_index)
+        if(!cd_texts[session_index].packs.empty())
+            LOG("warning: CD-TEXT not stored (session: {}, packs: {})", session_index + 1, cd_texts[session_index].packs.size());
+
     std::fstream fs_scram(image_prefix + ".scram", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_state(image_prefix + ".state", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_subcode(image_prefix + ".subcode", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     fs_scram.exceptions(std::ios::badbit | std::ios::failbit);
     fs_state.exceptions(std::ios::badbit | std::ios::failbit);
     fs_subcode.exceptions(std::ios::badbit | std::ios::failbit);
-    std::vector<uint8_t> main_buffer(BATCH_SIZE * CD_DATA_SIZE);
-    std::vector<uint8_t> c2_buffer(BATCH_SIZE * CD_C2_SIZE);
+
     std::vector<State> state_buffer(BATCH_SIZE * CD_DATA_SIZE_SAMPLES);
     for(size_t segment_index = 0; segment_index < segments.size(); ++segment_index)
     {
@@ -306,13 +407,14 @@ export int redumper_spiral_convert(Context &, Options &options)
     }
     LOGC_RF("");
     LOGC("");
+
+    // explicit close throws on a failed final flush, the destructor would silently ignore it
     fs_scram.close();
     fs_state.close();
     fs_subcode.close();
-    fs_sub.close();
-    fs_main.close();
-    fs_c2.close();
+
     LOG("converted {} sectors", sectors_count);
+
     return 0;
 }
 }

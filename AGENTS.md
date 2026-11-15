@@ -57,8 +57,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Map discontinuous SpiralDrive captures into source-ordered segments starting at the first valid Q that reveals each jump; later segments overwrite all earlier stream data at overlapping LBAs regardless of quality.
 - Print conversion segments like `cd_split.ixx` offset statistics: LBA range `[start .. end)`, sector count, and jump; omit indices, gap listings, and aggregate coverage/session summaries.
 - Derive TOC encoding from `cd/toc.ixx` first; consult stock firmware only for fields the decoder does not cover.
-- If `../gplextor` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware and a fully annotated Ghidra project. Consult it for any aspect of SpiralDrive development; Ghidra is available through MCP.
-- If `../spiraldrive-pxw5224a` exists, it contains a custom SpiralDrive firmware implementation for PLEXTOR PX-W5224A based on the stock 1.04 firmware. Consult it for any aspect of SpiralDrive development.
+- If `../spiraldrive` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware with a fully annotated Ghidra project, and the custom SpiralDrive firmware implementation based on it. Consult it for any aspect of SpiralDrive development; Ghidra is available through MCP.
 
 ---
 

@@ -35,72 +35,17 @@ namespace gpsxre
 {
 
 constexpr uint16_t C4_TIMEOUT_MS = 5000;
-constexpr uint32_t C4_FRAME_SIZE = CD_RAW_DATA_SIZE + sizeof(ChannelQ);
+// wobble envelope, slot N covers the Nth 24th of the time from the previous frame event to this one
+constexpr uint32_t C4_WBL_SIZE = 24;
+constexpr uint32_t C4_FRAME_SIZE = CD_RAW_DATA_SIZE + sizeof(ChannelQ) + C4_WBL_SIZE;
 
 
-void seek_spiral_start(SPTD &sptd, const Options &options)
+void seek_spiral_start(SPTD &sptd)
 {
-    constexpr int32_t INWARD_SEEK_STEP = 50;
-    constexpr int32_t OUTWARD_SEEK_STEP = 1;
-    constexpr uint32_t MAX_SEEKS = 0x7FFF;
-
-    LOG("seeking inner pickup limit");
-    SpiralDrive_SeekResult seek_result = SpiralDrive_SeekResult::NONE;
-    for(uint32_t i = 0; i < MAX_SEEKS; ++i)
-    {
-        seek_result = SpiralDrive_SeekResult::NONE;
-        if(auto status = cmd_spiraldrive(sptd, (uint8_t *)&seek_result, sizeof(seek_result), SpiralDrive_Operation::SEEK, C4_TIMEOUT_MS, -INWARD_SEEK_STEP); status.status_code)
-            throw_line("inward SEEK failed (step: {}, iteration: {}, SCSI: {})", INWARD_SEEK_STEP, i + 1, SPTD::StatusMessage(status));
-
-        if(seek_result == SpiralDrive_SeekResult::NONE)
-        {
-            if(options.verbose)
-                LOG("inward SEEK success (step: {}, iteration: {})", INWARD_SEEK_STEP, i + 1);
-        }
-        else if(seek_result == SpiralDrive_SeekResult::INNER_LIMIT)
-        {
-            LOG("inward SEEK inner limit reached (step: {}, iterations: {})", INWARD_SEEK_STEP, i + 1);
-            break;
-        }
-        else
-            throw_line("inward SEEK returned an invalid result (result: {}, step: {}, iteration: {})", (uint8_t)seek_result, INWARD_SEEK_STEP, i + 1);
-    }
-    if(seek_result != SpiralDrive_SeekResult::INNER_LIMIT)
-        throw_line("inward SEEK inner limit was not reached (step: {}, iteration: {})", INWARD_SEEK_STEP, MAX_SEEKS);
-
-    LOG("seeking readable start");
-    bool read_success = false;
-    std::vector<uint8_t> buffer(C4_FRAME_SIZE);
-    for(uint32_t i = 0; i < MAX_SEEKS; ++i)
-    {
-        // seek
-        if(i)
-        {
-            if(auto status = cmd_spiraldrive(sptd, (uint8_t *)&seek_result, sizeof(seek_result), SpiralDrive_Operation::SEEK, C4_TIMEOUT_MS, OUTWARD_SEEK_STEP); status.status_code)
-                throw_line("outward SEEK failed (step: {}, SCSI: {})", OUTWARD_SEEK_STEP, SPTD::StatusMessage(status));
-            if(seek_result != SpiralDrive_SeekResult::NONE)
-                throw_line("outward SEEK returned an invalid result (result: {}, step: {}, iteration: {})", (uint8_t)seek_result, OUTWARD_SEEK_STEP, i + 1);
-
-            if(options.verbose)
-                LOG("outward SEEK success (step: {}, iteration: {})", OUTWARD_SEEK_STEP, i + 1);
-        }
-
-        // read
-        if(auto status = cmd_spiraldrive(sptd, buffer.data(), (uint32_t)buffer.size(), SpiralDrive_Operation::READ, C4_TIMEOUT_MS, 1); status.status_code)
-        {
-            if(options.verbose)
-                LOG("outward READ failed (step: {}, iteration: {}, SCSI: {})", OUTWARD_SEEK_STEP, i + 1, SPTD::StatusMessage(status));
-        }
-        else
-        {
-            LOG("outward READ success (step: {}, iterations: {})", OUTWARD_SEEK_STEP, i + 1);
-            read_success = true;
-            break;
-        }
-    }
-
-    if(!read_success)
-        throw_line("outward SEEK readable start was not reached (step: {}, iteration: {})", OUTWARD_SEEK_STEP, MAX_SEEKS);
+    // the firmware moves to the first lead-in pits of pressed media or to the ATIP address before the lead-in of recordable media
+    LOG("seeking spiral start");
+    if(auto status = cmd_spiraldrive(sptd, nullptr, 0, SpiralDrive_Operation::REWIND, 0, 0); status.status_code)
+        throw_line("REWIND failed (SCSI: {})", SPTD::StatusMessage(status));
 }
 
 
@@ -125,29 +70,33 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
     if(!options.overwrite
         && (std::filesystem::exists(image_prefix + ".main.raw") || std::filesystem::exists(image_prefix + ".c2.raw") || std::filesystem::exists(image_prefix + ".sub.raw")
-            || std::filesystem::exists(image_prefix + ".subq.raw")))
+            || std::filesystem::exists(image_prefix + ".subq.raw") || std::filesystem::exists(image_prefix + ".wbl.raw")))
         throw_line("dump already exists (image name: {})", options.image_name);
 
-    seek_spiral_start(*ctx.sptd, options);
+    seek_spiral_start(*ctx.sptd);
 
     std::fstream fs_main(image_prefix + ".main.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_c2(image_prefix + ".c2.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_subq(image_prefix + ".subq.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
+    std::fstream fs_wbl(image_prefix + ".wbl.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     fs_main.exceptions(std::ios::badbit | std::ios::failbit);
     fs_c2.exceptions(std::ios::badbit | std::ios::failbit);
     fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
     fs_subq.exceptions(std::ios::badbit | std::ios::failbit);
+    fs_wbl.exceptions(std::ios::badbit | std::ios::failbit);
 
     std::vector<uint8_t> sector(C4_FRAME_SIZE);
     std::span<uint8_t> sector_data(sector.data(), CD_DATA_SIZE);
     std::span<uint8_t> sector_c2(sector.data() + CD_DATA_SIZE, CD_C2_SIZE);
     std::span<uint8_t> sector_sub(sector.data() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
     std::span<uint8_t> sector_subq(sector.data() + CD_RAW_DATA_SIZE, sizeof(ChannelQ));
+    std::span<uint8_t> sector_wbl(sector.data() + CD_RAW_DATA_SIZE + sizeof(ChannelQ), C4_WBL_SIZE);
 
     uint32_t errors_c2 = 0;
     uint32_t errors_q = 0;
     std::optional<std::pair<int32_t, uint32_t>> q_lba;
+    std::optional<std::pair<int32_t, uint32_t>> q_candidate;
     std::optional<int32_t> lba_end;
     if(options.spiraldrive_dreamcast)
         lba_end = 45000;
@@ -180,6 +129,7 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
             std::fill(sector_c2.begin(), sector_c2.end(), 0xFF);
             std::fill(sector_sub.begin(), sector_sub.end(), 0);
             std::fill(sector_subq.begin(), sector_subq.end(), 0);
+            std::fill(sector_wbl.begin(), sector_wbl.end(), 0);
 
             LOG_R("READ failed (SCSI: {})", SPTD::StatusMessage(status));
         }
@@ -195,9 +145,13 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
 
             if(q.adr == 1)
             {
+                // a junk frame with a valid CRC, as recorded in the PCA, must not anchor the position, so two addresses have to agree
                 if(q.mode1.tno)
                 {
-                    q_lba = { BCDMSF_to_LBA(q.mode1.a_msf), lba_index };
+                    int32_t lba = BCDMSF_to_LBA(q.mode1.a_msf);
+                    if(q_candidate && lba - q_candidate->first == (int32_t)(lba_index - q_candidate->second))
+                        q_lba = { lba, lba_index };
+                    q_candidate = { lba, lba_index };
                 }
                 // lead-in
                 else
@@ -252,6 +206,7 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
         write_entry_bit(fs_c2, sector_c2.data(), sector_c2.size(), lba_index, 1, 0, true);
         write_entry_bit(fs_sub, sector_sub.data(), sector_sub.size(), lba_index, 1, 0, false);
         write_entry_bit(fs_subq, sector_subq.data(), sector_subq.size(), lba_index, 1, 0, false);
+        write_entry_bit(fs_wbl, sector_wbl.data(), sector_wbl.size(), lba_index, 1, 0, false);
 
         LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, errors_c2,
             errors_q);
@@ -265,6 +220,7 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     fs_c2.close();
     fs_sub.close();
     fs_subq.close();
+    fs_wbl.close();
 
     LOG("media errors: ");
     LOG("  C2: {}", errors_c2);

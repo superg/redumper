@@ -63,6 +63,9 @@ FULL_TOC_Descriptor encode_spiral_full_toc_entry(uint8_t session_number, const C
         .zero = q.mode1.zero,
         .p_msf = { q.mode1.a_msf.m, q.mode1.a_msf.s, q.mode1.a_msf.f }
     };
+    // stock firmware publishes ADR 1 entries without the lead-in running time of the Q frame they were read from
+    if(q.adr == 1)
+        std::fill(std::begin(descriptor.msf), std::end(descriptor.msf), 0);
     std::span<uint8_t> bytes((uint8_t *)&descriptor, sizeof(descriptor));
     auto decode_fields = [&bytes](std::initializer_list<size_t> offsets)
     {
@@ -131,9 +134,21 @@ void encode_spiral_toc(const std::vector<SpiralTOCEntries> &sessions, std::vecto
         const auto &leadout = entries.at({ 1, 0xA2 });
         tracks[CD_LEADOUT_TRACK_NUMBER] = { 0, leadout.control, leadout.adr, CD_LEADOUT_TRACK_NUMBER, 0, endian_swap((uint32_t)BCDMSF_to_LBA(leadout.mode1.a_msf)) };
 
+        // stock firmware order: A0 to A2, tracks, then ADR 5 with B0 and C0 first
+        std::vector<std::pair<uint8_t, uint8_t>> keys;
         for(const auto &[key, q] : entries)
+            keys.push_back(key);
+        auto rank = [](const std::pair<uint8_t, uint8_t> &key)
         {
-            auto descriptor = encode_spiral_full_toc_entry((uint8_t)(session_index + 1), q);
+            auto [adr, point] = key;
+            if(adr == 1)
+                return std::tuple(point >= 0xA0 ? 0 : 1, point);
+            return std::tuple(point == 0xB0 ? 2 : (point == 0xC0 ? 3 : 4), point);
+        };
+        std::sort(keys.begin(), keys.end(), [&rank](const auto &a, const auto &b) { return rank(a) < rank(b); });
+        for(const auto &key : keys)
+        {
+            auto descriptor = encode_spiral_full_toc_entry((uint8_t)(session_index + 1), entries.at(key));
             std::span<const uint8_t> bytes((const uint8_t *)&descriptor, sizeof(descriptor));
             full_toc_buffer.insert(full_toc_buffer.end(), bytes.begin(), bytes.end());
         }
@@ -227,6 +242,7 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t
     auto batch_size = (int32_t)(sub_buffer.size() / CD_SUBCODE_SIZE);
     std::vector<SpiralTOCEntries> sessions(1);
     std::optional<int32_t> zero_index;
+    std::optional<std::pair<int32_t, int32_t>> zero_index_candidate;
     std::vector<std::pair<int32_t, int32_t>> segments;
     std::optional<ChannelQ> repeated_q;
     uint8_t repeat_count = 0;
@@ -255,20 +271,26 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t
                 continue;
             }
 
+            // a junk frame with a valid CRC, as recorded in the PCA, must not place the program area, so two addresses have to agree
             if(q.adr == 1 && q.mode1.tno)
             {
-                program_area_seen = true;
-                int32_t lba = BCDMSF_to_LBA(q.mode1.a_msf);
-                int32_t current_zero_index = sector_index - lba;
-                if(!zero_index)
+                int32_t current_zero_index = sector_index - BCDMSF_to_LBA(q.mode1.a_msf);
+                bool confirmed = zero_index_candidate && zero_index_candidate->first == current_zero_index;
+                int32_t first_index = confirmed ? zero_index_candidate->second : sector_index;
+                zero_index_candidate = std::pair(current_zero_index, sector_index);
+                if(confirmed)
                 {
-                    if(current_zero_index < 0 || current_zero_index >= sectors_count)
-                        throw_line("LBA 0 is outside the capture (sector index: {})", current_zero_index);
-                    zero_index = current_zero_index;
-                    segments.emplace_back(0, -*zero_index);
+                    program_area_seen = true;
+                    if(!zero_index)
+                    {
+                        if(current_zero_index < 0 || current_zero_index >= sectors_count)
+                            throw_line("LBA 0 is outside the capture (sector index: {})", current_zero_index);
+                        zero_index = current_zero_index;
+                        segments.emplace_back(0, -*zero_index);
+                    }
+                    else if(current_zero_index != segments.back().first - segments.back().second)
+                        segments.emplace_back(first_index, first_index - current_zero_index);
                 }
-                else if(current_zero_index != segments.back().first - segments.back().second)
-                    segments.emplace_back(sector_index, lba);
             }
 
             if((q.adr == 1 || q.adr == 5) && !q.mode1.tno)

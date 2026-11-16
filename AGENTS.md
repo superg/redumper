@@ -48,7 +48,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Do not add or expand SpiralDrive tests at this stage unless explicitly requested.
 - Always explicitly set the drive to 4× speed before any optical-drive test or diagnostic.
 - Always show progress during SpiralDrive dumping.
-- Inward SpiralDrive homing uses a fixed SEEK step until sensor-confirmed INNER_LIMIT; abort on any SEEK error with its SCSI details instead of reducing the step or retrying the failed command.
+- SpiralDrive positioning before a dump is one C4 REWIND, which moves the pickup to the earliest readable point in firmware. C4 SEEK and REWIND return no data. Abort on a REWIND error with its SCSI details instead of retrying.
 - Keep the SpiralDrive read buffer fixed at the configured batch size; do not resize it.
 - Calculate SpiralDrive end limits from the latest valid positional Q at the start of each capture iteration.
 - Apply SpiralDrive overread only to lead-out limits (A2), not next-session program-area pointers (B0).
@@ -57,6 +57,9 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Map discontinuous SpiralDrive captures into source-ordered segments starting at the first valid Q that reveals each jump; later segments overwrite all earlier stream data at overlapping LBAs regardless of quality.
 - Print conversion segments like `cd_split.ixx` offset statistics: LBA range `[start .. end)`, sector count, and jump; omit indices, gap listings, and aggregate coverage/session summaries.
 - Derive TOC encoding from `cd/toc.ixx` first; consult stock firmware only for fields the decoder does not cover.
+- SpiralDrive C4 frames are DATA/C2/SUB/SUBQ/WBL. Store the 24-byte wobble envelope of each frame unchanged in `.wbl.raw`.
+- Flash SpiralDrive firmware directly with `redumper flash::plextor`, without backing up the running image.
+- Never change the SpiralDrive firmware version or the Redumper minimum SpiralDrive version unless explicitly asked.
 - If `../spiraldrive` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware with a fully annotated Ghidra project, and the custom SpiralDrive firmware implementation based on it. Consult it for any aspect of SpiralDrive development; Ghidra is available through MCP.
 
 ---

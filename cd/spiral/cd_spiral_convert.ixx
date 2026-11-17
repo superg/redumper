@@ -42,6 +42,9 @@ namespace gpsxre
 using SpiralTOCEntries = std::map<std::pair<uint8_t, uint8_t>, ChannelQ>;
 using SpiralCDTextKey = std::pair<uint8_t, uint8_t>;
 
+// wobble envelope slots per sector
+constexpr uint32_t SPIRAL_WBL_SIZE = 24;
+
 
 struct SpiralCDText
 {
@@ -173,6 +176,48 @@ void encode_spiral_toc(const std::vector<SpiralTOCEntries> &sessions, std::vecto
 }
 
 
+// stock firmware response: track items last, numeric fields in binary, TNO and ZERO cleared
+void encode_spiral_pma(const SpiralTOCEntries &pma, std::vector<uint8_t> &pma_buffer)
+{
+    pma_buffer.assign(sizeof(CMD_ParameterListHeader), 0);
+    for(bool tracks : { false, true })
+        for(const auto &[key, q] : pma)
+        {
+            if((q.adr == 1) != tracks)
+                continue;
+
+            FULL_TOC_Descriptor descriptor{
+                .session_number = 0,
+                .control = q.control,
+                .adr = q.adr,
+                .tno = 0,
+                .point = bcd_decode(q.mode1.point_index),
+                .msf = { q.mode1.msf.m,   q.mode1.msf.s,   q.mode1.msf.f   },
+                .zero = 0,
+                .p_msf = { q.mode1.a_msf.m, q.mode1.a_msf.s, q.mode1.a_msf.f }
+            };
+            std::span<uint8_t> bytes((uint8_t *)&descriptor, sizeof(descriptor));
+            // ADR 2 keeps the disc identification digits in BCD and only the disc type from the second field
+            if(q.adr == 2)
+                bytes[8] = bytes[10] = 0;
+            else
+            {
+                if(q.mode1.msf.m != 0xFF)
+                    for(uint8_t offset : { 4, 5, 6 })
+                        bytes[offset] = bcd_decode(bytes[offset]);
+                for(uint8_t offset : { 8, 9, 10 })
+                    bytes[offset] = bcd_decode(bytes[offset]);
+            }
+            pma_buffer.insert(pma_buffer.end(), bytes.begin(), bytes.end());
+        }
+
+    CMD_ParameterListHeader pma_header{
+        endian_swap((uint16_t)(pma_buffer.size() - sizeof(uint16_t))), { 0, 0 }
+    };
+    std::memcpy(pma_buffer.data(), &pma_header, sizeof(pma_header));
+}
+
+
 // lead-in R-W carries 6-bit symbols without interleaving, every 24 symbols form one 18-byte pack
 void collect_spiral_cd_text_packs(std::span<const uint8_t> sector_sub, SpiralCDText &cd_text)
 {
@@ -248,6 +293,8 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t
     uint8_t repeat_count = 0;
     bool program_area_seen = false;
     std::vector<SpiralCDText> cd_texts(1);
+    SpiralTOCEntries pma;
+    std::optional<ChannelQ> previous_q;
     LOG("analyzing subcode (sectors: {})", sectors_count);
     for(int32_t batch_index = 0; batch_index < sectors_count; batch_index += batch_size)
     {
@@ -268,8 +315,19 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t
             {
                 repeated_q.reset();
                 repeat_count = 0;
+                previous_q.reset();
                 continue;
             }
+
+            // a PMA item repeats ahead of the first program area with only ZERO counting frames, which lead-in entries never do
+            if(!zero_index && previous_q && !q.mode1.tno && q.adr >= 1 && q.adr <= 6)
+            {
+                ChannelQ comparison_q(*previous_q);
+                ++comparison_q.mode1.zero;
+                if(!std::memcmp(comparison_q.raw, q.raw, sizeof(q.raw)))
+                    pma[{ (uint8_t)q.adr, q.mode1.point_index }] = q;
+            }
+            previous_q = q;
 
             // a junk frame with a valid CRC, as recorded in the PCA, must not place the program area, so two addresses have to agree
             if(q.adr == 1 && q.mode1.tno)
@@ -335,14 +393,52 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t
     if(prefix_sectors < 0)
         throw_line("capture starts before the supported output origin (LBA: {})", -*zero_index);
 
-    return std::tuple(std::move(sessions), std::move(segments), std::move(cd_texts));
+    return std::tuple(std::move(sessions), std::move(segments), std::move(cd_texts), std::move(pma));
+}
+
+
+// the wobble carrier keys a serial stream, carrier present is a 0 bit and each character has one start, eight data and two stop bits
+// returns each character with the envelope slot where its start bit begins
+std::vector<std::pair<size_t, uint8_t>> decode_spiral_wobble(std::span<const uint8_t> envelope)
+{
+    constexpr uint8_t CARRIER_LEVEL = 45;
+    constexpr size_t CHARACTER_BITS = 11;
+    // one bit lasts 0.3 sector at any drive speed
+    auto bit_offset = [](size_t bit) { return (bit * SPIRAL_WBL_SIZE * 3 + 5) / 10; };
+
+    std::vector<std::pair<size_t, uint8_t>> characters;
+    for(size_t i = 1; i + bit_offset(CHARACTER_BITS) <= envelope.size(); ++i)
+    {
+        // the start bit begins where the carrier appears, a single slot above the level is noise
+        if(envelope[i - 1] >= CARRIER_LEVEL || envelope[i] < CARRIER_LEVEL || envelope[i + 1] < CARRIER_LEVEL)
+            continue;
+
+        uint32_t bits = 0;
+        for(size_t bit = 0; bit < CHARACTER_BITS; ++bit)
+        {
+            auto cell = envelope.subspan(i + bit_offset(bit), bit_offset(bit + 1) - bit_offset(bit));
+            auto carrier = (size_t)std::count_if(cell.begin(), cell.end(), [](uint8_t level) { return level >= CARRIER_LEVEL; });
+            if(carrier * 2 <= cell.size())
+                bits |= 1 << bit;
+        }
+
+        // start bit 0 and both stop bits 1
+        if((bits & 0x601) == 0x600)
+        {
+            characters.emplace_back(i, (uint8_t)(bits >> 1));
+            // resume inside the last stop bit so the next start bit is found by its own edge
+            i += bit_offset(CHARACTER_BITS - 1);
+        }
+    }
+
+    return characters;
 }
 
 
 export int redumper_spiral_convert(Context &, Options &options)
 {
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).string();
-    for(const char *extension : { ".toc", ".fulltoc", ".cdtext", ".scram", ".state", ".subcode" })
+    for(const char *extension : { ".toc", ".fulltoc", ".pma", ".cdtext", ".scram", ".state", ".subcode", ".wobble" })
         if(!options.overwrite && std::filesystem::exists(image_prefix + extension))
             throw_line("output already exists ({})", image_prefix + extension);
 
@@ -350,12 +446,14 @@ export int redumper_spiral_convert(Context &, Options &options)
     std::fstream fs_c2(image_prefix + ".c2.raw", std::ios::in | std::ios::binary);
     std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::binary);
     std::fstream fs_subq(image_prefix + ".subq.raw", std::ios::in | std::ios::binary);
-    if(!fs_main.is_open() || !fs_c2.is_open() || !fs_sub.is_open() || !fs_subq.is_open())
+    std::fstream fs_wbl(image_prefix + ".wbl.raw", std::ios::in | std::ios::binary);
+    if(!fs_main.is_open() || !fs_c2.is_open() || !fs_sub.is_open() || !fs_subq.is_open() || !fs_wbl.is_open())
         throw_line("unable to open capture files (image name: {})", options.image_name);
     fs_main.exceptions(std::ios::badbit | std::ios::failbit);
     fs_c2.exceptions(std::ios::badbit | std::ios::failbit);
     fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
     fs_subq.exceptions(std::ios::badbit | std::ios::failbit);
+    fs_wbl.exceptions(std::ios::badbit | std::ios::failbit);
 
     constexpr int32_t BATCH_SIZE = 256;
     std::vector<uint8_t> main_buffer(BATCH_SIZE * CD_DATA_SIZE);
@@ -364,7 +462,7 @@ export int redumper_spiral_convert(Context &, Options &options)
     std::vector<ChannelQ> subq_buffer(BATCH_SIZE * 1);
 
     auto sectors_count = (int32_t)scale_up(std::filesystem::file_size(image_prefix + ".sub.raw"), CD_SUBCODE_SIZE);
-    auto [sessions, segments, cd_texts] = analyze_spiral_subcode(fs_sub, fs_subq, sectors_count, sub_buffer, subq_buffer);
+    auto [sessions, segments, cd_texts, pma] = analyze_spiral_subcode(fs_sub, fs_subq, sectors_count, sub_buffer, subq_buffer);
 
     LOG("segments:");
     int32_t previous_end = segments.front().second;
@@ -385,6 +483,13 @@ export int redumper_spiral_convert(Context &, Options &options)
     write_vector(image_prefix + ".toc", toc_buffer);
     write_vector(image_prefix + ".fulltoc", full_toc_buffer);
 
+    if(!pma.empty())
+    {
+        std::vector<uint8_t> pma_buffer;
+        encode_spiral_pma(pma, pma_buffer);
+        write_vector(image_prefix + ".pma", pma_buffer);
+    }
+
     // shortcut: only the first session CD-TEXT is stored, extend once a disc with later session CD-TEXT is found
     if(!cd_texts.front().packs.empty())
     {
@@ -395,6 +500,42 @@ export int redumper_spiral_convert(Context &, Options &options)
     for(size_t session_index = 1; session_index < cd_texts.size(); ++session_index)
         if(!cd_texts[session_index].packs.empty())
             LOG("warning: CD-TEXT not stored (session: {}, packs: {})", session_index + 1, cd_texts[session_index].packs.size());
+
+    // characters span several sectors, so the whole envelope is decoded in capture order
+    std::vector<uint8_t> wbl_buffer((size_t)sectors_count * SPIRAL_WBL_SIZE);
+    read_entry(fs_wbl, wbl_buffer.data(), SPIRAL_WBL_SIZE, 0, sectors_count, 0, 0);
+    if(auto characters = decode_spiral_wobble(wbl_buffer); !characters.empty())
+    {
+        // one byte per character time, 3.3 sectors, on the disc scale from LBA_START, zero where no character is found
+        constexpr int64_t CHARACTER_SLOTS_X10 = SPIRAL_WBL_SIZE * 33;
+        // the file covers the capture up to its last sector
+        int64_t sectors_end = 0;
+        for(size_t i = 0; i < segments.size(); ++i)
+            sectors_end = std::max<int64_t>(sectors_end, segments[i].second - LBA_START + (i + 1 < segments.size() ? segments[i + 1].first : sectors_count) - segments[i].first);
+        std::vector<uint8_t> wobble_buffer((size_t)(sectors_end * SPIRAL_WBL_SIZE * 10 / CHARACTER_SLOTS_X10));
+        size_t segment_index = 0;
+        size_t previous_slot = 0;
+        int64_t previous_index = -1;
+        for(auto [slot, character] : characters)
+        {
+            bool adjacent = previous_index >= 0 && (slot - previous_slot) * 10 < CHARACTER_SLOTS_X10 + CHARACTER_SLOTS_X10 / 11;
+            for(; segment_index + 1 < segments.size() && (size_t)segments[segment_index + 1].first * SPIRAL_WBL_SIZE <= slot; adjacent = false)
+                ++segment_index;
+
+            const auto &[source_index, lba] = segments[segment_index];
+            // a character that starts within one bit of the end of the previous one takes the next byte, so start bit jitter cannot split a string
+            int64_t index = adjacent ? previous_index + 1 : ((int64_t)(lba - LBA_START - source_index) * SPIRAL_WBL_SIZE + (int64_t)slot) * 10 / CHARACTER_SLOTS_X10;
+            previous_slot = slot;
+            previous_index = index;
+            if(index < 0)
+                continue;
+
+            if(wobble_buffer.size() <= (size_t)index)
+                wobble_buffer.resize(index + 1);
+            wobble_buffer[index] = character;
+        }
+        write_vector(image_prefix + ".wobble", wobble_buffer);
+    }
 
     std::fstream fs_scram(image_prefix + ".scram", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
     std::fstream fs_state(image_prefix + ".state", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);

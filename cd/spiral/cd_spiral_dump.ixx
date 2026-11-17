@@ -37,6 +37,8 @@ namespace gpsxre
 constexpr uint16_t C4_TIMEOUT_MS = 5000;
 // wobble envelope, slot N covers the Nth 24th of the time from the previous frame event to this one
 constexpr uint32_t C4_WBL_SIZE = 24;
+// the wobble of a frame is sampled this many sectors ahead of its subcode, measured only on PX-W5224A
+constexpr uint32_t C4_WBL_LEAD_SECTORS = 2;
 constexpr uint32_t C4_FRAME_SIZE = CD_RAW_DATA_SIZE + sizeof(ChannelQ) + C4_WBL_SIZE;
 
 
@@ -206,7 +208,7 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
         write_entry_bit(fs_c2, sector_c2.data(), sector_c2.size(), lba_index, 1, 0, true);
         write_entry_bit(fs_sub, sector_sub.data(), sector_sub.size(), lba_index, 1, 0, false);
         write_entry_bit(fs_subq, sector_subq.data(), sector_subq.size(), lba_index, 1, 0, false);
-        write_entry_bit(fs_wbl, sector_wbl.data(), sector_wbl.size(), lba_index, 1, 0, false);
+        write_entry_bit(fs_wbl, sector_wbl.data(), sector_wbl.size(), lba_index + C4_WBL_LEAD_SECTORS, 1, 0, false);
 
         LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, errors_c2,
             errors_q);

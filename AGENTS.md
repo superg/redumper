@@ -57,10 +57,11 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Map discontinuous SpiralDrive captures into source-ordered segments starting at the first valid Q that reveals each jump; later segments overwrite all earlier stream data at overlapping LBAs regardless of quality.
 - Print conversion segments like `cd_split.ixx` offset statistics: LBA range `[start .. end)`, sector count, and jump; omit indices, gap listings, and aggregate coverage/session summaries.
 - Derive TOC encoding from `cd/toc.ixx` first; consult stock firmware only for fields the decoder does not cover.
-- SpiralDrive C4 frames are DATA/C2/SUB/SUBQ/WBL. Store the 24-byte wobble envelope of each frame unchanged in `.wbl.raw`.
+- SpiralDrive C4 frames are DATA/C2/SUB/SUBQ/WBL. Store the 24-byte wobble envelope of each frame unchanged in `.wbl.raw`, two sectors after the frame's subcode position, because the wobble is sampled two sectors ahead of the subcode (measured only on PX-W5224A).
+- SpiralDrive conversion demodulates `.wbl.raw` into `.wobble`, one byte per character time of 3.3 sectors (10 bytes per 33 sectors) counted from LBA_START, holding the serial character that starts there or zero.
 - Flash SpiralDrive firmware directly with `redumper flash::plextor`, without backing up the running image.
 - Never change the SpiralDrive firmware version or the Redumper minimum SpiralDrive version unless explicitly asked.
-- If `../spiraldrive` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware with a fully annotated Ghidra project, and the custom SpiralDrive firmware implementation based on it. Consult it for any aspect of SpiralDrive development; Ghidra is available through MCP.
+- If `../spiraldrive` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware with a fully annotated Ghidra project, and the custom SpiralDrive firmware implementation based on it. Consult it for any aspect of SpiralDrive development. The Ghidra project, available through MCP, is the source of truth for stock firmware behavior; do not rely on the decomp sources.
 
 ---
 

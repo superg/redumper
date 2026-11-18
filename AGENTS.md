@@ -14,6 +14,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Use `std::span` for non-owning views into read buffers.
 - Use `int32_t` for LBA values and arithmetic.
 - Use explicit loop termination conditions when known; do not use an infinite loop with `break` for normal successful completion.
+- Do not define lambdas as local helpers inside a function body; write a regular function and call it. Use a lambda only where a callback is passed in place.
 - Name new or renamed structure, enum, and other types in `PascalCase`, for example `DriveState` and `ReadMode`.
 - Keep abbreviations and acronyms fully uppercase in PascalCase identifiers, for example `SpiralDriveCDB` instead of `SpiralDriveCdb`.
 - Always write files with LF line endings, never CR/LF.
@@ -54,7 +55,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Apply SpiralDrive overread only to lead-out limits (A2), not next-session program-area pointers (B0).
 - Omit `SpiralDrive` from log messages during SpiralDrive dumping; the mode already provides that context.
 - For SpiralDrive conversion, use `.sub.raw` as the sector-count authority and the file I/O helpers with filler bytes; raw streams need not have matching or sector-aligned lengths.
-- Map discontinuous SpiralDrive captures into source-ordered segments starting at the first valid Q that reveals each jump; later segments overwrite all earlier stream data at overlapping LBAs regardless of quality.
+- Map discontinuous SpiralDrive captures into source-ordered segments starting at the first valid Q that reveals each jump, or at the first lead-in Q when a forward jump follows a lead-in; later segments overwrite all earlier stream data at overlapping LBAs regardless of quality.
 - Print conversion segments like `cd_split.ixx` offset statistics: LBA range `[start .. end)`, sector count, and jump; omit indices, gap listings, and aggregate coverage/session summaries.
 - Derive TOC encoding from `cd/toc.ixx` first; consult stock firmware only for fields the decoder does not cover.
 - SpiralDrive C4 frames are DATA/C2/SUB/SUBQ/WBL. Store the 24-byte wobble envelope of each frame unchanged in `.wbl.raw`, two sectors after the frame's subcode position, because the wobble is sampled two sectors ahead of the subcode (measured only on PX-W5224A).

@@ -1,5 +1,7 @@
 module;
+#include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -847,25 +849,24 @@ int32_t sample_offset_to_write_offset(int32_t scram_sample_offset, int32_t lba)
 }
 
 
+// returns true if the write offsets of two records differ by less than the maximum offset shift
+bool disc_offset_records_in_flow(const SyncAnalyzer::Record &r1, const SyncAnalyzer::Record &r2)
+{
+    int32_t offset_diff = sample_offset_to_write_offset(r1.sample_offset, r1.lba) - sample_offset_to_write_offset(r2.sample_offset, r2.lba);
+
+    return (uint32_t)std::abs(offset_diff) < OFFSET_SHIFT_MAX_SECTORS * CD_DATA_SIZE_SAMPLES;
+}
+
+
+// sets the record LBA that brings its write offset nearest to the write offset of the reference record
+void disc_offset_derive_record_lba(SyncAnalyzer::Record &record, const SyncAnalyzer::Record &reference)
+{
+    record.lba = sample_to_lba(record.sample_offset + (int32_t)CD_DATA_SIZE_SAMPLES / 2, sample_offset_to_write_offset(reference.sample_offset, reference.lba));
+}
+
+
 void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
 {
-    // correct lead-in lba
-    for(uint32_t i = 0; i < records.size(); ++i)
-    {
-        if(records[i].sample_offset <= 0 && (int32_t)(records[i].sample_offset + records[i].count * CD_DATA_SIZE_SAMPLES) > 0)
-        {
-            for(uint32_t j = i; j; --j)
-            {
-                auto &p = records[j - 1];
-
-                uint32_t count = scale_up(records[j].sample_offset - p.sample_offset, CD_DATA_SIZE_SAMPLES);
-                p.lba = records[j].lba - count;
-            }
-
-            break;
-        }
-    }
-
     // proactively erase false sync frames (if that ever happens)
     for(auto it = records.begin(); it != records.end();)
     {
@@ -874,6 +875,38 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
         else
             ++it;
     }
+
+    if(records.empty())
+        return;
+
+    // program area address flow starts at the record nearest to its position and extends both ways over records that continue it
+    auto anchor = std::min_element(records.begin(), records.end(), [](const SyncAnalyzer::Record &r1, const SyncAnalyzer::Record &r2)
+        { return std::abs(sample_offset_to_write_offset(r1.sample_offset, r1.lba)) < std::abs(sample_offset_to_write_offset(r2.sample_offset, r2.lba)); });
+    uint32_t flow_start = anchor - records.begin();
+    uint32_t flow_end = flow_start + 1;
+    std::vector<bool> flow(records.size(), false);
+    flow[flow_start] = true;
+    for(uint32_t i = flow_start; i; --i)
+        if(disc_offset_records_in_flow(records[i - 1], records[flow_start]))
+        {
+            flow_start = i - 1;
+            flow[flow_start] = true;
+        }
+    for(uint32_t i = flow_end; i < records.size(); ++i)
+        if(disc_offset_records_in_flow(records[i], records[flow_end - 1]))
+        {
+            flow[i] = true;
+            flow_end = i + 1;
+        }
+
+    // a record outside the flow (lead-in) takes its LBA from the record that follows it
+    for(uint32_t i = flow_end - 1; i; --i)
+        if(!flow[i - 1])
+            disc_offset_derive_record_lba(records[i - 1], records[i]);
+
+    // nothing in the flow follows the trailing records, use the preceding one
+    for(uint32_t i = flow_end; i < records.size(); ++i)
+        disc_offset_derive_record_lba(records[i], records[i - 1]);
 
     // merge offset groups
     for(bool merge = true; merge;)

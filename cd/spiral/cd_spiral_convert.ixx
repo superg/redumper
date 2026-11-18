@@ -292,6 +292,7 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t
     std::optional<ChannelQ> repeated_q;
     uint8_t repeat_count = 0;
     bool program_area_seen = false;
+    std::optional<int32_t> lead_in_index;
     std::vector<SpiralCDText> cd_texts(1);
     SpiralTOCEntries pma;
     std::optional<ChannelQ> previous_q;
@@ -346,8 +347,14 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t
                         zero_index = current_zero_index;
                         segments.emplace_back(0, -*zero_index);
                     }
-                    else if(current_zero_index != segments.back().first - segments.back().second)
+                    else if(int32_t previous_zero_index = segments.back().first - segments.back().second; current_zero_index != previous_zero_index)
+                    {
+                        // lead-in has no positional Q and continues into its program area, so a forward jump belongs ahead of it
+                        if(lead_in_index && current_zero_index < previous_zero_index)
+                            first_index = *lead_in_index;
                         segments.emplace_back(first_index, first_index - current_zero_index);
+                    }
+                    lead_in_index.reset();
                 }
             }
 
@@ -360,6 +367,7 @@ auto analyze_spiral_subcode(std::fstream &fs_sub, std::fstream &fs_subq, int32_t
                     sessions.emplace_back();
                     cd_texts.emplace_back();
                     program_area_seen = false;
+                    lead_in_index = sector_index;
                 }
 
                 ChannelQ comparison_q(q);

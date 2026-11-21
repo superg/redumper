@@ -65,6 +65,11 @@ target_compile_definitions(gtest_unscramble PRIVATE
     REDUMPER_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../unscramble"
 )
 
+add_gtest(gtest_bd_scrambler
+    SOURCE  "test_bd_scrambler.cc"
+    MODULES "${CMAKE_SOURCE_DIR}/dvd/bd_scrambler.ixx"
+)
+
 add_gtest(gtest_crc
     SOURCE  "test_crc.cc"
     MODULES

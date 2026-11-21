@@ -282,6 +282,13 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
         strip_response_header(physical);
         if(std::all_of(physical.begin(), physical.end(), [](uint8_t b) { return b == 0x00; }))
             nintendo = true;
+        // raw descrambling needs the PSN of every layer; DI unit size as in read_physical_structures()
+        else if(physical.size() >= sizeof(READ_DISC_STRUCTURE_DiscInformationUnit))
+        {
+            auto &unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)physical[0];
+            std::string disc_type_identifier((char *)unit.body_common.disc_type_identifier, sizeof(unit.body_common.disc_type_identifier));
+            bd::scrambler_init_layers(physical, disc_type_identifier != "BDR" && disc_type_identifier != "BDW");
+        }
     }
 
     uint32_t sectors_count = sbram_size / sizeof(bd::DataFrame) + bd::LBA_START;

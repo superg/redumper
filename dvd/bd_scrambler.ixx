@@ -2,6 +2,8 @@ module;
 #include <climits>
 #include <cstdint>
 #include <span>
+#include <utility>
+#include <vector>
 
 export module bd.scrambler;
 
@@ -13,9 +15,9 @@ namespace gpsxre::bd
 export class Scrambler
 {
 public:
-    static const Scrambler &get()
+    static Scrambler &get()
     {
-        static const Scrambler instance;
+        static Scrambler instance;
         return instance;
     }
 
@@ -25,13 +27,32 @@ public:
         process(data, nintendo ? seedNintendo(lba) : seedBluray(lba));
     }
 
+
+    // (first LBA, first PSN) of each layer in ascending order, empty means PSN = LBA + 0x100000 on every layer
+    void set_layer_starts(std::vector<std::pair<int32_t, uint32_t>> layer_starts)
+    {
+        _layer_starts = std::move(layer_starts);
+    }
+
 private:
+    std::vector<std::pair<int32_t, uint32_t>> _layer_starts;
+
     Scrambler() = default;
 
 
     uint16_t seedBluray(int32_t lba) const
     {
+        // PSN of a further layer doesn't continue the previous layer (opposite track path), it starts where the DI says
         uint32_t psn = lba + 0x100000;
+        for(auto it = _layer_starts.rbegin(); it != _layer_starts.rend(); ++it)
+        {
+            if(lba >= it->first)
+            {
+                psn = it->second + (lba - it->first);
+                break;
+            }
+        }
+
         return psn >> 5;
     }
 

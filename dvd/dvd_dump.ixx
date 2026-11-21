@@ -202,28 +202,8 @@ std::vector<uint32_t> get_bluray_layer_lengths(const std::vector<uint8_t> &struc
 {
     std::vector<uint32_t> layer_lengths;
 
-    auto di_units = &structure[sizeof(CMD_ParameterListHeader)];
-    uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
-    for(uint32_t j = 0; j < 32; ++j)
-    {
-        auto &unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)di_units[j * unit_size];
-        std::string identifier((char *)unit.header.identifier, sizeof(unit.header.identifier));
-        if(identifier != "DI")
-            break;
-
-        if(unit.header.format == 1)
-        {
-            auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit.body;
-
-            auto last_psn = endian_swap(body->last_psn);
-            auto first_aun = endian_swap(body->first_aun);
-            auto last_aun = endian_swap(body->last_aun);
-
-            auto layers_count = unit.header.layer + 1;
-            layer_lengths.resize(layers_count);
-            layer_lengths[unit.header.layer] = (layers_count == body->layers_count ? last_psn - 1 : last_aun) - first_aun + 2;
-        }
-    }
+    for(auto const &[psn, length] : bd::get_layers(std::span(structure).subspan(sizeof(CMD_ParameterListHeader)), rom))
+        layer_lengths.push_back(length);
 
     return layer_lengths;
 }
@@ -872,6 +852,10 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                     if(std::all_of(structure.begin(), structure.end(), [](uint8_t b) { return b == 0x00; }))
                         nintendo_key = 0;
                 }
+
+                // raw descrambling needs the PSN of every layer
+                if(!nintendo_key)
+                    bd::scrambler_init_layers(std::span(physical_structures.front()).subspan(sizeof(CMD_ParameterListHeader)), rom);
 
                 // PIC layer lengths reflect data zone capacity, not recorded content; only BD-ROM is trustworthy here
                 if(rom)

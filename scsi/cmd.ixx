@@ -541,7 +541,7 @@ export SPTD::Status cmd_read_omnidrive(SPTD &sptd, uint8_t *buffer, uint32_t blo
 }
 
 
-export SPTD::Status cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer_size, SpiralDrive_Operation operation, uint16_t timeout, int32_t value)
+export SPTD::Status cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer_size, SpiralDrive_Operation operation, uint16_t timeout, int32_t value, uint32_t *transferred_size = nullptr)
 {
     CDB12_SpiralDrive cdb = {};
     cdb.operation_code = (uint8_t)CDB_OperationCode::SPIRALDRIVE;
@@ -550,7 +550,10 @@ export SPTD::Status cmd_spiraldrive(SPTD &sptd, uint8_t *buffer, uint32_t buffer
     cdb.value = endian_swap(value);
 
     auto [status, transferred_length] = sptd.sendCommand(&cdb, sizeof(cdb), buffer, buffer_size);
-    if(!status.status_code && transferred_length != buffer_size)
+    // a caller that takes the transferred size handles a short transfer itself
+    if(transferred_size != nullptr)
+        *transferred_size = transferred_length;
+    else if(!status.status_code && transferred_length != buffer_size)
         status.status_code = SPTD::HOST_SHORT_TRANSFER;
 
     return status;

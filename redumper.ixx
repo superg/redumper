@@ -133,6 +133,7 @@ const std::map<std::string, Command> COMMANDS{
     { "rings",                { true, true, true, false, false, redumper_rings }            },
     { "dump",                 { true, true, true, true, true, redumper_dump }               },
     { "spiral::dump",         { true, true, true, true, true, redumper_spiral_dump }        },
+    { "spiral::wobble",       { true, true, true, true, true, redumper_spiral_wobble }      },
     { "spiral::dreamcast",    { true, true, true, false, false, redumper_spiral_dreamcast } },
     { "spiral::convert",      { false, false, false, true, false, redumper_spiral_convert } },
     { "dump::extra",          { true, true, true, true, false, redumper_dump_extra }        },

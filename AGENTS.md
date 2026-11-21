@@ -51,6 +51,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Always show progress during SpiralDrive dumping.
 - SpiralDrive positioning before a dump is one C4 REWIND, which moves the pickup to the earliest readable point in firmware. C4 SEEK and REWIND return no data. Abort on a REWIND error with its SCSI details instead of retrying.
 - Keep the SpiralDrive read buffer fixed at the configured batch size; do not resize it.
+- A SpiralDrive capture command reads a batch of frames. A GOOD short transfer holds the frames captured before a stall or gap, and CHECK CONDITION comes without frames. Apply end limits per frame inside a batch.
 - Calculate SpiralDrive end limits from the latest valid positional Q at the start of each capture iteration.
 - Apply SpiralDrive overread only to lead-out limits (A2), not next-session program-area pointers (B0).
 - Omit `SpiralDrive` from log messages during SpiralDrive dumping; the mode already provides that context.
@@ -58,7 +59,10 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Map discontinuous SpiralDrive captures into source-ordered segments starting at the first valid Q that reveals each jump, or at the first lead-in Q when a forward jump follows a lead-in; later segments overwrite all earlier stream data at overlapping LBAs regardless of quality.
 - Print conversion segments like `cd_split.ixx` offset statistics: LBA range `[start .. end)`, sector count, and jump; omit indices, gap listings, and aggregate coverage/session summaries.
 - Derive TOC encoding from `cd/toc.ixx` first; consult stock firmware only for fields the decoder does not cover.
-- SpiralDrive C4 frames are DATA/C2/SUB/SUBQ/WBL. Store the 24-byte wobble envelope of each frame unchanged in `.wbl.raw`, two sectors after the frame's subcode position, because the wobble is sampled two sectors ahead of the subcode (measured only on PX-W5224A).
+- SpiralDrive C4 READ frames are DATA/C2/SUB, dumped by `spiral::dump` with Q taken from raw SUB. C4 Q_WOBBLE frames are SUBQ/WBL, dumped by `spiral::wobble` into `.subq.raw` and `.wbl.raw` as a separate capture with the same end limits.
+- `spiral::dump` compensates the drive read offset when writing `.main.raw` and `.c2.raw`, and the drive C2 shift in `.c2.raw`; `spiral::convert` applies no offset.
+- Store the 24-byte wobble envelope of each frame unchanged in `.wbl.raw`, two sectors after the frame's Q position, because the wobble is sampled two sectors ahead of the subcode (measured only on PX-W5224A).
+- SpiralDrive conversion places the wobble capture by its own `.subq.raw`, which is its sector-count authority, and skips it without a message when `.wbl.raw` is absent.
 - SpiralDrive conversion demodulates `.wbl.raw` into `.wobble`, one byte per character time of 3.3 sectors (10 bytes per 33 sectors) counted from LBA_START, holding the serial character that starts there or zero.
 - Flash SpiralDrive firmware directly with `redumper flash::plextor`, without backing up the running image.
 - Never change the SpiralDrive firmware version or the Redumper minimum SpiralDrive version unless explicitly asked.

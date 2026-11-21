@@ -965,7 +965,8 @@ export enum class SpiralDrive_Operation : uint8_t
     SEEK = 1,
     READ = 2,
     DREAMCAST = 3,
-    REWIND = 4
+    REWIND = 4,
+    Q_WOBBLE = 5
 };
 
 

@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <climits>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -39,7 +40,6 @@ constexpr uint16_t C4_TIMEOUT_MS = 5000;
 constexpr uint32_t C4_WBL_SIZE = 24;
 // the wobble of a frame is sampled this many sectors ahead of its subcode, measured only on PX-W5224A
 constexpr uint32_t C4_WBL_LEAD_SECTORS = 2;
-constexpr uint32_t C4_FRAME_SIZE = CD_RAW_DATA_SIZE + sizeof(ChannelQ) + C4_WBL_SIZE;
 
 
 void seek_spiral_start(SPTD &sptd)
@@ -51,7 +51,8 @@ void seek_spiral_start(SPTD &sptd)
 }
 
 
-export int redumper_spiral_dump(Context &ctx, Options &options)
+// a dump reads DATA/C2/SUB frames and a wobble capture reads SUBQ/WBL frames, both end by the same Q limits
+int capture_spiral(Context &ctx, Options &options, bool wobble)
 {
     int exit_code = 0;
 
@@ -63,37 +64,32 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
         if(spiraldrive_version)
         {
             if(spiraldrive_version < spiraldrive_minimum_version())
-                throw_line("spiral::dump requires SpiralDrive firmware {} or newer", spiraldrive_version_string(spiraldrive_minimum_version()));
+                throw_line("SpiralDrive firmware {} or newer is required", spiraldrive_version_string(spiraldrive_minimum_version()));
         }
         else
-            throw_line("spiral::dump requires a drive running SpiralDrive firmware");
+            throw_line("a drive running SpiralDrive firmware is required");
     }
 
     auto image_prefix = (std::filesystem::path(options.image_path) / options.image_name).generic_string();
-    if(!options.overwrite
-        && (std::filesystem::exists(image_prefix + ".main.raw") || std::filesystem::exists(image_prefix + ".c2.raw") || std::filesystem::exists(image_prefix + ".sub.raw")
-            || std::filesystem::exists(image_prefix + ".subq.raw") || std::filesystem::exists(image_prefix + ".wbl.raw")))
-        throw_line("dump already exists (image name: {})", options.image_name);
+    const std::vector<std::string> extensions = wobble ? std::vector<std::string>{ ".subq.raw", ".wbl.raw" } : std::vector<std::string>{ ".main.raw", ".c2.raw", ".sub.raw" };
+    for(const auto &extension : extensions)
+        if(!options.overwrite && std::filesystem::exists(image_prefix + extension))
+            throw_line("dump already exists (image name: {})", options.image_name);
 
     seek_spiral_start(*ctx.sptd);
 
-    std::fstream fs_main(image_prefix + ".main.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
-    std::fstream fs_c2(image_prefix + ".c2.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
-    std::fstream fs_sub(image_prefix + ".sub.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
-    std::fstream fs_subq(image_prefix + ".subq.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
-    std::fstream fs_wbl(image_prefix + ".wbl.raw", std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
-    fs_main.exceptions(std::ios::badbit | std::ios::failbit);
-    fs_c2.exceptions(std::ios::badbit | std::ios::failbit);
-    fs_sub.exceptions(std::ios::badbit | std::ios::failbit);
-    fs_subq.exceptions(std::ios::badbit | std::ios::failbit);
-    fs_wbl.exceptions(std::ios::badbit | std::ios::failbit);
+    std::vector<std::fstream> files;
+    for(const auto &extension : extensions)
+    {
+        files.emplace_back(image_prefix + extension, std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
+        files.back().exceptions(std::ios::badbit | std::ios::failbit);
+    }
 
-    std::vector<uint8_t> sector(C4_FRAME_SIZE);
-    std::span<uint8_t> sector_data(sector.data(), CD_DATA_SIZE);
-    std::span<uint8_t> sector_c2(sector.data() + CD_DATA_SIZE, CD_C2_SIZE);
-    std::span<uint8_t> sector_sub(sector.data() + CD_DATA_SIZE + CD_C2_SIZE, CD_SUBCODE_SIZE);
-    std::span<uint8_t> sector_subq(sector.data() + CD_RAW_DATA_SIZE, sizeof(ChannelQ));
-    std::span<uint8_t> sector_wbl(sector.data() + CD_RAW_DATA_SIZE + sizeof(ChannelQ), C4_WBL_SIZE);
+    if(options.spiraldrive_batch_size < 1)
+        throw_line("invalid batch size (value: {})", options.spiraldrive_batch_size);
+
+    uint32_t frame_size = wobble ? sizeof(ChannelQ) + C4_WBL_SIZE : CD_RAW_DATA_SIZE;
+    std::vector<uint8_t> buffer((size_t)options.spiraldrive_batch_size * frame_size);
 
     uint32_t errors_c2 = 0;
     uint32_t errors_q = 0;
@@ -103,134 +99,164 @@ export int redumper_spiral_dump(Context &ctx, Options &options)
     if(options.spiraldrive_dreamcast)
         lba_end = 45000;
 
-    bool q_mismatch_message = false;
     bool last_session_message = false;
     SignalINT signal;
-    for(uint32_t lba_index = 0; !signal.interrupt(); ++lba_index)
+    bool end = false;
+    uint32_t lba_index = 0;
+    while(!end && !signal.interrupt())
     {
-        if(q_lba)
-        {
-            int32_t lba = q_lba->first + (int32_t)(lba_index - q_lba->second);
+        uint32_t transferred_size = 0;
+        auto status = cmd_spiraldrive(*ctx.sptd, buffer.data(), (uint32_t)buffer.size(), wobble ? SpiralDrive_Operation::Q_WOBBLE : SpiralDrive_Operation::READ, C4_TIMEOUT_MS,
+            options.spiraldrive_batch_size, &transferred_size);
 
-            if(options.lba_end)
-            {
-                if(lba >= *options.lba_end)
-                    break;
-            }
-            else if(lba_end)
-            {
-                if(lba >= *lba_end)
-                    break;
-            }
-        }
-
-        auto status = cmd_spiraldrive(*ctx.sptd, sector.data(), (uint32_t)sector.size(), SpiralDrive_Operation::READ, C4_TIMEOUT_MS, 1);
+        // a short transfer holds the frames captured before a stall or a gap, which the firmware reports with the next command
+        uint32_t frames_count = transferred_size / frame_size;
+        if(!status.status_code && !frames_count)
+            status.status_code = SPTD::HOST_SHORT_TRANSFER;
         if(status.status_code)
         {
-            std::fill(sector_data.begin(), sector_data.end(), 0);
-            std::fill(sector_c2.begin(), sector_c2.end(), 0xFF);
-            std::fill(sector_sub.begin(), sector_sub.end(), 0);
-            std::fill(sector_subq.begin(), sector_subq.end(), 0);
-            std::fill(sector_wbl.begin(), sector_wbl.end(), 0);
+            frames_count = 1;
+            std::fill_n(buffer.begin(), frame_size, 0);
+            if(!wobble)
+                std::fill_n(buffer.begin() + CD_DATA_SIZE, CD_C2_SIZE, 0xFF);
 
             LOG_R("READ failed (SCSI: {})", SPTD::StatusMessage(status));
         }
 
-        auto &q = (ChannelQ &)sector_subq[0];
-        if(q.isValid())
+        for(uint32_t i = 0; i < frames_count; ++i)
         {
-            if(!q_mismatch_message && !subcode_extract_q(sector_sub.data()).isValid())
+            if(q_lba)
             {
-                LOG_R("raw subcode mismatch (LBA: {})", q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START);
-                q_mismatch_message = true;
+                int32_t lba = q_lba->first + (int32_t)(lba_index - q_lba->second);
+
+                // the remaining frames of the batch lie past the end limit
+                if(options.lba_end ? lba >= *options.lba_end : lba_end && lba >= *lba_end)
+                {
+                    end = true;
+                    break;
+                }
             }
 
-            if(q.adr == 1)
+            // the parts of the other frame layout are empty
+            uint8_t *sector = buffer.data() + i * frame_size;
+            std::span<uint8_t> sector_data(sector, wobble ? 0 : CD_DATA_SIZE);
+            std::span<uint8_t> sector_c2(sector + sector_data.size(), wobble ? 0 : CD_C2_SIZE);
+            std::span<uint8_t> sector_sub(sector + sector_data.size() + sector_c2.size(), wobble ? 0 : CD_SUBCODE_SIZE);
+            std::span<uint8_t> sector_subq(sector, wobble ? sizeof(ChannelQ) : 0);
+            std::span<uint8_t> sector_wbl(sector + sector_subq.size(), wobble ? C4_WBL_SIZE : 0);
+
+            ChannelQ q = wobble ? *(ChannelQ *)sector_subq.data() : subcode_extract_q(sector_sub.data());
+            if(q.isValid())
             {
-                // a junk frame with a valid CRC, as recorded in the PCA, must not anchor the position, so two addresses have to agree
-                if(q.mode1.tno)
+                if(q.adr == 1)
                 {
-                    int32_t lba = BCDMSF_to_LBA(q.mode1.a_msf);
-                    if(q_candidate && lba - q_candidate->first == (int32_t)(lba_index - q_candidate->second))
-                        q_lba = { lba, lba_index };
-                    q_candidate = { lba, lba_index };
-                }
-                // lead-in
-                else
-                {
-                    if(q.mode1.point_index == 0xA2)
+                    // a junk frame with a valid CRC, as recorded in the PCA, must not anchor the position, so two addresses have to agree
+                    if(q.mode1.tno)
                     {
                         int32_t lba = BCDMSF_to_LBA(q.mode1.a_msf);
-                        if(!lba_end || *lba_end < lba)
-                        {
-                            lba_end = lba + options.spiraldrive_leadout_sectors;
-                            LOG_R("session lead-out detected (LBA: {:6})", lba);
-                        }
+                        if(q_candidate && lba - q_candidate->first == (int32_t)(lba_index - q_candidate->second))
+                            q_lba = { lba, lba_index };
+                        q_candidate = { lba, lba_index };
                     }
-                }
-            }
-            else if(q.adr == 5)
-            {
-                if(!q.mode1.tno && q.mode1.point_index == 0xB0)
-                {
-                    if(q.mode1.msf.m == 0xFF && q.mode1.msf.s == 0xFF && q.mode1.msf.f == 0xFF)
-                    {
-                        if(!last_session_message)
-                        {
-                            LOG_R("last session detected");
-                            last_session_message = true;
-                        }
-                    }
+                    // lead-in
                     else
                     {
-                        int32_t lba = BCDMSF_to_LBA(q.mode1.msf);
-                        if(!lba_end || *lba_end < lba)
+                        if(q.mode1.point_index == 0xA2)
                         {
-                            lba_end = lba;
-                            LOG_R("next session program area detected (LBA: {:6})", lba);
+                            int32_t lba = BCDMSF_to_LBA(q.mode1.a_msf);
+                            if(!lba_end || *lba_end < lba)
+                            {
+                                lba_end = lba + options.spiraldrive_leadout_sectors;
+                                LOG_R("session lead-out detected (LBA: {:6})", lba);
+                            }
+                        }
+                    }
+                }
+                else if(q.adr == 5)
+                {
+                    if(!q.mode1.tno && q.mode1.point_index == 0xB0)
+                    {
+                        if(q.mode1.msf.m == 0xFF && q.mode1.msf.s == 0xFF && q.mode1.msf.f == 0xFF)
+                        {
+                            if(!last_session_message)
+                            {
+                                LOG_R("last session detected");
+                                last_session_message = true;
+                            }
+                        }
+                        else
+                        {
+                            int32_t lba = BCDMSF_to_LBA(q.mode1.msf);
+                            if(!lba_end || *lba_end < lba)
+                            {
+                                lba_end = lba;
+                                LOG_R("next session program area detected (LBA: {:6})", lba);
+                            }
                         }
                     }
                 }
             }
+            else
+                ++errors_q;
+
+            if(auto c2_bits = c2_bits_count(sector_c2); c2_bits)
+            {
+                ++errors_c2;
+
+                if(options.verbose)
+                    LOGC_R("[LBA: {:>6}] C2 error (bits: {:4})", q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, c2_bits);
+            }
+
+            if(wobble)
+            {
+                write_entry_bit(files[0], sector_subq.data(), sector_subq.size(), lba_index, 1, 0, false);
+                write_entry_bit(files[1], sector_wbl.data(), sector_wbl.size(), lba_index + C4_WBL_LEAD_SECTORS, 1, 0, false);
+            }
+            else
+            {
+                // compensate the drive read offset and C2 shift, where one C2 bit covers one data byte
+                write_entry_bit(files[0], sector_data.data(), sector_data.size(), lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE * CHAR_BIT, false);
+                write_entry_bit(files[1], sector_c2.data(), sector_c2.size(), lba_index, 1, ctx.drive_config.read_offset * CD_SAMPLE_SIZE + (int32_t)ctx.drive_config.c2_shift * CHAR_BIT, true);
+                write_entry_bit(files[2], sector_sub.data(), sector_sub.size(), lba_index, 1, 0, false);
+            }
+
+            ++lba_index;
         }
+
+        if(wobble)
+            LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ Q: {} }}", spinner_animation(), lba_index, q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, errors_q);
         else
-            ++errors_q;
-
-        if(auto c2_bits = c2_bits_count(sector_c2); c2_bits)
-        {
-            ++errors_c2;
-
-            if(options.verbose)
-                LOGC_R("[LBA: {:>6}] C2 error (bits: {:4})", q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, c2_bits);
-        }
-
-        write_entry_bit(fs_main, sector_data.data(), sector_data.size(), lba_index, 1, 0, false);
-        write_entry_bit(fs_c2, sector_c2.data(), sector_c2.size(), lba_index, 1, 0, true);
-        write_entry_bit(fs_sub, sector_sub.data(), sector_sub.size(), lba_index, 1, 0, false);
-        write_entry_bit(fs_subq, sector_subq.data(), sector_subq.size(), lba_index, 1, 0, false);
-        write_entry_bit(fs_wbl, sector_wbl.data(), sector_wbl.size(), lba_index + C4_WBL_LEAD_SECTORS, 1, 0, false);
-
-        LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, errors_c2,
-            errors_q);
+            LOGC_RF("{} sector: {:6}, LBA: {:>6}, errors: {{ C2: {}, Q: {} }}", spinner_animation(), lba_index, q_lba ? q_lba->first + (int32_t)(lba_index - q_lba->second) : LBA_START, errors_c2,
+                errors_q);
     }
 
     LOGC_RF("");
     LOGC("");
 
     // report close failures and finish cleanup before raising an interrupt
-    fs_main.close();
-    fs_c2.close();
-    fs_sub.close();
-    fs_subq.close();
-    fs_wbl.close();
+    for(auto &file : files)
+        file.close();
 
     LOG("media errors: ");
-    LOG("  C2: {}", errors_c2);
+    if(!wobble)
+        LOG("  C2: {}", errors_c2);
     LOG("  Q: {}", errors_q);
 
     if(signal.interrupt())
         signal.raiseDefault();
 
     return exit_code;
+}
+
+
+export int redumper_spiral_dump(Context &ctx, Options &options)
+{
+    return capture_spiral(ctx, options, false);
+}
+
+
+export int redumper_spiral_wobble(Context &ctx, Options &options)
+{
+    return capture_spiral(ctx, options, true);
 }
 }

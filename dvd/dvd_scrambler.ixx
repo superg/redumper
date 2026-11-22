@@ -1,14 +1,23 @@
 module;
 #include <climits>
 #include <cstdint>
+#include <optional>
 #include <span>
+#include <vector>
 
-export module bd.scrambler;
+export module dvd.scrambler;
+
+import cd.cdrom;
+import utils.endian;
+import utils.misc;
 
 
 
-namespace gpsxre::bd
+namespace gpsxre::dvd
 {
+
+export constexpr uint32_t ECC_FRAMES = 0x10;
+
 
 export class Scrambler
 {
@@ -20,55 +29,54 @@ public:
     }
 
 
-    void descramble(std::span<uint8_t> data, uint32_t psn, bool nintendo) const
+    void descramble(std::span<uint8_t> data, uint32_t psn, std::optional<uint8_t> nintendo_key) const
     {
-        process(data, nintendo ? seedNintendo(psn) : seedBluray(psn));
+        // determine XOR table offset
+        uint32_t offset = (psn >> 4 & 0xF) * FORM1_DATA_SIZE;
+
+        // custom XOR table offset for nintendo
+        if(nintendo_key)
+            offset = (*nintendo_key ^ (psn >> 4 & 0xF)) * FORM1_DATA_SIZE + 7 * FORM1_DATA_SIZE + FORM1_DATA_SIZE / 2;
+
+        process(data, offset);
     }
 
 private:
-    Scrambler() = default;
+    std::vector<uint8_t> _table;
 
 
-    uint16_t seedBluray(uint32_t psn) const
+    Scrambler()
+        : _table(FORM1_DATA_SIZE * ECC_FRAMES)
     {
-        return psn >> 5;
-    }
+        // ECMA-267
 
+        uint16_t shift_register = 0x0001;
 
-    uint32_t seedNintendo(uint32_t psn) const
-    {
-        uint32_t m = psn & 0xFFFE0;
-        uint32_t local = m & 0xFFFF;
-        uint32_t k = local >> 8;
-
-        uint32_t slope = (local & 0xFF) << 7;
-        uint32_t layer = (m >> 16) & 0xF;
-
-        uint32_t jump4k = ((local >> 12) & 0x3) << 9;
-        uint32_t jump32k = (local >> 15) << 12;
-
-        uint32_t toggle = (k & 1) << 5;
-        uint32_t decay = k << 4;
-
-        return slope + 1248 + layer + toggle + jump4k + jump32k - decay;
-    }
-
-
-    void process(std::span<uint8_t> data, uint16_t seed) const
-    {
-        // ISO/IEC 30190
-
-        uint16_t shift_register = (1 << 15) | (seed & 0x7FFF);
-
-        for(auto &byte : data)
+        for(auto &t : _table)
         {
-            byte ^= (uint8_t)shift_register;
+            t = (uint8_t)shift_register;
 
             for(uint8_t b = 0; b < CHAR_BIT; ++b)
             {
-                auto lsb = ((shift_register >> 15) ^ (shift_register >> 14) ^ (shift_register >> 12) ^ (shift_register >> 3)) & 1;
-                shift_register = (shift_register << 1) | lsb;
+                // new LSB = b14 XOR b10
+                auto lsb = (shift_register >> 14 & 1) ^ (shift_register >> 10 & 1);
+                // 15-bit register requires masking MSB
+                shift_register = ((shift_register << 1) & 0x7FFF) | lsb;
             }
+        }
+    }
+
+
+    void process(std::span<uint8_t> data, uint32_t table_offset) const
+    {
+        for(uint32_t i = 0; i < data.size(); ++i)
+        {
+            // wrap table (restart at index 1, not 0)
+            uint32_t index = table_offset + i;
+            if(index >= _table.size())
+                index -= _table.size() - 1;
+
+            data[i] ^= _table[index];
         }
     }
 };

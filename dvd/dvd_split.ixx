@@ -279,6 +279,13 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
     if(std::filesystem::exists(physical_path))
     {
         auto physical = read_vector(physical_path);
+        if(physical.size() >= sizeof(CMD_ParameterListHeader) + sizeof(READ_DISC_STRUCTURE_DiscInformationUnit))
+        {
+            auto unit = (const READ_DISC_STRUCTURE_DiscInformationUnit *)&physical[sizeof(CMD_ParameterListHeader)];
+            std::string_view disc_type_identifier((const char *)unit->body_common.disc_type_identifier, sizeof(unit->body_common.disc_type_identifier));
+            bool rom = disc_type_identifier == "BDO" || disc_type_identifier == "BDU" || disc_type_identifier == "XG4";
+            bd::set_layer_addresses(physical, rom);
+        }
         strip_response_header(physical);
         if(std::all_of(physical.begin(), physical.end(), [](uint8_t b) { return b == 0x00; }))
             nintendo = true;

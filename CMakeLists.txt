@@ -255,7 +255,8 @@ endif()
 install(TARGETS redumper DESTINATION "bin")
 
 # bundle LLVM libc++ for C++20 support (system libc++ is too old, static linking not allowed on macOS)
-if(REDUMPER_TARGET_MACOS)
+# LLVM_LIB_PATH is set by the macOS toolchain files, builds without them use the libc++ they link to
+if(REDUMPER_TARGET_MACOS AND LLVM_LIB_PATH)
     set_target_properties(redumper PROPERTIES INSTALL_RPATH "@executable_path/../lib")
     
     install(FILES

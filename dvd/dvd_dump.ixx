@@ -3,6 +3,7 @@ module;
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <numeric>
@@ -202,28 +203,8 @@ std::vector<uint32_t> get_bluray_layer_lengths(const std::vector<uint8_t> &struc
 {
     std::vector<uint32_t> layer_lengths;
 
-    auto di_units = &structure[sizeof(CMD_ParameterListHeader)];
-    uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
-    for(uint32_t j = 0; j < 32; ++j)
-    {
-        auto &unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)di_units[j * unit_size];
-        std::string identifier((char *)unit.header.identifier, sizeof(unit.header.identifier));
-        if(identifier != "DI")
-            break;
-
-        if(unit.header.format == 1)
-        {
-            auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit.body;
-
-            auto last_psn = endian_swap(body->last_psn);
-            auto first_aun = endian_swap(body->first_aun);
-            auto last_aun = endian_swap(body->last_aun);
-
-            auto layers_count = unit.header.layer + 1;
-            layer_lengths.resize(layers_count);
-            layer_lengths[unit.header.layer] = (layers_count == body->layers_count ? last_psn - 1 : last_aun) - first_aun + 2;
-        }
-    }
+    for(auto const &[psn, length] : bd::get_layers(std::span(structure).subspan(sizeof(CMD_ParameterListHeader)), rom))
+        layer_lengths.push_back(length);
 
     return layer_lengths;
 }
@@ -588,7 +569,7 @@ SPTD::Status read_dvd_sectors(SPTD &sptd, uint8_t *sectors, uint32_t sector_size
 
 
 void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstream &fs_state, std::fstream &fs_image, int32_t lba_start, int32_t lba_end, DumpConfig &cfg,
-    std::optional<uint8_t> &nintendo_key, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+    std::optional<uint8_t> &nintendo_key, const std::function<bool(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)> &edc_match)
 {
     if(lba_start > lba_end)
         return;
@@ -627,7 +608,7 @@ void refine_init(IntervalSet<int32_t> &intervals, dvd::Errors &errors, std::fstr
 }
 
 
-auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)
+auto edc_match_func(DiscType disc_type, bool raw, const std::vector<std::pair<uint32_t, uint32_t>> &bd_layers) -> std::function<bool(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)>
 {
     if(raw && disc_type == DiscType::DVD)
     {
@@ -640,11 +621,11 @@ auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const ui
     }
     else if(raw && (disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R))
     {
-        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
+        return [bd_layers](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
         {
             auto &df = (bd::DataFrame &)data[0];
 
-            return df.valid(lba, nintendo_key.has_value());
+            return df.valid(bd::LBA_to_PSN(lba, bd_layers), nintendo_key.has_value());
         };
     }
     else
@@ -652,7 +633,8 @@ auto edc_match_func(DiscType disc_type, bool raw) -> bool (*)(std::span<const ui
 }
 
 
-auto extract_data_func(DiscType disc_type, bool raw) -> std::vector<uint8_t> (*)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)
+auto extract_data_func(DiscType disc_type, bool raw,
+    const std::vector<std::pair<uint32_t, uint32_t>> &bd_layers) -> std::function<std::vector<uint8_t>(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)>
 {
     if(raw && disc_type == DiscType::DVD)
     {
@@ -668,10 +650,10 @@ auto extract_data_func(DiscType disc_type, bool raw) -> std::vector<uint8_t> (*)
     }
     else if(raw && (disc_type == DiscType::BLURAY || disc_type == DiscType::BLURAY_R))
     {
-        return [](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
+        return [bd_layers](std::span<const uint8_t> data, int32_t lba, std::optional<uint8_t> &nintendo_key)
         {
             auto &df = (bd::DataFrame &)data[0];
-            df.descramble(lba, nintendo_key.has_value());
+            df.descramble(bd::LBA_to_PSN(lba, bd_layers), nintendo_key.has_value());
 
             return std::vector(df.main_data, df.main_data + sizeof(df.main_data));
         };
@@ -682,7 +664,7 @@ auto extract_data_func(DiscType disc_type, bool raw) -> std::vector<uint8_t> (*)
 
 
 bool sectors_data_state_update(std::span<State> sectors_state, std::span<uint8_t> sectors_data, std::span<const State> sectors_state_in, std::span<const uint8_t> sectors_data_in, uint32_t sector_size,
-    int32_t lba, std::optional<uint8_t> &nintendo_key, bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &), bool dump, const Options &options)
+    int32_t lba, std::optional<uint8_t> &nintendo_key, const std::function<bool(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)> &edc_match, bool dump, const Options &options)
 {
     bool updated = false;
 
@@ -726,7 +708,7 @@ bool sectors_data_state_update(std::span<State> sectors_state, std::span<uint8_t
 
 
 uint32_t sectors_data_state_edc_errors(std::span<const State> sectors_state, std::span<const uint8_t> sectors_data, uint32_t sector_size, int32_t lba, std::optional<uint8_t> &nintendo_key,
-    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+    const std::function<bool(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)> &edc_match)
 {
     uint32_t errors = 0;
 
@@ -745,7 +727,7 @@ uint32_t sectors_data_state_edc_errors(std::span<const State> sectors_state, std
 
 
 bool sectors_data_complete(std::span<const State> sectors_state, std::span<const uint8_t> sectors_data, uint32_t sector_size, int32_t lba, std::optional<uint8_t> &nintendo_key,
-    bool (*edc_match)(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &))
+    const std::function<bool(std::span<const uint8_t>, int32_t, std::optional<uint8_t> &)> &edc_match)
 {
     return std::all_of(sectors_state.begin(), sectors_state.end(), [](State s) { return s == State::SUCCESS; })
         && !sectors_data_state_edc_errors(sectors_state, sectors_data, sector_size, lba, nintendo_key, edc_match);
@@ -844,6 +826,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     auto readable_formats = get_readable_formats(*ctx.sptd, ctx.disc_type == DiscType::BLURAY || ctx.disc_type == DiscType::BLURAY_R);
 
     std::optional<uint8_t> nintendo_key;
+    std::vector<std::pair<uint32_t, uint32_t>> bd_layers;
     std::shared_ptr<xbox::Context> xbox;
     std::optional<uint32_t> sectors_count_xbox;
 
@@ -872,6 +855,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                     if(std::all_of(structure.begin(), structure.end(), [](uint8_t b) { return b == 0x00; }))
                         nintendo_key = 0;
                 }
+
+                // raw descrambling needs the PSN of every layer
+                bd_layers = bd::get_layers(std::span(physical_structures.front()).subspan(sizeof(CMD_ParameterListHeader)), rom);
 
                 // PIC layer lengths reflect data zone capacity, not recorded content; only BD-ROM is trustworthy here
                 if(rom)
@@ -1112,8 +1098,8 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
     bool raw = (dvd_raw || bd_raw || nintendo_key) && omnidrive_firmware;
 
     auto cfg = dump_get_config(ctx.disc_type, raw);
-    auto edc_match = edc_match_func(ctx.disc_type, raw);
-    auto extract_data = extract_data_func(ctx.disc_type, raw);
+    auto edc_match = edc_match_func(ctx.disc_type, raw, bd_layers);
+    auto extract_data = extract_data_func(ctx.disc_type, raw, bd_layers);
 
     uint32_t dump_read_size;
     if(options.dump_read_size)

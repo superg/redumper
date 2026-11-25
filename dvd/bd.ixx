@@ -10,7 +10,6 @@ export module bd;
 
 import cd.cdrom;
 import bd.scrambler;
-import common;
 import dvd.edc;
 import scsi.mmc;
 import utils.endian;
@@ -31,12 +30,12 @@ export struct DataFrame
     uint32_t edc;
 
 
-    bool valid(int32_t lba, bool nintendo) const
+    bool valid(uint32_t psn, bool nintendo) const
     {
         bool valid = false;
 
         auto df = *this;
-        df.descramble(lba, nintendo);
+        df.descramble(psn, nintendo);
 
         if(endian_swap(df.edc) == DVD_EDC().update((uint8_t *)&df, offsetof(DataFrame, edc)).final())
             valid = true;
@@ -45,9 +44,9 @@ export struct DataFrame
     }
 
 
-    void descramble(int32_t lba, bool nintendo)
+    void descramble(uint32_t psn, bool nintendo)
     {
-        Scrambler::get().descramble(std::span((uint8_t *)this, sizeof(DataFrame)), lba, nintendo);
+        Scrambler::get().descramble(std::span((uint8_t *)this, sizeof(DataFrame)), psn, nintendo);
     }
 };
 
@@ -83,18 +82,20 @@ export std::vector<std::pair<uint32_t, uint32_t>> get_layers(std::span<const uin
 }
 
 
-// raw descrambling needs the PSN where each layer starts
-export void scrambler_init_layers(std::span<const uint8_t> di_units, bool rom)
+// PSN of a further layer doesn't continue the previous layer (opposite track path), it starts where the DI says
+export uint32_t LBA_to_PSN(int32_t lba, const std::vector<std::pair<uint32_t, uint32_t>> &layers)
 {
-    std::vector<std::pair<int32_t, uint32_t>> layer_starts;
-    int32_t lba = 0;
-    for(auto const &[psn, length] : get_layers(di_units, rom))
+    uint32_t psn = lba + 0x100000;
+
+    int32_t layer_lba = 0;
+    for(auto const &[first_psn, length] : layers)
     {
-        layer_starts.emplace_back(lba, psn);
-        lba += (int32_t)length;
+        if(lba >= layer_lba)
+            psn = first_psn + (lba - layer_lba);
+        layer_lba += (int32_t)length;
     }
 
-    Scrambler::get().set_layer_starts(layer_starts);
+    return psn;
 }
 
 

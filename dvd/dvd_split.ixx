@@ -6,6 +6,7 @@ module;
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include "throw_line.hh"
 
@@ -276,6 +277,7 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
         throw_line("seek failed");
 
     bool nintendo = false;
+    std::vector<std::pair<uint32_t, uint32_t>> layers;
     if(std::filesystem::exists(physical_path))
     {
         auto physical = read_vector(physical_path);
@@ -287,7 +289,7 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
         {
             auto &unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)physical[0];
             std::string disc_type_identifier((char *)unit.body_common.disc_type_identifier, sizeof(unit.body_common.disc_type_identifier));
-            bd::scrambler_init_layers(physical, disc_type_identifier != "BDR" && disc_type_identifier != "BDW");
+            layers = bd::get_layers(physical, disc_type_identifier != "BDR" && disc_type_identifier != "BDW");
         }
     }
 
@@ -306,8 +308,9 @@ void bd_extract_iso(Context &ctx, std::filesystem::path sbram_path, Options &opt
 
         std::span<uint8_t> data(df.main_data, FORM1_DATA_SIZE);
 
-        bool valid = df.valid(lba, nintendo);
-        df.descramble(lba, nintendo);
+        uint32_t psn = bd::LBA_to_PSN(lba, layers);
+        bool valid = df.valid(psn, nintendo);
+        df.descramble(psn, nintendo);
 
         if(!valid)
         {

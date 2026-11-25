@@ -20,25 +20,24 @@ public:
     }
 
 
-    void descramble(std::span<uint8_t> data, int32_t lba, bool nintendo) const
+    void descramble(std::span<uint8_t> data, uint32_t psn, bool nintendo) const
     {
-        process(data, nintendo ? seedNintendo(lba) : seedBluray(lba));
+        process(data, nintendo ? seedNintendo(psn) : seedBluray(psn));
     }
 
 private:
     Scrambler() = default;
 
 
-    uint16_t seedBluray(int32_t lba) const
+    uint16_t seedBluray(uint32_t psn) const
     {
-        uint32_t psn = lba + 0x100000;
         return psn >> 5;
     }
 
 
-    uint32_t seedNintendo(int32_t lba) const
+    uint32_t seedNintendo(uint32_t psn) const
     {
-        uint32_t m = lba & 0xFFFE0;
+        uint32_t m = psn & 0xFFFE0;
         uint32_t local = m & 0xFFFF;
         uint32_t k = local >> 8;
 

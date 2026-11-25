@@ -198,37 +198,6 @@ uint32_t get_dvd_layer_length(const READ_DVD_STRUCTURE_LayerDescriptor &layer_de
 }
 
 
-std::vector<uint32_t> get_bluray_layer_lengths(const std::vector<uint8_t> &structure, bool rom)
-{
-    std::vector<uint32_t> layer_lengths;
-
-    auto di_units = &structure[sizeof(CMD_ParameterListHeader)];
-    uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
-    for(uint32_t j = 0; j < 32; ++j)
-    {
-        auto &unit = (READ_DISC_STRUCTURE_DiscInformationUnit &)di_units[j * unit_size];
-        std::string identifier((char *)unit.header.identifier, sizeof(unit.header.identifier));
-        if(identifier != "DI")
-            break;
-
-        if(unit.header.format == 1)
-        {
-            auto body = (READ_DISC_STRUCTURE_DiscInformationBody1 *)unit.body;
-
-            auto last_psn = endian_swap(body->last_psn);
-            auto first_aun = endian_swap(body->first_aun);
-            auto last_aun = endian_swap(body->last_aun);
-
-            auto layers_count = unit.header.layer + 1;
-            layer_lengths.resize(layers_count);
-            layer_lengths[unit.header.layer] = (layers_count == body->layers_count ? last_psn - 1 : last_aun) - first_aun + 2;
-        }
-    }
-
-    return layer_lengths;
-}
-
-
 void print_physical_structure(const READ_DVD_STRUCTURE_LayerDescriptor &layer_descriptor, uint32_t layer)
 {
     std::string types;
@@ -874,12 +843,9 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                 }
 
                 // PIC layer lengths reflect data zone capacity, not recorded content; only BD-ROM is trustworthy here
-                if(rom)
-                {
-                    auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
-                    if(!layer_lengths.empty())
-                        sectors_count_physical = std::accumulate(layer_lengths.begin(), layer_lengths.end(), (uint32_t)0);
-                }
+                auto layer_lengths = bd::set_layer_addresses(physical_structures.front(), rom);
+                if(rom && !layer_lengths.empty())
+                    sectors_count_physical = std::accumulate(layer_lengths.begin(), layer_lengths.end(), (uint32_t)0);
             }
             // DVD
             else
@@ -967,8 +933,6 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
             {
                 if(!nintendo_key)
                 {
-                    uint32_t unit_size = sizeof(READ_DISC_STRUCTURE_DiscInformationUnit) + (rom ? 52 : 100);
-
                     LOG("disc structure:");
                     for(auto const &s : physical_structures)
                         print_di_units_structure(&s[sizeof(CMD_ParameterListHeader)], rom);
@@ -977,7 +941,7 @@ export bool redumper_dump_dvd(Context &ctx, const Options &options, bool dump)
                     // layer break
                     if(!physical_structures.empty())
                     {
-                        auto layer_lengths = get_bluray_layer_lengths(physical_structures.front(), rom);
+                        auto layer_lengths = bd::get_layer_lengths(physical_structures.front(), rom);
 
                         uint32_t layer_break = 0;
                         for(uint32_t i = 0; i + 1 < layer_lengths.size(); ++i)

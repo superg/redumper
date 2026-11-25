@@ -104,6 +104,7 @@ target_sources(redumper
     "cd/cd_dump_extra.ixx"
     "cd/cd_dump.ixx"
     "cd/spiral/cd_spiral_dump.ixx"
+    "cd/spiral/cd_spiral_dreamcast.ixx"
     "cd/cdrom.ixx"
     "cd/dreamcast.ixx"
     "cd/cd_ecc.ixx"
@@ -161,6 +162,7 @@ target_sources(redumper
     "hash/block_hasher.ixx"
     "hash/aes128.ixx"
     "hash/cmac.ixx"
+    "hash/edcsa.ixx"
     "hash/md5.ixx"
     "hash/sha1.ixx"
     "readers/disc_read_cdda_reader.ixx"
@@ -254,7 +256,8 @@ endif()
 install(TARGETS redumper DESTINATION "bin")
 
 # bundle LLVM libc++ for C++20 support (system libc++ is too old, static linking not allowed on macOS)
-if(REDUMPER_TARGET_MACOS)
+# LLVM_LIB_PATH is set by the macOS toolchain files, builds without them use the libc++ they link to
+if(REDUMPER_TARGET_MACOS AND LLVM_LIB_PATH)
     set_target_properties(redumper PROPERTIES INSTALL_RPATH "@executable_path/../lib")
     
     install(FILES

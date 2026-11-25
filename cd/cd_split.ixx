@@ -374,7 +374,11 @@ void write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
                     {
                         bool success = true;
                         if(force_descramble)
-                            scrambler.process(sector.data(), sector.data(), 0, sector.size());
+                        {
+                            // zeroed sectors are not scrambled, keep them as is, same as regular descramble
+                            if(!is_zeroed(sector.data(), sector.size()))
+                                scrambler.process(sector.data(), sector.data(), 0, sector.size());
+                        }
                         else
                             success = scrambler.descramble(sector.data(), &lba);
 
@@ -984,9 +988,10 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     auto toc = toc_choose(toc_buffer, full_toc_buffer);
 
-    // detect dreamcast dump
+    // detect dreamcast dump, dreamcast: HD area TOC reconstructed from IP.BIN, gdrom: GD-ROM layout for CUE output
     bool dreamcast = false;
-    if(auto &t = toc.sessions.front().tracks.front(); toc.sessions.size() == 1 && t.control & (uint8_t)ChannelQ::Control::DATA)
+    bool gdrom = false;
+    if(auto &t = toc.sessions.front().tracks.front(); t.control & (uint8_t)ChannelQ::Control::DATA)
     {
         int32_t track1_end = toc.sessions.front().tracks[1].lba_start;
 
@@ -997,16 +1002,26 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
             if(auto system_area = iso9660::Browser::readSystemArea(form1_reader.get()); dreamcast::detect(system_area))
             {
-                if(auto hd_write_offset = track_offset_by_sync(dreamcast::IP_BIN_LBA, dreamcast::IP_BIN_LBA + iso9660::SYSTEM_AREA_SIZE, state_fs, scm_fs); hd_write_offset)
+                if(toc.sessions.size() == 1)
                 {
-                    std::vector<uint8_t> sector(CD_DATA_SIZE);
-                    read_entry(scm_fs, sector.data(), CD_DATA_SIZE, dreamcast::IP_BIN_LBA - LBA_START, 1, -*hd_write_offset * CD_SAMPLE_SIZE, 0);
-                    Scrambler scrambler;
-                    scrambler.process(sector.data(), sector.data(), 0, sector.size());
+                    if(auto hd_write_offset = track_offset_by_sync(dreamcast::IP_BIN_LBA, dreamcast::IP_BIN_LBA + iso9660::SYSTEM_AREA_SIZE, state_fs, scm_fs); hd_write_offset)
+                    {
+                        std::vector<uint8_t> sector(CD_DATA_SIZE);
+                        read_entry(scm_fs, sector.data(), CD_DATA_SIZE, dreamcast::IP_BIN_LBA - LBA_START, 1, -*hd_write_offset * CD_SAMPLE_SIZE, 0);
+                        Scrambler scrambler;
+                        scrambler.process(sector.data(), sector.data(), 0, sector.size());
 
-                    dreamcast::update_toc(toc, sector);
-                    dreamcast = true;
+                        dreamcast::update_toc(toc, sector);
+                        dreamcast = true;
+                        gdrom = true;
+                    }
+                }
+                // HD area session reported in TOC by the drive
+                else if(auto &hd_track = toc.sessions.back().tracks.front(); toc.sessions.size() == 2 && !hd_track.indices.empty() && hd_track.indices.front() == dreamcast::IP_BIN_LBA)
+                    gdrom = true;
 
+                if(gdrom)
+                {
                     LOG("dreamcast: GD-ROM dump detected");
                     LOG("");
                 }
@@ -1454,10 +1469,10 @@ export void redumper_split_cd(Context &ctx, Options &options)
     if(toc.cd_text_lang.size() > 1)
     {
         for(uint32_t i = 0; i < toc.cd_text_lang.size(); ++i)
-            cue_process(i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name), toc, i, dreamcast, options);
+            cue_process(i ? std::format("{}_{:02X}.cue", options.image_name, toc.cd_text_lang[i]) : std::format("{}.cue", options.image_name), toc, i, gdrom, options);
     }
     else
-        cue_process(std::format("{}.cue", options.image_name), toc, 0, dreamcast, options);
+        cue_process(std::format("{}.cue", options.image_name), toc, 0, gdrom, options);
 }
 
 }

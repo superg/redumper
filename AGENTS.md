@@ -16,6 +16,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Use explicit loop termination conditions when known; do not use an infinite loop with `break` for normal successful completion.
 - Name new or renamed structure, enum, and other types in `PascalCase`, for example `DriveState` and `ReadMode`.
 - Keep abbreviations and acronyms fully uppercase in PascalCase identifiers, for example `SpiralDriveCDB` instead of `SpiralDriveCdb`.
+- Always write files with LF line endings, never CR/LF.
 - Use the repository's `.clang-format` as the source of truth for C/C++ formatting. Read it before editing and run `clang-format` on changed code where available.
 - Never disable `clang-format` with source directives unless the user explicitly requests it.
 - Leave three empty lines after an include block before the rest of the code.
@@ -23,6 +24,11 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Start comments with lowercase text, use one sentence whenever possible, and omit the final period; preserve the casing of names, identifiers, and acronyms.
 - In CMake files, follow the same column limit where practical and use the available width instead of wrapping arguments onto many short lines.
 - In CMake files, enclose string literals in double quotes, for example `"string"`.
+
+## Message wording
+
+- Do not hardcode command-line option spellings in error messages or help descriptions. Keep option names in their declarations and help listings.
+- Help descriptions state what an option does. Error messages state what went wrong, without usage hints or suggested actions.
 
 ## Memory upkeep
 
@@ -36,6 +42,8 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Never edit `.gitignore` or add ignore exceptions. The user manages that file and decides when exceptions are needed.
 
 ## Project rules
+
+- Every thrown exception is terminal and is handled only by the root try/catch in `main()`, which prints the error and exits. Never add try/catch below `main()`, since catching there implies recovery; implement recovery through return values or status checks, not exceptions.
 
 - Do not add or expand SpiralDrive tests at this stage unless explicitly requested.
 - Always explicitly set the drive to 4× speed before any optical-drive test or diagnostic.

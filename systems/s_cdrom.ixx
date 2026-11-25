@@ -77,7 +77,8 @@ public:
                     ranges_append(msf_errors, lba_positional);
             }
             else
-                lba_base = lba;
+                // first valid sector might not be at the start of the track
+                lba_base = lba - (int32_t)s;
 
             if(std::all_of(sector.mode2.user_data, sector.mode2.user_data + sizeof(sector.mode2.user_data), [](uint8_t v) { return v == 0x55; }))
                 ranges_append(generated, lba_positional);

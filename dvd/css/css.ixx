@@ -35,7 +35,7 @@ public:
     {
         std::vector<uint8_t> disc_key;
 
-        uint8_t agid = reportAGID(cprm);
+        uint8_t agid = reportAGID(cprm, KEY_KeyClass::DVD_CSS_CPPM_CPRM);
         auto bus_key = getBusKey(agid);
 
         auto disc_keys = readDiscKey(agid);
@@ -68,7 +68,7 @@ public:
     {
         std::vector<uint8_t> title_key;
 
-        uint8_t agid = reportAGID(cprm);
+        uint8_t agid = reportAGID(cprm, KEY_KeyClass::DVD_CSS_CPPM_CPRM);
         auto bus_key = getBusKey(agid);
 
         auto encrypted_title_key = reportTitleKey(agid, lba);
@@ -120,6 +120,31 @@ public:
             title_key.resize(_BLOCK_SIZE);
 
         return title_key;
+    }
+
+    // This function is exported for the benefit of the AACS implementation.
+    uint8_t reportAGID(bool cprm, KEY_KeyClass key_class)
+    {
+        uint8_t agid;
+        for(unsigned int i = 0; i < _AGID_COUNT + 1; ++i)
+        {
+            std::vector<uint8_t> response_data;
+            auto status = cmd_report_key(_sptd, response_data, 0, key_class, 0, cprm ? KEY_KeyFormat::AGID_CPRM : KEY_KeyFormat::AGID);
+            if(!status.status_code)
+            {
+                strip_response_header(response_data);
+                agid = ((REPORT_KEY_AGID *)response_data.data())->agid;
+                break;
+            }
+
+            if(i == _AGID_COUNT)
+                throw_line("failed to acquire AGID, SCSI ({})", SPTD::StatusMessage(status));
+            else
+                // incrementally invalidate all possible AGIDs before retrying
+                cmd_report_key(_sptd, response_data, 0, key_class, i, KEY_KeyFormat::INVALIDATE_AGID);
+        }
+
+        return agid;
     }
 
 private:
@@ -439,37 +464,10 @@ private:
         return title_key;
     }
 
-
-    uint8_t reportAGID(bool cprm)
-    {
-        uint8_t agid;
-
-        for(unsigned int i = 0; i < _AGID_COUNT + 1; ++i)
-        {
-            std::vector<uint8_t> response_data;
-            auto status = cmd_report_key(_sptd, response_data, 0, REPORT_KEY_KeyClass::DVD_CSS_CPPM_CPRM, 0, cprm ? REPORT_KEY_KeyFormat::AGID_CPRM : REPORT_KEY_KeyFormat::AGID);
-            if(!status.status_code)
-            {
-                strip_response_header(response_data);
-                agid = ((REPORT_KEY_AGID *)response_data.data())->agid;
-                break;
-            }
-
-            if(i == _AGID_COUNT)
-                throw_line("failed to acquire AGID, SCSI ({})", SPTD::StatusMessage(status));
-            else
-                // incrementally invalidate all possible AGIDs before retrying
-                cmd_report_key(_sptd, response_data, 0, REPORT_KEY_KeyClass::DVD_CSS_CPPM_CPRM, i, REPORT_KEY_KeyFormat::INVALIDATE_AGID);
-        }
-
-        return agid;
-    }
-
-
     bool reportASF()
     {
         std::vector<uint8_t> response_data;
-        auto status = cmd_report_key(_sptd, response_data, 0, REPORT_KEY_KeyClass::DVD_CSS_CPPM_CPRM, 0, REPORT_KEY_KeyFormat::ASF);
+        auto status = cmd_report_key(_sptd, response_data, 0, KEY_KeyClass::DVD_CSS_CPPM_CPRM, 0, KEY_KeyFormat::ASF);
         if(status.status_code)
             throw_line("failed to read ASF, SCSI ({})", SPTD::StatusMessage(status));
         strip_response_header(response_data);
@@ -494,7 +492,7 @@ private:
     std::vector<uint8_t> reportKey1(uint8_t agid)
     {
         std::vector<uint8_t> response_data;
-        auto status = cmd_report_key(_sptd, response_data, 0, REPORT_KEY_KeyClass::DVD_CSS_CPPM_CPRM, agid, REPORT_KEY_KeyFormat::KEY1);
+        auto status = cmd_report_key(_sptd, response_data, 0, KEY_KeyClass::DVD_CSS_CPPM_CPRM, agid, KEY_KeyFormat::KEY1);
         if(status.status_code)
             throw_line("failed to read key1, SCSI ({})", SPTD::StatusMessage(status));
         strip_response_header(response_data);
@@ -510,7 +508,7 @@ private:
     std::vector<uint8_t> reportChallengeKey(uint8_t agid)
     {
         std::vector<uint8_t> response_data;
-        auto status = cmd_report_key(_sptd, response_data, 0, REPORT_KEY_KeyClass::DVD_CSS_CPPM_CPRM, agid, REPORT_KEY_KeyFormat::CHALLENGE_KEY);
+        auto status = cmd_report_key(_sptd, response_data, 0, KEY_KeyClass::DVD_CSS_CPPM_CPRM, agid, KEY_KeyFormat::CHALLENGE_KEY);
         if(status.status_code)
             throw_line("failed to read challenge key, SCSI ({})", SPTD::StatusMessage(status));
         strip_response_header(response_data);
@@ -529,7 +527,7 @@ private:
         for(unsigned int i = 0; i < _CHALLENGE_SIZE; ++i)
             challenge_key.challenge[i] = challenge[_CHALLENGE_SIZE - 1 - i];
 
-        auto status = cmd_send_key(_sptd, (uint8_t *)&challenge_key, sizeof(challenge_key), SEND_KEY_KeyFormat::CHALLENGE_KEY, agid);
+        auto status = cmd_send_key(_sptd, (uint8_t *)&challenge_key, sizeof(challenge_key), KEY_KeyClass::DVD_CSS_CPPM_CPRM, KEY_KeyFormat::CHALLENGE_KEY, agid);
         if(status.status_code)
             throw_line("failed to send challenge key, SCSI ({})", SPTD::StatusMessage(status));
     }
@@ -541,7 +539,7 @@ private:
         for(unsigned int i = 0; i < _BLOCK_SIZE; ++i)
             key2.key[i] = key[_BLOCK_SIZE - 1 - i];
 
-        auto status = cmd_send_key(_sptd, (uint8_t *)&key2, sizeof(key2), SEND_KEY_KeyFormat::KEY2, agid);
+        auto status = cmd_send_key(_sptd, (uint8_t *)&key2, sizeof(key2), KEY_KeyClass::DVD_CSS_CPPM_CPRM, KEY_KeyFormat::KEY2, agid);
         if(status.status_code)
             throw_line("failed to send key2, SCSI ({})", SPTD::StatusMessage(status));
     }
@@ -552,7 +550,7 @@ private:
         std::vector<uint8_t> title_key;
 
         std::vector<uint8_t> response_data;
-        auto status = cmd_report_key(_sptd, response_data, lba, REPORT_KEY_KeyClass::DVD_CSS_CPPM_CPRM, agid, REPORT_KEY_KeyFormat::TITLE_KEY);
+        auto status = cmd_report_key(_sptd, response_data, lba, KEY_KeyClass::DVD_CSS_CPPM_CPRM, agid, KEY_KeyFormat::TITLE_KEY);
         if(!status.status_code)
         {
             strip_response_header(response_data);

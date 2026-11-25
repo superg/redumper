@@ -8,6 +8,7 @@ import common;
 import filesystem.udf;
 import options;
 import readers.disc_read_reader;
+import scsi.cmd;
 import utils.logger;
 
 
@@ -28,6 +29,16 @@ export int redumper_bdkey(Context &ctx, Options &options)
     if(mkbv != -1)
     {
         LOG("BD-Video Protection: AACS (MKB version {})", mkbv);
+    }
+
+    auto status = cmd_drive_ready(*ctx.sptd);
+    if(!status.status_code)
+    {
+        std::string volume_id = AACS::getVolumeID(*ctx.sptd, options);
+        if(volume_id != "")
+        {
+            LOG("Volume ID: {}", volume_id);
+        }
     }
 
     return exit_code;

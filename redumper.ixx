@@ -23,6 +23,7 @@ import cd.protection;
 import cd.scrambler;
 import cd.split;
 import cd.spiral;
+import cd.spiral.dreamcast;
 import cd.subcode;
 import cd.toc;
 import common;
@@ -128,32 +129,33 @@ struct Command
 
 const std::map<std::string, Command> COMMANDS{
     // NAME              DRIVE READY AUTO IMAGE GENERATE HANDLER
-    { "rings",                { true, true, true, false, false, redumper_rings }           },
-    { "dump",                 { true, true, true, true, true, redumper_dump }              },
-    { "spiral::dump",         { true, true, true, true, true, redumper_spiral_dump }       },
-    { "dump::extra",          { true, true, true, true, false, redumper_dump_extra }       },
-    { "refine",               { true, true, true, true, false, redumper_refine }           },
-    { "dvdkey",               { true, true, true, false, false, redumper_dvdkey }          },
-    { "bdkey",                { true, true, true, false, false, redumper_bdkey }           },
-    { "eject",                { true, false, false, false, false, redumper_eject }         },
-    { "dvdisokey",            { false, false, false, true, false, redumper_dvdisokey }     },
-    { "protection",           { false, false, false, true, false, redumper_protection }    },
-    { "split",                { false, false, false, true, false, redumper_split }         },
-    { "hash",                 { false, false, false, true, false, redumper_hash }          },
-    { "info",                 { false, false, false, true, false, redumper_info }          },
-    { "skeleton",             { false, false, false, true, false, redumper_skeleton }      },
-    { "flash::mt1339",        { true, false, false, false, false, redumper_flash_tsst }    },
-    { "flash::sd616",         { true, false, false, false, false, redumper_flash_sd616 }   },
-    { "flash::plextor",       { true, false, false, false, false, redumper_flash_plextor } },
-    { "flash::mt1959",        { true, false, false, false, false, redumper_flash_mt1959 }  },
-    { "subchannel",           { false, false, false, true, false, redumper_subchannel }    },
-    { "debug",                { false, false, false, false, false, redumper_debug }        },
-    { "tools::fixmsf",        { false, false, false, true, false, redumper_fix_msf }       },
-    { "tools::fixmsf::shift", { false, false, false, true, false, redumper_fix_msf_shift } },
-    { "tools::trim",          { false, false, false, true, false, redumper_trim }          },
-    { "debug::flip",          { false, false, false, true, false, redumper_flip }          },
-    { "drive::test",          { true, true, true, false, false, redumper_drive_test }      },
-    { "drive::detect",        { true, true, true, false, false, redumper_drive_detect }    },
+    { "rings",                { true, true, true, false, false, redumper_rings }            },
+    { "dump",                 { true, true, true, true, true, redumper_dump }               },
+    { "spiral::dump",         { true, true, true, true, true, redumper_spiral_dump }        },
+    { "spiral::dreamcast",    { true, true, true, false, false, redumper_spiral_dreamcast } },
+    { "dump::extra",          { true, true, true, true, false, redumper_dump_extra }        },
+    { "refine",               { true, true, true, true, false, redumper_refine }            },
+    { "dvdkey",               { true, true, true, false, false, redumper_dvdkey }           },
+    { "bdkey",                { true, true, true, false, false, redumper_bdkey }            },
+    { "eject",                { true, false, false, false, false, redumper_eject }          },
+    { "dvdisokey",            { false, false, false, true, false, redumper_dvdisokey }      },
+    { "protection",           { false, false, false, true, false, redumper_protection }     },
+    { "split",                { false, false, false, true, false, redumper_split }          },
+    { "hash",                 { false, false, false, true, false, redumper_hash }           },
+    { "info",                 { false, false, false, true, false, redumper_info }           },
+    { "skeleton",             { false, false, false, true, false, redumper_skeleton }       },
+    { "flash::mt1339",        { true, false, false, false, false, redumper_flash_tsst }     },
+    { "flash::sd616",         { true, false, false, false, false, redumper_flash_sd616 }    },
+    { "flash::plextor",       { true, false, false, false, false, redumper_flash_plextor }  },
+    { "flash::mt1959",        { true, false, false, false, false, redumper_flash_mt1959 }   },
+    { "subchannel",           { false, false, false, true, false, redumper_subchannel }     },
+    { "debug",                { false, false, false, false, false, redumper_debug }         },
+    { "tools::fixmsf",        { false, false, false, true, false, redumper_fix_msf }        },
+    { "tools::fixmsf::shift", { false, false, false, true, false, redumper_fix_msf_shift }  },
+    { "tools::trim",          { false, false, false, true, false, redumper_trim }           },
+    { "debug::flip",          { false, false, false, true, false, redumper_flip }           },
+    { "drive::test",          { true, true, true, false, false, redumper_drive_test }       },
+    { "drive::detect",        { true, true, true, false, false, redumper_drive_detect }     },
 };
 
 
@@ -284,6 +286,8 @@ std::list<std::pair<std::string, Command>> redumper_disc_get_commands(Options &o
         cd_commands.insert(cd_commands.begin(), "rings");
     if(options.auto_detect)
         cd_commands.insert(cd_commands.begin(), "drive::detect");
+    if(options.spiraldrive_dreamcast)
+        cd_commands.insert(cd_commands.begin(), "spiral::dreamcast");
     if(options.auto_eject)
     {
         if(auto it = std::find(cd_commands.begin(), cd_commands.end(), "split"); it != cd_commands.end())
@@ -298,7 +302,7 @@ std::list<std::pair<std::string, Command>> redumper_disc_get_commands(Options &o
     {
         for(auto it = cd_commands.begin(); it != cit;)
         {
-            if(*it == "rings" && std::find(cit, cd_commands.end(), "dump") != cd_commands.end() || *it == "protection" || *it == "drive::detect")
+            if(*it == "rings" && std::find(cit, cd_commands.end(), "dump") != cd_commands.end() || *it == "protection" || *it == "drive::detect" || *it == "spiral::dreamcast")
                 ++it;
             else
                 it = cd_commands.erase(it);

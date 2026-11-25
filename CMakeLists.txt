@@ -162,6 +162,7 @@ target_sources(redumper
     "hash/block_hasher.ixx"
     "hash/aes128.ixx"
     "hash/cmac.ixx"
+    "hash/edcsa.ixx"
     "hash/md5.ixx"
     "hash/sha1.ixx"
     "readers/disc_read_cdda_reader.ixx"

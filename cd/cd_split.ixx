@@ -184,24 +184,27 @@ bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager> offse
 }
 
 
-bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection,
-    bool cdr, const Options &options)
+bool check_tracks(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection, bool cdr,
+    bool gdrom, const Options &options)
 {
     bool errors = false;
 
     std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
-    for(auto const &se : toc.sessions)
+    for(auto &se : toc.sessions)
     {
         uint32_t c2_sectors_last = 0;
 
-        for(auto const &t : se.tracks)
+        for(auto &t : se.tracks)
         {
             // skip empty tracks
             if(t.lba_end == t.lba_start)
                 continue;
 
             bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
+            // lead-in/lead-out data tracks with errors are skipped, audio ones only for GD-ROM
+            bool skip_allowed = optional_track(t.track_number) && (data_track || gdrom);
+            bool track_errors = false;
 
             uint32_t skip_samples = 0;
             uint32_t c2_samples = 0;
@@ -257,11 +260,11 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
                 LOG("errors detected, track: {}, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", toc.getTrackString(t.track_number), skip_sectors, c2_sectors, skip_samples, c2_samples);
 
             if(skip_sectors && !optional_track(t.track_number))
-                errors = true;
+                track_errors = true;
             else if(c2_sectors)
             {
-                // CD-R specific checks
-                if(cdr)
+                // CD-R specific checks, skippable lead-in/lead-out tracks follow the regular rule
+                if(cdr && !skip_allowed)
                 {
                     // lead-in/lead-out areas may have manufacturing defects
                     if(optional_track(t.track_number))
@@ -276,12 +279,18 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
                         // make sure there are no extra C2 errors except leading/trailing
                         if(c2_sectors_first + c2_sectors_last != c2_sectors)
-                            errors = true;
+                            track_errors = true;
                     }
                 }
                 else
-                    errors = true;
+                    track_errors = true;
             }
+
+            t.errors = track_errors;
+
+            // skippable tracks never fail the split
+            if(track_errors && !skip_allowed)
+                errors = true;
         }
     }
 
@@ -313,6 +322,10 @@ void write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
             std::string track_string = toc.getTrackString(t.track_number);
             bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
             bool patched_pid = false;
+
+            // lead-in/lead-out tracks with errors are not created, the check stage already failed for those that are not skippable
+            if(lilo && t.errors && !options.force_split)
+                continue;
 
             // add session number to lead-in/lead-out track string to make filename unique
             if(lilo && toc.sessions.size() > 1)
@@ -1479,7 +1492,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     // check tracks
     LOG("checking tracks");
-    if(check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, cdr, options) && !options.force_split)
+    if(check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, cdr, gdrom, options) && !options.force_split)
         throw_line("data errors detected, unable to continue");
     LOG("done");
     LOG("");

@@ -57,6 +57,7 @@ export struct TOC
             // supplemental
             uint8_t data_mode;
             bool cdi;
+            bool errors;
         };
         std::vector<Track> tracks;
     };
@@ -123,6 +124,7 @@ export struct TOC
                             t.lba_end = lba;
                             t.data_mode = 0;
                             t.cdi = false;
+                            t.errors = false;
                         }
 
                         Session::Track &t = s.tracks.back();
@@ -854,6 +856,7 @@ private:
                 t.lba_end = lba;
                 t.data_mode = 0;
                 t.cdi = false;
+                t.errors = false;
             }
         }
 
@@ -911,6 +914,7 @@ private:
                         t.lba_end = lba;
                         t.data_mode = 0;
                         t.cdi = false;
+                        t.errors = false;
                     }
                 }
             }

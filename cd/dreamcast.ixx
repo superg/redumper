@@ -77,6 +77,7 @@ void session_add_track(TOC::Session &session, uint32_t track_number, int32_t lba
     t.lba_end = lba;
     t.data_mode = 0;
     t.cdi = false;
+    t.errors = false;
 
     session.tracks.push_back(t);
 }

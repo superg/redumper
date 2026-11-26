@@ -9,6 +9,8 @@ module;
 #include <optional>
 #include <span>
 #include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 #include "throw_line.hh"
 
@@ -18,6 +20,7 @@ export module cd.spiral;
 
 import cd.cd;
 import cd.common;
+import cd.spiral_refine;
 import cd.subcode;
 import common;
 import drive;
@@ -28,6 +31,7 @@ import scsi.sptd;
 import utils.animation;
 import utils.file_io;
 import utils.logger;
+import utils.misc;
 import utils.signal;
 
 
@@ -48,6 +52,98 @@ void seek_spiral_start(SPTD &sptd)
     LOG("seeking spiral start");
     if(auto status = cmd_spiraldrive(sptd, nullptr, 0, SpiralDrive_Operation::REWIND, 0, 0); status.status_code)
         throw_line("REWIND failed (SCSI: {})", SPTD::StatusMessage(status));
+}
+
+
+// the wobble carrier keys a serial stream, carrier present is a 0 bit and each character has one start, eight data and two stop bits
+// returns each character with the envelope slot where its start bit begins
+std::vector<std::pair<size_t, uint8_t>> decode_spiral_wobble(std::span<const uint8_t> envelope)
+{
+    constexpr uint8_t CARRIER_LEVEL = 45;
+    constexpr size_t CHARACTER_BITS = 11;
+    // one bit lasts 0.3 sector at any drive speed
+    auto bit_offset = [](size_t bit) { return (bit * C4_WBL_SIZE * 3 + 5) / 10; };
+
+    std::vector<std::pair<size_t, uint8_t>> characters;
+    for(size_t i = 1; i + bit_offset(CHARACTER_BITS) <= envelope.size(); ++i)
+    {
+        // the start bit begins where the carrier appears, a single slot above the level is noise
+        if(envelope[i - 1] >= CARRIER_LEVEL || envelope[i] < CARRIER_LEVEL || envelope[i + 1] < CARRIER_LEVEL)
+            continue;
+
+        uint32_t bits = 0;
+        for(size_t bit = 0; bit < CHARACTER_BITS; ++bit)
+        {
+            auto cell = envelope.subspan(i + bit_offset(bit), bit_offset(bit + 1) - bit_offset(bit));
+            auto carrier = (size_t)std::count_if(cell.begin(), cell.end(), [](uint8_t level) { return level >= CARRIER_LEVEL; });
+            if(carrier * 2 <= cell.size())
+                bits |= 1 << bit;
+        }
+
+        // start bit 0 and both stop bits 1
+        if((bits & 0x601) == 0x600)
+        {
+            characters.emplace_back(i, (uint8_t)(bits >> 1));
+            // resume inside the last stop bit so the next start bit is found by its own edge
+            i += bit_offset(CHARACTER_BITS - 1);
+        }
+    }
+
+    return characters;
+}
+
+
+// the wobble capture is its own stream, placed by the Q packets captured with it
+void convert_spiral_wobble(const std::string &image_prefix, int32_t batch_size)
+{
+    std::fstream fs_wbl(image_prefix + ".wbl.raw", std::ios::in | std::ios::binary);
+    std::fstream fs_subq(image_prefix + ".subq.raw", std::ios::in | std::ios::binary);
+    if(!fs_wbl.is_open() || !fs_subq.is_open())
+        throw_line("unable to open wobble capture files ({})", image_prefix);
+    fs_wbl.exceptions(std::ios::badbit | std::ios::failbit);
+    fs_subq.exceptions(std::ios::badbit | std::ios::failbit);
+
+    std::vector<uint8_t> subq_buffer((size_t)batch_size * sizeof(ChannelQ));
+    auto sectors_count = (int32_t)scale_up(std::filesystem::file_size(image_prefix + ".subq.raw"), sizeof(ChannelQ));
+    auto segments = std::get<1>(analyze_spiral_subcode(fs_subq, sizeof(ChannelQ), sectors_count, subq_buffer));
+
+    // characters span several sectors, so the whole envelope is decoded in capture order
+    std::vector<uint8_t> wbl_buffer((size_t)sectors_count * C4_WBL_SIZE);
+    read_entry(fs_wbl, wbl_buffer.data(), C4_WBL_SIZE, 0, sectors_count, 0, 0);
+    auto characters = decode_spiral_wobble(wbl_buffer);
+    LOG("wobble characters: {}", characters.size());
+    if(!characters.empty())
+    {
+        // one byte per character time, 3.3 sectors, on the disc scale from LBA_START, zero where no character is found
+        constexpr int64_t CHARACTER_SLOTS_X10 = C4_WBL_SIZE * 33;
+        // the file covers the capture up to its last sector
+        int64_t sectors_end = 0;
+        for(size_t i = 0; i < segments.size(); ++i)
+            sectors_end = std::max<int64_t>(sectors_end, segments[i].second - LBA_START + (i + 1 < segments.size() ? segments[i + 1].first : sectors_count) - segments[i].first);
+        std::vector<uint8_t> wobble_buffer((size_t)(sectors_end * C4_WBL_SIZE * 10 / CHARACTER_SLOTS_X10));
+        size_t segment_index = 0;
+        size_t previous_slot = 0;
+        int64_t previous_index = -1;
+        for(auto [slot, character] : characters)
+        {
+            bool adjacent = previous_index >= 0 && (slot - previous_slot) * 10 < CHARACTER_SLOTS_X10 + CHARACTER_SLOTS_X10 / 11;
+            for(; segment_index + 1 < segments.size() && (size_t)segments[segment_index + 1].first * C4_WBL_SIZE <= slot; adjacent = false)
+                ++segment_index;
+
+            const auto &[source_index, lba] = segments[segment_index];
+            // a character that starts within one bit of the end of the previous one takes the next byte, so start bit jitter cannot split a string
+            int64_t index = adjacent ? previous_index + 1 : ((int64_t)(lba - LBA_START - source_index) * C4_WBL_SIZE + (int64_t)slot) * 10 / CHARACTER_SLOTS_X10;
+            previous_slot = slot;
+            previous_index = index;
+            if(index < 0)
+                continue;
+
+            if(wobble_buffer.size() <= (size_t)index)
+                wobble_buffer.resize(index + 1);
+            wobble_buffer[index] = character;
+        }
+        write_vector(image_prefix + ".wobble", wobble_buffer);
+    }
 }
 
 
@@ -75,6 +171,13 @@ int capture_spiral(Context &ctx, Options &options, bool wobble)
     for(const auto &extension : extensions)
         if(!options.overwrite && std::filesystem::exists(image_prefix + extension))
             throw_line("dump already exists (image name: {})", options.image_name);
+    // the demodulated output belongs to the wobble capture and is replaced with it
+    if(wobble)
+    {
+        if(!options.overwrite && std::filesystem::exists(image_prefix + ".wobble"))
+            throw_line("dump already exists (image name: {})", options.image_name);
+        std::filesystem::remove(image_prefix + ".wobble");
+    }
 
     seek_spiral_start(*ctx.sptd);
 
@@ -241,6 +344,13 @@ int capture_spiral(Context &ctx, Options &options, bool wobble)
     if(!wobble)
         LOG("  C2: {}", errors_c2);
     LOG("  Q: {}", errors_q);
+
+    // an interrupted capture is demodulated as well, nothing else can do it later
+    if(wobble)
+    {
+        LOG("");
+        convert_spiral_wobble(image_prefix, options.spiraldrive_batch_size);
+    }
 
     if(signal.interrupt())
         signal.raiseDefault();

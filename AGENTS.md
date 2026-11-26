@@ -59,11 +59,15 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Map discontinuous SpiralDrive captures into source-ordered segments starting at the first valid Q that reveals each jump, or at the first lead-in Q when a forward jump follows a lead-in; later segments overwrite all earlier stream data at overlapping LBAs regardless of quality.
 - Print conversion segments like `cd_split.ixx` offset statistics: LBA range `[start .. end)`, sector count, and jump; omit indices, gap listings, and aggregate coverage/session summaries.
 - Derive TOC encoding from `cd/toc.ixx` first; consult stock firmware only for fields the decoder does not cover.
-- SpiralDrive C4 READ frames are DATA/C2/SUB, dumped by `spiral::dump` with Q taken from raw SUB. C4 Q_WOBBLE frames are SUBQ/WBL, dumped by `spiral::wobble` into `.subq.raw` and `.wbl.raw` as a separate capture with the same end limits.
-- `spiral::dump` compensates the drive read offset when writing `.main.raw` and `.c2.raw`, and the drive C2 shift in `.c2.raw`; `spiral::convert` applies no offset.
+- SpiralDrive C4 READ frames are DATA/C2/SUB, dumped by `spiral::dump` with Q taken from raw SUB. C4 Q_WOBBLE frames are SUBQ/WBL, dumped by `spiral::wobble` into `.subq.raw` and `.wbl.raw` as a separate capture with the same end limits and demodulated into `.wobble` at the end of the same run, also when the capture is interrupted.
+- `spiral::dump` compensates the drive read offset when writing `.main.raw` and `.c2.raw`, and the drive C2 shift in `.c2.raw`; `spiral::refine` applies no offset.
+- `spiral::refine` creates the image from a capture when it does not exist and otherwise merges the capture into it by sample state only: a sample is taken only where the capture state is better, data is never compared, and a clean image sample is never updated.
+- The `spiral::refine` capture prefix option defaults to the image prefix, and the overwrite option has no effect on it; an existing image is always merged into.
+- `spiral::refine` produces TOC, FULL TOC, PMA and CD-TEXT files only in the run that creates the image; later runs never write or compare them.
 - Store the 24-byte wobble envelope of each frame unchanged in `.wbl.raw`, two sectors after the frame's Q position, because the wobble is sampled two sectors ahead of the subcode (measured only on PX-W5224A).
-- SpiralDrive conversion places the wobble capture by its own `.subq.raw`, which is its sector-count authority, and skips it without a message when `.wbl.raw` is absent.
-- SpiralDrive conversion demodulates `.wbl.raw` into `.wobble`, one byte per character time of 3.3 sectors (10 bytes per 33 sectors) counted from LBA_START, holding the serial character that starts there or zero.
+- `spiral::wobble` places the wobble capture by its own `.subq.raw`, which is its sector-count authority, using the subcode analyzer shared with `spiral::refine`.
+- `spiral::refine` handles no wobble data.
+- `spiral::wobble` demodulates `.wbl.raw` into `.wobble`, one byte per character time of 3.3 sectors (10 bytes per 33 sectors) counted from LBA_START, holding the serial character that starts there or zero.
 - Flash SpiralDrive firmware directly with `redumper flash::plextor`, without backing up the running image.
 - Never change the SpiralDrive firmware version or the Redumper minimum SpiralDrive version unless explicitly asked.
 - If `../spiraldrive` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware with a fully annotated Ghidra project, and the custom SpiralDrive firmware implementation based on it. Consult it for any aspect of SpiralDrive development. The Ghidra project, available through MCP, is the source of truth for stock firmware behavior; do not rely on the decomp sources.

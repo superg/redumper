@@ -78,6 +78,8 @@ export struct Options
     bool spiraldrive_dreamcast;
     bool spiraldrive_dreamcast_disable;
     int spiraldrive_leadout_sectors;
+    int spiraldrive_batch_size;
+    std::string spiraldrive_capture;
     bool overread_leadout;
     bool force_unscrambled;
     bool force_refine;
@@ -99,6 +101,7 @@ export struct Options
     static constexpr int cdr_error_threshold_default = 16;
     static constexpr int scsi_timeout_default = 50000;
     static constexpr int SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT = 100;
+    static constexpr int SPIRALDRIVE_BATCH_SIZE_DEFAULT = 16;
 
 
     Options(int argc, const char *argv[])
@@ -139,6 +142,7 @@ export struct Options
         , spiraldrive_dreamcast(false)
         , spiraldrive_dreamcast_disable(false)
         , spiraldrive_leadout_sectors(SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT)
+        , spiraldrive_batch_size(SPIRALDRIVE_BATCH_SIZE_DEFAULT)
         , overread_leadout(false)
         , force_unscrambled(false)
         , force_refine(false)
@@ -332,6 +336,10 @@ export struct Options
                         spiraldrive_dreamcast_disable = true;
                     else if(key == "--spiraldrive-leadout-sectors")
                         i_value = &spiraldrive_leadout_sectors;
+                    else if(key == "--spiraldrive-batch-size")
+                        i_value = &spiraldrive_batch_size;
+                    else if(key == "--spiraldrive-capture")
+                        s_value = &spiraldrive_capture;
                     else if(key == "--overread-leadout")
                         overread_leadout = true;
                     else if(key == "--force-unscrambled")
@@ -408,7 +416,9 @@ export struct Options
         LOG("\tdisc          \taggregate mode that does everything (default)");
         LOG("\tdump          \tdumps disc to primary dump files");
         LOG("\tspiral::dump  \tdumps the physical CD stream using SpiralDrive firmware");
+        LOG("\tspiral::wobble\tdumps the Q subchannel and wobble envelope of the physical CD stream using SpiralDrive firmware and demodulates the wobble data");
         LOG("\tspiral::dreamcast\tenables or disables GD-ROM HD session using SpiralDrive firmware");
+        LOG("\tspiral::refine\tcreates or refines redumper output files from a physical CD capture");
         LOG("\tdump::extra   \tdumps extended disc areas such as lead-in and lead-out using specific drives");
         LOG("\trefine        \trefines dump files by re-reading the disc");
         LOG("\tdvdkey        \textracts DVD CSS keys from the disc or cracks title keys on region mismatch");
@@ -489,6 +499,8 @@ export struct Options
         LOG("\t--spiraldrive-dreamcast         \tenable GD-ROM HD session before disc commands, spiral::dump: continue past SD lead-out");
         LOG("\t--spiraldrive-dreamcast-disable \tdisable GD-ROM HD session");
         LOG("\t--spiraldrive-leadout-sectors=VALUE\tnumber of lead-out sectors to overread (default: {})", SPIRALDRIVE_LEADOUT_SECTORS_DEFAULT);
+        LOG("\t--spiraldrive-batch-size=VALUE  \tnumber of frames per read command (default: {})", SPIRALDRIVE_BATCH_SIZE_DEFAULT);
+        LOG("\t--spiraldrive-capture=VALUE     \tcapture files prefix to refine the image from (default: image prefix)");
         LOG("");
         LOG("\t(miscellaneous)");
         LOG("\t--continue=VALUE                \tcontinue \"disc\" command starting from VALUE command");

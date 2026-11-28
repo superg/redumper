@@ -81,7 +81,7 @@ bool sector_data_complete(std::span<const State> sector_state, std::span<const u
 }
 
 
-bool sector_data_state_update(std::span<State> sector_state, std::span<uint8_t> sector_data, std::span<const State> sector_state_in, std::span<const uint8_t> sector_data_in,
+export bool sector_data_state_update(std::span<State> sector_state, std::span<uint8_t> sector_data, std::span<const State> sector_state_in, std::span<const uint8_t> sector_data_in,
     std::span<const uint8_t> sector_protection)
 {
     bool updated = false;
@@ -104,7 +104,7 @@ bool sector_data_state_update(std::span<State> sector_state, std::span<uint8_t> 
 }
 
 
-bool sector_subcode_update(std::span<uint8_t> sector_subcode, std::span<const uint8_t> sector_subcode_in)
+export bool sector_subcode_update(std::span<uint8_t> sector_subcode, std::span<const uint8_t> sector_subcode_in)
 {
     bool updated = false;
 

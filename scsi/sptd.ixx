@@ -73,9 +73,15 @@ public:
         if(device_name.size() == 1)
             device_name += ':';
 
-        _handle = CreateFile(std::format("//./{}", device_name).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+        // the volume lock below requires a handle opened with both share modes
+        _handle = CreateFile(std::format("//./{}", device_name).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
         if(_handle == INVALID_HANDLE_VALUE)
             throw_line("unable to open drive ({}, SYSTEM: {})", drive_path, getLastError());
+
+        // keeps the file system and other programs from reading the disc, the lock ends with the handle
+        DWORD bytes_returned;
+        if(DeviceIoControl(_handle, FSCTL_LOCK_VOLUME, nullptr, 0, nullptr, 0, &bytes_returned, nullptr) != TRUE)
+            LOG("warning: unable to lock drive ({}, SYSTEM: {})", drive_path, getLastError());
 #elif defined(__APPLE__)
         unmountDisk(drive_path);
 

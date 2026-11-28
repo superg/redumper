@@ -1,10 +1,11 @@
 module;
+#include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <list>
 #include <map>
 #include <memory>
 #include <optional>
@@ -17,9 +18,6 @@ module;
 
 export module cd.split;
 
-import analyzers.analyzer;
-import analyzers.silence_analyzer;
-import analyzers.sync_analyzer;
 import cd.cd;
 import cd.cdrom;
 import cd.common;
@@ -51,6 +49,15 @@ namespace gpsxre
 const uint32_t OFFSET_DEVIATION_MAX = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
 const uint32_t OFFSET_SHIFT_MAX_SECTORS = 4;
 const uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
+
+
+// run of consecutive data sectors
+struct SyncRecord
+{
+    int32_t lba;
+    uint32_t count;
+    int32_t sample_offset;
+};
 
 
 int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs, const std::vector<uint8_t> &magic)
@@ -182,24 +189,27 @@ bool sector_is_protected(int32_t lba, std::shared_ptr<const OffsetManager> offse
 }
 
 
-bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection,
-    bool cdr, const Options &options)
+bool check_tracks(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream &state_fs, std::shared_ptr<const OffsetManager> offset_manager, const std::vector<Range<int32_t>> &protection, bool cdr,
+    bool gdrom, const Options &options)
 {
     bool errors = false;
 
     std::vector<State> state(CD_DATA_SIZE_SAMPLES);
 
-    for(auto const &se : toc.sessions)
+    for(auto &se : toc.sessions)
     {
         uint32_t c2_sectors_last = 0;
 
-        for(auto const &t : se.tracks)
+        for(auto &t : se.tracks)
         {
             // skip empty tracks
             if(t.lba_end == t.lba_start)
                 continue;
 
             bool data_track = t.control & (uint8_t)ChannelQ::Control::DATA;
+            // lead-in/lead-out data tracks with errors are skipped, audio ones only for GD-ROM
+            bool skip_allowed = optional_track(t.track_number) && (data_track || gdrom);
+            bool track_errors = false;
 
             uint32_t skip_samples = 0;
             uint32_t c2_samples = 0;
@@ -251,19 +261,20 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
             if(c2_sectors_last > options.cdr_error_threshold)
                 c2_sectors_last = 0;
 
-            if(skip_sectors && !optional_track(t.track_number) || c2_sectors)
+            if(skip_sectors || c2_sectors)
                 LOG("errors detected, track: {}, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", toc.getTrackString(t.track_number), skip_sectors, c2_sectors, skip_samples, c2_samples);
 
             if(skip_sectors && !optional_track(t.track_number))
-                errors = true;
-            else if(c2_sectors)
+                track_errors = true;
+            // lead-in/lead-out tracks start and end with a complete sector, skipped sectors inside are treated as C2 errors
+            else if(skip_sectors || c2_sectors)
             {
-                // CD-R specific checks
-                if(cdr)
+                // CD-R specific checks, skippable lead-in/lead-out tracks follow the regular rule
+                if(cdr && !skip_allowed)
                 {
                     // lead-in/lead-out areas may have manufacturing defects
                     if(optional_track(t.track_number))
-                        LOG("warning: CD-R lead-in/lead-out C2 errors detected");
+                        LOG("warning: CD-R lead-in/lead-out errors detected");
                     // data tracks may have leading/trailing C2 errors
                     else
                     {
@@ -274,12 +285,18 @@ bool check_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
 
                         // make sure there are no extra C2 errors except leading/trailing
                         if(c2_sectors_first + c2_sectors_last != c2_sectors)
-                            errors = true;
+                            track_errors = true;
                     }
                 }
                 else
-                    errors = true;
+                    track_errors = true;
             }
+
+            t.errors = track_errors;
+
+            // skippable tracks never fail the split
+            if(track_errors && !skip_allowed)
+                errors = true;
         }
     }
 
@@ -311,6 +328,10 @@ void write_tracks(Context &ctx, const TOC &toc, std::fstream &scm_fs, std::fstre
             std::string track_string = toc.getTrackString(t.track_number);
             bool lilo = t.track_number == 0x00 || t.track_number == bcd_decode(CD_LEADOUT_TRACK_NUMBER);
             bool patched_pid = false;
+
+            // lead-in/lead-out tracks with errors are not created, the check stage already failed for those that are not skippable
+            if(lilo && t.errors && !options.force_split)
+                continue;
 
             // add session number to lead-in/lead-out track string to make filename unique
             if(lilo && toc.sessions.size() > 1)
@@ -528,22 +549,89 @@ std::vector<std::pair<int32_t, int32_t>> audio_get_toc_index0_ranges(const TOC &
 }
 
 
-void analyze_scram_samples(std::fstream &scm_fs, std::fstream &state_fs, uint32_t samples_count, uint32_t batch_size, const std::list<std::shared_ptr<Analyzer>> &analyzers)
+// one pass over scrambled samples, collects silence ranges of each silence level and runs of consecutive data sectors found by sync
+void analyze_scram_samples(std::vector<std::vector<std::pair<int32_t, int32_t>>> &silence_ranges, std::vector<SyncRecord> &sync_records, std::fstream &scm_fs, std::fstream &state_fs,
+    uint32_t samples_count, uint16_t silence_threshold, uint32_t silence_samples_min)
 {
-    std::vector<uint32_t> samples(batch_size);
-    std::vector<State> state(batch_size);
+    constexpr uint32_t BATCH_SIZE = CD_DATA_SIZE_SAMPLES * 1024;
+    constexpr uint32_t SYNC_SIZE_SAMPLES = sizeof(CD_DATA_SYNC) / CD_SAMPLE_SIZE;
 
-    batch_process_range<uint32_t>(std::pair(0, samples_count), batch_size,
-        [&scm_fs, &state_fs, &samples, &state, &analyzers](int32_t offset, int32_t size) -> bool
+    std::vector<uint32_t> samples(BATCH_SIZE);
+    std::vector<State> state(BATCH_SIZE);
+
+    // a level is silent while the sample magnitude doesn't exceed it, so levels below the previous sample magnitude are not silent
+    int silence_levels = silence_threshold + 1;
+    int silence_level = 0;
+    std::vector<int32_t> silence_start(silence_levels, -(int32_t)silence_samples_min);
+    silence_ranges.assign(silence_levels, std::vector<std::pair<int32_t, int32_t>>());
+
+    uint32_t sync_search = 0;
+
+    for(uint32_t offset = 0; offset < samples_count; offset += BATCH_SIZE)
+    {
+        uint32_t size = std::min(BATCH_SIZE, samples_count - offset);
+        read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset, size, 0, 0);
+        read_entry(state_fs, (uint8_t *)state.data(), sizeof(State), offset, size, 0, (uint8_t)State::ERROR_SKIP);
+
+        for(uint32_t i = 0; i < size; ++i)
         {
-            read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset, size, 0, 0);
-            read_entry(state_fs, (uint8_t *)state.data(), 1, offset, size, 0, (uint8_t)State::ERROR_SKIP);
+            uint32_t position = offset + i;
 
-            for(auto const &a : analyzers)
-                a->process(samples.data(), state.data(), size, offset);
+            // only levels between the previous and the current sample magnitude change their state
+            auto sample = (int16_t *)&samples[i];
+            int magnitude = std::min(std::max(std::abs(sample[0]), std::abs(sample[1])), silence_levels);
+            for(; silence_level < magnitude; ++silence_level)
+                if(position - silence_start[silence_level] >= silence_samples_min)
+                    silence_ranges[silence_level].emplace_back(silence_start[silence_level], position);
+            for(; silence_level > magnitude; --silence_level)
+                silence_start[silence_level - 1] = position;
 
-            return false;
-        });
+            if(state[i] == State::ERROR_SKIP || state[i] == State::ERROR_C2)
+                sync_search = 0;
+            else if(sync_search < SYNC_SIZE_SAMPLES)
+                sync_search = samples[i] == ((uint32_t *)CD_DATA_SYNC)[sync_search] ? sync_search + 1 : 0;
+            else
+            {
+                MSF msf;
+                Scrambler::process((uint8_t *)&msf, (uint8_t *)&samples[i], sizeof(CD_DATA_SYNC), sizeof(msf));
+
+                SyncRecord record{ BCDMSF_to_LBA(msf), 1, sample_offset_a2r(position - SYNC_SIZE_SAMPLES) };
+
+                // a sector that continues the address flow of the last record extends it
+                bool extend = false;
+                if(!sync_records.empty())
+                {
+                    auto &b = sync_records.back();
+
+                    uint32_t offset_diff = record.sample_offset - b.sample_offset;
+                    int32_t range_diff = record.lba - b.lba;
+                    extend = range_diff * CD_DATA_SIZE_SAMPLES == offset_diff;
+                    if(extend)
+                        b.count = range_diff + 1;
+                }
+                if(!extend)
+                    sync_records.push_back(record);
+
+                sync_search = 0;
+            }
+        }
+    }
+
+    // every level ends with its trailing silence, leading and trailing silence are unbounded
+    int32_t base = LBA_START * CD_DATA_SIZE_SAMPLES;
+    for(int i = 0; i < silence_levels; ++i)
+    {
+        auto &ranges = silence_ranges[i];
+
+        ranges.emplace_back(i < silence_level ? samples_count : silence_start[i], 0);
+        for(auto &r : ranges)
+        {
+            r.first += base;
+            r.second += base;
+        }
+        ranges.front().first = std::numeric_limits<int32_t>::min();
+        ranges.back().second = std::numeric_limits<int32_t>::max();
+    }
 }
 
 
@@ -847,25 +935,24 @@ int32_t sample_offset_to_write_offset(int32_t scram_sample_offset, int32_t lba)
 }
 
 
-void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
+// returns true if the write offsets of two records differ by less than the maximum offset shift
+bool disc_offset_records_in_flow(const SyncRecord &r1, const SyncRecord &r2)
 {
-    // correct lead-in lba
-    for(uint32_t i = 0; i < records.size(); ++i)
-    {
-        if(records[i].sample_offset <= 0 && (int32_t)(records[i].sample_offset + records[i].count * CD_DATA_SIZE_SAMPLES) > 0)
-        {
-            for(uint32_t j = i; j; --j)
-            {
-                auto &p = records[j - 1];
+    int32_t offset_diff = sample_offset_to_write_offset(r1.sample_offset, r1.lba) - sample_offset_to_write_offset(r2.sample_offset, r2.lba);
 
-                uint32_t count = scale_up(records[j].sample_offset - p.sample_offset, CD_DATA_SIZE_SAMPLES);
-                p.lba = records[j].lba - count;
-            }
+    return (uint32_t)std::abs(offset_diff) < OFFSET_SHIFT_MAX_SECTORS * CD_DATA_SIZE_SAMPLES;
+}
 
-            break;
-        }
-    }
 
+// sets the record LBA that brings its write offset nearest to the write offset of the reference record
+void disc_offset_derive_record_lba(SyncRecord &record, const SyncRecord &reference)
+{
+    record.lba = sample_to_lba(record.sample_offset + (int32_t)CD_DATA_SIZE_SAMPLES / 2, sample_offset_to_write_offset(reference.sample_offset, reference.lba));
+}
+
+
+void disc_offset_normalize_records(std::vector<SyncRecord> &records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
+{
     // proactively erase false sync frames (if that ever happens)
     for(auto it = records.begin(); it != records.end();)
     {
@@ -874,6 +961,38 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
         else
             ++it;
     }
+
+    if(records.empty())
+        return;
+
+    // program area address flow starts at the record nearest to its position and extends both ways over records that continue it
+    auto anchor = std::min_element(records.begin(), records.end(), [](const SyncRecord &r1, const SyncRecord &r2)
+        { return std::abs(sample_offset_to_write_offset(r1.sample_offset, r1.lba)) < std::abs(sample_offset_to_write_offset(r2.sample_offset, r2.lba)); });
+    uint32_t flow_start = anchor - records.begin();
+    uint32_t flow_end = flow_start + 1;
+    std::vector<bool> flow(records.size(), false);
+    flow[flow_start] = true;
+    for(uint32_t i = flow_start; i; --i)
+        if(disc_offset_records_in_flow(records[i - 1], records[flow_start]))
+        {
+            flow_start = i - 1;
+            flow[flow_start] = true;
+        }
+    for(uint32_t i = flow_end; i < records.size(); ++i)
+        if(disc_offset_records_in_flow(records[i], records[flow_end - 1]))
+        {
+            flow[i] = true;
+            flow_end = i + 1;
+        }
+
+    // a record outside the flow (lead-in) takes its LBA from the record that follows it
+    for(uint32_t i = flow_end - 1; i; --i)
+        if(!flow[i - 1])
+            disc_offset_derive_record_lba(records[i - 1], records[i]);
+
+    // nothing in the flow follows the trailing records, use the preceding one
+    for(uint32_t i = flow_end; i < records.size(); ++i)
+        disc_offset_derive_record_lba(records[i], records[i - 1]);
 
     // merge offset groups
     for(bool merge = true; merge;)
@@ -1093,26 +1212,20 @@ export void redumper_split_cd(Context &ctx, Options &options)
             LOG("warning: failed to parse CD-TEXT data");
     }
 
-    std::list<std::shared_ptr<Analyzer>> analyzers;
-
     auto index0_ranges = audio_get_toc_index0_ranges(toc);
 
     uint32_t samples_min = std::numeric_limits<uint32_t>::max();
     std::for_each(index0_ranges.begin(), index0_ranges.end(), [&samples_min](const std::pair<int32_t, int32_t> &r) { samples_min = std::min(samples_min, (uint32_t)(r.second - r.first)); });
-    auto silence_analyzer = std::make_shared<SilenceAnalyzer>(options.audio_silence_threshold, samples_min);
-    analyzers.emplace_back(silence_analyzer);
 
-    auto sync_analyzer = std::make_shared<SyncAnalyzer>();
-    analyzers.emplace_back(sync_analyzer);
+    std::vector<std::vector<std::pair<int32_t, int32_t>>> silence_ranges;
+    std::vector<SyncRecord> sync_records;
 
     LOG_F("analyzing... ");
     auto analysis_time_start = std::chrono::high_resolution_clock::now();
-    analyze_scram_samples(scm_fs, state_fs, std::filesystem::file_size(scm_path), CD_DATA_SIZE_SAMPLES, analyzers);
+    analyze_scram_samples(silence_ranges, sync_records, scm_fs, state_fs, std::filesystem::file_size(scm_path) / CD_SAMPLE_SIZE, options.audio_silence_threshold, samples_min);
     auto analysis_time_stop = std::chrono::high_resolution_clock::now();
     LOG("done (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(analysis_time_stop - analysis_time_start).count());
     LOG("");
-
-    auto silence_ranges = silence_analyzer->ranges();
 
     std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_start * CD_DATA_SIZE_SAMPLES);
     auto nonzero_data_range = std::pair(silence_ranges.front().front().second, silence_ranges.front().back().first);
@@ -1122,8 +1235,6 @@ export void redumper_split_cd(Context &ctx, Options &options)
     // data track
     if(offsets.empty())
     {
-        auto sync_records = sync_analyzer->getRecords();
-
         bool data_track = false;
         for(auto const &o : sync_records)
             if(o.count >= CD_PREGAP_SIZE)
@@ -1390,7 +1501,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
             auto t_00 = t;
 
             t_00.track_number = 0;
-            t_00.lba_start = leadin_start;
+            t_00.lba_start = leadin_end - nonzero_count;
             t_00.lba_end = leadin_end;
             t_00.indices.clear();
 
@@ -1446,7 +1557,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
 
     // check tracks
     LOG("checking tracks");
-    if(check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, cdr, options) && !options.force_split)
+    if(check_tracks(ctx, toc, scm_fs, state_fs, offset_manager, protection, cdr, gdrom, options) && !options.force_split)
         throw_line("data errors detected, unable to continue");
     LOG("done");
     LOG("");

@@ -97,6 +97,31 @@ static std::vector<uint8_t> reference_write(std::vector<uint8_t> file, const std
 }
 
 
+TEST(FileIO, fills_gaps_and_preserves_existing_bytes)
+{
+    TestFile file;
+    const std::vector<uint8_t> data{ 0xAB, 0xCD, 0xEF };
+    for(bool exceptions : { false, true })
+    {
+        file.reset({ 0x12, 0x34 }, exceptions);
+        write_entry(file.fs, data.data(), 1, 5, data.size(), 0, 0x7E);
+        EXPECT_EQ(file.contents(), (std::vector<uint8_t>{ 0x12, 0x34, 0x7E, 0x7E, 0x7E, 0xAB, 0xCD, 0xEF }));
+
+        write_entry(file.fs, data.data(), 1, 1, data.size(), 0, 0xFF);
+        EXPECT_EQ(file.contents(), (std::vector<uint8_t>{ 0x12, 0xAB, 0xCD, 0xEF, 0x7E, 0xAB, 0xCD, 0xEF }));
+
+        write_entry(file.fs, data.data(), 1, 0, data.size(), 2, 0xFF);
+        EXPECT_EQ(file.contents(), (std::vector<uint8_t>{ 0xEF, 0xAB, 0xCD, 0xEF, 0x7E, 0xAB, 0xCD, 0xEF }));
+        write_entry(file.fs, data.data(), 1, 0, data.size(), 3, 0xFF);
+        EXPECT_EQ(file.contents(), (std::vector<uint8_t>{ 0xEF, 0xAB, 0xCD, 0xEF, 0x7E, 0xAB, 0xCD, 0xEF }));
+
+        file.reset({ 0x12 }, exceptions);
+        write_entry(file.fs, data.data(), 1, 3, data.size(), 0);
+        EXPECT_EQ(file.contents(), (std::vector<uint8_t>{ 0x12, 0, 0, 0xAB, 0xCD, 0xEF }));
+    }
+}
+
+
 TEST(FileIOBit, matches_bit_reference)
 {
     TestFile file;

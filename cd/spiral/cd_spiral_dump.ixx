@@ -44,6 +44,8 @@ constexpr uint16_t C4_TIMEOUT_MS = 5000;
 constexpr uint32_t C4_WBL_SIZE = 24;
 // the wobble of a frame is sampled this many sectors ahead of its subcode, measured only on PX-W5224A
 constexpr uint32_t C4_WBL_LEAD_SECTORS = 2;
+// one character time is 3.3 sectors, in envelope slots times ten
+constexpr int64_t CHARACTER_SLOTS_X10 = C4_WBL_SIZE * 33;
 
 
 void seek_spiral_start(SPTD &sptd)
@@ -93,6 +95,20 @@ std::vector<std::pair<size_t, uint8_t>> decode_spiral_wobble(std::span<const uin
 }
 
 
+// a later segment replaces what earlier ones placed in the character times it fully covers, also where it has no character
+void clear_spiral_wobble_segment(std::span<uint8_t> wobble, const std::vector<std::pair<int32_t, int32_t>> &segments, size_t segment_index, int32_t sectors_count)
+{
+    const auto &[source_index, lba] = segments[segment_index];
+    int32_t count = (segment_index + 1 < segments.size() ? segments[segment_index + 1].first : sectors_count) - source_index;
+    int64_t slot_start = (int64_t)(lba - LBA_START) * C4_WBL_SIZE;
+    int64_t slot_end = slot_start + (int64_t)count * C4_WBL_SIZE;
+    int64_t index_start = std::max<int64_t>(scale_up(slot_start * 10, (uint64_t)CHARACTER_SLOTS_X10), 0);
+    int64_t index_end = std::min<int64_t>(slot_end * 10 / CHARACTER_SLOTS_X10, wobble.size());
+    if(index_start < index_end)
+        std::fill(wobble.begin() + index_start, wobble.begin() + index_end, 0);
+}
+
+
 // the wobble capture is its own stream, placed by the Q packets captured with it
 void convert_spiral_wobble(const std::string &image_prefix, int32_t batch_size)
 {
@@ -113,13 +129,12 @@ void convert_spiral_wobble(const std::string &image_prefix, int32_t batch_size)
     auto characters = decode_spiral_wobble(wbl_buffer);
     LOG("wobble characters: {}", characters.size());
 
-    // one byte per character time, 3.3 sectors, on the disc scale from LBA_START, zero where no character is found
-    constexpr int64_t CHARACTER_SLOTS_X10 = C4_WBL_SIZE * 33;
-    // the file covers the capture up to its last sector and is written even without characters
+    // one byte per character time on the disc scale from LBA_START, zero where no character is found
+    // the file covers the capture up to its last sector, a partial character time included, and is written even without characters
     int64_t sectors_end = 0;
     for(size_t i = 0; i < segments.size(); ++i)
         sectors_end = std::max<int64_t>(sectors_end, segments[i].second - LBA_START + (i + 1 < segments.size() ? segments[i + 1].first : sectors_count) - segments[i].first);
-    std::vector<uint8_t> wobble_buffer((size_t)(sectors_end * C4_WBL_SIZE * 10 / CHARACTER_SLOTS_X10));
+    std::vector<uint8_t> wobble_buffer((size_t)scale_up(sectors_end * C4_WBL_SIZE * 10, (uint64_t)CHARACTER_SLOTS_X10));
     size_t segment_index = 0;
     size_t previous_slot = 0;
     int64_t previous_index = -1;
@@ -127,7 +142,7 @@ void convert_spiral_wobble(const std::string &image_prefix, int32_t batch_size)
     {
         bool adjacent = previous_index >= 0 && (slot - previous_slot) * 10 < CHARACTER_SLOTS_X10 + CHARACTER_SLOTS_X10 / 11;
         for(; segment_index + 1 < segments.size() && (size_t)segments[segment_index + 1].first * C4_WBL_SIZE <= slot; adjacent = false)
-            ++segment_index;
+            clear_spiral_wobble_segment(wobble_buffer, segments, ++segment_index, sectors_count);
 
         const auto &[source_index, lba] = segments[segment_index];
         // a character that starts within one bit of the end of the previous one takes the next byte, so start bit jitter cannot split a string
@@ -141,6 +156,9 @@ void convert_spiral_wobble(const std::string &image_prefix, int32_t batch_size)
             wobble_buffer.resize(index + 1);
         wobble_buffer[index] = character;
     }
+    // segments after the last character replace earlier ones as well
+    for(++segment_index; segment_index < segments.size(); ++segment_index)
+        clear_spiral_wobble_segment(wobble_buffer, segments, segment_index, sectors_count);
     write_vector(image_prefix + ".wobble", wobble_buffer);
 }
 

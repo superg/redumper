@@ -67,7 +67,7 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 - Store the 24-byte wobble envelope of each frame unchanged in `.wbl.raw`, two sectors after the frame's Q position, because the wobble is sampled two sectors ahead of the subcode (measured only on PX-W5224A).
 - `spiral::wobble` places the wobble capture by its own `.subq.raw`, which is its sector-count authority, using the subcode analyzer shared with `spiral::refine`.
 - `spiral::refine` handles no wobble data.
-- `spiral::wobble` demodulates `.wbl.raw` into `.wobble`, one byte per character time of 3.3 sectors (10 bytes per 33 sectors) counted from LBA_START, holding the serial character that starts there or zero.
+- `spiral::wobble` demodulates `.wbl.raw` into `.wobble`, one byte per character time of 3.3 sectors (10 bytes per 33 sectors) counted from LBA_START, holding the serial character that starts there or zero. `.wobble` is always written, all zero when no character is found.
 - Flash SpiralDrive firmware directly with `redumper flash::plextor`, without backing up the running image.
 - Never change the SpiralDrive firmware version or the Redumper minimum SpiralDrive version unless explicitly asked.
 - If `../spiraldrive` exists, it contains decompiled, documented stock PLEXTOR PX-W5224A 1.04 drive firmware with a fully annotated Ghidra project, and the custom SpiralDrive firmware implementation based on it. Consult it for any aspect of SpiralDrive development. The Ghidra project, available through MCP, is the source of truth for stock firmware behavior; do not rely on the decomp sources.

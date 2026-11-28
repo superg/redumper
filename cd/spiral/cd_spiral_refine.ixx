@@ -340,7 +340,7 @@ export auto analyze_spiral_subcode(std::fstream &fs, uint32_t entry_size, int32_
                     program_area_seen = true;
                     if(!zero_index)
                     {
-                        if(current_zero_index < 0 || current_zero_index >= sectors_count)
+                        if(current_zero_index < 0)
                             throw_line("LBA 0 is outside the capture (sector index: {})", current_zero_index);
                         zero_index = current_zero_index;
                         segments.emplace_back(0, -*zero_index);
@@ -446,6 +446,10 @@ export int redumper_spiral_refine(Context &, Options &options)
 
     auto sectors_count = (int32_t)scale_up(std::filesystem::file_size(capture_prefix + ".sub.raw"), CD_SUBCODE_SIZE);
     auto [sessions, segments, cd_texts, pma] = analyze_spiral_subcode(fs_sub, CD_SUBCODE_SIZE, sectors_count, sub_buffer);
+
+    // the image needs a capture that reaches the program area, a wobble capture may end before it
+    if(int32_t zero_index = -segments.front().second; zero_index >= sectors_count)
+        throw_line("LBA 0 is outside the capture (sector index: {})", zero_index);
 
     LOG("segments:");
     int32_t previous_end = segments.front().second;

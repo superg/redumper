@@ -112,38 +112,48 @@ void convert_spiral_wobble(const std::string &image_prefix, int32_t batch_size)
     read_entry(fs_wbl, wbl_buffer.data(), C4_WBL_SIZE, 0, sectors_count, 0, 0);
     auto characters = decode_spiral_wobble(wbl_buffer);
     LOG("wobble characters: {}", characters.size());
-    if(!characters.empty())
+
+    // one byte per character time, 3.3 sectors, on the disc scale from LBA_START, zero where no character is found
+    constexpr int64_t CHARACTER_SLOTS_X10 = C4_WBL_SIZE * 33;
+    // the file covers the capture up to its last sector and is written even without characters
+    int64_t sectors_end = 0;
+    for(size_t i = 0; i < segments.size(); ++i)
+        sectors_end = std::max<int64_t>(sectors_end, segments[i].second - LBA_START + (i + 1 < segments.size() ? segments[i + 1].first : sectors_count) - segments[i].first);
+    std::vector<uint8_t> wobble_buffer((size_t)(sectors_end * C4_WBL_SIZE * 10 / CHARACTER_SLOTS_X10));
+    size_t segment_index = 0;
+    size_t previous_slot = 0;
+    int64_t previous_index = -1;
+    for(auto [slot, character] : characters)
     {
-        // one byte per character time, 3.3 sectors, on the disc scale from LBA_START, zero where no character is found
-        constexpr int64_t CHARACTER_SLOTS_X10 = C4_WBL_SIZE * 33;
-        // the file covers the capture up to its last sector
-        int64_t sectors_end = 0;
-        for(size_t i = 0; i < segments.size(); ++i)
-            sectors_end = std::max<int64_t>(sectors_end, segments[i].second - LBA_START + (i + 1 < segments.size() ? segments[i + 1].first : sectors_count) - segments[i].first);
-        std::vector<uint8_t> wobble_buffer((size_t)(sectors_end * C4_WBL_SIZE * 10 / CHARACTER_SLOTS_X10));
-        size_t segment_index = 0;
-        size_t previous_slot = 0;
-        int64_t previous_index = -1;
-        for(auto [slot, character] : characters)
-        {
-            bool adjacent = previous_index >= 0 && (slot - previous_slot) * 10 < CHARACTER_SLOTS_X10 + CHARACTER_SLOTS_X10 / 11;
-            for(; segment_index + 1 < segments.size() && (size_t)segments[segment_index + 1].first * C4_WBL_SIZE <= slot; adjacent = false)
-                ++segment_index;
+        bool adjacent = previous_index >= 0 && (slot - previous_slot) * 10 < CHARACTER_SLOTS_X10 + CHARACTER_SLOTS_X10 / 11;
+        for(; segment_index + 1 < segments.size() && (size_t)segments[segment_index + 1].first * C4_WBL_SIZE <= slot; adjacent = false)
+            ++segment_index;
 
-            const auto &[source_index, lba] = segments[segment_index];
-            // a character that starts within one bit of the end of the previous one takes the next byte, so start bit jitter cannot split a string
-            int64_t index = adjacent ? previous_index + 1 : ((int64_t)(lba - LBA_START - source_index) * C4_WBL_SIZE + (int64_t)slot) * 10 / CHARACTER_SLOTS_X10;
-            previous_slot = slot;
-            previous_index = index;
-            if(index < 0)
-                continue;
+        const auto &[source_index, lba] = segments[segment_index];
+        // a character that starts within one bit of the end of the previous one takes the next byte, so start bit jitter cannot split a string
+        int64_t index = adjacent ? previous_index + 1 : ((int64_t)(lba - LBA_START - source_index) * C4_WBL_SIZE + (int64_t)slot) * 10 / CHARACTER_SLOTS_X10;
+        previous_slot = slot;
+        previous_index = index;
+        if(index < 0)
+            continue;
 
-            if(wobble_buffer.size() <= (size_t)index)
-                wobble_buffer.resize(index + 1);
-            wobble_buffer[index] = character;
-        }
-        write_vector(image_prefix + ".wobble", wobble_buffer);
+        if(wobble_buffer.size() <= (size_t)index)
+            wobble_buffer.resize(index + 1);
+        wobble_buffer[index] = character;
     }
+    write_vector(image_prefix + ".wobble", wobble_buffer);
+}
+
+
+// the frame position is predicted from the latest confirmed Q, the end limit is exclusive and an explicit one replaces the limits found in Q
+bool spiral_end_reached(const Options &options, std::optional<int32_t> lba_end, std::optional<std::pair<int32_t, uint32_t>> q_lba, uint32_t lba_index)
+{
+    if(!q_lba)
+        return false;
+
+    int32_t lba = q_lba->first + (int32_t)(lba_index - q_lba->second);
+
+    return options.lba_end ? lba >= *options.lba_end : lba_end && lba >= *lba_end;
 }
 
 
@@ -171,15 +181,14 @@ int capture_spiral(Context &ctx, Options &options, bool wobble)
     for(const auto &extension : extensions)
         if(!options.overwrite && std::filesystem::exists(image_prefix + extension))
             throw_line("dump already exists (image name: {})", options.image_name);
-    // the demodulated output belongs to the wobble capture and is replaced with it
-    if(wobble)
-    {
-        if(!options.overwrite && std::filesystem::exists(image_prefix + ".wobble"))
-            throw_line("dump already exists (image name: {})", options.image_name);
-        std::filesystem::remove(image_prefix + ".wobble");
-    }
+    if(wobble && !options.overwrite && std::filesystem::exists(image_prefix + ".wobble"))
+        throw_line("dump already exists (image name: {})", options.image_name);
 
     seek_spiral_start(*ctx.sptd);
+
+    // the demodulated output belongs to the wobble capture and is replaced with it, a failed positioning keeps the previous one
+    if(wobble)
+        std::filesystem::remove(image_prefix + ".wobble");
 
     std::vector<std::fstream> files;
     for(const auto &extension : extensions)
@@ -204,9 +213,9 @@ int capture_spiral(Context &ctx, Options &options, bool wobble)
 
     bool last_session_message = false;
     SignalINT signal;
-    bool end = false;
     uint32_t lba_index = 0;
-    while(!end && !signal.interrupt())
+    // checked before each command as well, so no batch is read when the previous one ended right at the limit
+    while(!spiral_end_reached(options, lba_end, q_lba, lba_index) && !signal.interrupt())
     {
         uint32_t transferred_size = 0;
         auto status = cmd_spiraldrive(*ctx.sptd, buffer.data(), (uint32_t)buffer.size(), wobble ? SpiralDrive_Operation::Q_WOBBLE : SpiralDrive_Operation::READ, C4_TIMEOUT_MS,
@@ -228,17 +237,9 @@ int capture_spiral(Context &ctx, Options &options, bool wobble)
 
         for(uint32_t i = 0; i < frames_count; ++i)
         {
-            if(q_lba)
-            {
-                int32_t lba = q_lba->first + (int32_t)(lba_index - q_lba->second);
-
-                // the remaining frames of the batch lie past the end limit
-                if(options.lba_end ? lba >= *options.lba_end : lba_end && lba >= *lba_end)
-                {
-                    end = true;
-                    break;
-                }
-            }
+            // the remaining frames of the batch lie past the end limit
+            if(spiral_end_reached(options, lba_end, q_lba, lba_index))
+                break;
 
             // the parts of the other frame layout are empty
             uint8_t *sector = buffer.data() + i * frame_size;

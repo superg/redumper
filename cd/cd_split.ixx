@@ -261,19 +261,20 @@ bool check_tracks(Context &ctx, TOC &toc, std::fstream &scm_fs, std::fstream &st
             if(c2_sectors_last > options.cdr_error_threshold)
                 c2_sectors_last = 0;
 
-            if(skip_sectors && !optional_track(t.track_number) || c2_sectors)
+            if(skip_sectors || c2_sectors)
                 LOG("errors detected, track: {}, sectors: {{SKIP: {}, C2: {}}}, samples: {{SKIP: {}, C2: {}}}", toc.getTrackString(t.track_number), skip_sectors, c2_sectors, skip_samples, c2_samples);
 
             if(skip_sectors && !optional_track(t.track_number))
                 track_errors = true;
-            else if(c2_sectors)
+            // lead-in/lead-out tracks start and end with a complete sector, skipped sectors inside are treated as C2 errors
+            else if(skip_sectors || c2_sectors)
             {
                 // CD-R specific checks, skippable lead-in/lead-out tracks follow the regular rule
                 if(cdr && !skip_allowed)
                 {
                     // lead-in/lead-out areas may have manufacturing defects
                     if(optional_track(t.track_number))
-                        LOG("warning: CD-R lead-in/lead-out C2 errors detected");
+                        LOG("warning: CD-R lead-in/lead-out errors detected");
                     // data tracks may have leading/trailing C2 errors
                     else
                     {
@@ -1500,7 +1501,7 @@ export void redumper_split_cd(Context &ctx, Options &options)
             auto t_00 = t;
 
             t_00.track_number = 0;
-            t_00.lba_start = leadin_start;
+            t_00.lba_start = leadin_end - nonzero_count;
             t_00.lba_end = leadin_end;
             t_00.indices.clear();
 

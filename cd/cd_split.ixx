@@ -6,7 +6,6 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <list>
 #include <map>
 #include <memory>
 #include <optional>
@@ -19,9 +18,6 @@ module;
 
 export module cd.split;
 
-import analyzers.analyzer;
-import analyzers.silence_analyzer;
-import analyzers.sync_analyzer;
 import cd.cd;
 import cd.cdrom;
 import cd.common;
@@ -53,6 +49,15 @@ namespace gpsxre
 const uint32_t OFFSET_DEVIATION_MAX = CD_PREGAP_SIZE * CD_DATA_SIZE_SAMPLES;
 const uint32_t OFFSET_SHIFT_MAX_SECTORS = 4;
 const uint32_t OFFSET_SHIFT_SYNC_TOLERANCE = 2;
+
+
+// run of consecutive data sectors
+struct SyncRecord
+{
+    int32_t lba;
+    uint32_t count;
+    int32_t sample_offset;
+};
 
 
 int32_t byte_offset_by_magic(int32_t lba_start, int32_t lba_end, std::fstream &state_fs, std::fstream &scm_fs, const std::vector<uint8_t> &magic)
@@ -543,22 +548,89 @@ std::vector<std::pair<int32_t, int32_t>> audio_get_toc_index0_ranges(const TOC &
 }
 
 
-void analyze_scram_samples(std::fstream &scm_fs, std::fstream &state_fs, uint32_t samples_count, uint32_t batch_size, const std::list<std::shared_ptr<Analyzer>> &analyzers)
+// one pass over scrambled samples, collects silence ranges of each silence level and runs of consecutive data sectors found by sync
+void analyze_scram_samples(std::vector<std::vector<std::pair<int32_t, int32_t>>> &silence_ranges, std::vector<SyncRecord> &sync_records, std::fstream &scm_fs, std::fstream &state_fs,
+    uint32_t samples_count, uint16_t silence_threshold, uint32_t silence_samples_min)
 {
-    std::vector<uint32_t> samples(batch_size);
-    std::vector<State> state(batch_size);
+    constexpr uint32_t BATCH_SIZE = CD_DATA_SIZE_SAMPLES * 1024;
+    constexpr uint32_t SYNC_SIZE_SAMPLES = sizeof(CD_DATA_SYNC) / CD_SAMPLE_SIZE;
 
-    batch_process_range<uint32_t>(std::pair(0, samples_count), batch_size,
-        [&scm_fs, &state_fs, &samples, &state, &analyzers](int32_t offset, int32_t size) -> bool
+    std::vector<uint32_t> samples(BATCH_SIZE);
+    std::vector<State> state(BATCH_SIZE);
+
+    // a level is silent while the sample magnitude doesn't exceed it, so levels below the previous sample magnitude are not silent
+    int silence_levels = silence_threshold + 1;
+    int silence_level = 0;
+    std::vector<int32_t> silence_start(silence_levels, -(int32_t)silence_samples_min);
+    silence_ranges.assign(silence_levels, std::vector<std::pair<int32_t, int32_t>>());
+
+    uint32_t sync_search = 0;
+
+    for(uint32_t offset = 0; offset < samples_count; offset += BATCH_SIZE)
+    {
+        uint32_t size = std::min(BATCH_SIZE, samples_count - offset);
+        read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset, size, 0, 0);
+        read_entry(state_fs, (uint8_t *)state.data(), sizeof(State), offset, size, 0, (uint8_t)State::ERROR_SKIP);
+
+        for(uint32_t i = 0; i < size; ++i)
         {
-            read_entry(scm_fs, (uint8_t *)samples.data(), CD_SAMPLE_SIZE, offset, size, 0, 0);
-            read_entry(state_fs, (uint8_t *)state.data(), 1, offset, size, 0, (uint8_t)State::ERROR_SKIP);
+            uint32_t position = offset + i;
 
-            for(auto const &a : analyzers)
-                a->process(samples.data(), state.data(), size, offset);
+            // only levels between the previous and the current sample magnitude change their state
+            auto sample = (int16_t *)&samples[i];
+            int magnitude = std::min(std::max(std::abs(sample[0]), std::abs(sample[1])), silence_levels);
+            for(; silence_level < magnitude; ++silence_level)
+                if(position - silence_start[silence_level] >= silence_samples_min)
+                    silence_ranges[silence_level].emplace_back(silence_start[silence_level], position);
+            for(; silence_level > magnitude; --silence_level)
+                silence_start[silence_level - 1] = position;
 
-            return false;
-        });
+            if(state[i] == State::ERROR_SKIP || state[i] == State::ERROR_C2)
+                sync_search = 0;
+            else if(sync_search < SYNC_SIZE_SAMPLES)
+                sync_search = samples[i] == ((uint32_t *)CD_DATA_SYNC)[sync_search] ? sync_search + 1 : 0;
+            else
+            {
+                MSF msf;
+                Scrambler::process((uint8_t *)&msf, (uint8_t *)&samples[i], sizeof(CD_DATA_SYNC), sizeof(msf));
+
+                SyncRecord record{ BCDMSF_to_LBA(msf), 1, sample_offset_a2r(position - SYNC_SIZE_SAMPLES) };
+
+                // a sector that continues the address flow of the last record extends it
+                bool extend = false;
+                if(!sync_records.empty())
+                {
+                    auto &b = sync_records.back();
+
+                    uint32_t offset_diff = record.sample_offset - b.sample_offset;
+                    int32_t range_diff = record.lba - b.lba;
+                    extend = range_diff * CD_DATA_SIZE_SAMPLES == offset_diff;
+                    if(extend)
+                        b.count = range_diff + 1;
+                }
+                if(!extend)
+                    sync_records.push_back(record);
+
+                sync_search = 0;
+            }
+        }
+    }
+
+    // every level ends with its trailing silence, leading and trailing silence are unbounded
+    int32_t base = LBA_START * CD_DATA_SIZE_SAMPLES;
+    for(int i = 0; i < silence_levels; ++i)
+    {
+        auto &ranges = silence_ranges[i];
+
+        ranges.emplace_back(i < silence_level ? samples_count : silence_start[i], 0);
+        for(auto &r : ranges)
+        {
+            r.first += base;
+            r.second += base;
+        }
+        ranges.front().first = std::numeric_limits<int32_t>::min();
+        ranges.back().second = std::numeric_limits<int32_t>::max();
+    }
 }
 
 
@@ -863,7 +935,7 @@ int32_t sample_offset_to_write_offset(int32_t scram_sample_offset, int32_t lba)
 
 
 // returns true if the write offsets of two records differ by less than the maximum offset shift
-bool disc_offset_records_in_flow(const SyncAnalyzer::Record &r1, const SyncAnalyzer::Record &r2)
+bool disc_offset_records_in_flow(const SyncRecord &r1, const SyncRecord &r2)
 {
     int32_t offset_diff = sample_offset_to_write_offset(r1.sample_offset, r1.lba) - sample_offset_to_write_offset(r2.sample_offset, r2.lba);
 
@@ -872,13 +944,13 @@ bool disc_offset_records_in_flow(const SyncAnalyzer::Record &r1, const SyncAnaly
 
 
 // sets the record LBA that brings its write offset nearest to the write offset of the reference record
-void disc_offset_derive_record_lba(SyncAnalyzer::Record &record, const SyncAnalyzer::Record &reference)
+void disc_offset_derive_record_lba(SyncRecord &record, const SyncRecord &reference)
 {
     record.lba = sample_to_lba(record.sample_offset + (int32_t)CD_DATA_SIZE_SAMPLES / 2, sample_offset_to_write_offset(reference.sample_offset, reference.lba));
 }
 
 
-void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
+void disc_offset_normalize_records(std::vector<SyncRecord> &records, std::fstream &scm_fs, std::fstream &state_fs, const Options &options)
 {
     // proactively erase false sync frames (if that ever happens)
     for(auto it = records.begin(); it != records.end();)
@@ -893,7 +965,7 @@ void disc_offset_normalize_records(std::vector<SyncAnalyzer::Record> &records, s
         return;
 
     // program area address flow starts at the record nearest to its position and extends both ways over records that continue it
-    auto anchor = std::min_element(records.begin(), records.end(), [](const SyncAnalyzer::Record &r1, const SyncAnalyzer::Record &r2)
+    auto anchor = std::min_element(records.begin(), records.end(), [](const SyncRecord &r1, const SyncRecord &r2)
         { return std::abs(sample_offset_to_write_offset(r1.sample_offset, r1.lba)) < std::abs(sample_offset_to_write_offset(r2.sample_offset, r2.lba)); });
     uint32_t flow_start = anchor - records.begin();
     uint32_t flow_end = flow_start + 1;
@@ -1139,26 +1211,20 @@ export void redumper_split_cd(Context &ctx, Options &options)
             LOG("warning: failed to parse CD-TEXT data");
     }
 
-    std::list<std::shared_ptr<Analyzer>> analyzers;
-
     auto index0_ranges = audio_get_toc_index0_ranges(toc);
 
     uint32_t samples_min = std::numeric_limits<uint32_t>::max();
     std::for_each(index0_ranges.begin(), index0_ranges.end(), [&samples_min](const std::pair<int32_t, int32_t> &r) { samples_min = std::min(samples_min, (uint32_t)(r.second - r.first)); });
-    auto silence_analyzer = std::make_shared<SilenceAnalyzer>(options.audio_silence_threshold, samples_min);
-    analyzers.emplace_back(silence_analyzer);
 
-    auto sync_analyzer = std::make_shared<SyncAnalyzer>();
-    analyzers.emplace_back(sync_analyzer);
+    std::vector<std::vector<std::pair<int32_t, int32_t>>> silence_ranges;
+    std::vector<SyncRecord> sync_records;
 
     LOG_F("analyzing... ");
     auto analysis_time_start = std::chrono::high_resolution_clock::now();
-    analyze_scram_samples(scm_fs, state_fs, std::filesystem::file_size(scm_path), CD_DATA_SIZE_SAMPLES, analyzers);
+    analyze_scram_samples(silence_ranges, sync_records, scm_fs, state_fs, std::filesystem::file_size(scm_path) / CD_SAMPLE_SIZE, options.audio_silence_threshold, samples_min);
     auto analysis_time_stop = std::chrono::high_resolution_clock::now();
     LOG("done (time: {}s)", std::chrono::duration_cast<std::chrono::seconds>(analysis_time_stop - analysis_time_start).count());
     LOG("");
-
-    auto silence_ranges = silence_analyzer->ranges();
 
     std::pair<int32_t, int32_t> nonzero_toc_range(toc.sessions.front().tracks.front().lba_start * CD_DATA_SIZE_SAMPLES, toc.sessions.back().tracks.back().lba_start * CD_DATA_SIZE_SAMPLES);
     auto nonzero_data_range = std::pair(silence_ranges.front().front().second, silence_ranges.front().back().first);
@@ -1168,8 +1234,6 @@ export void redumper_split_cd(Context &ctx, Options &options)
     // data track
     if(offsets.empty())
     {
-        auto sync_records = sync_analyzer->getRecords();
-
         bool data_track = false;
         for(auto const &o : sync_records)
             if(o.count >= CD_PREGAP_SIZE)

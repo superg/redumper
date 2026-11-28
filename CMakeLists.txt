@@ -96,9 +96,6 @@ target_sources(redumper
     "utils/throw_line.hh"
     "redumper.manifest"
     PRIVATE FILE_SET cxx_modules TYPE CXX_MODULES FILES
-    "analyzers/analyzer.ixx"
-    "analyzers/silence.ixx"
-    "analyzers/sync.ixx"
     "cd/cd.ixx"
     "cd/cd_common.ixx"
     "cd/cd_dump_extra.ixx"
